@@ -1,126 +1,195 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import {
-  computePrayerTimes,
-  formatHijri,
-  formatTime,
-  nextPrayer,
-  PRAYER_NAMES,
-  qiblaDirection,
-} from '@/lib/prayer';
-import { resetLocation, resolveLocation, type Loc } from '@/lib/location';
+import { Link } from 'expo-router';
+import { computePrayerTimes, formatTime, nextPrayer, PRAYER_NAMES, qiblaDirection } from '@/lib/prayer';
+import { resolveLocation, type Loc } from '@/lib/location';
 import { useTheme } from '@/context/ThemeContext';
-import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
+import { CompassIcon, MosqueIcon } from '@/components/Icons';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function PrayerTimes() {
   const { theme } = useTheme();
   const [loc, setLoc] = useState<Loc | null>(null);
-  const [times, setTimes] = useState<Date[] | null>(null);
-  const [now, setNow] = useState(() => new Date());
+  const [offset, setOffset] = useState(0); // days from today, -3..+3
 
   useEffect(() => {
     resolveLocation().then(setLoc);
   }, []);
 
-  useEffect(() => {
-    const iv = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(iv);
+  const selDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }, [offset]);
+
+  const days = useMemo(() => {
+    const arr: Date[] = [];
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
   }, []);
 
-  useEffect(() => {
-    if (loc) setTimes(computePrayerTimes(now, loc));
-  }, [loc, now]);
-
-  const refresh = async () => setLoc(await resetLocation());
-
-  if (!loc || !times) {
+  if (!loc) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <TopBar title="Prayer Times" />
-        <Text style={{ color: theme.subtext, textAlign: 'center', marginTop: 40, fontSize: 13.5 }}>
-          Locating you…
-        </Text>
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: theme.subtext, fontSize: 13 }}>Locating you…</Text>
       </View>
     );
   }
 
-  const np = nextPrayer(now, times);
-  const qibla = qiblaDirection(loc);
+  const times = computePrayerTimes(selDate, loc);
+  const isToday = offset === 0;
+  const now = new Date();
+  const np = isToday ? nextPrayer(now, times) : null;
+  const isFriday = selDate.getDay() === 5;
 
-  const iconFor = (name: string) =>
-    name === 'Sunrise' ? '🌅' : name === 'Maghrib' ? '🌇' : name === 'Isha' ? '🌙' : name === 'Fajr' ? '🌄' : '☀️';
+  const jumuahTime = (() => {
+    const d = new Date(selDate);
+    d.setHours(13, 15, 0, 0);
+    return d;
+  })();
+
+  const rows = [
+    ...PRAYER_NAMES.map((name, i) => ({ name, time: times[i], sunrise: name === 'Sunrise' })),
+    ...(isFriday ? [{ name: 'Jumu’ah' as const, time: jumuahTime, sunrise: false, jumuah: true }] : []),
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <TopBar
         title="Prayer Times"
-        subtitle={`${loc.name}${loc.isFallback ? ' (default — tap ↻ for your location)' : ''}`}
-        right={
-          <Pressable onPress={refresh} hitSlop={10}>
-            <Text style={{ color: theme.primary, fontSize: 20, fontWeight: '700' }}>↻</Text>
-          </Pressable>
-        }
+        subtitle={`${selDate.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${loc.name}`}
       />
       <View style={{ padding: 16 }}>
-        <Card style={{ backgroundColor: theme.primarySoft, borderColor: 'transparent', marginBottom: 10 }}>
-          <Text style={{ color: theme.subtext, fontSize: 11.5, fontWeight: '700' }}>{formatHijri(now)}</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <Text style={{ color: theme.text, fontWeight: '800', fontSize: 19 }}>Next: {np.name}</Text>
-            <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 19 }}>{formatTime(np.time)}</Text>
-          </View>
-        </Card>
+        {/* Date strip */}
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor: theme.card,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: theme.border,
+            padding: 8,
+            marginBottom: 14,
+          }}
+        >
+          {days.map((d, i) => {
+            const off = i - 3;
+            const selected = off === offset;
+            const today = i === 3;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => setOffset(off)}
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  paddingVertical: 8,
+                  borderRadius: 13,
+                  backgroundColor: selected ? theme.primary : 'transparent',
+                }}
+              >
+                <Text
+                  style={{
+                    color: selected ? 'rgba(255,255,255,0.8)' : theme.subtext,
+                    fontSize: 10.5,
+                    fontWeight: '700',
+                  }}
+                >
+                  {DAY_NAMES[d.getDay()]}
+                </Text>
+                <Text
+                  style={{
+                    color: selected ? '#fff' : today ? theme.primary : theme.text,
+                    fontSize: 15,
+                    fontWeight: '800',
+                    marginTop: 3,
+                  }}
+                >
+                  {d.getDate()}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-        {PRAYER_NAMES.map((name, i) => {
-          const isNext = i === np.index;
-          const past = times[i] <= now;
+        {/* Prayer list */}
+        {rows.map((r) => {
+          const isNext = np && r.name === np.name;
+          const index = PRAYER_NAMES.indexOf(r.name as (typeof PRAYER_NAMES)[number]);
+          const past = isToday && times[index] <= now;
           return (
-            <Card
-              key={name}
+            <View
+              key={r.name}
               style={{
-                marginBottom: 8,
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: isNext ? theme.primary : theme.card,
+                backgroundColor: isNext ? theme.primarySoft : theme.card,
+                borderRadius: 14,
+                borderWidth: 1,
                 borderColor: isNext ? theme.primary : theme.border,
+                paddingVertical: 13,
+                paddingHorizontal: 14,
+                marginBottom: 8,
               }}
             >
-              <Text style={{ fontSize: 19, width: 36, textAlign: 'center' }}>{iconFor(name)}</Text>
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={{ color: isNext ? '#fff' : theme.text, fontWeight: '800', fontSize: 15 }}>{name}</Text>
+              {'jumuah' in r && r.jumuah ? (
+                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: theme.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <MosqueIcon size={17} color={theme.accent} />
+                </View>
+              ) : null}
+              <View style={{ flex: 1, marginLeft: 'jumuah' in r && r.jumuah ? 12 : 0 }}>
+                <Text style={{ color: isNext ? theme.primaryDark : theme.text, fontWeight: '800', fontSize: 14.5 }}>
+                  {r.name}
+                </Text>
                 {past && !isNext ? (
-                  <Text style={{ color: isNext ? 'rgba(255,255,255,0.7)' : theme.subtext, fontSize: 11 }}>
-                    passed
-                  </Text>
+                  <Text style={{ color: theme.subtext, fontSize: 11 }}>passed</Text>
+                ) : isNext ? (
+                  <Text style={{ color: theme.primary, fontSize: 11, fontWeight: '700' }}>Next prayer</Text>
                 ) : null}
               </View>
-              <Text style={{ color: isNext ? '#fff' : theme.text, fontWeight: '700', fontSize: 15 }}>
-                {formatTime(times[i])}
+              <Text
+                style={{
+                  color: isNext ? theme.primary : theme.text,
+                  fontWeight: isNext ? '800' : '600',
+                  fontSize: 14.5,
+                }}
+              >
+                {formatTime(r.time)}
               </Text>
-            </Card>
+            </View>
           );
         })}
 
-        <Card style={{ marginTop: 14, alignItems: 'center' }}>
+        <Link href="/(tabs)/qibla" asChild>
           <View
             style={{
-              width: 74,
-              height: 74,
-              borderRadius: 37,
-              backgroundColor: theme.primarySoft,
+              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: 8,
+              backgroundColor: theme.card,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: theme.border,
+              padding: 14,
+              marginTop: 4,
             }}
           >
-            <Text style={{ fontSize: 30, transform: [{ rotate: `${qibla}deg` }] }}>🧭</Text>
+            <CompassIcon size={17} color={theme.primary} />
+            <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 13 }}>Open Qibla Finder</Text>
           </View>
-          <Text style={{ color: theme.text, fontWeight: '700', marginTop: 10, fontSize: 14.5 }}>
-            Qibla: {qibla.toFixed(1)}° from north
-          </Text>
-          <Text style={{ color: theme.subtext, fontSize: 11.5, marginTop: 4 }}>
-            Face this angle from true north toward the Ka’bah
-          </Text>
-        </Card>
+        </Link>
+
+        <Text style={{ color: theme.subtext, fontSize: 11, textAlign: 'center', marginTop: 12, lineHeight: 16 }}>
+          Muslim World League method · Shafi madhab · Qibla {qiblaDirection(loc).toFixed(1)}°
+        </Text>
       </View>
     </View>
   );

@@ -115,3 +115,24 @@ export function formatTime(d: Date): string {
 export function qiblaDirection(coords: { latitude: number; longitude: number }): number {
   return Qibla(new Coordinates(coords.latitude, coords.longitude));
 }
+
+export const KAABA = {
+  latitude: 21.4225,
+  longitude: 39.8262,
+  name: 'Kaaba, Makkah, Saudi Arabia',
+};
+
+/** Great-circle distance in km (haversine). */
+export function distanceKm(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const R = 6371;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const la1 = (a.latitude * Math.PI) / 180;
+  const la2 = (b.latitude * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+

@@ -168,3 +168,49 @@ export const OFFLINE_TEXT: Record<number, Ayah[]> = {
     { numberInSurah: 6, arabic: 'مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ', english: 'from among the jinn and mankind.' },
   ],
 };
+
+/** First surah of each of the 30 juz (1-indexed). */
+export const JUZ_START = [1, 2, 3, 5, 7, 9, 11, 13, 16, 18, 21, 23, 25, 28, 30, 33, 36, 39, 41, 44, 47, 50, 52, 55, 58, 61, 63, 66, 69, 72];
+
+/** Common juz names (abbreviated bismillah verses). */
+export const JUZ_NAMES = [
+  'Alif Lam Mim',
+  'Alif Lam Mim',
+  'Alif Lam Mim',
+  'An Nisa',
+  'Man Tikuffir',
+  'Sadqahu Allah',
+  'Dhu al-Mital',
+  "Ta'lamu",
+  'Fa Idha',
+  'Wa La Yuhabbill',
+  'Wa Awsi',
+  'Al-Yusuf',
+  'Wa Maua',
+  'Qala Mala',
+  "Fala Uqsimu",
+  'Qul Huwallah',
+  "Qul A'udhu",
+  'Qad Zafa',
+  "A'manat",
+  "Wa 'Adah",
+  'Utlu Ma Utiya',
+  'Wa Yuqatil',
+  "Ya'ayyuhal",
+  'Iqsat',
+  'Iqsat',
+  'Iqtaraba',
+  'Hal Atal',
+  'Qad Zala',
+  'Qala Qad',
+  "'Amma Yasa'u",
+];
+
+export function juzOfSurah(number: number): number {
+  let j = 1;
+  for (let i = 0; i < JUZ_START.length; i++) {
+    if (number >= JUZ_START[i]) j = i + 1;
+  }
+  return j;
+}
+

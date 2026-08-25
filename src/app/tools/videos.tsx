@@ -4,10 +4,12 @@ import { api } from '@/api/client';
 import type { Video } from '@/api/mocks';
 import { useTheme } from '@/context/ThemeContext';
 import { TopBar } from '@/components/TopBar';
+import { ChevronRightIcon, PlayIcon } from '@/components/Icons';
 
 export default function Videos() {
   const { theme } = useTheme();
   const [items, setItems] = useState<Video[]>([]);
+
   useEffect(() => {
     api.videos().then(setItems);
   }, []);
@@ -46,18 +48,18 @@ export default function Videos() {
                 justifyContent: 'center',
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 21 }}>▶</Text>
+              <PlayIcon size={22} color="#fff" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>{v.title}</Text>
-              <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 3 }}>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13.5 }}>{v.title}</Text>
+              <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 3 }}>
                 {v.teacher} · {v.duration}
               </Text>
             </View>
-            <Text style={{ color: theme.subtext, fontSize: 18, marginLeft: 8 }}>›</Text>
+            <ChevronRightIcon size={16} color={theme.subtext} />
           </Pressable>
         ))}
-        <Text style={{ color: theme.subtext, fontSize: 11.5, textAlign: 'center', marginTop: 6 }}>
+        <Text style={{ color: theme.subtext, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
           Demo list — connects to your /videos endpoint. In-app playback ships with react-native-video in v1.1.
         </Text>
       </ScrollView>
