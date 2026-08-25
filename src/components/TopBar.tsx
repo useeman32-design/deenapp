@@ -1,6 +1,7 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
+import { T } from '@/components/T';
 
 export function TopBar({
   title,
@@ -20,22 +21,20 @@ export function TopBar({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 10,
-        paddingBottom: 12,
-        backgroundColor: theme.card,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.border,
+        paddingHorizontal: 18,
+        paddingTop: 12,
+        paddingBottom: 14,
+        backgroundColor: theme.background,
       }}
     >
       {showBack ? (
-        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 10 }}>
-          <Text style={{ fontSize: 26, color: theme.primary, lineHeight: 30 }}>‹</Text>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
+          <T v="h2" color="primary" style={{ fontSize: 18 }}>‹</T>
         </Pressable>
       ) : null}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>{title}</Text>
-        {subtitle ? <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 1 }}>{subtitle}</Text> : null}
+        <T v="h1">{title}</T>
+        {subtitle ? <T v="caption" style={{ marginTop: 2 }}>{subtitle}</T> : null}
       </View>
       {right}
     </View>

@@ -40,7 +40,7 @@ export default function Quiz() {
         <TopBar title="Quiz" />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Text style={{ fontSize: 56 }}>🏆</Text>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: theme.text, marginTop: 12 }}>
+          <Text style={{ fontFamily: 'Sora', fontSize: 26, fontWeight: '800', color: theme.text, marginTop: 12 }}>
             {score} / {MOCK_QUIZ.length}
           </Text>
           <Text style={{ color: theme.subtext, marginTop: 8, textAlign: 'center', fontSize: 13.5 }}>

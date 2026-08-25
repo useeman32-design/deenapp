@@ -49,7 +49,7 @@ export default function Names() {
               <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14.5 }}>{n.transliteration}</Text>
               <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 2 }}>{n.meaning}</Text>
             </View>
-            <Text style={{ color: theme.primary, fontSize: 23, marginLeft: 10 }}>{n.arabic}</Text>
+            <Text style={{ fontFamily: 'Amiri', color: theme.primary, fontSize: 23, marginLeft: 10 }}>{n.arabic}</Text>
           </Card>
         ))}
       </ScrollView>

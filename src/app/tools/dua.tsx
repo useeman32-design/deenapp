@@ -59,7 +59,7 @@ export default function Duas() {
               </View>
               {expanded ? (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ fontSize: 23, color: theme.primary, textAlign: 'right', lineHeight: 36 }}>
+                  <Text style={{ fontFamily: 'Amiri', fontSize: 23, color: theme.primary, textAlign: 'right', lineHeight: 36 }}>
                     {d.arabic}
                   </Text>
                   <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 10, fontStyle: 'italic', lineHeight: 18 }}>

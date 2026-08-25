@@ -1,7 +1,9 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { Avatar } from '@/components/Avatar';
+import { Surface } from '@/components/Surface';
+import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import {
   BellIcon,
@@ -13,16 +15,28 @@ import {
   HelpIcon,
   InfoIcon,
   LockIcon,
+  MedalIcon,
+  TargetIcon,
 } from '@/components/Icons';
 
-const MENU = [
-  { label: 'Account Settings', icon: GearIcon },
-  { label: 'Reminders', icon: BellIcon },
-  { label: 'Saved', icon: BookmarkIcon },
-  { label: 'Downloads', icon: DownloadIcon },
-  { label: 'Privacy', icon: LockIcon },
-  { label: 'Help & Support', icon: HelpIcon },
-  { label: 'About DeenLink', icon: InfoIcon },
+const SECTIONS: { title: string; items: { label: string; icon: typeof GearIcon }[] }[] = [
+  {
+    title: 'Account',
+    items: [
+      { label: 'Account settings', icon: GearIcon },
+      { label: 'Reminders', icon: BellIcon },
+      { label: 'Saved', icon: BookmarkIcon },
+      { label: 'Downloads', icon: DownloadIcon },
+    ],
+  },
+  {
+    title: 'Privacy & support',
+    items: [
+      { label: 'Privacy', icon: LockIcon },
+      { label: 'Help & support', icon: HelpIcon },
+      { label: 'About DeenLink', icon: InfoIcon },
+    ],
+  },
 ];
 
 export default function Profile() {
@@ -34,80 +48,65 @@ export default function Profile() {
       <TopBar title="Profile" />
       <View style={{ padding: 16 }}>
         {/* Header */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: theme.card,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: theme.border,
-            padding: 14,
-          }}
-        >
+        <Surface style={{ flexDirection: 'row', alignItems: 'center', padding: 15 }}>
           <Avatar name={user?.name ?? 'U'} color={theme.primary} size={54} />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ color: theme.heading, fontSize: 16.5, fontWeight: '800' }}>{user?.name}</Text>
-            <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 3 }}>View and edit your profile</Text>
+            <T v="h2">{user?.name ?? 'DeenLink User'}</T>
+            <T v="caption" style={{ marginTop: 3 }}>View and edit your profile</T>
           </View>
-          <ChevronRightIcon size={18} color={theme.subtext} />
+          <ChevronRightIcon size={17} color={theme.subtext} />
+        </Surface>
+
+        {/* Stats */}
+        <View style={{ flexDirection: 'row', gap: 9, marginTop: 10 }}>
+          {[
+            { icon: <FlameIcon size={16} color={theme.accent} />, tile: theme.accentSoft, value: '12', label: 'Day streak' },
+            { icon: <TargetIcon size={16} color={theme.primary} />, tile: theme.primarySoft, value: '63%', label: 'Goals met' },
+            { icon: <MedalIcon size={16} color={theme.accent} />, tile: theme.accentSoft, value: '3', label: 'Awards' },
+          ].map((s) => (
+            <Surface key={s.label} style={{ flex: 1, alignItems: 'center', padding: 12 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center' }}>
+                {s.icon}
+              </View>
+              <T v="stat" style={{ marginTop: 7, fontSize: 17 }}>{s.value}</T>
+              <T v="caption" style={{ marginTop: 1 }}>{s.label}</T>
+            </Surface>
+          ))}
         </View>
 
-        {/* Streak */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: theme.card,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: theme.border,
-            padding: 14,
-            marginTop: 10,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.primarySoft, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 9 }}>
-            <FlameIcon size={17} color={theme.accent} />
-            <View>
-              <Text style={{ color: theme.subtext, fontSize: 10.5, fontWeight: '700' }}>Streak</Text>
-              <Text style={{ color: theme.heading, fontSize: 13.5, fontWeight: '800' }}>12 days</Text>
-            </View>
+        {/* Menu sections */}
+        {SECTIONS.map((sec) => (
+          <View key={sec.title} style={{ marginTop: 18 }}>
+            <T v="meta" uppercase style={{ marginBottom: 9, letterSpacing: 1.2 }}>{sec.title}</T>
+            <Surface style={{ overflow: 'hidden' }}>
+              {sec.items.map((m, i) => {
+                const Icon = m.icon;
+                return (
+                  <View
+                    key={m.label}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 13,
+                      borderTopWidth: i === 0 ? 0 : 1,
+                      borderTopColor: theme.border,
+                    }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon size={17} color={theme.primary} />
+                    </View>
+                    <T v="bodyS" style={{ flex: 1, marginLeft: 12, fontWeight: '600' }}>{m.label}</T>
+                    <ChevronRightIcon size={15} color={theme.subtext} />
+                  </View>
+                );
+              })}
+            </Surface>
           </View>
-          <FlameIcon size={26} color={theme.accent} />
-        </View>
-
-        {/* Menu */}
-        {MENU.map((m) => {
-          const Icon = m.icon;
-          return (
-            <View
-              key={m.label}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: theme.card,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: theme.border,
-                paddingVertical: 13,
-                paddingHorizontal: 14,
-                marginTop: 8,
-              }}
-            >
-              <Icon size={19} color={theme.primary} />
-              <Text style={{ flex: 1, color: theme.text, fontWeight: '700', fontSize: 13.5, marginLeft: 12 }}>
-                {m.label}
-              </Text>
-              <ChevronRightIcon size={16} color={theme.subtext} />
-            </View>
-          );
-        })}
+        ))}
 
         {/* Appearance */}
-        <Text style={{ color: theme.heading, fontSize: 13.5, fontWeight: '800', marginTop: 20, marginBottom: 10 }}>
-          Appearance
-        </Text>
+        <T v="meta" uppercase style={{ marginTop: 18, marginBottom: 9, letterSpacing: 1.2 }}>Appearance</T>
         <View
           style={{
             flexDirection: 'row',
@@ -115,7 +114,7 @@ export default function Profile() {
             borderRadius: 16,
             borderWidth: 1,
             borderColor: theme.border,
-            padding: 6,
+            padding: 5,
           }}
         >
           {(['system', 'light', 'dark'] as ThemeMode[]).map((m) => (
@@ -125,46 +124,39 @@ export default function Profile() {
               style={{
                 flex: 1,
                 borderRadius: 12,
-                paddingVertical: 10,
+                paddingVertical: 9,
                 alignItems: 'center',
                 backgroundColor: mode === m ? theme.primarySoft : 'transparent',
                 borderWidth: 1,
                 borderColor: mode === m ? theme.primary : 'transparent',
               }}
             >
-              <Text
-                style={{
-                  color: mode === m ? theme.primary : theme.subtext,
-                  fontWeight: '700',
-                  fontSize: 12.5,
-                  textTransform: 'capitalize',
-                }}
-              >
+              <T v="caption" color={mode === m ? 'primary' : 'subtext'} style={{ textTransform: 'capitalize', fontWeight: '700' }}>
                 {m}
-              </Text>
+              </T>
             </Pressable>
           ))}
         </View>
 
         {isDemo ? (
-          <Text style={{ color: theme.subtext, fontSize: 11, marginTop: 16, textAlign: 'center', lineHeight: 16 }}>
+          <T v="caption" style={{ marginTop: 16, textAlign: 'center', lineHeight: 17 }}>
             🧪 Demo mode — signed in locally. Point EXPO_PUBLIC_API_URL at your PHP backend to go live.
-          </Text>
+          </T>
         ) : null}
 
         <Pressable
           onPress={logout}
-          style={{
-            backgroundColor: 'rgba(214,69,69,0.08)',
+          style={({ pressed }) => ({
             borderRadius: 14,
-            borderWidth: 1,
+            borderWidth: 1.2,
             borderColor: theme.danger,
-            padding: 14,
+            padding: 13,
             alignItems: 'center',
             marginTop: 18,
-          }}
+            opacity: pressed ? 0.8 : 1,
+          })}
         >
-          <Text style={{ color: theme.danger, fontWeight: '800', fontSize: 14.5 }}>Sign out</Text>
+          <T v="button" color="danger">Sign out</T>
         </Pressable>
       </View>
     </View>

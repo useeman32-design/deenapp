@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Link } from 'expo-router';
 import { computePrayerTimes, formatTime, nextPrayer, PRAYER_NAMES, qiblaDirection } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { useTheme } from '@/context/ThemeContext';
+import { Surface } from '@/components/Surface';
+import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { CompassIcon, MosqueIcon } from '@/components/Icons';
 
@@ -38,7 +40,7 @@ export default function PrayerTimes() {
   if (!loc) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: theme.subtext, fontSize: 13 }}>Locating you…</Text>
+        <T v="caption">Locating you…</T>
       </View>
     );
   }
@@ -55,30 +57,20 @@ export default function PrayerTimes() {
     return d;
   })();
 
-  const rows = [
-    ...PRAYER_NAMES.map((name, i) => ({ name, time: times[i], sunrise: name === 'Sunrise' })),
-    ...(isFriday ? [{ name: 'Jumu’ah' as const, time: jumuahTime, sunrise: false, jumuah: true }] : []),
+  const rows: { name: string; time: Date; jumuah?: boolean }[] = [
+    ...PRAYER_NAMES.map((name, i) => ({ name, time: times[i] })),
+    ...(isFriday ? [{ name: 'Jumu’ah', time: jumuahTime, jumuah: true }] : []),
   ];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <TopBar
-        title="Prayer Times"
+        title="Prayer times"
         subtitle={`${selDate.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${loc.name}`}
       />
       <View style={{ padding: 16 }}>
         {/* Date strip */}
-        <View
-          style={{
-            flexDirection: 'row',
-            backgroundColor: theme.card,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: theme.border,
-            padding: 8,
-            marginBottom: 14,
-          }}
-        >
+        <Surface style={{ flexDirection: 'row', padding: 7, marginBottom: 14 }}>
           {days.map((d, i) => {
             const off = i - 3;
             const selected = off === offset;
@@ -91,39 +83,32 @@ export default function PrayerTimes() {
                   flex: 1,
                   alignItems: 'center',
                   paddingVertical: 8,
-                  borderRadius: 13,
+                  borderRadius: 12,
                   backgroundColor: selected ? theme.primary : 'transparent',
                 }}
               >
-                <Text
-                  style={{
-                    color: selected ? 'rgba(255,255,255,0.8)' : theme.subtext,
-                    fontSize: 10.5,
-                    fontWeight: '700',
-                  }}
+                <T
+                  v="meta"
+                  style={{ letterSpacing: 0.5, color: selected ? 'rgba(255,255,255,0.85)' : theme.subtext }}
                 >
                   {DAY_NAMES[d.getDay()]}
-                </Text>
-                <Text
-                  style={{
-                    color: selected ? '#fff' : today ? theme.primary : theme.text,
-                    fontSize: 15,
-                    fontWeight: '800',
-                    marginTop: 3,
-                  }}
+                </T>
+                <T
+                  v="h3"
+                  style={{ color: selected ? '#fff' : today ? theme.primary : theme.text }}
                 >
                   {d.getDate()}
-                </Text>
+                </T>
               </Pressable>
             );
           })}
-        </View>
+        </Surface>
 
         {/* Prayer list */}
         {rows.map((r) => {
           const isNext = np && r.name === np.name;
           const index = PRAYER_NAMES.indexOf(r.name as (typeof PRAYER_NAMES)[number]);
-          const past = isToday && times[index] <= now;
+          const past = isToday && index >= 0 && times[index] <= now;
           return (
             <View
               key={r.name}
@@ -132,44 +117,39 @@ export default function PrayerTimes() {
                 alignItems: 'center',
                 backgroundColor: isNext ? theme.primarySoft : theme.card,
                 borderRadius: 14,
-                borderWidth: 1,
+                borderWidth: 1.2,
                 borderColor: isNext ? theme.primary : theme.border,
                 paddingVertical: 13,
                 paddingHorizontal: 14,
                 marginBottom: 8,
               }}
             >
-              {'jumuah' in r && r.jumuah ? (
-                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: theme.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+              {r.jumuah ? (
+                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: theme.accentSoft, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
                   <MosqueIcon size={17} color={theme.accent} />
                 </View>
               ) : null}
-              <View style={{ flex: 1, marginLeft: 'jumuah' in r && r.jumuah ? 12 : 0 }}>
-                <Text style={{ color: isNext ? theme.primaryDark : theme.text, fontWeight: '800', fontSize: 14.5 }}>
+              <View style={{ flex: 1 }}>
+                <T v="h3" color={isNext ? 'primary' : 'text'}>
                   {r.name}
-                </Text>
-                {past && !isNext ? (
-                  <Text style={{ color: theme.subtext, fontSize: 11 }}>passed</Text>
-                ) : isNext ? (
-                  <Text style={{ color: theme.primary, fontSize: 11, fontWeight: '700' }}>Next prayer</Text>
+                </T>
+                {past && !isNext ? <T v="caption" style={{ marginTop: 1 }}>passed</T> : null}
+                {isNext ? (
+                  <T v="caption" color="primary" style={{ marginTop: 1, fontWeight: '700' }}>
+                    next prayer
+                  </T>
                 ) : null}
               </View>
-              <Text
-                style={{
-                  color: isNext ? theme.primary : theme.text,
-                  fontWeight: isNext ? '800' : '600',
-                  fontSize: 14.5,
-                }}
-              >
+              <T v={isNext ? 'stat' : 'h3'} color={isNext ? 'primary' : 'text'} style={{ fontSize: isNext ? 18 : 15 }}>
                 {formatTime(r.time)}
-              </Text>
+              </T>
             </View>
           );
         })}
 
         <Link href="/(tabs)/qibla" asChild>
-          <View
-            style={{
+          <Pressable
+            style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
@@ -180,16 +160,19 @@ export default function PrayerTimes() {
               borderColor: theme.border,
               padding: 14,
               marginTop: 4,
-            }}
+              opacity: pressed ? 0.8 : 1,
+            })}
           >
             <CompassIcon size={17} color={theme.primary} />
-            <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 13 }}>Open Qibla Finder</Text>
-          </View>
+            <T v="bodyS" color="primary" style={{ fontWeight: '700' }}>
+              Open Qibla Finder
+            </T>
+          </Pressable>
         </Link>
 
-        <Text style={{ color: theme.subtext, fontSize: 11, textAlign: 'center', marginTop: 12, lineHeight: 16 }}>
-          Muslim World League method · Shafi madhab · Qibla {qiblaDirection(loc).toFixed(1)}°
-        </Text>
+        <T v="caption" style={{ textAlign: 'center', marginTop: 14, lineHeight: 17 }}>
+          Muslim World League · Shafi madhab · Qibla {qiblaDirection(loc).toFixed(1)}°
+        </T>
       </View>
     </View>
   );

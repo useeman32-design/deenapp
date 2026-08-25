@@ -22,7 +22,7 @@ export function DhikrCounter({
   const done = target > 0 && count >= target;
   return (
     <View style={{ alignItems: 'center', paddingVertical: 6 }}>
-      {arabic ? <Text style={{ fontSize: 27, color: theme.text, marginBottom: 4 }}>{arabic}</Text> : null}
+      {arabic ? <Text style={{ fontSize: 27, fontFamily: 'Amiri', color: theme.text, marginBottom: 4 }}>{arabic}</Text> : null}
       {label ? <Text style={{ color: theme.subtext, fontSize: 13, marginBottom: 14 }}>{label}</Text> : null}
 
       <Pressable
@@ -41,7 +41,7 @@ export function DhikrCounter({
           pressed && { transform: [{ scale: 0.97 }] },
         ]}
       >
-        <Text style={{ fontSize: 54, fontWeight: '800', color: theme.primary }}>{count}</Text>
+        <Text style={{ fontSize: 54, fontFamily: 'Sora', fontWeight: '800', color: theme.primary }}>{count}</Text>
         <Text style={{ color: theme.subtext, marginTop: 4, fontSize: 14, fontWeight: '600' }}>
           {target > 0 ? `of ${target}` : 'unlimited'}
         </Text>

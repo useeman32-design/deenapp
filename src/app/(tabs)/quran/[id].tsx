@@ -84,7 +84,7 @@ export default function SurahDetail() {
             >
               <Text style={{ color: theme.primary, fontSize: 11, fontWeight: '800' }}>{a.numberInSurah}</Text>
             </View>
-            <Text style={{ fontSize: 25, color: theme.text, textAlign: 'right', lineHeight: 42 }}>{a.arabic}</Text>
+            <Text style={{ fontSize: 25, fontFamily: 'Amiri', color: theme.text, textAlign: 'right', lineHeight: 46 }}>{a.arabic}</Text>
             {a.english ? (
               <Text style={{ color: theme.subtext, fontSize: 13.5, marginTop: 10, lineHeight: 20 }}>{a.english}</Text>
             ) : null}

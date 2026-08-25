@@ -25,7 +25,7 @@ export default function CalendarScreen() {
           <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '700' }}>
             {HIJRI_WEEKDAYS[h.weekday].toUpperCase()}
           </Text>
-          <Text style={{ color: '#fff', fontSize: 29, fontWeight: '800', marginTop: 6 }}>{formatHijri(now)}</Text>
+          <Text style={{ fontFamily: 'Sora', color: '#fff', fontSize: 29, fontWeight: '800', marginTop: 6 }}>{formatHijri(now)}</Text>
           <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12.5, marginTop: 8 }}>{formatGregorian(now)}</Text>
         </Card>
 

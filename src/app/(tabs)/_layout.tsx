@@ -1,28 +1,46 @@
-import { Redirect, Tabs } from 'expo-router';
 import type { ComponentType } from 'react';
 import { View } from 'react-native';
+import { Redirect, Tabs } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { T } from '@/components/T';
 import { BookIcon, HomeIcon, MosqueIcon, UserIcon, UsersIcon, type IconProps } from '@/components/Icons';
 
 export default function TabsLayout() {
   const { ready, user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   if (!ready) return null;
   if (!user) return <Redirect href="/(auth)/login" />;
 
   const tabIcon = (Icon: ComponentType<IconProps>) => ({ focused }: { focused: boolean }) => (
-    <Icon size={23} color={focused ? theme.primary : theme.subtext} />
+    <View
+      style={{
+        width: 46,
+        height: 30,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? theme.primarySoft : 'transparent',
+      }}
+    >
+      <Icon size={21} color={focused ? theme.primary : theme.subtext} />
+    </View>
   );
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border, height: 64, paddingTop: 6 },
+        tabBarStyle: {
+          backgroundColor: theme.card,
+          borderTopWidth: isDark ? 1 : 0,
+          borderTopColor: theme.border,
+          height: 62,
+          paddingTop: 4,
+        },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.subtext,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontFamily: 'Manrope', fontSize: 10, fontWeight: '700', marginTop: -2 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: tabIcon(HomeIcon) }} />
@@ -45,13 +63,13 @@ export default function TabsLayout() {
                 borderWidth: 4,
                 borderColor: theme.card,
                 shadowColor: '#000',
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 8,
+                shadowOpacity: 0.3,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 5 },
+                elevation: 10,
               }}
             >
-              <MosqueIcon size={27} color="#fff" />
+              <MosqueIcon size={26} color="#fff" />
             </View>
           ),
         }}

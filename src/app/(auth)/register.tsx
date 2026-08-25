@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { DeenLogo } from '@/components/DeenLogo';
 import { GradientButton } from '@/components/GradientButton';
+import { Surface } from '@/components/Surface';
+import { T } from '@/components/T';
+import { InputField } from '@/components/InputField';
 import { CheckIcon, LockIcon, MailIcon, UserIcon } from '@/components/Icons';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
@@ -28,111 +31,89 @@ export default function Register() {
       setError('Passwords do not match');
       return;
     }
+    if (!password) {
+      setError('Please enter a password');
+      return;
+    }
     setBusy(true);
     const user = (name.trim() || email.split('@')[0] || 'DeenLink User').trim();
     await register({
       name: user,
       username: user.split(/\s+/)[0].toLowerCase(),
       email: email.trim() || 'demo@deenlink.org',
-      password: password || 'demo1234',
+      password,
       mizhab: 'Sunni',
     });
     router.replace('/(tabs)');
   };
 
-  const field = {
-    backgroundColor: isDark ? '#0D1D16' : '#FAF8F2',
-    borderWidth: 1,
-    borderColor: theme.border,
-    borderRadius: 14,
-    paddingLeft: 44,
-    paddingRight: 16,
-    paddingVertical: 13,
-    color: theme.text,
-    fontSize: 14,
-  };
-
-  const label = { color: theme.text, fontWeight: '700' as const, fontSize: 12.5, marginTop: 15, marginBottom: 7 };
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <Image
         source={isDark ? patternDark : patternLight}
         style={{ position: 'absolute', width: '100%', height: '100%' }}
         resizeMode="cover"
       />
-      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(5, 13, 9, 0.42)' : 'rgba(246, 243, 235, 0.55)' }} />
+      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(5, 13, 9, 0.5)' : 'rgba(247, 245, 239, 0.62)' }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 22 }} showsVerticalScrollIndicator={false}>
-          <View style={{ alignItems: 'center', marginBottom: 16 }}>
-            <DeenLogo size={64} color={theme.primary} accent={theme.accent} />
-            <Text style={{ fontSize: 24, fontWeight: '800', color: theme.heading, marginTop: 8 }}>Create Account</Text>
-            <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 4 }}>Start your journey with DeenLink</Text>
+          <View style={{ alignItems: 'center', marginBottom: 18 }}>
+            <DeenLogo size={58} color={theme.primary} accent={theme.accent} />
+            <T v="h1" style={{ marginTop: 8 }}>Create account</T>
+            <T v="caption" style={{ marginTop: 4 }}>Start your journey with DeenLink</T>
           </View>
 
-          <View style={{ backgroundColor: theme.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: theme.border }}>
-            <Text style={label}>Full Name</Text>
-            <View style={{ position: 'relative' }}>
-              <View style={{ position: 'absolute', left: 14, top: 13 }}>
-                <UserIcon size={17} color={theme.subtext} />
-              </View>
-              <TextInput value={name} onChangeText={setName} placeholder="Enter your name" placeholderTextColor={theme.subtext} style={field} />
-            </View>
+          <Surface elevated style={{ padding: 20 }}>
+            <InputField
+              label="Full name"
+              value={name}
+              onChangeText={setName}
+              icon={UserIcon}
+              placeholder="Enter your name"
+              autoCapitalize="words"
+            />
+            <InputField
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              icon={MailIcon}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              style={{ marginTop: 14 }}
+            />
+            <InputField
+              label="Password"
+              value={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                setError('');
+              }}
+              icon={LockIcon}
+              secure
+              placeholder="Create a password"
+              style={{ marginTop: 14 }}
+            />
+            <InputField
+              label="Confirm password"
+              value={confirm}
+              onChangeText={(t) => {
+                setConfirm(t);
+                setError('');
+              }}
+              icon={LockIcon}
+              secure
+              placeholder="Confirm your password"
+              returnKeyType="done"
+              style={{ marginTop: 14 }}
+              error={error || undefined}
+            />
 
-            <Text style={label}>Email</Text>
-            <View style={{ position: 'relative' }}>
-              <View style={{ position: 'absolute', left: 14, top: 13 }}>
-                <MailIcon size={17} color={theme.subtext} />
-              </View>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor={theme.subtext}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={field}
-              />
-            </View>
-
-            <Text style={label}>Password</Text>
-            <View style={{ position: 'relative' }}>
-              <View style={{ position: 'absolute', left: 14, top: 13 }}>
-                <LockIcon size={17} color={theme.subtext} />
-              </View>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Create a password"
-                placeholderTextColor={theme.subtext}
-                secureTextEntry
-                style={field}
-              />
-            </View>
-
-            <Text style={label}>Confirm Password</Text>
-            <View style={{ position: 'relative' }}>
-              <View style={{ position: 'absolute', left: 14, top: 13 }}>
-                <LockIcon size={17} color={theme.subtext} />
-              </View>
-              <TextInput
-                value={confirm}
-                onChangeText={setConfirm}
-                placeholder="Confirm your password"
-                placeholderTextColor={theme.subtext}
-                secureTextEntry
-                style={field}
-              />
-            </View>
-
-            {error ? <Text style={{ color: theme.danger, fontSize: 12, marginTop: 10 }}>{error}</Text> : null}
-
-            <Pressable onPress={() => setAgree((a) => !a)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 }} hitSlop={6}>
+            <Pressable onPress={() => setAgree((a) => !a)} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 16 }} hitSlop={6}>
               <View
                 style={{
                   width: 18,
                   height: 18,
-                  borderRadius: 5,
+                  borderRadius: 6,
                   backgroundColor: agree ? theme.primary : 'transparent',
                   borderWidth: 1.5,
                   borderColor: agree ? theme.primary : theme.border,
@@ -142,21 +123,29 @@ export default function Register() {
               >
                 {agree ? <CheckIcon size={11} color="#fff" strokeWidth={3} /> : null}
               </View>
-              <Text style={{ color: theme.subtext, fontSize: 11.5, lineHeight: 16 }}>
-                I agree to the <Text style={{ color: theme.primary, fontWeight: '700' }}>Terms & Conditions</Text> and{' '}
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Privacy Policy</Text>
-              </Text>
+              <T v="caption" style={{ flex: 1, lineHeight: 17 }}>
+                I agree to the{' '}
+                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
+                  Terms & Conditions
+                </T>{' '}
+                and{' '}
+                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
+                  Privacy Policy
+                </T>
+              </T>
             </Pressable>
 
-            <GradientButton label={busy ? 'Creating…' : 'Sign Up'} onPress={submit} disabled={busy || !agree} style={{ marginTop: 16 }} />
+            <GradientButton label={busy ? 'Creating…' : 'Sign Up'} onPress={submit} disabled={busy || !agree} style={{ marginTop: 18 }} />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16 }}>
-              <Text style={{ color: theme.subtext, fontSize: 12.5 }}>Already have an account? </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
+              <T v="caption">Already have an account? </T>
               <Link href="/(auth)/login" asChild>
-                <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 12.5 }}>Log in</Text>
+                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
+                  Log in
+                </T>
               </Link>
             </View>
-          </View>
+          </Surface>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

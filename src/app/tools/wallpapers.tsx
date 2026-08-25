@@ -56,7 +56,7 @@ export default function Wallpapers() {
             onPress={() => setSel(null)}
             style={{ flex: 1, backgroundColor: sel.from, justifyContent: 'center', alignItems: 'center' }}
           >
-            <Text style={{ color: '#fff', fontSize: 40, textAlign: 'center', padding: 24 }}>{sel.arabic}</Text>
+            <Text style={{ fontFamily: 'Amiri', color: '#fff', fontSize: 40, textAlign: 'center', padding: 24 }}>{sel.arabic}</Text>
             <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 10 }}>{sel.caption}</Text>
             <View
               style={{

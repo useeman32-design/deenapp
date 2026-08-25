@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
@@ -9,15 +9,19 @@ import { storage } from '@/lib/storage';
 import { ArchCard } from '@/components/ArchCard';
 import { PrayerArc } from '@/components/PrayerArc';
 import { Avatar } from '@/components/Avatar';
+import { T } from '@/components/T';
+import { SectionHeader } from '@/components/SectionHeader';
 import {
   BeadsIcon,
   BellIcon,
   BookIcon,
   CalendarIcon,
+  ClockIcon,
   CompassIcon,
   FlameIcon,
   HeartIcon,
   MedalIcon,
+  PinIcon,
   ScrollIcon,
   TargetIcon,
 } from '@/components/Icons';
@@ -27,15 +31,17 @@ const QUICK = [
   { label: 'Hadith', icon: ScrollIcon, href: '/tools/hadith' },
   { label: 'Duas', icon: HeartIcon, href: '/tools/dua' },
   { label: 'Tasbeeh', icon: BeadsIcon, href: '/tools/tasbeeh' },
+  { label: 'Prayers', icon: ClockIcon, href: '/tools/prayer' },
   { label: 'Calendar', icon: CalendarIcon, href: '/tools/calendar' },
 ] as const;
 
 export default function Home() {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [loc, setLoc] = useState<Loc | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [dhikrTotal, setDhikrTotal] = useState(0);
+  const [dhikrTotal, setDhikrTotal] = useState(160);
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -51,7 +57,8 @@ export default function Home() {
       if (raw) {
         try {
           const c = JSON.parse(raw) as Record<string, number>;
-          setDhikrTotal(Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0));
+          const total = Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0);
+          if (total > 0) setDhikrTotal(total);
         } catch {
           // ignore
         }
@@ -86,17 +93,16 @@ export default function Home() {
             <Avatar name={user?.name ?? 'U'} color={theme.primary} size={34} />
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ color: theme.subtext, fontSize: 12 }}>Assalamu’alaikum,</Text>
-            <Text style={{ color: theme.heading, fontSize: 16.5, fontWeight: '800', marginTop: 1 }}>
+            <T v="caption">Assalamu’alaikum,</T>
+            <T v="h2" style={{ marginTop: 2 }}>
               {user?.name ?? 'friend'} 👋
-            </Text>
-            <Text style={{ color: theme.subtext, fontSize: 11.5, marginTop: 2 }}>May Allah bless your day</Text>
+            </T>
           </View>
           <View
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              width: 42,
+              height: 42,
+              borderRadius: 21,
               backgroundColor: theme.card,
               borderWidth: 1,
               borderColor: theme.border,
@@ -105,91 +111,119 @@ export default function Home() {
             }}
           >
             <BellIcon size={18} color={theme.subtext} />
+            <View style={{ position: 'absolute', top: 9, right: 10, width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent }} />
           </View>
         </View>
 
         {/* Next prayer */}
-        <ArchCard style={{ marginTop: 16 }} archHeight={54} strokeColor={theme.accent} strokeWidth={1.3}>
+        <ArchCard style={{ marginTop: 18 }} archHeight={58} strokeColor={theme.accent} strokeWidth={1.3} padding={16}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.subtext, fontSize: 10.5, fontWeight: '800', letterSpacing: 1 }}>
-                NEXT PRAYER
-              </Text>
-              <Text style={{ color: theme.heading, fontSize: 27, fontWeight: '800', marginTop: 5 }}>
+              <T v="meta" color="accent" uppercase style={{ letterSpacing: 1.2 }}>
+                Next prayer
+              </T>
+              <T v="display" style={{ marginTop: 6 }}>
                 {np?.name ?? '—'}
-              </Text>
-              <Text style={{ color: theme.primary, fontSize: 16.5, fontWeight: '800', marginTop: 2 }}>
+              </T>
+              <T v="stat" color="primary" style={{ marginTop: 2 }}>
                 {np ? formatTime(np.time) : ''}
-              </Text>
-              <Text style={{ color: theme.subtext, fontSize: 11.5, marginTop: 6 }}>
-                {hh > 0 ? `${hh}h ${mm}m` : `${mm}m`} to next prayer
-              </Text>
-              <Link href="/(tabs)/qibla" asChild>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 7,
-                    marginTop: 13,
-                    borderWidth: 1.2,
-                    borderColor: theme.primary,
-                    borderRadius: 12,
-                    paddingHorizontal: 13,
-                    paddingVertical: 8,
-                    alignSelf: 'flex-start',
-                    backgroundColor: theme.primarySoft,
-                  }}
-                >
-                  <CompassIcon size={15} color={theme.primary} />
-                  <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 12 }}>Qibla Finder</Text>
-                </View>
-              </Link>
+              </T>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 10,
+                  backgroundColor: theme.primarySoft,
+                  borderRadius: 999,
+                  paddingHorizontal: 11,
+                  paddingVertical: 6,
+                  alignSelf: 'flex-start',
+                }}
+              >
+                <ClockIcon size={13} color={theme.primary} />
+                <T v="caption" color="primary" style={{ fontWeight: '700' }}>
+                  in {hh > 0 ? `${hh}h ${mm}m` : `${mm}m`}
+                </T>
+              </View>
             </View>
-            {times ? <PrayerArc times={times} nextIndex={np?.index ?? 0} size={156} /> : null}
+            {times ? <PrayerArc times={times} nextIndex={np?.index ?? 0} size={152} /> : null}
+          </View>
+          <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 13 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <PinIcon size={14} color={theme.subtext} />
+              <T v="caption">{loc?.name ?? 'Locating…'}</T>
+            </View>
+            <Link href="/(tabs)/qibla" asChild>
+              <Pressable
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  borderWidth: 1.2,
+                  borderColor: theme.primary,
+                  borderRadius: 999,
+                  paddingHorizontal: 13,
+                  paddingVertical: 8,
+                  backgroundColor: pressed ? theme.primarySoft : 'transparent',
+                })}
+              >
+                <CompassIcon size={14} color={theme.primary} />
+                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
+                  Qibla
+                </T>
+              </Pressable>
+            </Link>
           </View>
         </ArchCard>
 
-        {/* Quick access */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 12 }}>
-          <Text style={{ color: theme.heading, fontSize: 16.5, fontWeight: '800' }}>Quick Access</Text>
-          <Link href="/(tabs)/tools">
-            <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 12 }}>See All ›</Text>
-          </Link>
-        </View>
-        <View style={{ flexDirection: 'row' }}>
+        {/* Quick actions */}
+        <SectionHeader title="Tools" subtitle="Your daily essentials" action="See all" onAction={() => router.push('/(tabs)/tools')} style={{ marginTop: 24 }} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {QUICK.map((q) => {
             const Icon = q.icon;
             return (
-              <Link key={q.label} href={q.href} style={{ flex: 1, alignItems: 'center' }}>
-                <View
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 16,
+              <Link key={q.label} href={q.href} asChild>
+                <Pressable
+                  style={({ pressed }) => ({
+                    flexBasis: '31.6%',
+                    flexGrow: 1,
                     backgroundColor: theme.card,
+                    borderRadius: 16,
                     borderWidth: 1,
                     borderColor: theme.border,
+                    padding: 13,
                     alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                    opacity: pressed ? 0.75 : 1,
+                  })}
                 >
-                  <Icon size={22} color={q.label === 'Quran' ? theme.accent : theme.primary} />
-                </View>
-                <Text style={{ color: theme.subtext, fontSize: 10.5, marginTop: 7, fontWeight: '700' }}>{q.label}</Text>
+                  <View
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 13,
+                      backgroundColor: theme.primarySoft,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon size={20} color={theme.primary} />
+                  </View>
+                  <T v="caption" style={{ marginTop: 8, fontWeight: '600' }}>{q.label}</T>
+                </Pressable>
               </Link>
             );
           })}
         </View>
 
         {/* Daily progress */}
-        <Text style={{ color: theme.heading, fontSize: 16.5, fontWeight: '800', marginTop: 24, marginBottom: 12 }}>
-          Daily Progress
-        </Text>
+        <SectionHeader title="Today" style={{ marginTop: 24 }} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {[
-            { icon: <FlameIcon size={20} color={theme.accent} />, value: '7', label: 'Day Streak' },
-            { icon: <TargetIcon size={20} color={theme.primary} />, value: `${goalPct}%`, label: 'Goals' },
-            { icon: <MedalIcon size={20} color={theme.accent} />, value: '3', label: 'Achievements' },
+            { icon: <FlameIcon size={17} color={theme.accent} />, tile: theme.accentSoft, value: '7', label: 'Day streak', pct: 70, tint: theme.accent },
+            { icon: <TargetIcon size={17} color={theme.primary} />, tile: theme.primarySoft, value: `${goalPct}%`, label: 'Goals', pct: goalPct, tint: theme.primary },
+            { icon: <MedalIcon size={17} color={theme.accent} />, tile: theme.accentSoft, value: '3', label: 'Awards', pct: 45, tint: theme.accent },
           ].map((s) => (
             <View
               key={s.label}
@@ -199,29 +233,39 @@ export default function Home() {
                 borderRadius: 16,
                 borderWidth: 1,
                 borderColor: theme.border,
-                padding: 14,
-                alignItems: 'center',
+                padding: 13,
               }}
             >
-              {s.icon}
-              <Text style={{ color: theme.heading, fontSize: 19, fontWeight: '800', marginTop: 7 }}>{s.value}</Text>
-              <Text style={{ color: theme.subtext, fontSize: 10.5, marginTop: 3, fontWeight: '600' }}>{s.label}</Text>
+              <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center' }}>
+                {s.icon}
+              </View>
+              <T v="stat" style={{ marginTop: 9, fontSize: 18 }}>{s.value}</T>
+              <T v="caption" style={{ marginTop: 2 }}>{s.label}</T>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.border, marginTop: 9, overflow: 'hidden' }}>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: s.tint, width: `${s.pct}%` }} />
+              </View>
             </View>
           ))}
         </View>
 
-        {/* Daily hadith teaser */}
-        <ArchCard style={{ marginTop: 20 }} archHeight={46} strokeColor={theme.accent} strokeWidth={1.1}>
-          <Text style={{ color: theme.subtext, fontSize: 10.5, fontWeight: '800', letterSpacing: 1 }}>DAILY HADITH</Text>
-          <Text style={{ color: theme.text, fontSize: 19, textAlign: 'center', marginTop: 10, lineHeight: 30 }}>
+        {/* Daily hadith */}
+        <ArchCard style={{ marginTop: 20 }} archHeight={48} strokeColor={theme.accent} strokeWidth={1.1} padding={16}>
+          <T v="meta" color="accent" uppercase style={{ textAlign: 'center', letterSpacing: 1.2 }}>
+            Daily hadith
+          </T>
+          <T v="arabic" style={{ textAlign: 'center', marginTop: 12 }}>
             إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ
-          </Text>
-          <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 8, fontStyle: 'italic', textAlign: 'center' }}>
-            “The deeds are (judged) by intentions.” — Sahih Bukhari 1
-          </Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 6 }}>
+          </T>
+          <T v="caption" style={{ marginTop: 8, textAlign: 'center', fontStyle: 'italic' }}>
+            “The deeds are (judged) by intentions.” — Bukhari 1
+          </T>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
             <Link href="/tools/hadith" asChild>
-              <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 12 }}>Read more ›</Text>
+              <Pressable hitSlop={6}>
+                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
+                  Read more →
+                </T>
+              </Pressable>
             </Link>
           </View>
         </ArchCard>
