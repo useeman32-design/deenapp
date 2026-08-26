@@ -108,7 +108,7 @@ export default function Login() {
 
             <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
               {[
-                { key: 'google', node: <Text style={{ color: '#4285F4', fontFamily: 'Manrope', fontWeight: '900', fontSize: 18, lineHeight: 22 }}>G</Text>, hint: 'Google' },
+                { key: 'google', node: <Text style={{ color: '#4285F4', fontFamily: 'Poppins-Medium', fontWeight: '900', fontSize: 18, lineHeight: 22 }}>G</Text>, hint: 'Google' },
                 { key: 'apple', node: <AppleIcon size={19} color={isDark ? '#F5FBF7' : '#111111'} />, hint: 'Apple' },
                 { key: 'email', node: <MailIcon size={18} color={theme.primary} />, hint: 'Email' },
               ].map((s) => (

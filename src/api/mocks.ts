@@ -1,167 +1,257 @@
 /**
- * Demo data used until the app is pointed at the real DeenLink API.
- * Shapes mirror what the PHP backend should return — adjust both sides to match.
+ * Bundled demo data — used ONLY when deenlink.org is unreachable
+ * (offline preview). Real content comes from the API client.
+ * Usernames/profiles mirror the live deenlink.org community.
  */
+import type { Course, Post, Scholar, User, Video } from '@/api/types';
 
-export type User = { id: string; name: string; username: string; mizhab?: string };
+const u = (
+  id: number,
+  username: string,
+  full_name: string,
+  badge: 'blue' | 'green' | 'gold' | null = null,
+  scholar?: boolean,
+): User => ({
+  id,
+  username,
+  full_name,
+  user_type: scholar ? 'scholar' : 'user',
+  profile_image_url: null,
+  deenpoints_balance: 0,
+  verification_badge: badge,
+  scholar: scholar
+    ? {
+        id,
+        user_id: id,
+        display_name: full_name,
+        title: 'Sheikh',
+        madhhab: 'Hanafi',
+        institute: 'Qarawiyyin University',
+        fields_of_knowledge: 'Fiqh, Hadith',
+        approval_status: 'approved',
+      }
+    : null,
+});
 
-export type Comment = { id: string; author: string; color: string; body: string; time: string };
-
-export type Post = {
-  id: string;
-  author: { name: string; username: string; mizhab?: string; color: string };
-  time: string;
-  body: string;
-  arabic?: string;
-  image?: { color: string; label: string };
-  video?: boolean;
-  likes: number;
-  liked?: boolean;
-  comments: Comment[];
+export const MOCK_USER: User = {
+  id: 1,
+  username: 'deenlink_user',
+  full_name: 'DeenLink User',
+  user_type: 'user',
+  profile_image_url: null,
+  deenpoints_balance: 120,
+  is_email_verified: 1,
+  account_status: 'active',
+  verification_badge: null,
+  scholar: null,
 };
 
-export const MOCK_POSTS: Post[] = [
+export const MOCK_FEED: Post[] = [
   {
-    id: 'p1',
-    author: { name: 'Aminu Muhammad Suleiman', username: 'alameen', mizhab: 'Sunni', color: '#0E7A5F' },
-    time: '5 days ago',
-    body: 'Sheikh Muhammad Albani, Zaria. May Allah keep our scholars and reward him for his reminders.',
-    video: true,
-    likes: 10,
-    comments: [
-      { id: 'c1', author: 'Yahaya Umar', color: '#7C3AED', body: 'May Allah reward you for sharing 🙏', time: '4 days ago' },
-    ],
+    id: 101,
+    content_text:
+      'Inna ma’al-‘usri yusra. Indeed, with hardship comes ease. May Allah make our paths easy this week. 🤍',
+    time_ago: '2h',
+    like_count: 48,
+    comment_count: 12,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(2, 'alameen', 'Aminu Muhammad Suleiman', 'green', true),
+    media: [],
   },
   {
-    id: 'p2',
-    author: { name: 'Yahaya Umar', username: 'mayanchie12', color: '#7C3AED' },
-    time: '8 days ago',
-    body: 'Lecture by Sheikh Ahmad Tijjani Yusuf Guruntum, may Allah preserve him — a full lesson on the Month of Ramadan.',
-    image: { color: '#134E4A', label: 'Lecture · Sheikh A. T. Yusuf Guruntum' },
-    likes: 50,
-    comments: [],
+    id: 102,
+    content_text:
+      'Reminder: the Prophet ﷺ said, “The best of you are those who learn the Quran and teach it.” (Bukhari 5027)',
+    time_ago: '5h',
+    like_count: 96,
+    comment_count: 21,
+    liked_by_me: true,
+    is_public_qa: false,
+    user: u(3, 'mayanchie12', 'Yahaya Umar', 'blue'),
+    media: [],
   },
   {
-    id: 'p3',
-    author: { name: 'Usman Ahmad', username: 'usman_ahmad', mizhab: 'Sunni', color: '#B45309' },
-    time: '11 days ago',
-    body: 'Indeed, everything living shall taste death. A reminder to make the most of every breath.',
-    likes: 30,
-    comments: [],
+    id: 103,
+    content_text:
+      'Q: What is the ruling on combining prayers while travelling?\nA: It is permissible to combine Dhuhr with Asr and Maghrib with Isha during travel, following the practice of the Prophet ﷺ.',
+    time_ago: '8h',
+    like_count: 34,
+    comment_count: 9,
+    liked_by_me: false,
+    is_public_qa: true,
+    public_qa: {
+      question: 'What is the ruling on combining prayers while travelling?',
+      answer:
+        'It is permissible to combine Dhuhr with Asr and Maghrib with Isha during travel, following the practice of the Prophet ﷺ.',
+    },
+    user: u(4, 'usman_ahmad', 'Usman Ahmad Kanoma', 'gold', true),
+    media: [],
   },
   {
-    id: 'p4',
-    author: { name: 'Usman Ahmad', username: 'usman_ahmad', mizhab: 'Sunni', color: '#B45309' },
-    time: '12 days ago',
-    body: 'Today’s Ayah 🌿 “Indeed, with hardship comes ease.” (Qur’an 94:5)\n\nWhatever you are going through today, remember that hardship does not last forever. What are you asking Allah to make easy for you? 🤲',
-    arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا',
-    likes: 40,
-    comments: [
-      { id: 'c2', author: 'Aminu Muhammad Suleiman', color: '#0E7A5F', body: 'JazakAllahu khairan for the reminder', time: '11 days ago' },
-      { id: 'c3', author: 'Abubakar Sadiq', color: '#0369A1', body: 'Amin 🤲', time: '10 days ago' },
-    ],
-  },
-  {
-    id: 'p5',
-    author: { name: 'Usman Ahmad', username: 'usman_ahmad', mizhab: 'Sunni', color: '#B45309' },
-    time: '12 days ago',
-    body: 'Let’s test our knowledge! 🧠\n\nWhich of these invalidates Wudu?\nA. Reading Qur’an\nB. Sleeping deeply\nC. Making Dhikr\nD. Giving charity\n\n👇 Comment your answer.',
-    likes: 20,
-    comments: [
-      { id: 'c4', author: 'Abdulhameed Hassan', color: '#9F1239', body: 'B — sleeping deeply', time: '12 days ago' },
-    ],
-  },
-  {
-    id: 'p6',
-    author: { name: 'Abdulhameed Hassan Gimba', username: 'Gimba', color: '#9F1239' },
-    time: 'May 17, 2026',
-    body: 'Saudi Supreme Court announces the sighting of the new moon for Dhu al-Hijjah 1447. May Allah accept the Hajj of those who are able.',
-    image: { color: '#3F6212', label: 'Moon sighting announcement' },
-    likes: 31,
-    comments: [],
-  },
-  {
-    id: 'p7',
-    author: { name: 'خالد إسحاق', username: 'arabyy', color: '#4338CA' },
-    time: 'May 10, 2026',
-    body: '“Do not despair of the mercy of Allah.” — a gentle reminder for a heavy heart.',
-    likes: 50,
-    comments: [],
-  },
-  {
-    id: 'p8',
-    author: { name: 'Abubakar Sadiq Marafa-Koko', username: 'Ibn_Abubakar', mizhab: 'Sunnah', color: '#0369A1' },
-    time: '23 days ago',
-    body: 'Alhamdulillah — for a heart that remembers, and a tongue that is grateful.',
-    likes: 51,
-    comments: [],
+    id: 104,
+    content_text:
+      'Jumu’ah reminder: listen and be silent while the khutbah is being delivered. (Al-Mumtahanah 102:1)',
+    time_ago: '1d',
+    like_count: 71,
+    comment_count: 5,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(5, 'Gimba', 'Abdulhameed Hassan Gimba', 'blue'),
+    media: [],
   },
 ];
-
-export type Video = { id: string; title: string; teacher: string; duration: string; url: string; color: string };
 
 export const MOCK_VIDEOS: Video[] = [
-  { id: 'v1', title: 'Sheikh Muhammad Albani, Zaria — Reminder', teacher: 'Daily DeenLink', duration: '18:24', url: 'https://www.youtube.com/results?search_query=deenlink+sheikh+muhammad+albani+zaria', color: '#0E7A5F' },
-  { id: 'v2', title: 'Lecture on the Month of Ramadan', teacher: 'Sheikh A. T. Yusuf Guruntum', duration: '42:10', url: 'https://www.youtube.com/results?search_query=sheikh+ahmad+tijjani+yusuf+guruntum+ramadan', color: '#134E4A' },
-  { id: 'v3', title: 'Tafsir with Sheikh Kanoma', teacher: 'Sheikh Ahmad Umar Kanoma', duration: '35:47', url: 'https://www.youtube.com/results?search_query=sheikh+ahmad+umar+kanoma+tafsir', color: '#3F6212' },
-  { id: 'v4', title: 'Jum’at Huddubah', teacher: 'Sheikh Ahmad Umar Kanoma', duration: '28:03', url: 'https://www.youtube.com/results?search_query=kanoma+jummat+huddubah', color: '#7C3AED' },
-  { id: 'v5', title: 'A reminder about arrogance and pride', teacher: 'Sheikh A. T. Yusuf Guruntum', duration: '15:58', url: 'https://www.youtube.com/results?search_query=sheikh+guruntum+arrogance', color: '#9F1239' },
-  { id: 'v6', title: 'Do not despair of the mercy of Allah', teacher: 'DeenLink', duration: '9:41', url: 'https://www.youtube.com/results?search_query=deenlink+mercy+of+allah', color: '#B45309' },
+  {
+    id: 1,
+    video_type: 'daily',
+    title: 'Understanding Niyyah (Intention) in Worship',
+    description: 'A short reminder on the importance of intention in every deed.',
+    poster_url: null,
+    source_url: 'https://www.youtube.com/@DeenLink',
+    duration: '12:41',
+    view_count: 1840,
+    like_count: 96,
+  },
+  {
+    id: 2,
+    video_type: 'daily',
+    title: 'How to Make the Most of Rajab',
+    description: 'Virtues of the month of Rajab and how to prepare for Ramadan.',
+    poster_url: null,
+    source_url: 'https://www.youtube.com/@DeenLink',
+    duration: '18:05',
+    view_count: 3210,
+    like_count: 210,
+  },
+  {
+    id: 3,
+    video_type: 'daily',
+    title: 'The Manners of Reciting the Qur’an',
+    description: 'Tajwid basics and the adab of the reciter, explained simply.',
+    poster_url: null,
+    source_url: 'https://www.youtube.com/@DeenLink',
+    duration: '9:58',
+    view_count: 954,
+    like_count: 61,
+  },
 ];
-
-export type Scholar = { id: string; name: string; mizhab: string; expertise: string; color: string };
 
 export const MOCK_SCHOLARS: Scholar[] = [
-  { id: 's1', name: 'Sheikh Ahmad Umar Kanoma', mizhab: 'Sunni', expertise: 'Tafsir & Hadith', color: '#0E7A5F' },
-  { id: 's2', name: 'Sheikh Muhammad Albani', mizhab: 'Sunni', expertise: 'Hadith & Reminders', color: '#134E4A' },
-  { id: 's3', name: 'Sheikh Ahmad Tijjani Yusuf Guruntum', mizhab: 'Sunni', expertise: 'Fiqh & Lectures', color: '#3F6212' },
-  { id: 's4', name: 'Sheikh Aliyu', mizhab: 'Sunnah', expertise: 'Qur’an & Seerah', color: '#0369A1' },
+  {
+    id: 1,
+    user_id: 11,
+    display_name: 'Sheikh Abdurrahman Al-Ameen',
+    title: 'Sheikh',
+    madhhab: 'Shafiʿi',
+    institute: 'Al-Azhar University',
+    fields_of_knowledge: 'Fiqh, Aqeedah',
+    approval_status: 'approved',
+  },
+  {
+    id: 2,
+    user_id: 12,
+    display_name: 'Ustadh Usman Ahmad',
+    title: 'Ustadh',
+    madhhab: 'Hanafi',
+    institute: 'Qarawiyyin University',
+    fields_of_knowledge: 'Hadith, Tafsir',
+    approval_status: 'approved',
+  },
+  {
+    id: 3,
+    user_id: 13,
+    display_name: 'Ustadhah Maya Nchie',
+    title: 'Ustadhah',
+    madhhab: 'Maliki',
+    institute: 'Islamic University of Madinah',
+    fields_of_knowledge: 'Taharah, Salah',
+    approval_status: 'approved',
+  },
 ];
 
-export type EventItem = {
-  id: string;
+export const MOCK_COURSES: Course[] = [
+  {
+    id: 1,
+    title: 'Tajwid Essentials',
+    slug: 'tajwid-essentials',
+    description: 'Master the rules of beautiful Qur’an recitation, one lesson at a time.',
+    cover_image: null,
+    level: 'Beginner',
+    lessons_count: 12,
+  },
+  {
+    id: 2,
+    title: 'Fiqh of Worship for Beginners',
+    slug: 'fiqh-worship',
+    description: 'Wudu, Salah and everything in between — a complete practical guide.',
+    cover_image: null,
+    level: 'Beginner',
+    lessons_count: 18,
+  },
+  {
+    id: 3,
+    title: 'The Seerah: Life of the Prophet ﷺ',
+    slug: 'seerah',
+    description: 'A chronological journey through the life of Muhammad ﷺ, Makkah to Madinah.',
+    cover_image: null,
+    level: 'Intermediate',
+    lessons_count: 24,
+  },
+];
+
+/* --------------------------- Quiz (demo) ---------------------------- */
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answer: number;
+}
+
+export const MOCK_QUIZ: QuizQuestion[] = [
+  { question: 'How many pillars of Islam are there?', options: ['Four', 'Five', 'Six', 'Seven'], answer: 1 },
+  { question: 'Which surah is known as the Heart of the Quran?', options: ['Al-Fatiha', 'Al-Mulk', 'Yasin', 'Al-Kahf'], answer: 2 },
+  { question: 'In which month did the Quran begin to be revealed?', options: ['Rajab', 'Sha\u2019ban', 'Ramadan', 'Shawwal'], answer: 2 },
+  { question: 'How many times a day are the five prayers performed?', options: ['Four', 'Five', 'Six', 'Seven'], answer: 1 },
+  { question: 'Who was the first Khalifah after the Prophet ﷺ?', options: ['Umar ibn al-Khattab', 'Uthman ibn Affan', 'Abu Bakr as-Siddiq', 'Ali ibn Abi Talib'], answer: 2 },
+  { question: 'Which pillar comes after Shahadah?', options: ['Sawm', 'Zakat', 'Salah', 'Hajj'], answer: 2 },
+  { question: 'How many rak\u2019at are in Fajr salah?', options: ['Two', 'Three', 'Four', 'Five'], answer: 0 },
+  { question: 'Which prophet was given the Zabur?', options: ['Musa \u2019alaihissalam', 'Dawud \u2019alaihissalam', 'Isa \u2019alaihissalam', 'Yusuf \u2019alaihissalam'], answer: 1 },
+  { question: 'The Kaaba is located in which city?', options: ['Madinah', 'Makkah', 'Jerusalem', 'Cairo'], answer: 1 },
+  { question: 'What does \u2018SubhanAllah\u2019 mean?', options: ['Praise be to Allah', 'Glory be to Allah', 'Allahu Akbar', 'La ilaha illallah'], answer: 1 },
+];
+
+/* --------------------------- Events (demo) ---------------------------- */
+
+export interface EventItem {
+  id: number;
   title: string;
   date: string;
   location: string;
   kind: 'Holiday' | 'Lecture' | 'Community' | 'Study';
   color: string;
-};
+}
 
 export const MOCK_EVENTS: EventItem[] = [
-  { id: 'e1', title: 'Prophet’s Birthday (Mawlid) — 12 Rabi al-Awwal 1448', date: 'Sat, Aug 25, 2026', location: 'Owerri, Nigeria', kind: 'Holiday', color: '#0E7A5F' },
-  { id: 'e2', title: 'Qur’an Memorization Circle (Hifz)', date: 'Every Thursday', location: 'Aba, Nigeria', kind: 'Community', color: '#7C3AED' },
-  { id: 'e3', title: 'Jumu’ah Special Lecture', date: 'Every Friday', location: 'Online (YouTube)', kind: 'Lecture', color: '#B45309' },
-  { id: 'e4', title: 'Islamic Study Circle (Halaqa)', date: 'Every Wednesday', location: 'Online', kind: 'Study', color: '#0369A1' },
-  { id: 'e5', title: 'Community Iftar', date: 'During Ramadan', location: 'Online + Owerri', kind: 'Community', color: '#9F1239' },
+  { id: 1, title: 'Laylat al-Bara\u2019ah Gathering', date: 'Mid-Sha\u2019ban', location: 'Mosque Hall', kind: 'Community', color: '#1D6F42' },
+  { id: 2, title: 'Tafsir of Surah Al-Kahf (Weekly)', date: 'Every Friday', location: 'Online', kind: 'Study', color: '#3F51B5' },
+  { id: 3, title: 'Lecture: The Ethics of Speech', date: 'Sat 8 PM', location: 'DeenLink Live', kind: 'Lecture', color: '#8E44AD' },
+  { id: 4, title: 'Id Preparation & Community Iftar', date: 'Ramadan', location: 'Community Centre', kind: 'Community', color: '#EF6C00' },
 ];
 
-export type QuizQuestion = { question: string; options: string[]; answer: number };
+/* --------------------------- Wallpapers (demo) ---------------------------- */
 
-export const MOCK_QUIZ: QuizQuestion[] = [
-  { question: 'How many pillars of Islam are there?', options: ['3', '4', '5', '7'], answer: 2 },
-  { question: 'Which is the longest surah in the Qur’an?', options: ['Al Imran', 'Al Baqarah', 'An Nisa', 'Al Kahf'], answer: 1 },
-  { question: 'What is the shortest surah in the Qur’an?', options: ['Al Kawthar', 'Al Ikhlas', 'An Nas', 'Al Falaq'], answer: 0 },
-  { question: 'How many obligatory prayers are there in a day?', options: ['3', '4', '5', '6'], answer: 2 },
-  { question: 'What is the first surah of the Qur’an?', options: ['Al Ikhlas', 'Al Fatihah', 'Al Baqarah', 'An Nas'], answer: 1 },
-  { question: 'In which month is fasting obligatory?', options: ['Muharram', 'Shawwal', 'Ramadan', 'Dhu al-Hijjah'], answer: 2 },
-  { question: 'Which of these invalidates Wudu?', options: ['Reading Qur’an', 'Sleeping deeply', 'Making dhikr', 'Giving charity'], answer: 1 },
-  { question: 'What is the prayer before sunrise called?', options: ['Dhuhr', 'Asr', 'Fajr', 'Isha'], answer: 2 },
-  { question: 'How many verses are in the Qur’an (common count)?', options: ['6,000', '6,236', '6,500', '7,000'], answer: 1 },
-  { question: 'Who is the last prophet in Islam?', options: ['Musa (AS)', 'Isa (AS)', 'Ibrahim (AS)', 'Muhammad (ﷺ)'], answer: 3 },
-];
-
-export type Wallpaper = { id: string; arabic: string; caption: string; from: string; to: string };
+export interface Wallpaper {
+  id: number;
+  arabic: string;
+  caption: string;
+  from: string;
+}
 
 export const MOCK_WALLPAPERS: Wallpaper[] = [
-  { id: 'w1', arabic: 'ٱللَّهُ', caption: 'Allah', from: '#0E7A5F', to: '#04231B' },
-  { id: 'w2', arabic: 'سُبْحَانَ ٱللَّهِ', caption: 'Subhan Allah', from: '#134E4A', to: '#02201C' },
-  { id: 'w3', arabic: 'ٱلْحَمْدُ لِلَّهِ', caption: 'Alhamdulillah', from: '#854D0E', to: '#1C1204' },
-  { id: 'w4', arabic: 'ٱللَّهُ أَكْبَرُ', caption: 'Allahu Akbar', from: '#0F766E', to: '#042F2E' },
-  { id: 'w5', arabic: 'بِسْمِ ٱللَّهِ', caption: 'Bismillah', from: '#1E3A8A', to: '#0A1230' },
-  { id: 'w6', arabic: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ', caption: 'Surah Al Ikhlas', from: '#4C1D95', to: '#170B2E' },
-  { id: 'w7', arabic: 'ٱلْجَنَّةُ', caption: 'Al Jannah', from: '#166534', to: '#052E16' },
-  { id: 'w8', arabic: 'ٱلْقُرْءَان', caption: 'Al Qur’an', from: '#7C2D12', to: '#241007' },
+  { id: 1, arabic: 'اَللّٰهُ', caption: 'Allah', from: 'linear-gradient(160deg, #0b3d25, #1D6F42)' },
+  { id: 2, arabic: 'اَلصَّٰبَرِيْنَ', caption: 'For the patient', from: 'linear-gradient(160deg, #1a2a6c, #b8860b)' },
+  { id: 3, arabic: 'سُبْحَانَ اللّٰهِ', caption: 'Glory be to Allah', from: 'linear-gradient(160deg, #232526, #414345)' },
+  { id: 4, arabic: 'اَلْحَمْدُ لِلّٰهِ', caption: 'Praise be to Allah', from: 'linear-gradient(160deg, #5614b0, #dbd65c)' },
 ];
-
-export const MOCK_ANNOUNCEMENT =
-  'Jumu’ah Mubarak! 🕌 May Allah accept our prayers. New lectures from Sheikh Kanoma are live in the Videos tab this week.';

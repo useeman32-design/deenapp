@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { api } from '@/api/client';
-import type { Video } from '@/api/mocks';
+import type { Video } from '@/api/types';
 import { useTheme } from '@/context/ThemeContext';
+import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { ChevronRightIcon, PlayIcon } from '@/components/Icons';
 
@@ -14,7 +15,9 @@ export default function Videos() {
     api.videos().then(setItems);
   }, []);
 
-  const open = (url: string) => Linking.openURL(url).catch(() => {});
+  const open = (url?: string | null) => {
+    if (url) Linking.openURL(url).catch(() => {});
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -23,7 +26,7 @@ export default function Videos() {
         {items.map((v) => (
           <Pressable
             key={v.id}
-            onPress={() => open(v.url)}
+            onPress={() => open(v.source_url)}
             style={({ pressed }) => [
               {
                 flexDirection: 'row',
@@ -43,7 +46,7 @@ export default function Videos() {
                 width: 92,
                 height: 60,
                 borderRadius: 12,
-                backgroundColor: v.color,
+                backgroundColor: theme.primary,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -51,17 +54,20 @@ export default function Videos() {
               <PlayIcon size={22} color="#fff" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13.5 }}>{v.title}</Text>
-              <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 3 }}>
-                {v.teacher} · {v.duration}
-              </Text>
+              <T v="bodyS" style={{ fontWeight: '700', lineHeight: 17 }}>
+                {v.title ?? 'Video'}
+              </T>
+              <T v="caption" style={{ marginTop: 3 }}>
+                {[v.duration, v.view_count ? `${v.view_count.toLocaleString()} views` : null].filter(Boolean).join(' · ') || 'DeenLink'}
+              </T>
+              {v.description ? <T v="caption" style={{ marginTop: 2, lineHeight: 15 }}>{v.description}</T> : null}
             </View>
             <ChevronRightIcon size={16} color={theme.subtext} />
           </Pressable>
         ))}
-        <Text style={{ color: theme.subtext, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
-          Demo list — connects to your /videos endpoint. In-app playback ships with react-native-video in v1.1.
-        </Text>
+        <T v="caption" style={{ textAlign: 'center', marginTop: 6 }}>
+          {api.isLive() ? 'From deenlink.org' : 'Offline — demo list. In-app playback ships in v1.1.'}
+        </T>
       </ScrollView>
     </View>
   );

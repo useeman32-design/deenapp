@@ -1,275 +1,225 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Modal, Pressable, RefreshControl, TextInput, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
-import { resolveLocation, type Loc } from '@/lib/location';
-import { storage } from '@/lib/storage';
-import { ArchCard } from '@/components/ArchCard';
-import { PrayerArc } from '@/components/PrayerArc';
-import { Avatar } from '@/components/Avatar';
+import * as api from '@/api/client';
+import type { FeedTab, Post } from '@/api/types';
+import { HeroHeader } from '@/components/HeroHeader';
+import { QuickGrid } from '@/components/QuickGrid';
+import { FeedCard } from '@/components/FeedCard';
+import { Surface } from '@/components/Surface';
 import { T } from '@/components/T';
-import { SectionHeader } from '@/components/SectionHeader';
-import {
-  BeadsIcon,
-  BellIcon,
-  BookIcon,
-  CalendarIcon,
-  ClockIcon,
-  CompassIcon,
-  FlameIcon,
-  HeartIcon,
-  MedalIcon,
-  PinIcon,
-  ScrollIcon,
-  TargetIcon,
-} from '@/components/Icons';
+import { Chip } from '@/components/Chip';
+import { PlusIcon } from '@/components/Icons';
 
-const QUICK = [
-  { label: 'Quran', icon: BookIcon, href: '/(tabs)/quran' },
-  { label: 'Hadith', icon: ScrollIcon, href: '/tools/hadith' },
-  { label: 'Duas', icon: HeartIcon, href: '/tools/dua' },
-  { label: 'Tasbeeh', icon: BeadsIcon, href: '/tools/tasbeeh' },
-  { label: 'Prayers', icon: ClockIcon, href: '/tools/prayer' },
-  { label: 'Calendar', icon: CalendarIcon, href: '/tools/calendar' },
-] as const;
+const FEED_TABS: { id: FeedTab; label: string }[] = [
+  { id: 'for-you', label: 'For You' },
+  { id: 'following', label: 'Following' },
+  { id: 'scholars', label: 'Scholars' },
+];
 
 export default function Home() {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const router = useRouter();
-  const [loc, setLoc] = useState<Loc | null>(null);
-  const [now, setNow] = useState(() => new Date());
-  const [dhikrTotal, setDhikrTotal] = useState(160);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [tab, setTab] = useState<FeedTab>('for-you');
+  const [refreshing, setRefreshing] = useState(false);
+  const [compose, setCompose] = useState(false);
+  const [body, setBody] = useState('');
+  const [youtube, setYoutube] = useState('');
+
+  const load = useCallback(
+    (t: FeedTab) => {
+      api.feed(t).then((r) => setPosts(r.posts));
+    },
+    [],
+  );
 
   useEffect(() => {
-    resolveLocation().then(setLoc);
-  }, []);
+    load(tab);
+  }, [tab, load]);
 
-  useEffect(() => {
-    const iv = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(iv);
-  }, []);
+  const refresh = async () => {
+    setRefreshing(true);
+    const r = await api.feed(tab);
+    setPosts(r.posts);
+    setRefreshing(false);
+  };
 
-  useEffect(() => {
-    storage.getItem('dl.tasbeeh').then((raw) => {
-      if (raw) {
-        try {
-          const c = JSON.parse(raw) as Record<string, number>;
-          const total = Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0);
-          if (total > 0) setDhikrTotal(total);
-        } catch {
-          // ignore
-        }
-      }
-    });
-  }, []);
+  const like = (id: number) =>
+    setPosts((ps) =>
+      ps.map((p) => (p.id === id ? { ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) } : p)),
+    );
 
-  const times = loc ? computePrayerTimes(now, loc) : null;
-  const np = times ? nextPrayer(now, times) : null;
-  const diff = np ? Math.max(0, np.time.getTime() - now.getTime()) : 0;
-  const hh = Math.floor(diff / 3600000);
-  const mm = Math.floor(diff / 60000) % 60;
-  const goalPct = Math.min(100, Math.round((dhikrTotal / 200) * 100));
+  const submitPost = async () => {
+    if (!body.trim() && !youtube.trim()) return;
+    setCompose(false);
+    const res = await api.createPost(body.trim(), youtube.trim() || undefined);
+    const b = body.trim();
+    setBody('');
+    setYoutube('');
+    if (!res.ok) {
+      // Demo mode: prepend locally so the action feels alive offline.
+      setPosts((ps) => [
+        {
+          id: Date.now(),
+          content_text: b,
+          youtube_url: youtube.trim() || null,
+          time_ago: 'now',
+          like_count: 0,
+          comment_count: 0,
+          liked_by_me: false,
+          is_public_qa: false,
+          user: {
+            id: (user?.id as number) ?? 1,
+            username: (user?.username as string) ?? 'you',
+            full_name: (user?.full_name as string) ?? 'You',
+            verification_badge: null,
+          },
+          media: [],
+        },
+        ...ps,
+      ]);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
-        {/* Greeting */}
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              borderWidth: 2,
-              borderColor: theme.primary,
-              backgroundColor: theme.primarySoft,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Avatar name={user?.name ?? 'U'} color={theme.primary} size={34} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <T v="caption">Assalamu’alaikum,</T>
-            <T v="h2" style={{ marginTop: 2 }}>
-              {user?.name ?? 'friend'} 👋
-            </T>
-          </View>
-          <View
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: theme.card,
-              borderWidth: 1,
-              borderColor: theme.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <BellIcon size={18} color={theme.subtext} />
-            <View style={{ position: 'absolute', top: 9, right: 10, width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent }} />
-          </View>
-        </View>
+      <FlatList
+        data={posts}
+        keyExtractor={(p) => String(p.id)}
+        renderItem={({ item }) => <FeedCard post={item} onLike={like} />}
+        contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 30 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.primary} />}
+        ListHeaderComponent={
+          <View>
+            <HeroHeader />
 
-        {/* Next prayer */}
-        <ArchCard style={{ marginTop: 18 }} archHeight={58} strokeColor={theme.accent} strokeWidth={1.3} padding={16}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <T v="meta" color="accent" uppercase style={{ letterSpacing: 1.2 }}>
-                Next prayer
-              </T>
-              <T v="display" style={{ marginTop: 6 }}>
-                {np?.name ?? '—'}
-              </T>
-              <T v="stat" color="primary" style={{ marginTop: 2 }}>
-                {np ? formatTime(np.time) : ''}
-              </T>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginTop: 10,
-                  backgroundColor: theme.primarySoft,
-                  borderRadius: 999,
-                  paddingHorizontal: 11,
-                  paddingVertical: 6,
-                  alignSelf: 'flex-start',
-                }}
-              >
-                <ClockIcon size={13} color={theme.primary} />
-                <T v="caption" color="primary" style={{ fontWeight: '700' }}>
-                  in {hh > 0 ? `${hh}h ${mm}m` : `${mm}m`}
-                </T>
+            {/* Quick access */}
+            <T v="h3" style={{ marginTop: 20, marginBottom: 11 }}>
+              Quick Access
+            </T>
+            <QuickGrid />
+
+            {/* Feed */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <T v="h2">Feed</T>
               </View>
-            </View>
-            {times ? <PrayerArc times={times} nextIndex={np?.index ?? 0} size={152} /> : null}
-          </View>
-          <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 13 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <PinIcon size={14} color={theme.subtext} />
-              <T v="caption">{loc?.name ?? 'Locating…'}</T>
-            </View>
-            <Link href="/(tabs)/qibla" asChild>
               <Pressable
+                onPress={() => setCompose(true)}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 6,
-                  borderWidth: 1.2,
-                  borderColor: theme.primary,
+                  backgroundColor: theme.primary,
                   borderRadius: 999,
                   paddingHorizontal: 13,
                   paddingVertical: 8,
-                  backgroundColor: pressed ? theme.primarySoft : 'transparent',
+                  opacity: pressed ? 0.85 : 1,
                 })}
               >
-                <CompassIcon size={14} color={theme.primary} />
-                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
-                  Qibla
+                <PlusIcon size={14} color="#fff" />
+                <T v="caption" color="onPrimary" style={{ fontWeight: '700' }}>
+                  Post
                 </T>
               </Pressable>
-            </Link>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 7, marginBottom: 13 }}>
+              {FEED_TABS.map((t) => (
+                <Chip key={t.id} label={t.label} active={tab === t.id} onPress={() => setTab(t.id)} />
+              ))}
+            </View>
           </View>
-        </ArchCard>
+        }
+        ListEmptyComponent={
+          <Surface style={{ padding: 28, alignItems: 'center' }}>
+            <T v="h3">No posts yet</T>
+            <T v="caption" style={{ marginTop: 5, textAlign: 'center', lineHeight: 18 }}>
+              Be the first to share a reminder with the community.
+            </T>
+          </Surface>
+        }
+        ListFooterComponent={
+          <T v="caption" style={{ textAlign: 'center', marginTop: 8 }}>
+            {api.isLive() ? '' : 'Offline — showing demo feed'}
+          </T>
+        }
+      />
 
-        {/* Quick actions */}
-        <SectionHeader title="Tools" subtitle="Your daily essentials" action="See all" onAction={() => router.push('/(tabs)/tools')} style={{ marginTop: 24 }} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {QUICK.map((q) => {
-            const Icon = q.icon;
-            return (
-              <Link key={q.label} href={q.href} asChild>
-                <Pressable
-                  style={({ pressed }) => ({
-                    flexBasis: '31.6%',
-                    flexGrow: 1,
-                    backgroundColor: theme.card,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    padding: 13,
-                    alignItems: 'center',
-                    opacity: pressed ? 0.75 : 1,
-                  })}
-                >
-                  <View
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 13,
-                      backgroundColor: theme.primarySoft,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Icon size={20} color={theme.primary} />
-                  </View>
-                  <T v="caption" style={{ marginTop: 8, fontWeight: '600' }}>{q.label}</T>
-                </Pressable>
-              </Link>
-            );
-          })}
-        </View>
-
-        {/* Daily progress */}
-        <SectionHeader title="Today" style={{ marginTop: 24 }} />
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          {[
-            { icon: <FlameIcon size={17} color={theme.accent} />, tile: theme.accentSoft, value: '7', label: 'Day streak', pct: 70, tint: theme.accent },
-            { icon: <TargetIcon size={17} color={theme.primary} />, tile: theme.primarySoft, value: `${goalPct}%`, label: 'Goals', pct: goalPct, tint: theme.primary },
-            { icon: <MedalIcon size={17} color={theme.accent} />, tile: theme.accentSoft, value: '3', label: 'Awards', pct: 45, tint: theme.accent },
-          ].map((s) => (
-            <View
-              key={s.label}
+      {/* Compose modal */}
+      <Modal visible={compose} transparent animationType="slide" onRequestClose={() => setCompose(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' }} onPress={() => setCompose(false)}>
+          <Pressable
+            onPress={() => {}}
+            style={{
+              backgroundColor: theme.card,
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              padding: 18,
+              paddingBottom: 26,
+              gap: 12,
+            }}
+          >
+            <T v="h2">Create new post</T>
+            <TextInput
+              value={body}
+              onChangeText={setBody}
+              placeholder="Write your post description…"
+              placeholderTextColor={theme.subtext}
+              multiline
+              numberOfLines={5}
               style={{
-                flex: 1,
-                backgroundColor: theme.card,
-                borderRadius: 16,
+                backgroundColor: theme.cardSoft,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: theme.border,
-                padding: 13,
+                paddingHorizontal: 13,
+                paddingTop: 11,
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: theme.text,
+                minHeight: 90,
+                textAlignVertical: 'top',
               }}
+            />
+            <TextInput
+              value={youtube}
+              onChangeText={setYoutube}
+              placeholder="YouTube link (optional)"
+              placeholderTextColor={theme.subtext}
+              autoCapitalize="none"
+              keyboardType="url"
+              style={{
+                backgroundColor: theme.cardSoft,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.border,
+                paddingHorizontal: 13,
+                paddingVertical: 11,
+                fontFamily: 'Poppins',
+                fontSize: 13.5,
+                color: theme.text,
+              }}
+            />
+            <Pressable
+              onPress={submitPost}
+              style={({ pressed }) => ({
+                backgroundColor: theme.primary,
+                borderRadius: 12,
+                padding: 13,
+                alignItems: 'center',
+                opacity: pressed ? 0.85 : 1,
+              })}
             >
-              <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center' }}>
-                {s.icon}
-              </View>
-              <T v="stat" style={{ marginTop: 9, fontSize: 18 }}>{s.value}</T>
-              <T v="caption" style={{ marginTop: 2 }}>{s.label}</T>
-              <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.border, marginTop: 9, overflow: 'hidden' }}>
-                <View style={{ height: 4, borderRadius: 2, backgroundColor: s.tint, width: `${s.pct}%` }} />
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Daily hadith */}
-        <ArchCard style={{ marginTop: 20 }} archHeight={48} strokeColor={theme.accent} strokeWidth={1.1} padding={16}>
-          <T v="meta" color="accent" uppercase style={{ textAlign: 'center', letterSpacing: 1.2 }}>
-            Daily hadith
-          </T>
-          <T v="arabic" style={{ textAlign: 'center', marginTop: 12 }}>
-            إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ
-          </T>
-          <T v="caption" style={{ marginTop: 8, textAlign: 'center', fontStyle: 'italic' }}>
-            “The deeds are (judged) by intentions.” — Bukhari 1
-          </T>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
-            <Link href="/tools/hadith" asChild>
-              <Pressable hitSlop={6}>
-                <T v="caption" color="primary" style={{ fontWeight: '800' }}>
-                  Read more →
-                </T>
-              </Pressable>
-            </Link>
-          </View>
-        </ArchCard>
-      </ScrollView>
+              <T v="button" color="onPrimary">
+                Post
+              </T>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

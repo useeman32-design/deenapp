@@ -11,6 +11,12 @@ BASE="/deenapp/"
 rm -rf dist
 npx expo export --platform web
 
+# This Expo version bakes process.env.EXPO_BASE_URL out of the bundle, so the
+# router forgets the Pages subpath. Patch the base-URL defaults in the bundle.
+for f in dist/_expo/static/js/web/entry-*.js; do
+  perl -pi -e "s/e\\\\.getUrlWithReactNavigationConcessions=function\\\\(t,n=\"\"\\\\)/e.getUrlWithReactNavigationConcessions=function(t,n=\"${BASE}\")/g; s/e\\\\.appendBaseUrl=function\\\\(t,n=\"\"\\\\)/e.appendBaseUrl=function(t,n=\"${BASE}\")/g" "$f"
+done
+
 # Rewrite absolute URLs in all text assets of the export.
 find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.svg" -o -name "*.map" \) -print0 |
   xargs -0 perl -pi -e '
@@ -22,5 +28,8 @@ find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*
 
 # SPA fallback for GitHub Pages deep links.
 cp dist/index.html dist/404.html
+
+# GitHub Pages runs Jekyll, which drops folders starting with "_" (_expo/ holds the JS).
+touch dist/.nojekyll
 
 echo "✅ Export ready in dist/ → deploy to gh-pages branch."

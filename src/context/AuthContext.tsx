@@ -1,35 +1,45 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { api, setAuthToken } from '@/api/client';
-import type { User } from '@/api/mocks';
-import { storage } from '@/lib/storage';
+import {
+  clearSession,
+  currentSession,
+  login as apiLogin,
+  logout as apiLogout,
+  persistSession,
+  register as apiRegister,
+  restoreSession,
+} from '@/api/client';
+import type { User } from '@/api/types';
+import { MOCK_USER } from '@/api/mocks';
 
 type AuthValue = {
   user: User | null;
   /** True when signed in locally because the API was unreachable. */
   isDemo: boolean;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ ok: boolean; message?: string }>;
   register: (data: {
-    name: string;
+    full_name: string;
     username: string;
     email: string;
     password: string;
-    mizhab: string;
-  }) => Promise<void>;
-  logout: () => void;
+    aqeedah?: string;
+    country?: string;
+    gender?: string;
+  }) => Promise<{ ok: boolean; message?: string }>;
+  logout: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthValue>({
   user: null,
   isDemo: false,
   ready: false,
-  login: async () => {},
-  register: async () => {},
-  logout: () => {},
+  login: async () => ({ ok: false }),
+  register: async () => ({ ok: false }),
+  logout: async () => {},
 });
 
-function prettyName(email: string): string {
-  const base = (email.split('@')[0] || 'DeenLink User').replace(/[._-]+/g, ' ').trim();
+function prettyName(identifier: string): string {
+  const base = (identifier.split('@')[0] || 'DeenLink User').replace(/[._-]+/g, ' ').trim();
   return base.replace(/\b\w/g, (c) => c.toUpperCase()) || 'DeenLink User';
 }
 
@@ -39,65 +49,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    storage
-      .getItem('dl.auth')
-      .then((raw) => {
-        if (!raw) return;
-        try {
-          const d = JSON.parse(raw) as { user: User; token: string; demo: boolean };
-          setUser(d.user);
-          setIsDemo(!!d.demo);
-          setAuthToken(d.token || null);
-        } catch {
-          // ignore
+    restoreSession()
+      .then(({ user: u, ok }) => {
+        if (u) {
+          setUser(u);
+          setIsDemo(!ok); // ok=false with a user means offline demo
         }
       })
       .finally(() => setReady(true));
   }, []);
 
-  const persist = (u: User, token: string, demo: boolean) => {
-    setUser(u);
-    setIsDemo(demo);
-    setAuthToken(token || null);
-    storage.setItem('dl.auth', JSON.stringify({ user: u, token, demo }));
-  };
-
   const value = useMemo<AuthValue>(() => {
-    const login = async (email: string, password: string) => {
-      try {
-        const res = await api.login(email, password);
-        persist(res.user, res.token, false);
-      } catch {
-        // Demo mode: API not reachable — sign in locally so the app is explorable.
-        persist(
-          { id: 'demo', name: prettyName(email), username: email.split('@')[0] || 'demo', mizhab: 'Sunni' },
-          '',
-          true,
-        );
+    const login = async (identifier: string, password: string, rememberMe = true) => {
+      const res = await apiLogin(identifier, password, rememberMe);
+      if (res.ok && res.user) {
+        setUser(res.user);
+        setIsDemo(false);
+        await persistSession(currentSession() ?? '', null, res.user);
+        return { ok: true };
       }
+      if (res.demo) {
+        // Offline → demo mode so the app stays explorable in previews.
+        const u: User = { ...MOCK_USER, full_name: prettyName(identifier), username: identifier.split('@')[0] || 'demo' };
+        setUser(u);
+        setIsDemo(true);
+        return { ok: true };
+      }
+      return { ok: false, message: res.message };
     };
+
     const register = async (data: {
-      name: string;
+      full_name: string;
       username: string;
       email: string;
       password: string;
-      mizhab: string;
+      aqeedah?: string;
+      country?: string;
+      gender?: string;
     }) => {
-      try {
-        const res = await api.register(data);
-        persist(res.user, res.token, false);
-      } catch {
-        persist({ id: 'demo', name: data.name, username: data.username, mizhab: data.mizhab }, '', true);
+      const res = await apiRegister(data);
+      if (res.ok && res.user) {
+        setUser(res.user);
+        setIsDemo(false);
+        await persistSession(currentSession() ?? '', null, res.user);
+        return { ok: true };
       }
+      if (res.demo) {
+        const u: User = { ...MOCK_USER, full_name: data.full_name, username: data.username, email: data.email };
+        setUser(u);
+        setIsDemo(true);
+        return { ok: true };
+      }
+      return { ok: false, message: res.message };
     };
-    const logout = () => {
+
+    const logout = async () => {
+      await apiLogout().catch(() => {});
       setUser(null);
       setIsDemo(false);
-      setAuthToken(null);
-      storage.removeItem('dl.auth');
+      await clearSession();
     };
+
     return { user, isDemo, ready, login, register, logout };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isDemo, ready]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

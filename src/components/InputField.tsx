@@ -62,7 +62,7 @@ export function InputField({
           returnKeyType={returnKeyType}
           onEndEditing={onEndEditing}
           style={{
-            fontFamily: 'Manrope',
+            fontFamily: 'Poppins-Medium',
             fontSize: 14,
             fontWeight: '500',
             color: theme.text,

@@ -41,7 +41,7 @@ export function DhikrCounter({
           pressed && { transform: [{ scale: 0.97 }] },
         ]}
       >
-        <Text style={{ fontSize: 54, fontFamily: 'Sora', fontWeight: '800', color: theme.primary }}>{count}</Text>
+        <Text style={{ fontSize: 54, fontFamily: 'Poppins-Bold', fontWeight: '800', color: theme.primary }}>{count}</Text>
         <Text style={{ color: theme.subtext, marginTop: 4, fontSize: 14, fontWeight: '600' }}>
           {target > 0 ? `of ${target}` : 'unlimited'}
         </Text>

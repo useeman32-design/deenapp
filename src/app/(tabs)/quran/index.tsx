@@ -1,21 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { JUZ_NAMES, JUZ_START, OFFLINE_TEXT, QURAN, juzOfSurah, type SurahMeta } from '@/data/quran';
+import { HADITH_CATEGORIES, HADITHS } from '@/data/hadith';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { ArchCard } from '@/components/ArchCard';
 import { ProgressRing } from '@/components/ProgressRing';
-import { Surface } from '@/components/Surface';
 import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
-import { BookIcon, ChevronRightIcon, FilterIcon, SearchIcon } from '@/components/Icons';
+import { Chip } from '@/components/Chip';
+import { BookIcon, ChevronRightIcon, HeartIcon, HomeIcon, MosqueIcon, SearchIcon, ShieldIcon, ScrollIcon } from '@/components/Icons';
 
 type LastRead = { surah: number };
+const CAT_ICON: Record<string, (p: { size?: number; color?: string }) => React.ReactNode> = {
+  shield: ShieldIcon,
+  mosque: MosqueIcon,
+  heart: HeartIcon,
+  home: HomeIcon,
+};
 
-export default function QuranList() {
+export default function QuranHadith() {
   const { theme } = useTheme();
   const router = useRouter();
+  const [section, setSection] = useState<'quran' | 'hadith'>('quran');
   const [q, setQ] = useState('');
   const [last, setLast] = useState<LastRead | null>(null);
 
@@ -38,78 +46,26 @@ export default function QuranList() {
 
   const currentJuz = last ? juzOfSurah(last.surah) : 12;
   const lastMeta = QURAN.find((s) => s.number === (last?.surah ?? 0));
-  const progress = 0.6; // mock — will come from your /reading-progress endpoint
+  const progress = 0.6; // mock — from /api/quran/streak.php when wired
 
   const query = q.trim().toLowerCase();
   const list = useMemo(
     () => QURAN.filter((s) => !query || s.english.toLowerCase().includes(query) || String(s.number) === query),
     [query],
   );
-
   const juzChips = [currentJuz - 1, currentJuz, currentJuz + 1].filter((j) => j >= 1 && j <= 30);
-
-  const Row = ({ s }: { s: SurahMeta }) => (
-    <Pressable
-      onPress={() => openSurah(s.number)}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: theme.card,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: theme.border,
-        padding: 12,
-        marginBottom: 9,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 13,
-          backgroundColor: theme.primarySoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: [{ rotate: '45deg' }],
-        }}
-      >
-        <T v="caption" color="primary" style={{ fontWeight: '800', transform: [{ rotate: '-45deg' }] }}>
-          {s.number}
-        </T>
-      </View>
-      <View style={{ flex: 1, marginLeft: 14 }}>
-        <T v="h3">{s.english}</T>
-        <T v="caption" style={{ marginTop: 2 }}>
-          {s.ayahs} verses · {s.revelation}
-          {OFFLINE_TEXT[s.number] ? ' · offline' : ''}
-        </T>
-      </View>
-      <View style={{ alignItems: 'center', gap: 2 }}>
-        <T v="arabic" style={{ fontSize: 18 }}>{s.name}</T>
-        <ChevronRightIcon size={13} color={theme.subtext} />
-      </View>
-    </Pressable>
-  );
+  const [h0] = HADITHS;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <TopBar
-        title="Qur’an"
-        right={
-          <View style={{ flexDirection: 'row', gap: 16 }}>
-            <SearchIcon size={20} color={theme.subtext} />
-            <FilterIcon size={17} color={theme.subtext} />
-          </View>
-        }
-      />
-      <FlatList
-        data={list}
-        keyExtractor={(s) => String(s.number)}
-        renderItem={({ item }) => <Row s={item} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 34 }}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
+      <TopBar title="Quran & Hadith" />
+      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
+        <Chip label="Quran" active={section === 'quran'} onPress={() => setSection('quran')} />
+        <Chip label="Hadith" active={section === 'hadith'} onPress={() => setSection('hadith')} />
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
+        {section === 'quran' ? (
           <View>
             {/* Search */}
             <View
@@ -117,25 +73,25 @@ export default function QuranList() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.card,
-                borderRadius: 14,
+                borderRadius: 30,
                 borderWidth: 1,
                 borderColor: theme.border,
                 paddingHorizontal: 14,
                 marginBottom: 14,
               }}
             >
-              <SearchIcon size={16} color={theme.subtext} />
+              <SearchIcon size={15} color={theme.subtext} />
               <TextInput
                 value={q}
                 onChangeText={setQ}
                 placeholder="Search surah by name or number…"
                 placeholderTextColor={theme.subtext}
-                style={{ flex: 1, fontFamily: 'Manrope', fontSize: 13.5, color: theme.text, paddingVertical: 12, paddingLeft: 10 }}
+                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 13.5, color: theme.text, paddingVertical: 11, paddingLeft: 9 }}
               />
             </View>
 
             {/* Reading progress */}
-            <ArchCard archHeight={50} strokeColor={theme.accent} strokeWidth={1.2} padding={16}>
+            <ArchCard archHeight={50} strokeColor={theme.goldBright} strokeWidth={1.2} padding={16}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
                   <T v="meta" color="accent" uppercase style={{ letterSpacing: 1.2 }}>
@@ -180,7 +136,7 @@ export default function QuranList() {
                 </Pressable>
               </View>
               <T v="caption" style={{ marginTop: 10 }}>
-                Last read: {lastMeta ? `${lastMeta.english} 20:97` : '—'}
+                Last read: {lastMeta ? lastMeta.english : '—'}
               </T>
             </ArchCard>
 
@@ -241,17 +197,135 @@ export default function QuranList() {
               ))}
             </View>
 
-            <T v="h3" style={{ marginTop: 22, marginBottom: 10 }}>
-              Surahs
+            {/* All surahs */}
+            <T v="h3" style={{ marginTop: 22, marginBottom: 10 }}>Surahs</T>
+            {list.map((s) => (
+              <Pressable
+                key={s.number}
+                onPress={() => openSurah(s.number)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: theme.card,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  padding: 12,
+                  marginBottom: 9,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 13,
+                    backgroundColor: theme.primarySoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transform: [{ rotate: '45deg' }],
+                  }}
+                >
+                  <T v="caption" color="primary" style={{ fontWeight: '800', transform: [{ rotate: '-45deg' }] }}>
+                    {s.number}
+                  </T>
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <T v="h3">{s.english}</T>
+                  <T v="caption" style={{ marginTop: 2 }}>
+                    {s.ayahs} verses · {s.revelation}
+                    {OFFLINE_TEXT[s.number] ? ' · offline' : ''}
+                  </T>
+                </View>
+                <View style={{ alignItems: 'center', gap: 2 }}>
+                  <T v="arabic" style={{ fontSize: 18 }}>{s.name}</T>
+                  <ChevronRightIcon size={13} color={theme.subtext} />
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View>
+            {/* Daily hadith */}
+            <ArchCard archHeight={48} strokeColor={theme.goldBright} strokeWidth={1.2} padding={16}>
+              <T v="meta" color="accent" uppercase style={{ textAlign: 'center', letterSpacing: 1.2 }}>
+                Daily hadith
+              </T>
+              <T v="arabicL" style={{ textAlign: 'center', marginTop: 14 }}>
+                {h0.arabic}
+              </T>
+              <T v="bodyS" style={{ marginTop: 12, fontStyle: 'italic', textAlign: 'center' }}>
+                {h0.translation}
+              </T>
+              <T v="caption" style={{ marginTop: 6, textAlign: 'center' }}>
+                {h0.source} {h0.number}
+              </T>
+            </ArchCard>
+
+            {/* Categories */}
+            <T v="h3" style={{ marginTop: 20, marginBottom: 10 }}>Categories</T>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {HADITH_CATEGORIES.map((c) => {
+                const Icon = CAT_ICON[c.icon];
+                const count = HADITHS.filter((h) => h.category === c.id).length;
+                return (
+                  <View
+                    key={c.id}
+                    style={{
+                      flex: 1,
+                      minWidth: '46%',
+                      backgroundColor: theme.card,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      padding: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon size={17} color={theme.primary} />
+                    </View>
+                    <View style={{ marginLeft: 10 }}>
+                      <T v="bodyS" style={{ fontWeight: '700' }}>{c.label}</T>
+                      <T v="caption" style={{ marginTop: 1 }}>{count} hadiths</T>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* List */}
+            <T v="h3" style={{ marginTop: 20, marginBottom: 10 }}>Hadiths</T>
+            {HADITHS.map((h) => (
+              <View
+                key={h.id}
+                style={{
+                  backgroundColor: theme.card,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  padding: 14,
+                  marginBottom: 10,
+                }}
+              >
+                <T v="arabic" style={{ textAlign: 'right', fontSize: 18 }}>
+                  {h.arabic}
+                </T>
+                <T v="bodyS" style={{ marginTop: 9, lineHeight: 19 }}>
+                  {h.translation}
+                </T>
+                <T v="caption" style={{ marginTop: 7 }}>
+                  {h.source} {h.number}
+                </T>
+              </View>
+            ))}
+            <T v="caption" style={{ textAlign: 'center', marginTop: 6 }}>
+              Demo set — full collections stream from your backend.
             </T>
           </View>
-        }
-        ListEmptyComponent={
-          <Surface style={{ padding: 24, alignItems: 'center' }}>
-            <T v="bodyS" style={{ textAlign: 'center' }}>No surah matches “{q}”</T>
-          </Surface>
-        }
-      />
+        )}
+      </ScrollView>
     </View>
   );
 }

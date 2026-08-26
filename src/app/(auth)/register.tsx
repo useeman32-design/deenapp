@@ -36,15 +36,16 @@ export default function Register() {
       return;
     }
     setBusy(true);
-    const user = (name.trim() || email.split('@')[0] || 'DeenLink User').trim();
-    await register({
-      name: user,
-      username: user.split(/\s+/)[0].toLowerCase(),
+    const fullName = (name.trim() || email.split('@')[0] || 'DeenLink User').trim();
+    const res = await register({
+      full_name: fullName,
+      username: fullName.split(/\s+/)[0].toLowerCase(),
       email: email.trim() || 'demo@deenlink.org',
       password,
-      mizhab: 'Sunni',
+      aqeedah: 'Sunni',
     });
-    router.replace('/(tabs)');
+    if (res.ok) router.replace('/(tabs)');
+    else setError(res.message || 'Something went wrong');
   };
 
   return (

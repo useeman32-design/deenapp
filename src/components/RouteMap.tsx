@@ -58,7 +58,7 @@ export function RouteMap({
           <Circle cx="272" cy="62" r="26" fill="none" stroke={theme.accent} strokeWidth="1.2" strokeDasharray="3 3" />
           <rect x="262" y="52" width="20" height="20" rx="4" fill={isDark ? '#1A1206' : '#241C0C'} />
           <rect x="262" y="58.5" width="20" height="3.4" rx="1.2" fill={theme.accent} />
-          <text x="272" y="30" fontSize="10" fontWeight="700" fill={theme.heading} textAnchor="middle" fontFamily="Sora">
+          <text x="272" y="30" fontSize="10" fontWeight="700" fill={theme.heading} textAnchor="middle" fontFamily="Poppins-Bold">
             {toName}
           </text>
         </G>
@@ -68,7 +68,7 @@ export function RouteMap({
           <Circle cx="62" cy="138" r="15" fill={theme.primary} opacity="0.18" />
           <Circle cx="62" cy="138" r="7.5" fill={theme.primary} />
           <Circle cx="62" cy="138" r="3" fill="#fff" />
-          <text x="62" y="166" fontSize="10" fontWeight="700" fill={theme.heading} textAnchor="middle" fontFamily="Sora">
+          <text x="62" y="166" fontSize="10" fontWeight="700" fill={theme.heading} textAnchor="middle" fontFamily="Poppins-Bold">
             {fromName}
           </text>
         </G>
@@ -76,7 +76,7 @@ export function RouteMap({
         {/* distance chip */}
         <G>
           <rect x="118" y="86" width="104" height="24" rx="12" fill={isDark ? '#0B1A13' : '#FFFFFF'} stroke={theme.border} strokeWidth="1" />
-          <text x="170" y="102" fontSize="11" fontWeight="800" fill={theme.primary} textAnchor="middle" fontFamily="Sora">
+          <text x="170" y="102" fontSize="11" fontWeight="800" fill={theme.primary} textAnchor="middle" fontFamily="Poppins-Bold">
             {Math.round(distanceKm).toLocaleString()} km
           </text>
         </G>

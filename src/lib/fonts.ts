@@ -1,15 +1,17 @@
 import { useFonts } from 'expo-font';
 
 /**
- * Loads the DeenLink type system:
- *  - Sora     → display & headings (modern, geometric, premium)
- *  - Manrope  → body, captions, buttons
- *  - Amiri    → Arabic / Qur'an (Naskh, highly readable, RTL)
+ * DeenLink type system (same families as the web frontend):
+ *  - Poppins (Regular/Medium/SemiBold/Bold/ExtraBold) → UI
+ *  - Amiri (Regular/Bold) → Arabic / Qur'an (RTL)
  */
 export function useAppFonts(): [boolean] {
   const [loaded] = useFonts({
-    Sora: require('../fonts/Sora.ttf'),
-    Manrope: require('../fonts/Manrope.ttf'),
+    Poppins: require('../fonts/Poppins-Regular.ttf'),
+    'Poppins-Medium': require('../fonts/Poppins-Medium.ttf'),
+    'Poppins-SemiBold': require('../fonts/Poppins-SemiBold.ttf'),
+    'Poppins-Bold': require('../fonts/Poppins-Bold.ttf'),
+    'Poppins-ExtraBold': require('../fonts/Poppins-ExtraBold.ttf'),
     Amiri: require('../fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('../fonts/Amiri-Bold.ttf'),
   });

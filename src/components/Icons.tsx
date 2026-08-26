@@ -1,6 +1,6 @@
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-export type IconProps = { size?: number; color?: string; strokeWidth?: number };
+export type IconProps = { size?: number; color?: string; strokeWidth?: number; filled?: boolean };
 
 function sp(p: IconProps) {
   return {
@@ -253,12 +253,102 @@ export function BeadsIcon(p: IconProps) {
 }
 
 export function HeartIcon(p: IconProps) {
+  const s = sp(p);
   return (
     <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
       <Path
         d="M12 19.6 C7.2 15.8 4.8 13 4.8 10.2 A3.7 3.7 0 0 1 12 8.3 A3.7 3.7 0 0 1 19.2 10.2 C19.2 13 16.8 15.8 12 19.6 Z"
-        {...sp(p)}
+        stroke={s.stroke}
+        strokeWidth={s.strokeWidth}
+        fill={p.filled ? s.stroke : 'none'}
+        strokeLinecap={s.strokeLinecap}
+        strokeLinejoin={s.strokeLinejoin}
       />
+    </Svg>
+  );
+}
+
+export function ChatIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M4 5.6 H20 V15.6 H12 L7.6 19 V15.6 H4 Z" {...sp(p)} />
+      <Line x1="8" y1="9.6" x2="16" y2="9.6" {...sp(p)} />
+      <Line x1="8" y1="12.6" x2="13" y2="12.6" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function FlagIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M6 21 V4" {...sp(p)} />
+      <Path d="M6 5 H18 L15.4 8.4 L18 11.8 H6 Z" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function GraduationCapIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M12 4 L21.5 8.6 L12 13.2 L2.5 8.6 Z" {...sp(p)} />
+      <Path d="M6.5 10.8 V15.4 C6.5 16.9 9 18 12 18 C15 18 17.5 16.9 17.5 15.4 V10.8" {...sp(p)} />
+      <Path d="M21.5 8.6 V13.6" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function LogOutIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M14 4 H6.5 A1.5 1.5 0 0 0 5 5.5 V18.5 A1.5 1.5 0 0 0 6.5 20 H14" {...sp(p)} />
+      <Path d="M10.5 12 H20" {...sp(p)} />
+      <Path d="M16.8 8.6 L20.2 12 L16.8 15.4" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function RefreshIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M4.6 10.2 A7.6 7.6 0 0 1 18.4 7.2 L20 9" {...sp(p)} />
+      <Path d="M20 4.4 V9 H15.4" {...sp(p)} />
+      <Path d="M19.4 13.8 A7.6 7.6 0 0 1 5.6 16.8 L4 15" {...sp(p)} />
+      <Path d="M4 19.6 V15 H8.6" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function SunIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Circle cx="12" cy="12" r="4.2" {...sp(p)} />
+      <Line x1="12" y1="2.6" x2="12" y2="5" {...sp(p)} />
+      <Line x1="12" y1="19" x2="12" y2="21.4" {...sp(p)} />
+      <Line x1="2.6" y1="12" x2="5" y2="12" {...sp(p)} />
+      <Line x1="19" y1="12" x2="21.4" y2="12" {...sp(p)} />
+      <Line x1="5.4" y1="5.4" x2="7.1" y2="7.1" {...sp(p)} />
+      <Line x1="16.9" y1="16.9" x2="18.6" y2="18.6" {...sp(p)} />
+      <Line x1="18.6" y1="5.4" x2="16.9" y2="7.1" {...sp(p)} />
+      <Line x1="7.1" y1="16.9" x2="5.4" y2="18.6" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function StarIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M12 3.6 L14.5 9.1 L20.4 9.8 L16 13.8 L17.2 19.6 L12 16.6 L6.8 19.6 L8 13.8 L3.6 9.8 L9.5 9.1 Z" {...sp(p)} />
+    </Svg>
+  );
+}
+
+export function GiftIcon(p: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
+      <Path d="M4 8.6 H20 V12 H4 Z" {...sp(p)} />
+      <Path d="M5.5 12 V19.4 H18.5 V12" {...sp(p)} />
+      <Path d="M12 8.6 V19.4" {...sp(p)} />
+      <Path d="M12 8.6 C9.6 8.6 7.9 7.6 7.9 6.3 C7.9 5.2 8.9 4.5 10 4.5 C11.2 4.5 12 5.6 12 8.6 C12 5.6 12.8 4.5 14 4.5 C15.1 4.5 16.1 5.2 16.1 6.3 C16.1 7.6 14.4 8.6 12 8.6 Z" {...sp(p)} />
     </Svg>
   );
 }

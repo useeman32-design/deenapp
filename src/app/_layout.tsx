@@ -23,7 +23,7 @@ function Root() {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const el = document.createElement('style');
-    el.textContent = "html, body { font-family: 'Manrope', -apple-system, 'Segoe UI', sans-serif; }";
+    el.textContent = "html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; }";
     document.head.appendChild(el);
     return () => {
       el.remove();

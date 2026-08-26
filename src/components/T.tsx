@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 
 type ColorKey = keyof Pick<
   Theme,
-  'text' | 'heading' | 'subtext' | 'primary' | 'accent' | 'onPrimary' | 'danger'
+  'text' | 'heading' | 'subtext' | 'primary' | 'accent' | 'onPrimary' | 'danger' | 'goldBright'
 >;
 
 const DEFAULT_COLOR: Record<TypeVariant, ColorKey> = {
@@ -23,9 +23,9 @@ const DEFAULT_COLOR: Record<TypeVariant, ColorKey> = {
 };
 
 /**
- * Centralized typography. Every screen composes text through <T v="…"> so the
- * app never renders in a single flat font: Sora for display/headings,
- * Manrope for body/UI, Amiri for Arabic — each with its own size & line-height.
+ * Centralized typography — Poppins for UI, Amiri for Arabic.
+ * Every screen composes text through <T v="…"> so the hierarchy stays
+ * consistent (matching the web frontend's font system).
  */
 export function T({
   v = 'body',
@@ -46,7 +46,7 @@ export function T({
       {...rest}
       style={[
         {
-          fontFamily: t.font,
+          fontFamily: t.family,
           fontSize: t.size,
           fontWeight: t.weight as TextStyle['fontWeight'],
           lineHeight: t.lh,
