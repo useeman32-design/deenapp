@@ -1,75 +1,124 @@
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
-import { tiles } from '@/constants/theme';
+import { tiles, tilesDark } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import {
+  BagIcon,
   BeadsIcon,
+  BookIcon,
+  BrainIcon,
   CalendarIcon,
-  ClockIcon,
-  CompassIcon,
-  HeartIcon,
+  GiftIcon,
   HelpIcon,
-  MedalIcon,
-  MosqueIcon,
+  ImageIcon,
   PlayIcon,
+  PlusIcon,
+  PrayingHandsIcon,
   ScrollIcon,
   SparkleIcon,
-  TargetIcon,
+  StarCrescentIcon,
   type IconProps,
 } from '@/components/Icons';
+
+type QuickAction =
+  | { type: 'route'; href: Href }
+  | { type: 'modal'; modal: 'post' }
+  | { type: 'web'; url: string };
 
 export interface QuickItem {
   key: keyof typeof tiles;
   label: string;
   icon: (p: IconProps) => React.ReactNode;
-  href: Href;
+  action: QuickAction;
 }
 
+/**
+ * The web home quick-access row, 1:1 — same 17 tiles, same order, same labels.
+ * Horizontal scroll row of 100px gradient tiles (web .quick-button).
+ */
 export const QUICK_ITEMS: QuickItem[] = [
-  { key: 'dua', label: 'Dua', icon: HeartIcon, href: '/tools/dua' },
-  { key: 'athkar', label: 'Athkar', icon: MosqueIcon, href: '/tools/athkar' },
-  { key: 'tasbih', label: 'Tasbeeh', icon: BeadsIcon, href: '/tools/tasbeeh' },
-  { key: 'prayer', label: 'Prayer Times', icon: ClockIcon, href: '/tools/prayer' },
-  { key: 'qibla', label: 'Qibla', icon: CompassIcon, href: '/tools/qibla' },
-  { key: 'calendar', label: 'Calendar', icon: CalendarIcon, href: '/tools/calendar' },
-  { key: 'hadith', label: 'Hadith', icon: ScrollIcon, href: '/tools/hadith' },
-  { key: 'names', label: '99 Names', icon: SparkleIcon, href: '/tools/names' },
-  { key: 'zakat', label: 'Zakat', icon: TargetIcon, href: '/tools/zakat' },
-  { key: 'quiz', label: 'Quiz', icon: MedalIcon, href: '/tools/quiz' },
-  { key: 'videos', label: 'Videos', icon: PlayIcon, href: '/tools/videos' },
-  { key: 'question', label: 'Ask Question', icon: HelpIcon, href: '/tools/scholars' },
+  { key: 'askquestion', label: 'Ask Question', icon: HelpIcon, action: { type: 'route', href: '/tools/scholars' } },
+  { key: 'videos', label: 'Watch Videos', icon: PlayIcon, action: { type: 'route', href: '/tools/videos' } },
+  { key: 'deenai', label: 'DeenLink AI', icon: SparkleIcon, action: { type: 'web', url: 'https://deenlink.org/deenlink-ai/deenai.html' } },
+  { key: 'shop', label: 'Shop', icon: BagIcon, action: { type: 'web', url: 'https://deenlink.org/shop/' } },
+  { key: 'dua', label: 'Dua', icon: PrayingHandsIcon, action: { type: 'route', href: '/tools/dua' } },
+  { key: 'athkar', label: 'Athkar', icon: BookIcon, action: { type: 'route', href: '/tools/athkar' } },
+  { key: 'addpost', label: 'Add Post', icon: PlusIcon, action: { type: 'modal', modal: 'post' } },
+  { key: 'wallpaper', label: 'Islamic Wallpapers', icon: ImageIcon, action: { type: 'route', href: '/tools/wallpapers' } },
+  { key: 'donation', label: 'Donation & Charity', icon: GiftIcon, action: { type: 'route', href: '/tools/charity' } },
+  { key: 'calendar', label: 'Islamic Events', icon: CalendarIcon, action: { type: 'route', href: '/tools/events' } },
+  { key: 'tasbih', label: 'Tasbih', icon: BeadsIcon, action: { type: 'route', href: '/tools/tasbeeh' } },
+  { key: 'calendar', label: 'Calendar', icon: CalendarIcon, action: { type: 'route', href: '/tools/calendar' } },
+  { key: 'hadith', label: 'Hadith', icon: ScrollIcon, action: { type: 'route', href: '/tools/hadith' } },
+  { key: 'quran', label: 'Quran', icon: BookIcon, action: { type: 'route', href: '/(tabs)/quran' } },
+  { key: 'names', label: 'Names of Allah', icon: StarCrescentIcon, action: { type: 'route', href: '/tools/names' } },
+  { key: 'shop', label: 'Islamic Poster', icon: ImageIcon, action: { type: 'web', url: 'https://deenlink.org/poster/' } },
+  { key: 'quiz', label: 'Quiz', icon: BrainIcon, action: { type: 'route', href: '/tools/quiz' } },
 ];
 
-/** The web quick-access grid: pastel tiles, one per tool. */
-export function QuickGrid({ items = QUICK_ITEMS, columns = 3 }: { items?: QuickItem[]; columns?: number }) {
+export function QuickGrid({ onOpenPost }: { onOpenPost?: () => void }) {
   const { theme, isDark } = useTheme();
   const router = useRouter();
 
+  const press = (item: QuickItem) => {
+    const a = item.action;
+    if (a.type === 'route') router.push(a.href);
+    else if (a.type === 'modal') onOpenPost?.();
+    else Linking.openURL(a.url).catch(() => {});
+  };
+
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-      {items.map((q) => {
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 14, paddingVertical: 4, paddingBottom: 12 }}
+    >
+      {QUICK_ITEMS.map((q, i) => {
         const Icon = q.icon;
         const tint = tiles[q.key];
+        const dark = isDark ? tilesDark[q.key] : null;
         return (
           <Pressable
-            key={q.key}
-            onPress={() => router.push(q.href)}
+            key={`${q.key}-${i}`}
+            onPress={() => press(q)}
             style={({ pressed }) => ({
-              flexBasis: `${100 / columns - 3}%`,
-              flexGrow: 1,
-              backgroundColor: isDark ? tint.bgDark : tint.bg,
+              width: 100,
+              height: 100,
               borderRadius: 16,
-              alignItems: 'center',
-              paddingVertical: 14,
-              opacity: pressed ? 0.8 : 1,
+              opacity: pressed ? 0.85 : 1,
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 3,
             })}
           >
-            <Icon size={21} color={isDark ? theme.primary : tint.icon} />
-            <T v="caption" style={{ marginTop: 7, fontWeight: '700', color: theme.text }}>{q.label}</T>
+            <LinearGradient
+              colors={dark ? [dark.from, dark.to] : [tint.from, tint.to]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ width: '100%', height: '100%', borderRadius: 16 }}
+            >
+              <Icon size={27} color={isDark ? theme.text : tint.icon} />
+              <T
+                v="caption"
+                style={{
+                  marginTop: 8,
+                  fontWeight: '600',
+                  fontSize: 12,
+                  color: isDark ? theme.text : '#000000',
+                  textAlign: 'center',
+                  paddingHorizontal: 6,
+                }}
+              >
+                {q.label}
+              </T>
+            </LinearGradient>
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }

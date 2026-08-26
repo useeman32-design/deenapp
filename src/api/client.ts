@@ -252,6 +252,28 @@ export async function courses(): Promise<Course[]> {
   return MOCK_COURSES;
 }
 
+export async function userPosts(): Promise<Post[]> {
+  const r = await request<{ status?: string; posts?: Post[]; data?: Post[] }>('/api/feed/get_user_posts.php');
+  if (r.ok) {
+    const list = r.data.posts ?? r.data.data;
+    if (Array.isArray(list)) return list;
+  }
+  return MOCK_FEED.filter((p) => p.user.username === (MOCK_USER.username ?? ''));
+}
+
+export async function profileCounts(): Promise<{ posts: number; followers: number; following: number; donations: number }> {
+  const r = await request<{ status?: string; counts?: { posts?: number; followers?: number; following?: number; donations?: number } }>(
+    '/api/users/get_profile_counts.php',
+  );
+  const c = r.ok ? r.data.counts : null;
+  return {
+    posts: c?.posts ?? 3,
+    followers: c?.followers ?? 128,
+    following: c?.following ?? 96,
+    donations: c?.donations ?? 5,
+  };
+}
+
 export async function scholars(): Promise<Scholar[]> {
   const r = await request<{ status?: string; scholars?: Scholar[]; data?: Scholar[] }>('/api/questions/scholars.php');
   if (r.ok) {
@@ -353,6 +375,8 @@ export const api = {
   register,
   logout,
   feed,
+  userPosts,
+  profileCounts,
   toggleLike,
   createPost,
   videos,

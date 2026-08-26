@@ -4,8 +4,13 @@ import type { Post } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
-import { HeartIcon, ShareIcon, ChatIcon, FlagIcon, PlayIcon } from '@/components/Icons';
+import { ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 
+/**
+ * Web .feed-card, 1:1 — white card, radius 16, soft shadow, 16px padding,
+ * 20px gap; name 14/600 with verify badge, @handle 11px, follow pill,
+ * 13px body, action row with top hairline (like · comment · share / report).
+ */
 export function FeedCard({
   post,
   onLike,
@@ -22,28 +27,33 @@ export function FeedCard({
     if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
   };
 
+  const liked = !!post.liked_by_me;
+
   return (
     <View
       style={{
         backgroundColor: theme.card,
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: theme.border,
-        padding: 14,
-        marginBottom: 11,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
       }}
     >
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Avatar name={user.full_name ?? user.username} color={theme.primary} size={42} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <Avatar name={user.full_name ?? user.username} color={theme.primary} size={40} />
         <View style={{ flex: 1, marginLeft: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <T v="h3" style={{ fontSize: 13.5 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <T v="body" style={{ fontWeight: '600', fontSize: 14 }}>
               {user.full_name ?? user.username}
             </T>
-            {user.verification_badge ? <VerificationBadge type={user.verification_badge} size={14} /> : null}
+            {user.verification_badge ? <VerificationBadge type={user.verification_badge} size={13} /> : null}
           </View>
-          <T v="caption" style={{ marginTop: 1 }}>
+          <T v="caption" style={{ fontSize: 11, marginTop: 2, color: theme.subtext }}>
             @{user.username} · {post.time_ago ?? ''}
           </T>
         </View>
@@ -51,7 +61,7 @@ export function FeedCard({
 
       {/* Body */}
       {post.content_text ? (
-        <T v="bodyS" style={{ marginTop: 10, lineHeight: 20 }}>
+        <T v="bodyS" style={{ fontSize: 13, lineHeight: 19.5, marginBottom: 14 }}>
           {post.content_text}
         </T>
       ) : null}
@@ -64,11 +74,9 @@ export function FeedCard({
             flexDirection: 'row',
             alignItems: 'center',
             gap: 10,
-            marginTop: 10,
+            marginBottom: 14,
             backgroundColor: theme.cardSoft,
             borderRadius: 12,
-            borderWidth: 1,
-            borderColor: theme.border,
             padding: 11,
             opacity: pressed ? 0.85 : 1,
           })}
@@ -98,25 +106,21 @@ export function FeedCard({
       {post.is_public_qa && post.public_qa ? (
         <View
           style={{
-            marginTop: 10,
-            backgroundColor: theme.cardSoft,
-            borderRadius: 12,
+            marginTop: post.content_text ? 0 : 12,
+            backgroundColor: theme.card,
+            borderRadius: 16,
             borderWidth: 1,
             borderColor: theme.border,
-            padding: 12,
+            padding: 16,
+            marginBottom: 14,
           }}
         >
-          <T v="meta" color="primary" uppercase style={{ letterSpacing: 1 }}>
-            Scholar Q&A
+          <T v="h3" style={{ fontSize: 16, lineHeight: 22 }}>
+            {post.public_qa.question ?? 'Question'}
           </T>
-          {post.public_qa.question ? (
-            <T v="bodyS" style={{ marginTop: 7, fontWeight: '600' }}>
-              Q: {post.public_qa.question}
-            </T>
-          ) : null}
           {post.public_qa.answer ? (
-            <T v="bodyS" style={{ marginTop: 6, lineHeight: 19 }}>
-              A: {post.public_qa.answer}
+            <T v="bodyS" style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.border, lineHeight: 20 }}>
+              {post.public_qa.answer}
             </T>
           ) : null}
         </View>
@@ -128,32 +132,30 @@ export function FeedCard({
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            marginTop: 12,
-            paddingTop: 10,
+            paddingTop: 12,
             borderTopWidth: 1,
-            borderTopColor: theme.border,
+            borderTopColor: theme.cardSoft,
           }}
         >
-          <Pressable onPress={() => onLike?.(post.id)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <HeartIcon
-              size={17}
-              color={post.liked_by_me ? theme.danger : theme.subtext}
-              filled={post.liked_by_me}
-            />
-            <T v="caption" style={{ fontWeight: '700', color: post.liked_by_me ? theme.danger : theme.subtext }}>
-              {post.like_count}
+          <Pressable onPress={() => onLike?.(post.id)} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: pressed ? 0.6 : 1 })}>
+            <HeartIcon size={15} filled={liked} color={liked ? '#E74C3C' : theme.subtext} />
+            <T v="caption" style={{ fontWeight: '500', color: liked ? '#E74C3C' : theme.subtext, fontSize: 13 }}>
+              {post.like_count ?? 0}
             </T>
           </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 22 }}>
-            <ChatIcon size={16} color={theme.subtext} />
-            <T v="caption" style={{ fontWeight: '700' }}>{post.comment_count}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 18 }}>
+            <ChatIcon size={15} color={theme.subtext} />
+            <T v="caption" style={{ fontWeight: '500', fontSize: 13 }}>{post.comment_count ?? 0}</T>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 18 }}>
+            <ShareIcon size={15} color={theme.subtext} />
+            <T v="caption" style={{ fontWeight: '500', fontSize: 13 }}>
+              Share
+            </T>
           </View>
           <View style={{ flex: 1 }} />
-          <Pressable hitSlop={8} onPress={() => {}} style={{ marginRight: 20 }}>
-            <ShareIcon size={16} color={theme.subtext} />
-          </Pressable>
-          <Pressable hitSlop={8} onPress={() => {}}>
-            <FlagIcon size={15} color={theme.subtext} />
+          <Pressable hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+            <FlagIcon size={14} color="#B45309" />
           </Pressable>
         </View>
       ) : null}

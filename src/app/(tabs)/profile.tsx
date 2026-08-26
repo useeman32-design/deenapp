@@ -1,27 +1,25 @@
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { storage } from '@/lib/storage';
 import * as api from '@/api/client';
+import type { Post } from '@/api/types';
 import { T } from '@/components/T';
-import { Surface } from '@/components/Surface';
+import { Avatar } from '@/components/Avatar';
+import { FeedCard } from '@/components/FeedCard';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import {
   BellIcon,
-  ChevronRightIcon,
-  FlameIcon,
+  CheckIcon,
+  GearIcon,
   GiftIcon,
-  InfoIcon,
   LogOutIcon,
   MoonStarIcon,
-  PinIcon,
-  RefreshIcon,
-  ShieldIcon,
+  ShareIcon,
   SunIcon,
-  UserIcon,
-  type IconProps,
 } from '@/components/Icons';
 
 function initialsOf(name: string) {
@@ -37,11 +35,20 @@ export default function Profile() {
   const { theme, mode, setMode } = useTheme();
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
+
+  useEffect(() => {
+    api.userPosts().then(setPosts);
+    api.profileCounts().then(setCounts);
+  }, []);
 
   const name = (user?.full_name as string) || (user?.username as string) || 'Muslim';
   const badge = (user?.verification_badge as string) || '';
   const username = (user?.username as string) || '';
+  const bio = (user?.bio as string) || '';
+  const aqeedah = (user?.aqeedah as string) || '';
   const deenpoints = (user?.deenpoints_balance as number) ?? 0;
 
   const doCheckIn = async () => {
@@ -53,10 +60,14 @@ export default function Profile() {
       return;
     }
     await storage.setItem(k, today);
-    // Best-effort sync with the backend; local count always works offline.
     await api.dailyCheckin().catch(() => {});
     setCheckin('done');
   };
+
+  const like = (id: number) =>
+    setPosts((ps) =>
+      ps.map((p) => (p.id === id ? { ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) } : p)),
+    );
 
   const signOut = () => {
     Alert.alert('Sign out', 'Leave DeenLink? Your session on this device will end.', [
@@ -65,181 +76,312 @@ export default function Profile() {
     ]);
   };
 
-  const resetProgress = () => {
-    Alert.alert('Reset progress', 'Clears check-in history and quiz records on this device.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset',
-        style: 'destructive',
-        onPress: async () => {
-          await storage.removeItem('dl.checkin.date');
-          await storage.removeItem('dl.quiz.best');
-        },
-      },
-    ]);
-  };
+  const stat = (n: number, l: string) => (
+    <View style={{ flex: 1, backgroundColor: theme.cardSoft, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+      <T v="stat" style={{ fontSize: 16 }}>
+        {n.toLocaleString()}
+      </T>
+      <T v="caption" style={{ fontSize: 10, marginTop: 2 }}>{l}</T>
+    </View>
+  );
 
-  const Row = ({
-    icon: Icon,
-    label,
-    desc,
-    danger,
-    onPress,
-  }: {
-    icon: (p: IconProps) => React.ReactNode;
-    label: string;
-    desc?: string;
-    danger?: boolean;
-    onPress: () => void;
-  }) => (
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <FlatList
+        data={posts}
+        keyExtractor={(p) => String(p.id)}
+        renderItem={({ item }) => <FeedCard post={item} onLike={like} />}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View>
+            {/* Green hero */}
+            <View style={{ height: 190, position: 'relative', overflow: 'hidden' }}>
+              <LinearGradient
+                colors={(mode === 'dark'
+                  ? ['rgba(46,204,113,0.95)', 'rgba(39,174,96,0.9)']
+                  : ['rgba(29,111,66,0.9)', 'rgba(29,111,66,0.8)']) as [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ position: 'absolute', inset: 0 }}
+              />
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+                <T v="h2" color="onPrimary" style={{ fontWeight: '600', fontSize: 20 }}>
+                  Profile
+                </T>
+                <View style={{ flex: 1 }} />
+                <Pressable
+                  onPress={() => router.push('/(tabs)/profile')}
+                  style={({ pressed }) => ({
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: theme.glass,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 8,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <BellIcon size={15} color="#fff" />
+                </Pressable>
+                <Pressable
+                  onPress={() => {}}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    backgroundColor: theme.glass,
+                    borderRadius: 20,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    marginRight: 8,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <GiftIcon size={13} color="#fff" />
+                  <T v="caption" color="onPrimary" style={{ fontWeight: '700' }}>
+                    {deenpoints.toLocaleString()}
+                  </T>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push('/settings/edit-profile')}
+                  style={({ pressed }) => ({
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: theme.glass,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <GearIcon size={16} color="#fff" />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Profile card (overlaps hero) */}
+            <View
+              style={{
+                backgroundColor: theme.card,
+                borderRadius: 20,
+                margin: -54,
+                marginLeft: 16,
+                marginRight: 16,
+                padding: 20,
+                shadowColor: '#000',
+                shadowOpacity: 0.08,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 4,
+              }}
+            >
+              <View style={{ alignItems: 'center' }}>
+                <Avatar name={name} color={theme.primary} size={110} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                  <T v="display" style={{ fontSize: 24 }}>{name}</T>
+                  {badge ? <VerificationBadge type={badge as 'blue' | 'green' | 'gold'} size={17} /> : null}
+                </View>
+                <T v="body" color="subtext" style={{ marginTop: 4 }}>
+                  {username ? `@${username}` : 'Member'}
+                </T>
+                {bio ? (
+                  <T v="body" style={{ marginTop: 10, textAlign: 'center', lineHeight: 20, maxWidth: 340 }}>
+                    {bio}
+                  </T>
+                ) : null}
+                {aqeedah ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 12,
+                      backgroundColor: theme.primarySoft,
+                      borderColor: theme.primary,
+                      borderWidth: 1,
+                      borderRadius: 999,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <CheckIcon size={13} color={theme.primary} />
+                    <T v="caption" color="primary" style={{ fontWeight: '600' }}>
+                      {aqeedah}
+                    </T>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Stats */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                {stat(counts.posts, 'Posts')}
+                {stat(counts.followers, 'Followers')}
+                {stat(counts.following, 'Following')}
+                {stat(counts.donations, 'Donations')}
+              </View>
+
+              {/* Actions */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <Pressable
+                  onPress={() => router.push('/settings/edit-profile')}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    backgroundColor: theme.primary,
+                    borderRadius: 12,
+                    padding: 12,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <T v="button" color="onPrimary" style={{ fontWeight: '700' }}>
+                    Edit Profile
+                  </T>
+                </Pressable>
+                <Pressable
+                  onPress={doCheckIn}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    backgroundColor: checkin === 'done' ? theme.accentSoft : theme.primarySoft,
+                    borderRadius: 12,
+                    padding: 12,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: checkin === 'done' ? theme.accent : 'transparent',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <T v="button" color={checkin === 'done' ? 'accent' : 'primary'} style={{ fontWeight: '700' }}>
+                    {checkin === 'done' ? 'Checked In ✓' : checkin === 'already' ? 'Checked In' : 'Check In'}
+                  </T>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push('/tools/charity')}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    backgroundColor: theme.cardSoft,
+                    borderRadius: 12,
+                    padding: 12,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <T v="button" style={{ fontWeight: '700' }}>
+                    Donate
+                  </T>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Settings row */}
+            <View style={{ paddingTop: 18, paddingLeft: 16, paddingRight: 16, paddingBottom: 4 }}>
+              <T v="h3" style={{ marginBottom: 10 }}>
+                Settings
+              </T>
+              <View
+                style={{
+                  backgroundColor: theme.card,
+                  borderRadius: 16,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.04,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 3 },
+                  elevation: 1,
+                }}
+              >
+                <SettingRow
+                  icon={mode === 'dark' ? <MoonStarIcon size={18} color={theme.primary} /> : <SunIcon size={18} color={theme.primary} />}
+                  label="Appearance"
+                  desc={mode === 'dark' ? 'Dark mode on' : 'Light mode on'}
+                  onPress={() => setMode((mode === 'dark' ? 'light' : 'dark') as ThemeMode)}
+                />
+                <SettingRow
+                  icon={<ShareIcon size={18} color={theme.primary} />}
+                  label="Share DeenLink"
+                  desc="Invite friends to the community"
+                  onPress={() => Alert.alert('Share', 'DeenLink — your deen, connected.')}
+                />
+                <SettingRow
+                  icon={<GiftIcon size={18} color={theme.primary} />}
+                  label="DeenPoints"
+                  desc="How to earn & spend your points"
+                  onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')}
+                />
+                <SettingRow
+                  icon={<LogOutIcon size={18} color={theme.danger} />}
+                  label="Sign Out"
+                  desc="End your session on this device"
+                  danger
+                  onPress={signOut}
+                />
+              </View>
+            </View>
+
+            {/* Posts */}
+            <View style={{ paddingTop: 18, paddingLeft: 16, paddingRight: 16, paddingBottom: 4 }}>
+              <T v="h3" style={{ marginBottom: 12 }}>
+                Your Posts
+              </T>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={{ paddingTop: 10, paddingLeft: 24, paddingRight: 24, paddingBottom: 30 }}>
+            <T v="caption" style={{ textAlign: 'center' }}>
+              {api.isLive() ? 'You haven’t posted yet.' : 'No posts yet — share a reminder!'}
+            </T>
+          </View>
+        }
+      />
+    </View>
+  );
+}
+
+function SettingRow({
+  icon,
+  label,
+  desc,
+  danger,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  desc?: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        opacity: pressed ? 0.7 : 1,
+        padding: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.cardSoft,
+        opacity: pressed ? 0.6 : 1,
       })}
     >
       <View
         style={{
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           borderRadius: 12,
           backgroundColor: danger ? theme.dangerSoft : theme.primarySoft,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon size={18} color={danger ? theme.danger : theme.primary} />
+        {icon}
       </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
-        <T v="bodyS" style={{ fontWeight: '700', color: danger ? theme.danger : theme.text }}>{label}</T>
+        <T v="bodyS" style={{ fontWeight: '700', color: danger ? theme.danger : theme.text }}>
+          {label}
+        </T>
         {desc ? <T v="caption" style={{ marginTop: 1 }}>{desc}</T> : null}
       </View>
-      <ChevronRightIcon size={15} color={theme.subtext} />
     </Pressable>
-  );
-
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
-        {/* Identity card */}
-        <Surface style={{ borderRadius: 22, padding: 18, alignItems: 'center' }}>
-          <View
-            style={{
-              width: 74,
-              height: 74,
-              borderRadius: 37,
-              backgroundColor: theme.primarySoft,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <T v="display" color="primary" style={{ fontSize: 26, fontFamily: 'Poppins-Bold' }}>
-              {initialsOf(name)}
-            </T>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
-            <T v="h1" style={{ fontSize: 19 }}>{name}</T>
-            {badge ? <VerificationBadge type={badge as 'blue' | 'green' | 'gold'} size={15} /> : null}
-          </View>
-          <T v="caption" style={{ marginTop: 2 }}>{username ? `@${username}` : 'Member'}</T>
-
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, alignSelf: 'stretch' }}>
-            <View style={{ flex: 1, backgroundColor: theme.cardSoft, borderRadius: 14, padding: 12, alignItems: 'center' }}>
-              <GiftIcon size={18} color={theme.accent} />
-              <T v="h2" style={{ marginTop: 4 }}>{deenpoints.toLocaleString()}</T>
-              <T v="caption" style={{ marginTop: 1 }}>DeenPoints</T>
-            </View>
-            <View style={{ flex: 1, backgroundColor: theme.cardSoft, borderRadius: 14, padding: 12, alignItems: 'center' }}>
-              <FlameIcon size={18} color={theme.accent} />
-              <T v="h2" style={{ marginTop: 4 }}>3</T>
-              <T v="caption" style={{ marginTop: 1 }}>Day streak</T>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={doCheckIn}
-            style={({ pressed }) => ({
-              marginTop: 12,
-              alignSelf: 'stretch',
-              backgroundColor: checkin === 'done' ? theme.accentSoft : theme.primary,
-              borderRadius: 13,
-              padding: 13,
-              alignItems: 'center',
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <T v="button" color={checkin === 'done' ? 'accent' : 'onPrimary'}>
-              {checkin === 'done'
-                ? 'Checked in ✓  +1 point'
-                : checkin === 'already'
-                  ? 'Already checked in today'
-                  : 'Daily check-in  ·  +1 DeenPoint'}
-            </T>
-          </Pressable>
-        </Surface>
-
-        {/* Account */}
-        <T v="h3" style={{ marginTop: 22, marginBottom: 4 }}>Account</T>
-        <Surface style={{ borderRadius: 18 }}>
-          <Row icon={UserIcon} label="Edit profile" desc="Name, username & bio" onPress={() => router.push('/settings/edit-profile')} />
-          <Row icon={PinIcon} label="Prayer location" desc="Where you pray" onPress={() => router.push('/tools/prayer')} />
-        </Surface>
-
-        {/* Preferences */}
-        <T v="h3" style={{ marginTop: 18, marginBottom: 4 }}>Preferences</T>
-        <Surface style={{ borderRadius: 18 }}>
-          <Row
-            icon={mode === 'dark' ? MoonStarIcon : SunIcon}
-            label="Appearance"
-            desc={mode === 'dark' ? 'Dark mode on' : 'Light mode on'}
-            onPress={() => setMode((mode === 'dark' ? 'light' : 'dark') as ThemeMode)}
-          />
-          <Row icon={BellIcon} label="Notifications" desc="Adhan reminders" onPress={() => router.push('/tools/prayer')} />
-          <Row icon={RefreshIcon} label="Reset progress" onPress={resetProgress} />
-        </Surface>
-
-        {/* Support */}
-        <T v="h3" style={{ marginTop: 18, marginBottom: 4 }}>Support</T>
-        <Surface style={{ borderRadius: 18 }}>
-          <Row
-            icon={ShieldIcon}
-            label="Privacy"
-            onPress={() => Alert.alert('Privacy', 'Your data stays on your device and your DeenLink account. We never sell it.')}
-          />
-          <Row
-            icon={InfoIcon}
-            label="Help & FAQ"
-            onPress={() => Alert.alert('Help', 'Questions? Email support@deenlink.org — the community is here for you.')}
-          />
-          <Row
-            icon={InfoIcon}
-            label="About DeenLink"
-            desc="Version 1.0"
-            onPress={() => Alert.alert('DeenLink', 'Your deen, connected. v1.0')}
-          />
-        </Surface>
-
-        <Pressable
-          onPress={signOut}
-          style={({ pressed }) => ({
-            marginTop: 20,
-            borderRadius: 14,
-            borderWidth: 1.2,
-            borderColor: theme.danger,
-            padding: 13,
-            alignItems: 'center',
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <LogOutIcon size={16} color={theme.danger} />
-            <T v="button" color="danger">Sign out</T>
-          </View>
-        </Pressable>
-      </ScrollView>
-    </View>
   );
 }

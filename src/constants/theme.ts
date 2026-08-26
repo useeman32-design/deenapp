@@ -9,37 +9,42 @@ export const brand = {
 };
 
 export const light = {
-  background: '#F5F7F5',
+  background: '#F5F5F5',
   card: '#FFFFFF',
-  card2: '#FBFDFB',
-  cardSoft: '#F0F7F2',
+  card2: '#FFFFFF',
+  cardSoft: '#F5F5F5',
   text: '#333333',
   heading: '#1F2D27',
   subtext: '#757575',
-  border: '#E4E9E5',
+  border: '#E0E0E0',
   primary: '#1D6F42',
-  primaryDark: '#155234',
+  primaryDark: '#155C35',
   primarySoft: '#E8F5E9',
-  accent: '#B8860B',
+  accent: '#D4AF37',
   accentSoft: '#FBF3DC',
   goldSoft: '#FBF3DC',
   danger: '#DC3545',
   dangerSoft: 'rgba(220, 53, 69, 0.10)',
   onPrimary: '#FFFFFF',
-  overlay: 'rgba(31, 45, 39, 0.45)',
+  overlay: 'rgba(0, 0, 0, 0.55)',
+  glass: 'rgba(255, 255, 255, 0.2)',
   glow: 'rgba(29, 111, 66, 0.10)',
   goldBright: '#D4AF37',
+  quranBlue: '#1A5F7A',
+  hadithPurple: '#6A1B9A',
+  prayerBlue: '#1976D2',
+  calendarPurple: '#7B1FA2',
 };
 
 export const dark = {
-  background: '#141F26',
-  card: '#22313E',
-  card2: '#2C3E50',
-  cardSoft: '#1E2C38',
+  background: '#0B0F14',
+  card: '#2C3E50',
+  card2: '#34495E',
+  cardSoft: '#34495E',
   text: '#ECF0F1',
   heading: '#F5F8F9',
   subtext: '#BDC3C7',
-  border: '#3A5063',
+  border: '#4A6572',
   primary: '#2ECC71',
   primaryDark: '#27AE60',
   primarySoft: '#1A3A2A',
@@ -49,9 +54,14 @@ export const dark = {
   danger: '#E74C3C',
   dangerSoft: 'rgba(231, 76, 60, 0.16)',
   onPrimary: '#FFFFFF',
-  overlay: 'rgba(10, 18, 22, 0.55)',
+  overlay: 'rgba(0, 0, 0, 0.62)',
+  glass: 'rgba(255, 255, 255, 0.2)',
   glow: 'rgba(46, 204, 113, 0.16)',
   goldBright: '#F39C12',
+  quranBlue: '#3498DB',
+  hadithPurple: '#9B59B6',
+  prayerBlue: '#3498DB',
+  calendarPurple: '#9B59B6',
 };
 
 export type Theme = typeof light;
@@ -59,26 +69,48 @@ export type Theme = typeof light;
 /* --------------------------- Quick tile tints --------------------------- */
 /* Pastel tool tiles from the web quick-access grid (light / dark pairs). */
 
-export type TileTint = { bg: string; bgDark: string; icon: string };
+export type TileTint = { from: string; to: string; icon: string };
 
+/**
+ * Web quick-access tile gradients (theme.css / index.html vars, 135deg).
+ * Keys follow the web class names; icon = FA-equivalent tint on light tiles.
+ */
 export const tiles = {
-  dua: { bg: '#E8F5E9', bgDark: '#1A2E22', icon: '#1D6F42' },
-  athkar: { bg: '#F3E5F5', bgDark: '#2A1F2E', icon: '#8E44AD' },
-  donation: { bg: '#FFE5E5', bgDark: '#331E1E', icon: '#D64545' },
-  tasbih: { bg: '#E0F2F1', bgDark: '#162B29', icon: '#00897B' },
-  calendar: { bg: '#FFF3E0', bgDark: '#332A1A', icon: '#EF6C00' },
-  hadith: { bg: '#FCE4EC', bgDark: '#322028', icon: '#C2185B' },
-  names: { bg: '#E8EAF6', bgDark: '#1E2033', icon: '#3F51B5' },
-  quiz: { bg: '#E0F7FA', bgDark: '#152B30', icon: '#00ACC1' },
-  deenai: { bg: '#FFF8E1', bgDark: '#332D15', icon: '#F9A825' },
-  videos: { bg: '#FCE4EC', bgDark: '#322028', icon: '#E91E63' },
-  prayer: { bg: '#E0F2F1', bgDark: '#162B29', icon: '#00897B' },
-  qibla: { bg: '#E8F5E9', bgDark: '#1A2E22', icon: '#1D6F42' },
-  zakat: { bg: '#FFF3E0', bgDark: '#332A1A', icon: '#EF6C00' },
-  question: { bg: '#E3F2FD', bgDark: '#172636', icon: '#1565C0' },
-  learning: { bg: '#E8EAF6', bgDark: '#1E2033', icon: '#3F51B5' },
-  wallpaper: { bg: '#E1F5FE', bgDark: '#152A33', icon: '#039BE5' },
+  askquestion: { from: '#E3F2FD', to: '#BBDEFB', icon: '#1565C0' },
+  videos: { from: '#FFE5EC', to: '#FFB6C1', icon: '#C2185B' },
+  deenai: { from: '#E8F5E9', to: '#C8E6C9', icon: '#1D6F42' },
+  shop: { from: '#FFF8E1', to: '#FFECB3', icon: '#F9A825' },
+  dua: { from: '#E8F5E9', to: '#C8E6C9', icon: '#1D6F42' },
+  athkar: { from: '#F3E5F5', to: '#E1BEE7', icon: '#8E44AD' },
+  addpost: { from: '#F1F8E9', to: '#DCEDC8', icon: '#558B2F' },
+  wallpaper: { from: '#E1F5FE', to: '#B3E5FC', icon: '#0277BD' },
+  donation: { from: '#FFE5E5', to: '#FFB3B3', icon: '#D32F2F' },
+  calendar: { from: '#FFF3E0', to: '#FFCC80', icon: '#EF6C00' },
+  tasbih: { from: '#E0F2F1', to: '#B2DFDB', icon: '#00796B' },
+  hadith: { from: '#FCE4EC', to: '#F8BBD0', icon: '#C2185B' },
+  quran: { from: '#E8F5E9', to: '#C8E6C9', icon: '#1D6F42' },
+  names: { from: '#F3E5F5', to: '#E1BEE7', icon: '#6A1B9A' },
+  quiz: { from: '#E0F7FA', to: '#80DEEA', icon: '#00838F' },
 } as const;
+
+/** Dark-theme tile pairs (theme.css dark vars). */
+export const tilesDark: Record<keyof typeof tiles, { from: string; to: string }> = {
+  askquestion: { from: '#1A2526', to: '#0D1A1A' },
+  videos: { from: '#261A26', to: '#1A0D1A' },
+  deenai: { from: '#26261A', to: '#1A1A0D' },
+  shop: { from: '#26261A', to: '#1A1A0D' },
+  dua: { from: '#1A2526', to: '#0D1A1A' },
+  athkar: { from: '#1A1A26', to: '#0D0D1A' },
+  addpost: { from: '#1A261A', to: '#0D1A0D' },
+  wallpaper: { from: '#1A2626', to: '#0D1A1A' },
+  donation: { from: '#261A1A', to: '#1A0D0D' },
+  calendar: { from: '#26261A', to: '#1A1A0D' },
+  tasbih: { from: '#1A2626', to: '#0D1A1A' },
+  hadith: { from: '#261A26', to: '#1A0D1A' },
+  quran: { from: '#1A2526', to: '#0D1A1A' },
+  names: { from: '#1A1A26', to: '#0D0D1A' },
+  quiz: { from: '#1A2626', to: '#0D1A1A' },
+};
 
 /* ----------------------------- Typography ----------------------------- */
 
