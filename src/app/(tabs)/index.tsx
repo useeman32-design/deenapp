@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,11 +8,12 @@ import Svg, { Circle, Defs, Line, Path, RadialGradient as SvgRadial, LinearGradi
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import * as api from '@/api/client';
 import { getGoal, getStreak } from '@/lib/routine';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
+import { storage } from '@/lib/storage';
+import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
 import { BeadsIcon } from '@/components/Icons';
 
 /** Soft radial glow (SVG-based, works on all platforms). */
@@ -34,13 +35,29 @@ const mecca = require('../../../assets/img/mecca.jpg');
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
-const QUICK = [
-  { key: 'quran', label: 'Quran', icon: { fa: 'quran' }, accent: 'emerald', href: '/(tabs)/quran' as const },
-  { key: 'hadith', label: 'Hadith', icon: { fa: 'scroll' }, accent: 'gold', href: '/tools/hadith' as const },
-  { key: 'dua', label: 'Dua', icon: { fa: 'praying-hands' }, accent: 'emerald', href: '/tools/dua' as const },
-  { key: 'prayer', label: 'Prayer Times', icon: { fa: 'mosque' }, accent: 'gold', href: '/tools/prayer' as const },
-  { key: 'dhikr', label: 'Dhikr', icon: { beads: true }, accent: 'emerald', href: '/tools/tasbeeh' as const },
-];
+/** Read the user's saved Quick-Access shortcuts (falls back to the default five). */
+function useQuickAccess(): QuickItem[] {
+  const [keys, setKeys] = useState<string[]>(DEFAULT_QUICK);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      storage.getItem(QUICK_STORAGE_KEY).then((raw) => {
+        if (!alive || !raw) return;
+        try {
+          const arr = JSON.parse(raw) as string[];
+          const items = quickItems(arr);
+          if (items.length) setKeys(items.map((i) => i.key));
+        } catch {
+          /* ignore corrupt data */
+        }
+      });
+      return () => {
+        alive = false;
+      };
+    }, [])
+  );
+  return quickItems(keys);
+}
 
 export default function Home() {
   const { theme, isDark } = useTheme();
@@ -48,15 +65,12 @@ export default function Home() {
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const quick = useQuickAccess();
 
   const [loc, setLoc] = useState<Loc | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [compose, setCompose] = useState(false);
-  const [body, setBody] = useState('');
-  const [youtube, setYoutube] = useState('');
-  const [fabOpen, setFabOpen] = useState(false);
   const [streak, setStreak] = useState({ days: 0, demo: true });
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean }>({ done: 0, total: 4, demo: true });
 
@@ -204,7 +218,7 @@ export default function Home() {
         {/* 2 ─ Prayer times hero card */}
         <View style={{ marginHorizontal: 16, borderRadius: 26, overflow: 'hidden', backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder }}>
           <View style={{ position: 'relative', padding: 18, paddingBottom: 12 }}>
-            <Image source={mecca} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+            <Image source={mecca} style={{ position: 'absolute', width: '100%', height: '100%', transform: [{ scale: 1.12 }] }} resizeMode="cover" />
             <LinearGradient
               colors={[d.heroTop, d.heroBottom] as [string, string, ...string[]]}
               start={{ x: 0, y: 0 }}
@@ -297,16 +311,17 @@ export default function Home() {
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
               Quick Access
             </T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Pressable onPress={() => router.push('/settings/quick-access')} hitSlop={8}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: pressed ? 0.6 : 1 })}>
               <FontAwesome5 name="edit" size={10} color={d.faint} />
               <T v="caption" style={{ color: d.faint, fontSize: 11.5 }}>
                 Edit
               </T>
-            </View>
+            </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
-            {QUICK.map((it) => (
-              <QuickTile key={it.key} item={it} onPress={() => router.push(it.href)} />
+            {quick.map((it) => (
+              <QuickTile key={it.key} item={it} onPress={() => router.push(it.href as never)} />
             ))}
           </ScrollView>
         </View>
@@ -478,163 +493,6 @@ export default function Home() {
           </View>
         </View>
       ) : null}
-
-      {/* FAB */}
-      {fabOpen ? (
-        <View style={{ position: 'absolute', bottom: 128, right: 24, gap: 14, alignItems: 'center', zIndex: 40 }}>
-          {[
-            { label: 'Add Post', icon: 'plus' as const, onPress: () => { setFabOpen(false); setCompose(true); } },
-            { label: 'Send Message', icon: 'paper-plane' as const, onPress: () => { setFabOpen(false); router.push('/(tabs)/profile'); } },
-            { label: 'AI Assistant', icon: 'robot' as const, onPress: () => { setFabOpen(false); } },
-          ].map((it) => (
-            <View key={it.label} style={{ alignItems: 'center', gap: 4 }}>
-              <Pressable
-                onPress={it.onPress}
-                style={({ pressed }) => ({
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: d.card,
-                  borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  shadowColor: '#000',
-                  shadowOpacity: 0.3,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: 5,
-                  opacity: pressed ? 0.8 : 1,
-                })}
-              >
-                <FontAwesome5 name={it.icon} size={15} color={d.text} />
-              </Pressable>
-              <T v="caption" style={{ color: d.text, fontSize: 9.5, fontWeight: '600' }}>
-                {it.label}
-              </T>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <Pressable
-        onPress={() => setFabOpen((o) => !o)}
-        style={({ pressed }) => ({
-          position: 'absolute',
-          bottom: 110,
-          right: 18,
-          width: 52,
-          height: 52,
-          borderRadius: 26,
-          backgroundColor: d.emerald,
-          borderWidth: 1,
-          borderColor: `${d.gold}88`,
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: [{ rotate: fabOpen ? '45deg' : '0deg' }],
-          opacity: pressed ? 0.88 : 1,
-          shadowColor: d.emerald,
-          shadowOpacity: 0.5,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 8,
-          zIndex: 41,
-        })}
-      >
-        <FontAwesome5 name="plus" size={19} color="#fff" />
-      </Pressable>
-
-      {/* Add post modal */}
-      <Modal visible={compose} transparent animationType="fade" onRequestClose={() => setCompose(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 }} onPress={() => setCompose(false)}>
-          <Pressable
-            onPress={() => {}}
-            style={{
-              backgroundColor: d.card,
-              borderRadius: 20,
-              padding: 22,
-              maxWidth: 500,
-              width: '100%',
-              alignSelf: 'center',
-              gap: 14,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: d.cardBorder }}>
-              <T v="h1" style={{ color: d.text, fontSize: 18, fontWeight: '700' }}>
-                Create new post
-              </T>
-              <Pressable onPress={() => setCompose(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="times" size={12} color={d.subtext} />
-              </Pressable>
-            </View>
-            <TextInput
-              value={body}
-              onChangeText={setBody}
-              placeholder="Write your post description…"
-              placeholderTextColor={d.faint}
-              multiline
-              numberOfLines={5}
-              style={{
-                backgroundColor: d.bgSoft,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                paddingHorizontal: 13,
-                paddingTop: 11,
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                color: d.text,
-                minHeight: 110,
-                textAlignVertical: 'top',
-              }}
-            />
-            <TextInput
-              value={youtube}
-              onChangeText={setYoutube}
-              placeholder="YouTube link (optional)"
-              placeholderTextColor={d.faint}
-              autoCapitalize="none"
-              keyboardType="url"
-              style={{
-                backgroundColor: d.bgSoft,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                paddingHorizontal: 13,
-                paddingVertical: 11,
-                fontFamily: 'Poppins',
-                fontSize: 13.5,
-                color: d.text,
-              }}
-            />
-            <Pressable
-              onPress={() => {
-                if (!body.trim() && !youtube.trim()) return;
-                setCompose(false);
-                api.createPost(body.trim(), youtube.trim() || undefined).catch(() => {});
-                setBody('');
-                setYoutube('');
-              }}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                backgroundColor: d.emerald,
-                borderRadius: 12,
-                padding: 13,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <FontAwesome5 name="paper-plane" size={13} color="#fff" />
-              <T v="button" color="onPrimary" style={{ color: '#fff', fontWeight: '600' }}>
-                Post
-              </T>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -662,10 +520,10 @@ function QuickTile({
   item,
   onPress,
 }: {
-  item: (typeof QUICK)[number];
+  item: QuickItem;
   onPress: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const d = theme.dash;
   const accent = item.accent === 'gold' ? d.gold : d.emerald;
   return (
@@ -673,27 +531,46 @@ function QuickTile({
       onPress={onPress}
       style={({ pressed }) => ({
         width: 66,
-        height: 82,
+        height: 84,
         borderRadius: 18,
         backgroundColor: d.card,
         borderWidth: 1,
-        borderColor: `${accent}55`,
+        borderColor: isDark ? `${accent}4D` : `${accent}40`,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 7,
+        gap: 8,
         opacity: pressed ? 0.85 : 1,
         overflow: 'hidden',
       })}
     >
-      <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <Glow size={56} color={accent} id={`glow-quick-${item.key}`} opacity={0.35} />
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 13,
+          backgroundColor: isDark ? `${accent}29` : `${accent}1A`,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {isDark ? <Glow size={52} color={accent} id={`glow-quick-${item.key}`} opacity={0.25} /> : null}
         {item.icon.beads ? (
-          <BeadsIcon size={21} color={accent} />
+          <BeadsIcon size={20} color={accent} />
         ) : (
-          <FontAwesome5 name={item.icon.fa} size={21} color={accent} />
+          <FontAwesome5 name={item.icon.fa as never} size={19} color={accent} />
         )}
       </View>
-      <T v="caption" style={{ color: d.subtext, fontSize: 9.5, fontWeight: '600' }}>
+      <T
+        v="caption"
+        style={{
+          color: d.subtext,
+          fontSize: 9.5,
+          fontWeight: '600',
+          textAlign: 'center',
+          includeFontPadding: false,
+          width: 58,
+        }}
+      >
         {item.label}
       </T>
     </Pressable>
@@ -775,6 +652,7 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
     horizon: 'rgba(255,255,255,0.16)',
     nowLine: 'rgba(255,255,255,0.22)',
     curve: '#D4AF37',
+    elapsed: '#F1C40F',
     area: '#D4AF37',
     dotFill: '#0E241A',
     dotStroke: 'rgba(255,255,255,0.5)',
@@ -839,6 +717,12 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
 
   const nowMs = now.getTime();
   const sunT = Math.min(Math.max(nowMs, fajr), end);
+  // bright "day so far" segment: Fajr → now
+  const elapsedIdx = Math.min(Math.round(((sunT - fajr) / span) * N), N);
+  const elapsed =
+    elapsedIdx > 0
+      ? `M ${pts.slice(0, elapsedIdx + 1).join(' L ')} ${X(sunT).toFixed(1)},${Y(sunT).toFixed(1)}`
+      : '';
   const sx = X(sunT);
   const sy = Y(sunT);
   const isDay = nowMs >= fajr && nowMs < maghrib;
@@ -865,26 +749,35 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
             <Stop offset="0%" stopColor={c.halo} stopOpacity={0.5} />
             <Stop offset="100%" stopColor={c.halo} stopOpacity={0} />
           </SvgRadial>
+          <SvgRadial id="active-glow" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor={c.active} stopOpacity={0.4} />
+            <Stop offset="100%" stopColor={c.active} stopOpacity={0} />
+          </SvgRadial>
         </Defs>
         {/* horizon */}
         <Line x1={pad - 8} y1={baseline} x2={w - pad + 8} y2={baseline} stroke={c.horizon} strokeWidth={1} strokeDasharray="1 4" strokeLinecap="round" />
         {/* soft fill under the arc */}
         <Path d={area} fill="url(#sun-area)" />
-        {/* the day arc */}
-        <Path d={curve} stroke={c.curve} strokeOpacity={0.55} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+        {/* the day arc (remaining) */}
+        <Path d={curve} stroke={c.curve} strokeOpacity={0.3} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+        {/* the elapsed portion, brighter */}
+        {elapsed ? <Path d={elapsed} stroke={c.elapsed} strokeOpacity={0.95} strokeWidth={2} fill="none" strokeLinecap="round" /> : null}
         {/* now line */}
         <Line x1={sx} y1={sy + 13} x2={sx} y2={baseline} stroke={c.nowLine} strokeWidth={1} />
         {/* prayer markers at their real positions */}
         {markers.map((m) => {
           const active = npIndex === m.idx;
           return active ? (
-            <Circle key={m.label} cx={X(m.t)} cy={Y(m.t)} r={4.5} fill={c.active} stroke={c.dotFill} strokeWidth={1.5} />
+            <React.Fragment key={m.label}>
+              <Circle cx={X(m.t)} cy={Y(m.t)} r={10} fill="url(#active-glow)" />
+              <Circle cx={X(m.t)} cy={Y(m.t)} r={4.5} fill={c.active} stroke={c.dotFill} strokeWidth={1.5} />
+            </React.Fragment>
           ) : (
             <Circle key={m.label} cx={X(m.t)} cy={Y(m.t)} r={3} fill={c.dotFill} stroke={c.dotStroke} strokeWidth={1.2} />
           );
         })}
         {/* sun / moon at the current time */}
-        <Circle cx={sx} cy={sy} r={17} fill="url(#sun-halo)" />
+        <Circle cx={sx} cy={sy} r={16} fill="url(#sun-halo)" />
         <Circle cx={sx} cy={sy} r={11} fill={c.card} stroke={isDay ? c.sunRingDay : c.sunRingNight} strokeWidth={1.2} />
       </Svg>
 

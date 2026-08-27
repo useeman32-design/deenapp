@@ -1,0 +1,37 @@
+/** Shared Quick-Access catalog + persistence contract (home screen + editor). */
+
+export type QuickItem = {
+  key: string;
+  label: string;
+  icon: { fa?: string; beads?: boolean };
+  accent: 'emerald' | 'gold';
+  href: string;
+};
+
+export const QUICK_CATALOG: QuickItem[] = [
+  { key: 'quran', label: 'Quran', icon: { fa: 'quran' }, accent: 'emerald', href: '/(tabs)/quran' },
+  { key: 'hadith', label: 'Hadith', icon: { fa: 'book-reader' }, accent: 'gold', href: '/tools/hadith' },
+  { key: 'dua', label: 'Dua', icon: { fa: 'praying-hands' }, accent: 'emerald', href: '/tools/dua' },
+  { key: 'prayer', label: 'Prayer Times', icon: { fa: 'clock' }, accent: 'gold', href: '/tools/prayer' },
+  { key: 'dhikr', label: 'Dhikr', icon: { beads: true }, accent: 'emerald', href: '/tools/tasbeeh' },
+  { key: 'qibla', label: 'Qibla', icon: { fa: 'kaaba' }, accent: 'gold', href: '/tools/qibla' },
+  { key: 'calendar', label: 'Calendar', icon: { fa: 'calendar' }, accent: 'emerald', href: '/tools/calendar' },
+  { key: 'names', label: 'Names of Allah', icon: { fa: 'gem' }, accent: 'gold', href: '/tools/names' },
+  { key: 'zakat', label: 'Zakat', icon: { fa: 'hand-holding-heart' }, accent: 'gold', href: '/tools/charity' },
+  { key: 'wallpapers', label: 'Wallpapers', icon: { fa: 'image' }, accent: 'emerald', href: '/tools/wallpapers' },
+  { key: 'courses', label: 'Courses', icon: { fa: 'graduation-cap' }, accent: 'emerald', href: '/(tabs)/learning' },
+  { key: 'videos', label: 'Videos', icon: { fa: 'film' }, accent: 'gold', href: '/tools/videos' },
+  { key: 'quiz', label: 'Quiz', icon: { fa: 'question-circle' }, accent: 'emerald', href: '/tools/quiz' },
+  { key: 'scholars', label: 'Scholars', icon: { fa: 'user-graduate' }, accent: 'gold', href: '/tools/scholars' },
+];
+
+export const DEFAULT_QUICK: string[] = ['quran', 'hadith', 'dua', 'prayer', 'dhikr'];
+export const QUICK_MAX = 5;
+export const QUICK_STORAGE_KEY = 'dl.quickaccess';
+
+/** Resolve stored keys to catalog items (drops unknown keys, keeps order). */
+export function quickItems(keys: string[]): QuickItem[] {
+  return keys
+    .map((k) => QUICK_CATALOG.find((c) => c.key === k))
+    .filter((c): c is QuickItem => Boolean(c));
+}

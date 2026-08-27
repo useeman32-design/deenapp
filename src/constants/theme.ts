@@ -26,6 +26,10 @@ export interface DashTheme {
   subtext: string;
   faint: string;
   navBg: string;
+  navTint: string; // translucent glass tint over the blur
+  navBorder: string; // 1px hairline on the floating bar
+  greenSoft: string; // sliding active-tab pill
+  navShadow: string; // soft green lift shadow
   heroTop: string;
   heroBottom: string;
   patternOpacity: number;
@@ -45,6 +49,10 @@ const dashLight: DashTheme = {
   subtext: 'rgba(24,36,32,0.62)',
   faint: 'rgba(24,36,32,0.38)',
   navBg: 'rgba(255,255,255,0.82)',
+  navTint: 'rgba(255,255,255,0.55)',
+  navBorder: 'rgba(29,111,66,0.18)',
+  greenSoft: 'rgba(29,111,66,0.12)',
+  navShadow: '#1D6F42',
   heroTop: 'rgba(8,26,17,0.88)',
   heroBottom: 'rgba(8,26,17,0.7)',
   patternOpacity: 0.3,
@@ -64,6 +72,10 @@ const dashDark: DashTheme = {
   subtext: 'rgba(226,240,230,0.62)',
   faint: 'rgba(226,240,230,0.36)',
   navBg: 'rgba(8,18,12,0.86)',
+  navTint: 'rgba(13,18,15,0.62)',
+  navBorder: 'rgba(212,175,55,0.22)',
+  greenSoft: 'rgba(46,204,113,0.17)',
+  navShadow: '#2ECC71',
   heroTop: 'rgba(4,12,8,0.88)',
   heroBottom: 'rgba(4,12,8,0.68)',
   patternOpacity: 0.5,
