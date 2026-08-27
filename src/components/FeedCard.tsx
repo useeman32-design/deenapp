@@ -1,5 +1,6 @@
 import { Linking, Pressable, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import type { DashTheme } from '@/constants/theme';
 import type { Post } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { T } from '@/components/T';
@@ -15,13 +16,25 @@ export function FeedCard({
   post,
   onLike,
   showActions = true,
+  dash,
+  field,
 }: {
   post: Post;
   onLike?: (id: number) => void;
   showActions?: boolean;
+  dash?: DashTheme;
+  field?: string;
 }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const user = post.user;
+  // color resolution: premium dash palette when provided, base theme otherwise
+  const card = dash?.card ?? theme.card;
+  const soft = dash ? dash.bgSoft : theme.cardSoft;
+  const txt = dash?.text ?? theme.text;
+  const sub = dash?.subtext ?? theme.subtext;
+  const hairline = dash?.cardBorder ?? theme.border;
+  const accent = dash?.emerald ?? theme.primary;
+  const danger = dash ? '#FF7B7B' : theme.danger;
 
   const openYouTube = () => {
     if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
@@ -32,7 +45,7 @@ export function FeedCard({
   return (
     <View
       style={{
-        backgroundColor: theme.card,
+        backgroundColor: card,
         borderRadius: 16,
         padding: 16,
         marginBottom: 20,
@@ -48,20 +61,29 @@ export function FeedCard({
         <Avatar name={user.full_name ?? user.username} color={theme.primary} size={40} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <T v="body" style={{ fontWeight: '600', fontSize: 14 }}>
+            <T v="body" style={{ fontWeight: '600', fontSize: 14, color: txt }}>
               {user.full_name ?? user.username}
             </T>
             {user.verification_badge ? <VerificationBadge type={user.verification_badge} size={13} /> : null}
           </View>
-          <T v="caption" style={{ fontSize: 11, marginTop: 2, color: theme.subtext }}>
-            @{user.username} · {post.time_ago ?? ''}
-          </T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <T v="caption" style={{ fontSize: 11, color: sub, flexShrink: 1 }}>
+              @{user.username} · {post.time_ago ?? ''}
+            </T>
+            {field ? (
+              <View style={{ borderWidth: 1, borderColor: hairline, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1.5 }}>
+                <T v="caption" style={{ fontSize: 8.5, fontWeight: '600', color: sub, letterSpacing: 0.4 }}>
+                  {field.toUpperCase()}
+                </T>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
 
       {/* Body */}
       {post.content_text ? (
-        <T v="bodyS" style={{ fontSize: 13, lineHeight: 19.5, marginBottom: 14 }}>
+        <T v="bodyS" style={{ fontSize: 13, lineHeight: 19.5, marginBottom: 14, color: txt }}>
           {post.content_text}
         </T>
       ) : null}
@@ -75,7 +97,7 @@ export function FeedCard({
             alignItems: 'center',
             gap: 10,
             marginBottom: 14,
-            backgroundColor: theme.cardSoft,
+            backgroundColor: soft,
             borderRadius: 12,
             padding: 11,
             opacity: pressed ? 0.85 : 1,
@@ -86,17 +108,17 @@ export function FeedCard({
               width: 36,
               height: 36,
               borderRadius: 10,
-              backgroundColor: theme.danger,
+              backgroundColor: danger,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
             <PlayIcon size={15} color="#fff" />
           </View>
-          <T v="bodyS" style={{ flex: 1, color: theme.text }}>
+          <T v="bodyS" style={{ flex: 1, color: txt }}>
             Watch video
           </T>
-          <T v="caption" color="primary" style={{ fontWeight: '700' }}>
+          <T v="caption" style={{ fontWeight: '700', color: accent }}>
             Open
           </T>
         </Pressable>
@@ -107,10 +129,10 @@ export function FeedCard({
         <View
           style={{
             marginTop: post.content_text ? 0 : 12,
-            backgroundColor: theme.card,
+            backgroundColor: card,
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: theme.border,
+            borderColor: hairline,
             padding: 16,
             marginBottom: 14,
           }}
@@ -134,7 +156,7 @@ export function FeedCard({
             alignItems: 'center',
             paddingTop: 12,
             borderTopWidth: 1,
-            borderTopColor: theme.cardSoft,
+            borderTopColor: soft,
           }}
         >
           <Pressable onPress={() => onLike?.(post.id)} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: pressed ? 0.6 : 1 })}>
