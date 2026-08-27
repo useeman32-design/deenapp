@@ -80,12 +80,12 @@ function FloatingTabBar({
         borderRadius: 26,
         overflow: 'hidden',
         backgroundColor: d.navBg,
-        // soft green lift
+        // soft deep-green lift
         shadowColor: d.navShadow,
-        shadowOpacity: isDark ? 0.28 : 0.22,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 10 },
-        elevation: 16,
+        shadowOpacity: 0.14,
+        shadowRadius: 28,
+        shadowOffset: { width: 0, height: 12 },
+        elevation: 10,
       }}
     >
       {/* glass layer 1 — blur */}
@@ -186,6 +186,7 @@ function TabLabels({
     letterSpacing: 0.2,
     includeFontPadding: false,
     textAlign: 'center' as const,
+    lineHeight: 10.5,
     width,
   };
   return (

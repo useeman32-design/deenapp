@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, Line, Path, RadialGradient as SvgRadial, LinearGradient as SvgLinear, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGradient as SvgLinear, Stop } from 'react-native-svg';
 
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +12,9 @@ import { getGoal, getStreak } from '@/lib/routine';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
+import * as api from '@/api/client';
+import type { Post, Scholar, Video } from '@/api/types';
+import { MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
 import { BeadsIcon } from '@/components/Icons';
@@ -59,6 +62,60 @@ function useQuickAccess(): QuickItem[] {
   return quickItems(keys);
 }
 
+/* ------------------------------ Campaigns ------------------------------ */
+
+const CAMPAIGNS = [
+  {
+    title: 'Finish the Qur\'an',
+    sub: 'One surah a day — keep the chain alive.',
+    icon: 'quran' as const,
+    accent: '#F1C40F',
+    from: '#0E2A1C',
+    to: '#123B26',
+    href: '/(tabs)/quran',
+  },
+  {
+    title: 'Ramadan Countdown',
+    sub: 'Start your preparation streak today.',
+    icon: 'moon' as const,
+    accent: '#5BE59B',
+    from: '#0F1F2C',
+    to: '#14301F',
+    href: '/tools/calendar',
+  },
+  {
+    title: 'Ask a Scholar',
+    sub: 'Verified answers from the scholars.',
+    icon: 'user-graduate' as const,
+    accent: '#F1C40F',
+    from: '#2A2410',
+    to: '#14291C',
+    href: '/tools/scholars',
+  },
+];
+
+const DAILY_AYAH = {
+  arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا',
+  meaning: 'For indeed, with hardship [will be] ease.',
+  ref: 'Ash-Sharh 94:6',
+};
+
+const DAILY_HADITH = {
+  arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ',
+  meaning: 'Actions are only by intentions.',
+  ref: 'Sahih al-Bukhari 1',
+};
+
+function initialsOf(name?: string | null) {
+  const parts = (name ?? 'U').trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || 'U';
+}
+
+function fmtViews(n?: number | null) {
+  if (!n) return '—';
+  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
+}
+
 export default function Home() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -73,6 +130,19 @@ export default function Home() {
   const [q, setQ] = useState('');
   const [streak, setStreak] = useState({ days: 0, demo: true });
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean }>({ done: 0, total: 4, demo: true });
+  const [scholars, setScholars] = useState<Scholar[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [followed, setFollowed] = useState<number[]>([]);
+
+  useEffect(() => {
+    api.scholars().then((r) => setScholars(r.length ? r : MOCK_SCHOLARS)).catch(() => setScholars(MOCK_SCHOLARS));
+    api.videos('daily').then((r) => setVideos(r.length ? r : MOCK_VIDEOS)).catch(() => setVideos(MOCK_VIDEOS));
+    api.feed('for-you').then((r) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED)).catch(() => setPosts(MOCK_FEED));
+  }, []);
+
+  const toggleFollow = (id: number) =>
+    setFollowed((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -255,11 +325,24 @@ export default function Home() {
                     <PulseDot color={isDark ? d.emerald : '#5BE59B'} />
                   </View>
                 </View>
-                <Pressable onPress={() => router.push('/tools/prayer')} hitSlop={8}>
-                  <T v="caption" style={{ color: d.goldBright, fontSize: 11, fontWeight: '600' }}>
-                    View All <T v="caption" style={{ color: d.goldBright, fontSize: 11 }}>→</T>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <FontAwesome5 name="map-marker-alt" size={10} color={isDark ? d.emerald : '#5BE59B'} />
+                  <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600' }}>
+                    {loc ? loc.name.split(',').slice(0, 2).join(',') : 'Locating…'}
                   </T>
-                </Pressable>
+                </View>
               </View>
 
               {/* time + qibla */}
@@ -391,7 +474,58 @@ export default function Home() {
           </View>
         </View>
 
-        {/* 5 ─ Continue Learning */}
+        {/* 5 ─ Campaign banners */}
+        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
+              Campaigns
+            </T>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+            {CAMPAIGNS.map((c) => (
+              <Pressable
+                key={c.title}
+                onPress={() => router.push(c.href as never)}
+                style={({ pressed }) => ({ width: 296, borderRadius: 20, overflow: 'hidden', opacity: pressed ? 0.9 : 1 })}
+              >
+                <LinearGradient
+                  colors={[c.from, c.to] as [string, string, ...string[]]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ padding: 15, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.28)' }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: 'rgba(255,255,255,0.09)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.16)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <FontAwesome5 name={c.icon} size={18} color={c.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <T v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700' }}>
+                        {c.title}
+                      </T>
+                      <T v="caption" style={{ color: 'rgba(255,255,255,0.72)', fontSize: 11, marginTop: 3 }}>
+                        {c.sub}
+                      </T>
+                    </View>
+                    <FontAwesome5 name="chevron-right" size={12} color="rgba(255,255,255,0.55)" />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* 6 ─ Continue Learning */}
         <View style={{ marginHorizontal: 16, marginTop: 26 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
@@ -456,6 +590,352 @@ export default function Home() {
               <FontAwesome5 name="play" size={13} color="#fff" style={{ marginLeft: 2 }} />
             </View>
           </Pressable>
+          {/* second course */}
+          <Pressable
+            onPress={() => router.push('/tools/courses')}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 13,
+              borderRadius: 20,
+              backgroundColor: d.card,
+              borderWidth: 1,
+              borderColor: d.cardBorder,
+              padding: 14,
+              marginTop: 12,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <View
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 16,
+                backgroundColor: isDark ? `${d.gold}1F` : `${d.gold}14`,
+                borderWidth: 1,
+                borderColor: isDark ? `${d.gold}40` : `${d.gold}33`,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FontAwesome5 name="graduation-cap" size={19} color={d.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T v="h3" style={{ color: d.text, fontWeight: '600', fontSize: 14.5 }}>
+                Tajwid Essentials
+              </T>
+              <T v="caption" style={{ color: d.subtext, fontSize: 11.5, marginTop: 3 }}>
+                Lesson 1 • The Foundation of Recitation
+              </T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(242,247,243,0.12)' : 'rgba(24,36,32,0.1)' }}>
+                  <View style={{ width: '15%', height: '100%', borderRadius: 3, backgroundColor: d.gold }} />
+                </View>
+                <T v="caption" style={{ color: d.gold, fontSize: 10.5, fontWeight: '600' }}>
+                  15%
+                </T>
+              </View>
+            </View>
+            <View
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                backgroundColor: d.gold,
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: d.gold,
+                shadowOpacity: 0.5,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 6,
+              }}
+            >
+              <FontAwesome5 name="play" size={13} color="#fff" style={{ marginLeft: 2 }} />
+            </View>
+          </Pressable>
+        </View>
+
+        {/* 7 ─ Accounts to follow */}
+        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
+              Accounts to Follow
+            </T>
+            <Pressable onPress={() => router.push('/tools/scholars')} hitSlop={8}>
+              <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
+                View more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
+              </T>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+            {scholars.map((sc) => {
+              const name = sc.display_name ?? 'Scholar';
+              const isF = followed.includes(sc.id);
+              return (
+                <View
+                  key={sc.id}
+                  style={{
+                    width: 122,
+                    borderRadius: 18,
+                    backgroundColor: d.card,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    padding: 14,
+                    alignItems: 'center',
+                    gap: 7,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
+                      backgroundColor: isDark ? `${d.emerald}24` : `${d.emerald}16`,
+                      borderWidth: 1,
+                      borderColor: d.greenBorder,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <T v="bodyS" style={{ color: d.emerald, fontSize: 13, fontWeight: '700' }}>
+                      {initialsOf(name)}
+                    </T>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <T v="bodyS" style={{ color: d.text, fontSize: 11, fontWeight: '600', textAlign: 'center', lineHeight: 13, width: 104 }}>
+                      {name}
+                    </T>
+                    <T v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 2, textAlign: 'center' }}>
+                      {sc.institute || sc.title || 'Scholar'}
+                    </T>
+                  </View>
+                  <Pressable
+                    onPress={() => toggleFollow(sc.id)}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 14,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: isF ? 'transparent' : d.greenBorder,
+                      backgroundColor: isF ? d.emerald : 'transparent',
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <T v="caption" style={{ color: isF ? '#fff' : d.emerald, fontSize: 10, fontWeight: '700' }}>
+                      {isF ? 'Following' : 'Follow'}
+                    </T>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* 8 ─ Community / recent posts */}
+        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
+              Recent Posts
+            </T>
+            <Pressable onPress={() => router.push('/(tabs)/profile')} hitSlop={8}>
+              <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
+                Go to community <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
+              </T>
+            </Pressable>
+          </View>
+          <View style={{ gap: 12 }}>
+            {posts.slice(0, 4).map((p) => {
+              const uname = p.user?.full_name || p.user?.username || 'Member';
+              return (
+                <View
+                  key={p.id}
+                  style={{
+                    flexDirection: 'row',
+                    gap: 11,
+                    backgroundColor: d.card,
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    padding: 13,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: isDark ? `${d.gold}22` : `${d.gold}14`,
+                      borderWidth: 1,
+                      borderColor: d.cardBorder,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {p.user?.profile_image_url ? (
+                      <Image source={{ uri: p.user.profile_image_url }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+                    ) : (
+                      <T v="bodyS" style={{ color: d.gold, fontSize: 12, fontWeight: '700' }}>
+                        {initialsOf(uname)}
+                      </T>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <T v="bodyS" style={{ color: d.text, fontSize: 11.5, fontWeight: '600', flexShrink: 1 }}>
+                        {uname}
+                      </T>
+                      {p.time_ago ? (
+                        <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
+                          • {p.time_ago}
+                        </T>
+                      ) : null}
+                    </View>
+                    {p.content_text ? (
+                      <T v="bodyS" style={{ color: d.subtext, fontSize: 11.5, marginTop: 4, lineHeight: 15 }}>
+                        {p.content_text.length > 160 ? `${p.content_text.slice(0, 160)}…` : p.content_text}
+                      </T>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <FontAwesome5 name="heart" size={10} color={d.faint} />
+                        <T v="caption" style={{ color: d.faint, fontSize: 10 }}>
+                          {p.like_count ?? 0}
+                        </T>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <FontAwesome5 name="comment" size={10} color={d.faint} />
+                        <T v="caption" style={{ color: d.faint, fontSize: 10 }}>
+                          {p.comment_count ?? 0}
+                        </T>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 9 ─ Daily Ayah & Hadith */}
+        <View style={{ marginHorizontal: 16, marginTop: 26, flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <FontAwesome5 name="star-and-crescent" size={11} color={d.gold} />
+              <T v="caption" style={{ color: d.subtext, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.1 }}>
+                DAILY AYAH
+              </T>
+            </View>
+            <Text
+              style={{
+                fontFamily: 'Amiri',
+                fontSize: 16,
+                color: d.text,
+                textAlign: 'center',
+                lineHeight: 26,
+                marginTop: 10,
+                writingDirection: 'rtl',
+              }}
+            >
+              {DAILY_AYAH.arabic}
+            </Text>
+            <T v="caption" style={{ color: d.subtext, fontSize: 10, textAlign: 'center', marginTop: 6, lineHeight: 13 }}>
+              {DAILY_AYAH.meaning}
+            </T>
+            <T v="caption" style={{ color: d.faint, fontSize: 9, textAlign: 'center', marginTop: 6, fontWeight: '600' }}>
+              {DAILY_AYAH.ref}
+            </T>
+          </View>
+          <View style={{ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <FontAwesome5 name="scroll" size={11} color={d.gold} />
+              <T v="caption" style={{ color: d.subtext, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.1 }}>
+                DAILY HADITH
+              </T>
+            </View>
+            <Text
+              style={{
+                fontFamily: 'Amiri',
+                fontSize: 16,
+                color: d.text,
+                textAlign: 'center',
+                lineHeight: 26,
+                marginTop: 10,
+                writingDirection: 'rtl',
+              }}
+            >
+              {DAILY_HADITH.arabic}
+            </Text>
+            <T v="caption" style={{ color: d.subtext, fontSize: 10, textAlign: 'center', marginTop: 6, lineHeight: 13 }}>
+              {DAILY_HADITH.meaning}
+            </T>
+            <T v="caption" style={{ color: d.faint, fontSize: 9, textAlign: 'center', marginTop: 6, fontWeight: '600' }}>
+              {DAILY_HADITH.ref}
+            </T>
+          </View>
+        </View>
+
+        {/* 10 ─ Videos */}
+        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
+              Videos
+            </T>
+            <Pressable onPress={() => router.push('/tools/videos')} hitSlop={8}>
+              <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
+                View all <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
+              </T>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+            {videos.map((v) => (
+              <Pressable key={v.id} onPress={() => router.push('/tools/videos')} style={({ pressed }) => ({ width: 158, opacity: pressed ? 0.9 : 1 })}>
+                <View style={{ height: 100, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
+                  <LinearGradient
+                    colors={(isDark ? ['#123524', '#0A1A12'] : ['#DCEEE2', '#F2F7F2']) as [string, string, ...string[]]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ position: 'absolute', inset: 0 }}
+                  />
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <View
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: d.emerald,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: d.emerald,
+                        shadowOpacity: 0.5,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 4 },
+                        elevation: 6,
+                      }}
+                    >
+                      <FontAwesome5 name="play" size={12} color="#fff" style={{ marginLeft: 2 }} />
+                    </View>
+                  </View>
+                  {v.duration ? (
+                    <View style={{ position: 'absolute', right: 8, bottom: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <T v="caption" style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>
+                        {v.duration}
+                      </T>
+                    </View>
+                  ) : null}
+                </View>
+                <T v="bodyS" style={{ color: d.text, fontSize: 11.5, fontWeight: '600', marginTop: 8, lineHeight: 14 }}>
+                  {v.title ?? 'Daily reminder'}
+                </T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <FontAwesome5 name="play" size={8} color={d.faint} />
+                  <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
+                    {fmtViews(v.view_count as number)} views
+                  </T>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       </ScrollView>
 
@@ -568,6 +1048,7 @@ function QuickTile({
           fontWeight: '600',
           textAlign: 'center',
           includeFontPadding: false,
+          lineHeight: 12,
           width: 58,
         }}
       >
@@ -729,11 +1210,11 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
   const npIndex = nextIndex;
 
   const markers = [
-    { label: 'Fajr', t: fajr, idx: 0 },
-    { label: 'Dhuhr', t: dhuhr, idx: 2 },
-    { label: 'Asr', t: asr, idx: 3 },
-    { label: 'Maghrib', t: maghrib, idx: 4 },
-    { label: 'Isha', t: isha, idx: 5 },
+    { label: 'Fajr', t: fajr, idx: 0, icon: 'cloud-sun' as const },
+    { label: 'Dhuhr', t: dhuhr, idx: 2, icon: 'sun' as const },
+    { label: 'Asr', t: asr, idx: 3, icon: 'sun' as const },
+    { label: 'Maghrib', t: maghrib, idx: 4, icon: 'cloud-sun' as const },
+    { label: 'Isha', t: isha, idx: 5, icon: 'moon' as const },
   ];
 
 
@@ -767,34 +1248,68 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
         {/* prayer markers at their real positions */}
         {markers.map((m) => {
           const active = npIndex === m.idx;
-          return active ? (
+          return (
             <React.Fragment key={m.label}>
-              <Circle cx={X(m.t)} cy={Y(m.t)} r={10} fill="url(#active-glow)" />
-              <Circle cx={X(m.t)} cy={Y(m.t)} r={4.5} fill={c.active} stroke={c.dotFill} strokeWidth={1.5} />
+              {active ? <Circle cx={X(m.t)} cy={Y(m.t)} r={13} fill="url(#active-glow)" /> : null}
+              <Circle
+                cx={X(m.t)}
+                cy={Y(m.t)}
+                r={8}
+                fill={c.dotFill}
+                stroke={active ? c.active : c.dotStroke}
+                strokeWidth={active ? 1.5 : 1}
+              />
             </React.Fragment>
-          ) : (
-            <Circle key={m.label} cx={X(m.t)} cy={Y(m.t)} r={3} fill={c.dotFill} stroke={c.dotStroke} strokeWidth={1.2} />
           );
         })}
         {/* sun / moon at the current time */}
         <Circle cx={sx} cy={sy} r={16} fill="url(#sun-halo)" />
         <Circle cx={sx} cy={sy} r={11} fill={c.card} stroke={isDay ? c.sunRingDay : c.sunRingNight} strokeWidth={1.2} />
+        {isDay ? (
+          <G>
+            <Circle cx={sx} cy={sy} r={4} fill={c.sunDay} />
+            {Array.from({ length: 8 }, (_, k) => {
+              const a = (k * Math.PI) / 4;
+              return (
+                <Line
+                  key={k}
+                  x1={sx + Math.cos(a) * 6}
+                  y1={sy + Math.sin(a) * 6}
+                  x2={sx + Math.cos(a) * 8.4}
+                  y2={sy + Math.sin(a) * 8.4}
+                  stroke={c.sunDay}
+                  strokeWidth={1.3}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </G>
+        ) : (
+          <Path
+            d={`M ${sx + 1.6} ${sy - 4.7} A 4.7 4.7 0 1 0 ${sx + 1.6} ${sy + 4.7} A 3.5 3.5 0 1 1 ${sx + 1.6} ${sy - 4.7} Z`}
+            fill={c.sunNight}
+          />
+        )}
       </Svg>
 
-      {/* sun / moon glyph */}
-      <View
-        style={{
-          position: 'absolute',
-          left: sx - 11,
-          top: sy - 11,
-          width: 22,
-          height: 22,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <FontAwesome5 name={isDay ? 'sun' : 'moon'} size={11} color={isDay ? c.sunDay : c.sunNight} />
-      </View>
+
+      {/* prayer icons inside the dots */}
+      {markers.map((m) => (
+        <View
+          key={`gi-${m.label}`}
+          style={{
+            position: 'absolute',
+            left: X(m.t) - 8,
+            top: Y(m.t) - 8,
+            width: 16,
+            height: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <FontAwesome5 name={m.icon} size={7.5} color={npIndex === m.idx ? c.active : 'rgba(255,255,255,0.82)'} />
+        </View>
+      ))}
 
       {/* labels: name + real time under each marker (collisions resolved L→R) */}
       {(() => {

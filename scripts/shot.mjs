@@ -37,7 +37,7 @@ const browser = await chromium.launch({
   args: ['--no-sandbox'],
 });
 const ctx = await browser.newContext({
-  viewport: { width: 390, height: 844 },
+  viewport: { width: 390, height: process.env.VH ? Number(process.env.VH) : 844 },
   deviceScaleFactor: 2,
   colorScheme: process.env.SCHEME || 'dark',
 });
