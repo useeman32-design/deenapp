@@ -1,12 +1,18 @@
 /**
- * Share-card generator (web): renders a premium 1080×1350 PNG of the daily
- * ayah / hadith with the DeenLink logo and a QR code, for social sharing
- * or saving to the phone.
+ * Share-card generator (web): renders a premium PNG of the daily ayah / hadith
+ * with the DeenLink logo and a QR code, for social sharing or saving.
+ *
+ * - 4 selectable designs: Classic (vector gradient), Emerald, Midnight, Cream.
+ * - Dynamic height: long arabic / moderate meaning extend the card so text
+ *   never clips; the bottom (QR) block stays anchored at the footer.
  */
 import { Platform } from 'react-native';
 import { create as createQR } from 'qrcode';
 
 const appIcon = require('../../assets/images/icon.png');
+const bgEmerald = require('../../assets/img/share-emerald.jpg');
+const bgMidnight = require('../../assets/img/share-midnight.jpg');
+const bgCream = require('../../assets/img/share-cream.jpg');
 
 export interface ShareCardInput {
   kind: 'ayah' | 'hadith';
@@ -15,12 +21,29 @@ export interface ShareCardInput {
   ref: string;
 }
 
+export interface ShareDesign {
+  id: string;
+  name: string;
+  src: number | null;
+  dark: boolean;
+}
+
+export const SHARE_DESIGNS: ShareDesign[] = [
+  { id: 'classic', name: 'Classic', src: null, dark: true },
+  { id: 'emerald', name: 'Emerald', src: bgEmerald, dark: true },
+  { id: 'midnight', name: 'Midnight', src: bgMidnight, dark: true },
+  { id: 'cream', name: 'Cream', src: bgCream, dark: false },
+];
+
 const W = 1080;
-const H = 1350;
+const H_MIN = 1350;
 const GOLD = '#D4AF37';
 const GOLD_SOFT = 'rgba(212,175,55,0.4)';
 const BG = '#0B0F0D';
 const WHITE = '#F5F8F5';
+const DARK_TEXT = '#15251C';
+const DARK_SUB = 'rgba(21,37,28,0.72)';
+const DARK_GOLD = '#8C6D1F';
 
 function isWeb() {
   return Platform.OS === 'web' && typeof document !== 'undefined';
@@ -66,10 +89,28 @@ function eightStar(ctx: any, cx: number, cy: number, r: number) {
   ctx.closePath();
 }
 
+function loadImage(doc: any, src: number | string): Promise<HTMLImageElement | null> {
+  return new Promise((res) => {
+    try {
+      const url = typeof src === 'number' ? (src as any)?.uri : src;
+      if (!url) return res(null);
+      const img = new doc.defaultView.Image();
+      img.src = url;
+      const done = () => res(img.naturalWidth ? img : null);
+      img.onload = done;
+      img.onerror = () => res(null);
+      setTimeout(() => res(img.naturalWidth ? img : null), 3000);
+    } catch {
+      res(null);
+    }
+  });
+}
+
 /** Draws the whole card and returns a PNG data URL. Web only. */
-export async function generateShareCard(input: ShareCardInput): Promise<string> {
+export async function generateShareCard(input: ShareCardInput, designId = 'classic'): Promise<string> {
   if (!isWeb()) throw new Error('share card is web-only');
   const doc = document as any;
+  const design = SHARE_DESIGNS.find((dd) => dd.id === designId) ?? SHARE_DESIGNS[0];
 
   // make sure the app fonts are ready for canvas
   try {
@@ -84,31 +125,77 @@ export async function generateShareCard(input: ShareCardInput): Promise<string> 
 
   const canvas = doc.createElement('canvas');
   canvas.width = W;
-  canvas.height = H;
+  canvas.height = H_MIN;
   const ctx = canvas.getContext('2d');
 
-  /* background + glow */
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, W, H);
-  const glow = ctx.createRadialGradient(W / 2, 220, 60, W / 2, 220, 720);
-  glow.addColorStop(0, 'rgba(212,175,55,0.16)');
-  glow.addColorStop(0.45, 'rgba(20,60,40,0.18)');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
+  /* measure text first → dynamic height for long content */
+  ctx.font = '700 92px "Amiri-Bold"';
+  ctx.direction = 'rtl';
+  const arabicLines = wrapText(ctx, input.arabic, W - 320);
+  ctx.direction = 'ltr';
+  ctx.font = '400 44px "Poppins-Regular"';
+  const mLines = wrapText(ctx, `“${input.meaning}”`, W - 300);
+
+  const aStart = 620;
+  const afterArabic = aStart + (arabicLines.length - 1) * 130 + 60;
+  const afterMeaning = afterArabic + 90 + (mLines.length - 1) * 62 + 70;
+  const footerTop = afterMeaning + 90;
+  const H = Math.max(H_MIN, footerTop + 216 + 120);
+  canvas.height = H;
+
+  const ink = design.dark ? WHITE : DARK_TEXT;
+  const inkSub = design.dark ? 'rgba(245,248,245,0.82)' : DARK_SUB;
+  const inkGold = design.dark ? GOLD : DARK_GOLD;
+  const frameGold = design.dark ? GOLD : 'rgba(140,109,31,0.8)';
+
+  /* background: design image (cover) or classic vector gradient */
+  if (design.src != null) {
+    const bg = await loadImage(doc, design.src);
+    if (bg) {
+      const s = Math.max(W / bg.naturalWidth, H / bg.naturalHeight);
+      const dw = bg.naturalWidth * s;
+      const dh = bg.naturalHeight * s;
+      ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } else {
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // readability scrim (darker for dark designs, lighter for cream)
+    const scrim = ctx.createLinearGradient(0, 0, 0, H);
+    if (design.dark) {
+      scrim.addColorStop(0, 'rgba(0,0,0,0.34)');
+      scrim.addColorStop(0.4, 'rgba(0,0,0,0.12)');
+      scrim.addColorStop(1, 'rgba(0,0,0,0.30)');
+    } else {
+      scrim.addColorStop(0, 'rgba(255,255,255,0.24)');
+      scrim.addColorStop(0.45, 'rgba(255,255,255,0.05)');
+      scrim.addColorStop(1, 'rgba(255,255,255,0.22)');
+    }
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, 220, 60, W / 2, 220, 720);
+    glow.addColorStop(0, 'rgba(212,175,55,0.16)');
+    glow.addColorStop(0.45, 'rgba(20,60,40,0.18)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   /* frames */
-  ctx.strokeStyle = GOLD;
+  ctx.strokeStyle = frameGold;
   ctx.lineWidth = 3;
   rr(ctx, 30, 30, W - 60, H - 60, 26);
   ctx.stroke();
-  ctx.strokeStyle = GOLD_SOFT;
+  ctx.strokeStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.35)';
   ctx.lineWidth = 1;
   rr(ctx, 46, 46, W - 92, H - 92, 18);
   ctx.stroke();
 
   /* corner stars */
-  ctx.fillStyle = GOLD_SOFT;
+  ctx.fillStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.4)';
   for (const [cx, cy] of [
     [46, 46],
     [W - 46, 46],
@@ -120,50 +207,40 @@ export async function generateShareCard(input: ShareCardInput): Promise<string> 
   }
 
   /* logo */
-  const iconSrc: any = appIcon;
-  const iconUrl = typeof iconSrc === 'string' ? iconSrc : iconSrc?.uri;
-  if (iconUrl) {
-    try {
-      const img = new (doc.defaultView as any).Image();
-      img.src = iconUrl;
-      await new Promise<void>((res) => {
-        img.onload = () => res();
-        img.onerror = () => res();
-        setTimeout(() => res(), 2500);
-      });
-      if (img.naturalWidth) {
-        const s = 150;
-        rr(ctx, W / 2 - s / 2, 100, s, s, 34);
-        ctx.save();
-        ctx.clip();
-        ctx.drawImage(img, W / 2 - s / 2, 100, s, s);
-        ctx.restore();
-      }
-    } catch {}
+  const icon = await loadImage(doc, appIcon);
+  let wordmarkY = 220;
+  if (icon) {
+    const s = 150;
+    rr(ctx, W / 2 - s / 2, 100, s, s, 34);
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(icon, W / 2 - s / 2, 100, s, s);
+    ctx.restore();
+    wordmarkY = 330;
   }
 
   /* wordmark */
   ctx.textAlign = 'center';
-  ctx.fillStyle = WHITE;
+  ctx.fillStyle = ink;
   ctx.font = '700 58px "Poppins-ExtraBold"';
   (ctx as any).letterSpacing = '10px';
-  ctx.fillText('DEENLINK', W / 2, iconUrl ? 330 : 220);
+  ctx.fillText('DEENLINK', W / 2, wordmarkY);
   (ctx as any).letterSpacing = '4px';
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = inkGold;
   ctx.font = '500 26px "Poppins-Medium"';
-  ctx.fillText('deenlink.org', W / 2, (iconUrl ? 330 : 220) + 42);
+  ctx.fillText('deenlink.org', W / 2, wordmarkY + 42);
   (ctx as any).letterSpacing = '0px';
 
   /* eyebrow */
-  const eyY = iconUrl ? 470 : 380;
-  ctx.fillStyle = GOLD;
+  const eyY = wordmarkY + 140;
+  ctx.fillStyle = inkGold;
   ctx.font = '700 30px "Poppins-Bold"';
   (ctx as any).letterSpacing = '9px';
   const label = input.kind === 'hadith' ? 'DAILY HADITH' : 'DAILY AYAH';
   ctx.fillText(label, W / 2, eyY);
   (ctx as any).letterSpacing = '0px';
   const lw = ctx.measureText(label).width / 2;
-  ctx.strokeStyle = GOLD_SOFT;
+  ctx.strokeStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.45)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(W / 2 - lw - 90, eyY - 10);
@@ -173,44 +250,39 @@ export async function generateShareCard(input: ShareCardInput): Promise<string> 
   ctx.stroke();
 
   /* arabic */
-  ctx.fillStyle = WHITE;
+  ctx.fillStyle = ink;
   ctx.font = '700 92px "Amiri-Bold"';
   ctx.direction = 'rtl';
-  const arabicLines = wrapText(ctx, input.arabic, W - 320);
-  const aStart = eyY + 130;
   arabicLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * 130));
   ctx.direction = 'ltr';
-  const afterArabic = aStart + (arabicLines.length - 1) * 130 + 60;
 
   /* divider */
-  ctx.strokeStyle = GOLD;
+  ctx.strokeStyle = inkGold;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(W / 2 - 70, afterArabic);
   ctx.lineTo(W / 2 + 70, afterArabic);
   ctx.stroke();
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = inkGold;
   ctx.beginPath();
   ctx.arc(W / 2, afterArabic, 4, 0, Math.PI * 2);
   ctx.fill();
 
   /* meaning */
-  ctx.fillStyle = 'rgba(245,248,245,0.82)';
+  ctx.fillStyle = inkSub;
   ctx.font = '400 44px "Poppins-Regular"';
-  const mLines = wrapText(ctx, `“${input.meaning}”`, W - 300);
   mLines.forEach((ln, i) => ctx.fillText(ln, W / 2, afterArabic + 90 + i * 62));
-  const afterMeaning = afterArabic + 90 + (mLines.length - 1) * 62 + 70;
 
   /* ref */
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = inkGold;
   ctx.font = '700 32px "Poppins-Bold"';
   ctx.fillText(input.ref, W / 2, afterMeaning);
 
-  /* bottom: QR + caption */
+  /* bottom: QR + caption (anchored to the real bottom of the dynamic card) */
   const boxS = 216;
   const bx = W - 120 - boxS;
   const by = H - 120 - boxS;
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = design.dark ? '#FFFFFF' : '#FFFFFF';
   rr(ctx, bx, by, boxS, boxS, 22);
   ctx.fill();
   try {
@@ -218,7 +290,7 @@ export async function generateShareCard(input: ShareCardInput): Promise<string> 
     const size = qr.modules.size;
     const cell = Math.floor((boxS - 36) / size);
     const off = (boxS - cell * size) / 2;
-    ctx.fillStyle = BG;
+    ctx.fillStyle = design.dark ? BG : '#FFFFFF';
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         if (qr.modules.get(x, y)) {
@@ -229,10 +301,10 @@ export async function generateShareCard(input: ShareCardInput): Promise<string> 
   } catch {}
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = WHITE;
+  ctx.fillStyle = ink;
   ctx.font = '700 34px "Poppins-Bold"';
   ctx.fillText('Scan to explore', bx - 40, by + boxS / 2 - 14);
-  ctx.fillStyle = 'rgba(245,248,245,0.65)';
+  ctx.fillStyle = inkSub;
   ctx.font = '400 30px "Poppins-Regular"';
   ctx.fillText('the DeenLink app', bx - 40, by + boxS / 2 + 34);
   ctx.textAlign = 'center';

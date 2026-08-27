@@ -20,7 +20,7 @@ import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/
 import { BeadsIcon } from '@/components/Icons';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
-import { downloadDataUrl, generateShareCard, shareOrSaveCard } from '@/lib/shareCard';
+import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
 
 /** Soft radial glow (SVG-based, works on all platforms). */
 function Glow({ size, color, id, opacity = 0.35 }: { size: number; color: string; id: string; opacity?: number }) {
@@ -98,7 +98,7 @@ const CAMPAIGNS = [
   },
 ];
 
-const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh' };
+const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh', 107: 'Sunni · Mufti', 108: 'Sufi', 109: 'Sunni' };
 const SCHOLAR_AVATARS: Record<number, number> = { 1: scholarAvatar1, 2: scholarAvatar2, 3: scholarAvatar3 };
 
 const DAILY_AYAH = {
@@ -149,6 +149,7 @@ export default function Home() {
   const [heroSz, setHeroSz] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
+  const [shareDesign, setShareDesign] = useState('classic');
   const togglePostLike = (id: number) =>
     setLikedPosts((prev) => {
       const n = new Set(prev);
@@ -227,7 +228,7 @@ export default function Home() {
         refreshControl={undefined}
       >
         {/* subtle arabesque pattern behind the header */}
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 230, overflow: 'hidden' }}>
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 230, overflow: 'hidden' }}>
           <Image
             source={isDark ? patternDark : patternLight}
             style={{ width: '100%', height: '100%', opacity: d.patternOpacity * 0.5, resizeMode: 'cover' }}
@@ -707,7 +708,7 @@ export default function Home() {
             </T>
             <Pressable onPress={() => router.push('/tools/videos')} hitSlop={8}>
               <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
-                View all <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
+                Watch more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
               </T>
             </Pressable>
           </View>
@@ -719,6 +720,15 @@ export default function Home() {
                     colors={(isDark ? ['#123524', '#0A1A12'] : ['#DCEEE2', '#F2F7F2']) as [string, string, ...string[]]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
+                    style={{ position: 'absolute', inset: 0 }}
+                  />
+                  {v.thumb != null ? (
+                    <Image source={v.thumb as number} style={{ position: 'absolute', inset: 0, width: '100%', height: 100 }} resizeMode="cover" />
+                  ) : null}
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)'] as [string, string, ...string[]]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
                     style={{ position: 'absolute', inset: 0 }}
                   />
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -768,14 +778,14 @@ export default function Home() {
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
               Recent Posts
             </T>
-            <Pressable onPress={() => router.push('/(tabs)/profile')} hitSlop={8}>
+            <Pressable onPress={() => router.push('/(tabs)/community')} hitSlop={8}>
               <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
                 Go to community <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
               </T>
             </Pressable>
           </View>
           <View style={{ gap: 12 }}>
-            {posts.slice(0, 6).map((p) => (
+            {posts.slice(0, 8).map((p) => (
               <FeedCard
                 key={p.id}
                 dash={d}
@@ -788,9 +798,43 @@ export default function Home() {
                 onLike={(id) => togglePostLike(id)}
                 onComments={(pp) => setCommentPost(pp)}
                 onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
+                onPlayVideo={(pp) =>
+                  setVideoOpen({
+                    id: pp.id,
+                    title: (pp.content_text ?? 'Video').slice(0, 60),
+                    source_url: pp.youtube_url as string | null,
+                    embed_url: pp.youtube_embed_url as string | null,
+                    duration: null,
+                    view_count: (pp.like_count as number) ?? 0,
+                    like_count: 0,
+                  })
+                }
               />
             ))}
           </View>
+          {/* View more on community */}
+          <Pressable
+            onPress={() => router.push('/(tabs)/community')}
+            style={({ pressed }) => ({
+              marginTop: 14,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(212,175,55,0.55)',
+              backgroundColor: 'rgba(212,175,55,0.10)',
+              paddingVertical: 12,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <FontAwesome5 name="users" size={13} color={d.gold} />
+            <T v="bodyS" style={{ color: d.gold, fontSize: 12.5, fontWeight: '700' }}>
+              View more on community
+            </T>
+            <T v="caption" style={{ color: d.gold, fontSize: 12 }}>→</T>
+          </Pressable>
         </View>
 
         {/* 9 ─ Daily Ayah & Hadith (premium cards, tap → modal + share image) */}
@@ -814,11 +858,13 @@ export default function Home() {
                 })}
               >
                 {/* faint pattern backdrop */}
-                <Image
-                  source={isDark ? patternDark : patternLight}
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isDark ? 0.5 : 0.4 }}
-                  resizeMode="cover"
-                />
+                <View pointerEvents="none" style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.5 : 0.4 }}>
+                  <Image
+                    source={isDark ? patternDark : patternLight}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </View>
                 {/* gold inner frame */}
                 <View
                   pointerEvents="none"
@@ -1102,24 +1148,6 @@ export default function Home() {
                   </T>
                 </Pressable>
                 <View style={{ flex: 1 }} />
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => videoOpen?.source_url && Linking.openURL(videoOpen.source_url).catch(() => {})}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                    borderRadius: 999,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                  }}
-                >
-                  <FontAwesome5 name="youtube" size={12} color="#FF0033" />
-                  <T v="caption" style={{ color: '#fff', fontSize: 10.5, fontWeight: '700' }}>
-                    Open in YouTube
-                  </T>
-                </Pressable>
               </View>
             </View>
           </View>
@@ -1206,6 +1234,61 @@ export default function Home() {
                         Couldn’t create the image. Try again.
                       </T>
                     )}
+                    {/* Design picker */}
+                    <View style={{ marginTop: 16, alignSelf: 'stretch' }}>
+                      <T v="caption" style={{ fontSize: 9.5, color: d.faint, fontWeight: '700', letterSpacing: 1, marginBottom: 9, alignSelf: 'center' }}>
+                        CHOOSE A DESIGN
+                      </T>
+                      <View style={{ flexDirection: 'row', gap: 9, justifyContent: 'center' }}>
+                        {SHARE_DESIGNS.map((ds) => {
+                          const sel = shareDesign === ds.id;
+                          return (
+                            <Pressable
+                              key={ds.id}
+                              onPress={async () => {
+                                if (sel) return;
+                                setShareDesign(ds.id);
+                                setShareCard({ status: 'loading' });
+                                try {
+                                  const url = await generateShareCard({ kind: isHadith ? 'hadith' : 'ayah', arabic: dh.arabic, meaning: dh.meaning, ref: dh.ref }, ds.id);
+                                  setShareCard({ status: 'ready', url });
+                                } catch {
+                                  setShareCard({ status: 'error' });
+                                }
+                              }}
+                              style={({ pressed }) => ({ alignItems: 'center', gap: 5, opacity: pressed ? 0.7 : 1 })}
+                            >
+                              <View
+                                style={{
+                                  width: 54,
+                                  height: 68,
+                                  borderRadius: 9,
+                                  overflow: 'hidden',
+                                  borderWidth: 2,
+                                  borderColor: sel ? d.gold : 'transparent',
+                                  backgroundColor: ds.dark ? '#0B0F0D' : '#F5EFE2',
+                                }}
+                              >
+                                {ds.src != null ? (
+                                  <Image source={ds.src as number} style={{ width: 54, height: 68 }} resizeMode="cover" />
+                                ) : (
+                                  <LinearGradient
+                                    colors={['#0B0F0D', '#123024', '#0B0F0D'] as [string, string, ...string[]]}
+                                    style={{ flex: 1 }}
+                                  />
+                                )}
+                                <View style={{ position: 'absolute', top: 7, left: 0, right: 0, alignItems: 'center' }}>
+                                  <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: ds.dark ? '#D4AF37' : '#8C6D1F' }} />
+                                </View>
+                              </View>
+                              <T v="caption" style={{ fontSize: 9, fontWeight: sel ? '700' : '500', color: sel ? d.gold : d.faint }}>
+                                {ds.name}
+                              </T>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, alignSelf: 'stretch' }}>
                       <Pressable
                         onPress={() => shareCard.url && downloadDataUrl(shareCard.url, `deenlink-daily-${isHadith ? 'hadith' : 'ayah'}.png`)}
@@ -1265,12 +1348,15 @@ export default function Home() {
                         setDhShareView(true);
                         setShareCard({ status: 'loading' });
                         try {
-                          const url = await generateShareCard({
-                            kind: isHadith ? 'hadith' : 'ayah',
-                            arabic: dh.arabic,
-                            meaning: dh.meaning,
-                            ref: dh.ref,
-                          });
+                          const url = await generateShareCard(
+                            {
+                              kind: isHadith ? 'hadith' : 'ayah',
+                              arabic: dh.arabic,
+                              meaning: dh.meaning,
+                              ref: dh.ref,
+                            },
+                            shareDesign,
+                          );
                           setShareCard({ status: 'ready', url });
                         } catch {
                           setShareCard({ status: 'error' });
@@ -1546,7 +1632,11 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
   const area = `${curve} L ${X(end).toFixed(1)},${baseline} L ${X(fajr).toFixed(1)},${baseline} Z`;
 
   const nowMs = now.getTime();
-  const sunT = Math.min(Math.max(nowMs, fajr), end);
+  // During the day: clamp into [fajr, end]. After the last prayer (night),
+  // the day arc is complete — continue the cycle from the next Fajr so the
+  // marker keeps moving instead of sitting pinned at the arc's end.
+  const sunT =
+    nowMs <= end ? Math.max(nowMs, fajr) : fajr + (nowMs - end);
   // bright "day so far" segment: Fajr → now
   const elapsedIdx = Math.min(Math.round(((sunT - fajr) / span) * N), N);
   const elapsed =
@@ -1634,10 +1724,11 @@ function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; n
             })}
           </G>
         ) : (
-          <Path
-            d={`M ${sx + 1.6} ${sy - 4.7} A 4.7 4.7 0 1 0 ${sx + 1.6} ${sy + 4.7} A 3.5 3.5 0 1 1 ${sx + 1.6} ${sy - 4.7} Z`}
-            fill={c.sunNight}
-          />
+          <G>
+            {/* crescent moon after sunset (two-circle carve — reliable) */}
+            <Circle cx={sx} cy={sy} r={5} fill={c.sunNight} />
+            <Circle cx={sx + 2.4} cy={sy - 1.7} r={4.2} fill={c.card} />
+          </G>
         )}
       </Svg>
 

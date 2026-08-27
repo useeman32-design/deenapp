@@ -5,6 +5,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { haptic } from '@/lib/haptics';
 
 /* ------------------------------------------------------------------ */
 /* Floating glassy tab bar with ONE sliding pill.                      */
@@ -25,7 +26,7 @@ const TABS = [
   { name: 'index', first: 'Home', second: '', icon: 'home' as const },
   { name: 'quran', first: 'Quran &', second: 'Hadith', icon: 'quran' as const },
   { name: 'tools', first: 'Worship', second: 'Tools', icon: 'mosque' as const },
-  { name: 'learning', first: 'Learning', second: '', icon: 'graduation-cap' as const },
+  { name: 'community', first: 'Community', second: '', icon: 'users' as const },
   { name: 'profile', first: 'Profile', second: '', icon: 'user' as const },
 ];
 
@@ -134,7 +135,10 @@ function FloatingTabBar({
               key={route.key}
               style={{ flex: 1, alignItems: 'center', paddingTop: PILL_TOP }}
               onPress={() => {
-                if (state.index !== i) navigation.navigate(route.name as never);
+                if (state.index !== i) {
+                  haptic.selection();
+                  navigation.navigate(route.name as never);
+                }
               }}
             >
               {/* stacked icons: faint base + lit green, cross-faded */}
@@ -211,7 +215,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="quran" options={{ title: 'Quran & Hadith' }} />
       <Tabs.Screen name="tools" options={{ title: 'Worship Tools' }} />
-      <Tabs.Screen name="learning" options={{ title: 'Learning' }} />
+      <Tabs.Screen name="community" options={{ title: 'Community' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );

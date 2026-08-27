@@ -52,11 +52,13 @@ export default function Onboarding() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <Image
-        source={isDark ? patternDark : patternLight}
-        style={{ position: 'absolute', width: '100%', height: '100%' }}
-        resizeMode="cover"
-      />
+      <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
+        <Image
+          source={isDark ? patternDark : patternLight}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+      </View>
       <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(5, 13, 9, 0.5)' : 'rgba(247, 245, 239, 0.62)' }}>
         {phase === 'splash' ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>

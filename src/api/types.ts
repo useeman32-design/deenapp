@@ -49,6 +49,17 @@ export interface PublicQA {
   [k: string]: unknown;
 }
 
+export interface PollOption {
+  id: number;
+  text: string;
+  votes: number;
+}
+
+export interface PostPoll {
+  question?: string;
+  options: PollOption[];
+}
+
 export interface Post {
   id: number;
   content_text?: string | null;
@@ -62,6 +73,7 @@ export interface Post {
   following_by_me?: boolean;
   is_public_qa?: boolean;
   public_qa?: PublicQA | null;
+  poll?: PostPoll | null;
   user: User;
   media?: PostMedia[];
   [k: string]: unknown;

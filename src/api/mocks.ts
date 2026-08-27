@@ -3,7 +3,7 @@
  * (offline preview). Real content comes from the API client.
  * Usernames/profiles mirror the live deenlink.org community.
  */
-import type { Course, Post, Scholar, User, Video } from '@/api/types';
+import type { BadgeType, Course, Post, Scholar, User, Video } from '@/api/types';
 
 /* Real community profile photos (from the DeenLink content pack). */
 const p1 = require('../../assets/img/profiles/p1.jpg');
@@ -14,6 +14,9 @@ const p5 = require('../../assets/img/profiles/p5.jpg');
 const p6 = require('../../assets/img/profiles/p6.jpg');
 const p7 = require('../../assets/img/profiles/p7.jpg');
 const postMosque = require('../../assets/img/post-mosque.jpg');
+const vidYasin = require('../../assets/img/vid-yasin.jpg');
+const vid99 = require('../../assets/img/vid-99names.jpg');
+const vidReturn = require('../../assets/img/vid-return.jpg');
 export const PROFILE_PHOTOS = { p1, p2, p3, p4, p5, p6, p7 } as Record<string, number>;
 
 const u = (
@@ -63,11 +66,13 @@ export const MOCK_USER: User = {
   scholar: null,
 };
 
+export const MOCK_PHOTOS: Record<number, number> = { 1: p1, 2: p2, 3: p3, 4: p4, 5: p5, 6: p6, 7: p7 };
+
 export const MOCK_FEED: Post[] = [
   {
     id: 101,
     content_text:
-      'Inna ma’al-‘usri yusra. Indeed, with hardship comes ease. May Allah make our paths easy this week. 🤍',
+      'Inna ma’al-‘usri yusra. Indeed, with hardship comes ease. May Allah make our paths easy this week. 🤍 #Tawbah',
     time_ago: '2h',
     like_count: 48,
     comment_count: 12,
@@ -77,9 +82,21 @@ export const MOCK_FEED: Post[] = [
     media: [],
   },
   {
+    id: 107,
+    content_text:
+      'A reflection on the hadith: “Actions are by intentions” (Bukhari 1). The Prophet ﷺ made the heart the yardstick of every deed — not its appearance. A long surah recited without presence is less rewarding than a few verses recited with khauf and raja’. When you open the mushaf, pause for a moment and make the niyyah sincerely: not for showing off, not out of habit, but for the Face of Allah alone. This single intention transforms the same words into two completely different rewards. Guard your intentions, because Allah does not look at your bodies or your wealth — He looks at your hearts and your deeds. Make this your daily check before prayer: “Why am I doing this?” The answer should always be Him. May Allah purify our hearts and accept our deeds. 🤍 #Seerah',
+    time_ago: '2h',
+    like_count: 214,
+    comment_count: 31,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(1, 'alameen', 'Sheikh Abdurrahman Al-Ameen', { badge: 'green', scholar: true, fields: 'Sunni · Mufti', photo: p1 }),
+    media: [],
+  },
+  {
     id: 105,
     content_text:
-      'Sometimes the masjid speaks louder than words. May our hearts always find their way back to the prayer. 🕌',
+      'Sometimes the masjid speaks louder than words. May our hearts always find their way back to the prayer. 🕌 #DailyDhikr',
     time_ago: '3h',
     like_count: 128,
     comment_count: 17,
@@ -91,7 +108,7 @@ export const MOCK_FEED: Post[] = [
   {
     id: 102,
     content_text:
-      'Reminder: the Prophet ﷺ said, “The best of you are those who learn the Quran and teach it.” (Bukhari 5027)',
+      'Reminder: the Prophet ﷺ said, “The best of you are those who learn the Quran and teach it.” (Bukhari 5027) #Tajweed',
     time_ago: '5h',
     like_count: 96,
     comment_count: 21,
@@ -143,6 +160,49 @@ export const MOCK_FEED: Post[] = [
     youtube_embed_url: 'https://www.youtube.com/embed/hwWpWoOtsBY',
     media: [],
   },
+  {
+    id: 108,
+    content_text:
+      'Does anyone have a good, accessible tafsir for Surah Ar-Rahman? Looking for something in English with the Arabic alongside. 📖',
+    time_ago: '45m',
+    like_count: 19,
+    comment_count: 8,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(2, 'aisha_yusuf', 'Aisha Yusuf', { badge: 'blue', fields: 'Sufi', photo: p7 }),
+    media: [],
+  },
+  {
+    id: 109,
+    content_text:
+      'Alhamdulillah — our next community halaqah is this Thursday, 9 PM. Topic: “The manners of istikhara and making the right choice”. Bring your questions, the doors are open to everyone. 🕌',
+    time_ago: '5h',
+    like_count: 76,
+    comment_count: 12,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(3, 'mayanchie12', 'Yahaya Umar', { badge: 'blue', fields: 'Sunni', photo: p2 }),
+    media: [],
+  },
+  {
+    id: 110,
+    content_text:
+      'Quick poll: which do you find hardest to keep — Fajr or the Du’aa after Fajr? Vote and tell us why in the comments. 🌅 #Istikhara #Halaqah',
+    time_ago: '1h',
+    like_count: 42,
+    comment_count: 16,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(2, 'aisha_yusuf', 'Aisha Yusuf', { badge: 'blue', fields: 'Sufi', photo: p7 }),
+    poll: {
+      options: [
+        { id: 1, text: 'Fajr itself', votes: 132 },
+        { id: 2, text: 'The dhikr after Fajr', votes: 97 },
+        { id: 3, text: 'Both, honestly', votes: 61 },
+      ],
+    },
+    media: [],
+  },
 ];
 
 export type SampleComment = {
@@ -159,7 +219,147 @@ export type SampleComment = {
 };
 
 /* Instagram-style sample comments (with nested replies + emoji). */
+export interface MockProfile {
+  username: string;
+  full_name: string;
+  badge?: BadgeType;
+  fields?: string | null;
+  photo?: number | null;
+  bio?: string;
+  location?: string;
+  joined?: string;
+  posts_count: number;
+  followers: number;
+  following: number;
+  scholar?: boolean;
+  scholar_title?: string;
+  education?: string;
+  experience?: string;
+  publications?: string;
+  expertise?: string;
+}
+
+export const MOCK_PROFILES: Record<string, MockProfile> = {
+  alameen: {
+    username: 'alameen', full_name: 'Sheikh Abdurrahman Al-Ameen', badge: 'green', fields: 'Sunni · Mufti', photo: p1,
+    bio: 'Mufti & researcher in Fiqh and Aqeedah. Answering questions with mercy and evidence.',
+    location: 'Owerri, Anambra · Nigeria', joined: 'Joined March 2023',
+    posts_count: 214, followers: 18400, following: 320,
+    scholar: true, scholar_title: 'Mufti',
+    education: 'Sharia & Law, Al-Azhar University, Cairo',
+    experience: 'Head Imam & Mufti, Owerri Central Masjid — 12 years',
+    publications: '“Fawaat al-Masa’il” (Fiqh digest), 140+ published fatawa',
+    expertise: 'Fiqh · Aqeedah · Usul al-Fiqh',
+  },
+  kunfai_ibrahim: {
+    username: 'kunfai_ibrahim', full_name: 'Kunfa’i Ibrahim', badge: 'green', fields: 'Sunni · Sheikh', photo: p6,
+    bio: 'Sheikh & teacher of Hifz. “Make your recitation your companion.”',
+    location: 'Kaduna · Nigeria', joined: 'Joined January 2024',
+    posts_count: 96, followers: 7200, following: 180,
+    scholar: true, scholar_title: 'Sheikh',
+    education: 'Hifz & Tajweed, Islamic University Madinah',
+    experience: 'Hifz teacher, Al-Noor Quran Centre — 8 years',
+    publications: 'Tajweed drill series (audio), 20+ recitation guides',
+    expertise: 'Tajweed · Hifz · Qiraat',
+  },
+  salamatu_b: {
+    username: 'salamatu_b', full_name: 'Salamatu Bello', badge: 'blue', fields: 'Sufi', photo: p5,
+    bio: 'Writer & dhikr lover. Documenting the quiet moments that change you. ✨',
+    location: 'Abuja · Nigeria', joined: 'Joined June 2024',
+    posts_count: 58, followers: 2100, following: 940,
+  },
+  mayanchie12: {
+    username: 'mayanchie12', full_name: 'Yahaya Umar', badge: 'blue', fields: 'Sunni', photo: p2,
+    bio: 'Community organiser. Host of the Thursday halaqah. Ask me about events 🕌',
+    location: 'Lagos · Nigeria', joined: 'Joined November 2023',
+    posts_count: 74, followers: 3400, following: 610,
+  },
+  Gimba: {
+    username: 'Gimba', full_name: 'Abdulhameed Hassan Gimba', badge: 'blue', fields: 'Sufi', photo: p4,
+    bio: 'Student of knowledge. Sharing reminders from the Seerah, one lesson at a time.',
+    location: 'Kano · Nigeria', joined: 'Joined August 2024',
+    posts_count: 31, followers: 890, following: 450,
+  },
+  aisha_yusuf: {
+    username: 'aisha_yusuf', full_name: 'Aisha Yusuf', badge: 'blue', fields: 'Sufi', photo: p7,
+    bio: 'Tafsir reader, book hoarder, coffee-powered. Tag me in your book recs 📖',
+    location: 'Ibadan · Nigeria', joined: 'Joined February 2025',
+    posts_count: 22, followers: 540, following: 380,
+  },
+  usman_ahmad: {
+    username: 'usman_ahmad', full_name: 'Usman Ahmad Kanoma', badge: 'gold', fields: 'Sunni · Sheikh', photo: p3,
+    bio: 'Imam & hadith enthusiast. If it’s in Sahih, I’ll find it for you.',
+    location: 'Sokoto · Nigeria', joined: 'Joined July 2023',
+    posts_count: 142, followers: 9800, following: 260,
+    scholar: true, scholar_title: 'Sheikh',
+    education: 'Hadith & Uloom al-Hadith, University of Dar es Salaam',
+    experience: 'Imam, Jamia Masjid Sokoto — 10 years',
+    publications: 'Annotated hadith notebooks, 60+ community lessons',
+    expertise: 'Hadith · Seerah · Fiqh',
+  },
+  abdalrahman: {
+    username: 'abdalrahman', full_name: 'Abdulrahman Al-Harbi', badge: null, fields: 'Sunni',
+    bio: 'Here to learn, share and stay consistent. DeenPoints: 240 🔥',
+    location: 'Abuja · Nigeria', joined: 'Joined May 2025',
+    posts_count: 12, followers: 86, following: 142,
+  },
+};
+
+export const MOCK_TRENDING: Array<{ tag: string; posts: string }> = [
+  { tag: '#Tawbah', posts: '1.2k posts' },
+  { tag: '#DailyDhikr', posts: '3.4k posts' },
+  { tag: '#Seerah', posts: '860 posts' },
+  { tag: '#Istikhara', posts: '2.1k posts' },
+  { tag: '#Tajweed', posts: '1.7k posts' },
+  { tag: '#Halaqah', posts: '540 posts' },
+];
+
+/** Accounts we follow (demo) — used by the Community “Following” tab. */
+export const MOCK_FOLLOWED = ['alameen', 'salamatu_b', 'kunfai_ibrahim', 'usman_ahmad'];
+
+export const MOCK_ACCOUNTS: Array<{ username: string; full_name: string; badge?: BadgeType; photo?: number | null; fields?: string | null }> = [
+  { username: 'alameen', full_name: 'Sheikh Abdurrahman Al-Ameen', badge: 'green', photo: p1, fields: 'Sunni · Mufti' },
+  { username: 'kunfai_ibrahim', full_name: 'Kunfa’i Ibrahim', badge: 'green', photo: p6, fields: 'Sunni · Sheikh' },
+  { username: 'usman_ahmad', full_name: 'Usman Ahmad Kanoma', badge: 'gold', photo: p3, fields: 'Sunni · Sheikh' },
+  { username: 'salamatu_b', full_name: 'Salamatu Bello', badge: 'blue', photo: p5, fields: 'Sufi' },
+  { username: 'mayanchie12', full_name: 'Yahaya Umar', badge: 'blue', photo: p2, fields: 'Sunni' },
+  { username: 'aisha_yusuf', full_name: 'Aisha Yusuf', badge: 'blue', photo: p7, fields: 'Sufi' },
+  { username: 'Gimba', full_name: 'Abdulhameed Hassan Gimba', badge: 'blue', photo: p4, fields: 'Sufi' },
+];
+
 export const MOCK_COMMENTS: Record<number, SampleComment[]> = {
+  107: [
+    {
+      id: 61, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue',
+      text: '“Allah looks at your hearts and your deeds” — this hit me today 🤲', time: '1h', likes: 14,
+      replies: [
+        { id: 62, name: 'Sheikh Abdurrahman Al-Ameen', handle: 'alameen', avatar: p1, badge: 'green', text: 'That is the essence, inshā’Allah 🌙', time: '50m', likes: 9 },
+      ],
+    },
+    { id: 63, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, text: 'Saving this for every time I open the mushaf 🤍', time: '40m', likes: 6 },
+    { id: 64, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5, text: 'Barakallahu feek, very clear 🕌', time: '20m', likes: 4 },
+  ],
+  108: [
+    {
+      id: 71, name: 'Kunfa’i Ibrahim', handle: 'kunfai_ibrahim', avatar: p6, badge: 'green',
+      text: 'Tafsir As-Sa’di is excellent and written in plain language', time: '30m', likes: 7,
+      replies: [
+        { id: 72, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, text: 'JazakAllah khair, starting tonight 📖', time: '20m', likes: 3 },
+      ],
+    },
+    { id: 73, name: 'Usman Ahmad Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'Madani tafsir app is great too — audio included', time: '15m', likes: 5 },
+  ],
+  109: [
+    { id: 81, name: 'Maryam Sani', handle: 'maryam_sani', avatar: p4, text: 'Will be there, inshā’Allah 🕌✨', time: '4h', likes: 6 },
+    {
+      id: 82, name: 'Ibn Abubakar', handle: 'ibn_abubakar', avatar: p5,
+      text: 'Can we get the recording afterwards for those who can’t attend?', time: '3h', likes: 4,
+      replies: [
+        { id: 83, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue', text: 'Yes, we’ll share it in the group afterwards ✅', time: '2h', likes: 8 },
+      ],
+    },
+  ],
+
   105: [
     {
       id: 41, name: 'Maryam Sani', handle: 'maryam_sani', avatar: p6,
@@ -254,6 +454,7 @@ export const MOCK_VIDEOS: Video[] = [
     title: 'Surah Yasin — Beautiful Recitation',
     description: 'A soul-stirring recitation of Surah Yasin. Listen with khushoo’ and make du’aa.',
     poster_url: null,
+    thumb: vidYasin,
     source_url: 'https://www.youtube.com/watch?v=0R1LKPRwxR4',
     embed_url: 'https://www.youtube.com/embed/0R1LKPRwxR4',
     duration: '27:32',
@@ -266,6 +467,7 @@ export const MOCK_VIDEOS: Video[] = [
     title: 'Asma-ul-Husna — The 99 Names of Allah',
     description: 'Reflect on the most beautiful names of Allah, one day at a time.',
     poster_url: null,
+    thumb: vid99,
     source_url: 'https://www.youtube.com/watch?v=ta_tTZrarE0',
     embed_url: 'https://www.youtube.com/embed/ta_tTZrarE0',
     duration: '19:08',
@@ -278,6 +480,7 @@ export const MOCK_VIDEOS: Video[] = [
     title: 'Return to Allah — Daily Reminder',
     description: 'A short reminder: however far we stray, the door of tawbah is open.',
     poster_url: null,
+    thumb: vidReturn,
     source_url: 'https://www.youtube.com/watch?v=tlG38jgInLc',
     embed_url: 'https://www.youtube.com/embed/tlG38jgInLc',
     duration: '1:12',
