@@ -79,7 +79,7 @@ function FloatingTabBar({
         height: 74,
         borderRadius: 26,
         overflow: 'hidden',
-        backgroundColor: d.navBg,
+        backgroundColor: 'transparent',
         // soft deep-green lift
         shadowColor: d.navShadow,
         shadowOpacity: 0.14,
@@ -99,7 +99,6 @@ function FloatingTabBar({
           borderWidth: 1,
           borderColor: d.navBorder,
           borderRadius: 26,
-          backdropFilter: 'blur(14px)',
         }}
       />
 

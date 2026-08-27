@@ -5,21 +5,37 @@
  */
 import type { Course, Post, Scholar, User, Video } from '@/api/types';
 
+/* Real community profile photos (from the DeenLink content pack). */
+const p1 = require('../../assets/img/profiles/p1.jpg');
+const p2 = require('../../assets/img/profiles/p2.jpg');
+const p3 = require('../../assets/img/profiles/p3.jpg');
+const p4 = require('../../assets/img/profiles/p4.jpg');
+const p5 = require('../../assets/img/profiles/p5.jpg');
+const p6 = require('../../assets/img/profiles/p6.jpg');
+const p7 = require('../../assets/img/profiles/p7.jpg');
+export const PROFILE_PHOTOS = { p1, p2, p3, p4, p5, p6, p7 } as Record<string, number>;
+
 const u = (
   id: number,
   username: string,
   full_name: string,
-  badge: 'blue' | 'green' | 'gold' | null = null,
-  scholar?: boolean,
+  opts: {
+    badge?: 'blue' | 'green' | 'gold' | null;
+    scholar?: boolean;
+    fields?: string;
+    photo?: number;
+  } = {},
 ): User => ({
   id,
   username,
   full_name,
-  user_type: scholar ? 'scholar' : 'user',
-  profile_image_url: null,
+  user_type: opts.scholar ? 'scholar' : 'user',
+  profile_image_url: opts.photo ?? null,
   deenpoints_balance: 0,
-  verification_badge: badge,
-  scholar: scholar
+  verification_badge: opts.badge ?? null,
+  // aqeedah / field of knowledge shown on the post card
+  fields: opts.fields ?? (opts.scholar ? 'Fiqh, Hadith' : undefined),
+  scholar: opts.scholar
     ? {
         id,
         user_id: id,
@@ -27,7 +43,7 @@ const u = (
         title: 'Sheikh',
         madhhab: 'Hanafi',
         institute: 'Qarawiyyin University',
-        fields_of_knowledge: 'Fiqh, Hadith',
+        fields_of_knowledge: opts.fields ?? 'Fiqh, Hadith',
         approval_status: 'approved',
       }
     : null,
@@ -56,7 +72,7 @@ export const MOCK_FEED: Post[] = [
     comment_count: 12,
     liked_by_me: false,
     is_public_qa: false,
-    user: u(2, 'alameen', 'Aminu Muhammad Suleiman', 'green', true),
+    user: u(2, 'alameen', 'Aminu Muhammad Suleiman', { badge: 'green', scholar: true, fields: 'Aqeedah, Fiqh', photo: p1 }),
     media: [],
   },
   {
@@ -68,7 +84,7 @@ export const MOCK_FEED: Post[] = [
     comment_count: 21,
     liked_by_me: true,
     is_public_qa: false,
-    user: u(3, 'mayanchie12', 'Yahaya Umar', 'blue'),
+    user: u(3, 'mayanchie12', 'Yahaya Umar', { badge: 'blue', fields: 'Tafsir', photo: p2 }),
     media: [],
   },
   {
@@ -85,7 +101,7 @@ export const MOCK_FEED: Post[] = [
       answer:
         'It is permissible to combine Dhuhr with Asr and Maghrib with Isha during travel, following the practice of the Prophet ﷺ.',
     },
-    user: u(4, 'usman_ahmad', 'Usman Ahmad Kanoma', 'gold', true),
+    user: u(4, 'usman_ahmad', 'Usman Ahmad Kanoma', { badge: 'gold', scholar: true, fields: 'Fiqh, Hadith', photo: p3 }),
     media: [],
   },
   {
@@ -97,10 +113,89 @@ export const MOCK_FEED: Post[] = [
     comment_count: 5,
     liked_by_me: false,
     is_public_qa: false,
-    user: u(5, 'Gimba', 'Abdulhameed Hassan Gimba', 'blue'),
+    user: u(5, 'Gimba', 'Abdulhameed Hassan Gimba', { badge: 'blue', fields: 'Seerah', photo: p4 }),
     media: [],
   },
 ];
+
+export type SampleComment = {
+  id: number;
+  name: string;
+  handle: string;
+  avatar?: number | string | null;
+  badge?: 'blue' | 'green' | 'gold' | null;
+  text: string;
+  time: string;
+  likes: number;
+  liked?: boolean;
+  replies?: SampleComment[];
+};
+
+/* Instagram-style sample comments (with nested replies + emoji). */
+export const MOCK_COMMENTS: Record<number, SampleComment[]> = {
+  101: [
+    {
+      id: 1, name: 'Usman Ahmad', handle: 'usman_ahmad', avatar: p3, badge: 'gold',
+      text: 'Ameen, JazakAllah khair for this reminder 🤲', time: '1h', likes: 14,
+      replies: [
+        { id: 2, name: 'Aminu Suleiman', handle: 'alameen', avatar: p1, badge: 'green', text: 'Ameen and to you too, brother 🌙', time: '58m', likes: 6 },
+      ],
+    },
+    {
+      id: 3, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue',
+      text: 'This is the du’aa we all need this week. May Allah grant it to us all ✅', time: '1h', likes: 9,
+    },
+    {
+      id: 4, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5,
+      text: 'SubhanAllah 🕌 I recited it this morning and felt such peace.', time: '42m', likes: 17,
+      replies: [
+        { id: 5, name: 'Kunfa’i Ibrahim', handle: 'kunfai_ibrahim', avatar: p6, text: 'Same here, alhamdulillah 🤍', time: '30m', likes: 4 },
+        { id: 6, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, text: 'Ameen ya Rabb 🌸', time: '12m', likes: 3 },
+      ],
+    },
+    { id: 7, name: 'Ibn Abubakar', handle: 'ibn_abubakar', avatar: p5, text: 'Shared with my family, jazakAllah khair 📖', time: '20m', likes: 5 },
+  ],
+  102: [
+    {
+      id: 11, name: 'Abdulhameed Gimba', handle: 'gimba', avatar: p4, badge: 'blue',
+      text: 'Buckle up 🚀 This hadith should be on every wall.', time: '4h', likes: 21,
+      replies: [
+        { id: 12, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue', text: 'Exactly! Teaching is the best deed after prayer 🕌', time: '3h', likes: 8 },
+      ],
+    },
+    { id: 13, name: 'Maryam Sani', handle: 'maryam_sani', avatar: p6, text: 'Ameen! Starting a hifz group with my colleagues inshā’Allah ✨', time: '3h', likes: 12 },
+    { id: 14, name: 'Usman Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'The Prophet ﷺ made it clear — the best of you. May we all be counted among them 🤲', time: '2h', likes: 19 },
+  ],
+  103: [
+    {
+      id: 21, name: 'Kunfa’i Ibrahim', handle: 'kunfai_ibrahim', avatar: p6,
+      text: 'Very clear answer, jazakAllah khair 🙏', time: '7h', likes: 8,
+      replies: [
+        { id: 22, name: 'Usman Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'Wallahulilm, and the scholars of each madhab have details worth studying 📚', time: '6h', likes: 11 },
+      ],
+    },
+    { id: 23, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, text: 'This saved my Umrah schedule, alhamdulillah 🕋', time: '5h', likes: 15 },
+    { id: 24, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5, text: 'What about combining Fajr with Dhuhr? 🤔', time: '4h', likes: 2,
+      replies: [
+        { id: 25, name: 'Usman Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'No — only the pairs mentioned. Fajr is never combined with another prayer.', time: '3h', likes: 9 },
+      ],
+    },
+  ],
+  104: [
+    {
+      id: 31, name: 'Maryam Sani', handle: 'maryam_sani', avatar: p6,
+      text: 'May Allah accept our Jumu’ah, ameen 🤲', time: '22h', likes: 10,
+    },
+    {
+      id: 32, name: 'Ibn Abubakar', handle: 'ibn_abubakar', avatar: p5,
+      text: 'The khutbah etiquette is often neglected. Great reminder 🕌', time: '20h', likes: 13,
+      replies: [
+        { id: 33, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p7, text: 'Salaam alaikum, exactly 👍', time: '18h', likes: 2 },
+      ],
+    },
+    { id: 34, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue', text: 'Jumu’ah Mubarak to everyone 🌙', time: '10h', likes: 7 },
+  ],
+};
 
 export const MOCK_VIDEOS: Video[] = [
   {

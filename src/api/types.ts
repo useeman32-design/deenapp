@@ -11,8 +11,8 @@ export interface User {
   email?: string;
   full_name?: string;
   user_type?: string;
-  profile_image?: string | null;
-  profile_image_url?: string | null;
+  profile_image?: string | number | null;
+  profile_image_url?: string | number | null;
   bio?: string | null;
   gender?: string | null;
   country?: string | null;

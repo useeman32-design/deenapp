@@ -14,11 +14,13 @@ import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
 import * as api from '@/api/client';
 import type { Post, Scholar, Video } from '@/api/types';
-import { MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
+import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
 import { BeadsIcon } from '@/components/Icons';
 import { FeedCard } from '@/components/FeedCard';
+import { CommentsModal } from '@/components/CommentsModal';
+import { downloadDataUrl, generateShareCard, shareOrSaveCard } from '@/lib/shareCard';
 
 /** Soft radial glow (SVG-based, works on all platforms). */
 function Glow({ size, color, id, opacity = 0.35 }: { size: number; color: string; id: string; opacity?: number }) {
@@ -72,9 +74,28 @@ function useQuickAccess(): QuickItem[] {
 /* ------------------------------ Campaigns ------------------------------ */
 
 const CAMPAIGNS = [
-  { key: 'quran', image: campaignQuran, href: '/(tabs)/quran' },
-  { key: 'ramadan', image: campaignRamadan, href: '/tools/calendar' },
-  { key: 'scholars', image: campaignScholars, href: '/tools/scholars' },
+  {
+    key: 'quran',
+    image: campaignQuran,
+    title: 'Finish the Qur’an',
+    sub: 'One surah a day — keep the chain alive.',
+    href: '/(tabs)/quran',
+  },
+  {
+    key: 'ramadan',
+    image: campaignRamadan,
+    title: 'Ramadan Countdown',
+    titleSmall: true,
+    sub: 'Start your preparation streak today.',
+    href: '/tools/calendar',
+  },
+  {
+    key: 'scholars',
+    image: campaignScholars,
+    title: 'Ask a Scholar',
+    sub: 'Verified answers from the scholars.',
+    href: '/tools/scholars',
+  },
 ];
 
 const POST_FIELDS: Record<number, string> = { 1: 'Aqeedah', 2: 'Fiqh', 3: 'Tajweed', 4: 'Dhikr' };
@@ -124,6 +145,9 @@ export default function Home() {
   const [dhOpen, setDhOpen] = useState<'ayah' | 'hadith' | null>(null);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
+  const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [dhShareView, setDhShareView] = useState(false);
+  const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
   const togglePostLike = (id: number) =>
     setLikedPosts((prev) => {
       const n = new Set(prev);
@@ -507,6 +531,25 @@ export default function Home() {
                 })}
               >
                 <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
+                <LinearGradient
+                  colors={['rgba(4,9,7,0.88)', 'rgba(4,9,7,0.55)', 'rgba(4,9,7,0)']}
+                  locations={[0, 0.5, 0.92]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ position: 'absolute', inset: 0 }}
+                />
+                <View style={{ position: 'absolute', left: 15, right: 130, top: 0, bottom: 0, justifyContent: 'center' }}>
+                  <T v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
+                    {c.title}
+                  </T>
+                  <T v="caption" style={{ color: 'rgba(255,255,255,0.78)', fontSize: 10.5, marginTop: 4, lineHeight: 14 }}>
+                    {c.sub}
+                  </T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                    <View style={{ width: 14, height: 2, backgroundColor: 'rgba(212,175,55,0.9)', borderRadius: 1 }} />
+                    <FontAwesome5 name="chevron-right" size={9} color="rgba(212,175,55,0.9)" />
+                  </View>
+                </View>
               </Pressable>
             ))}
           </ScrollView>
@@ -723,95 +766,111 @@ export default function Home() {
               <FeedCard
                 key={p.id}
                 dash={d}
-                field={POST_FIELDS[p.id] ?? (p.user?.scholar?.fields_of_knowledge as string | undefined) ?? undefined}
+                field={
+                  POST_FIELDS[p.id] ??
+                  (p.user?.scholar?.fields_of_knowledge as string | undefined) ??
+                  ((p.user as { fields?: string }).fields as string | undefined)
+                }
                 post={{ ...p, liked_by_me: likedPosts.has(p.id) }}
                 onLike={(id) => togglePostLike(id)}
+                onComments={(pp) => setCommentPost(pp)}
               />
             ))}
           </View>
         </View>
 
-        {/* 9 ─ Daily Ayah (full width, tap → modal) */}
-        <View style={{ marginHorizontal: 16, marginTop: 26, gap: 12 }}>
-          <Pressable
-            onPress={() => setDhOpen('ayah')}
-            style={({ pressed }) => ({
-              borderRadius: 22,
-              overflow: 'hidden',
-              backgroundColor: d.card,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              padding: 18,
-              alignItems: 'center',
-              opacity: pressed ? 0.95 : 1,
-            })}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }}>
-              <FontAwesome5 name="star-and-crescent" size={11} color={d.gold} />
-              <T v="caption" style={{ color: d.subtext, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.1 }}>
-                DAILY AYAH
-              </T>
-            </View>
-            <Text
-              style={{ fontFamily: 'Amiri', fontSize: 21, color: d.text, textAlign: 'center', lineHeight: 34, marginTop: 12, writingDirection: 'rtl' }}
-            >
-              {DAILY_AYAH.arabic}
-            </Text>
-            <View style={{ height: 1, width: 44, backgroundColor: d.cardBorder, marginTop: 12 }} />
-            <T v="caption" style={{ color: d.subtext, fontSize: 11.5, textAlign: 'center', marginTop: 10, lineHeight: 16, fontStyle: 'italic' }}>
-              “{DAILY_AYAH.meaning}”
-            </T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 }}>
-              <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600' }}>
-                {DAILY_AYAH.ref}
-              </T>
-              <T v="caption" style={{ color: d.emerald, fontSize: 9.5, fontWeight: '700' }}>
-                · Tap to share
-              </T>
-            </View>
-          </Pressable>
+        {/* 9 ─ Daily Ayah & Hadith (premium cards, tap → modal + share image) */}
+        <View style={{ marginHorizontal: 16, marginTop: 26, gap: 14 }}>
+          {(['ayah', 'hadith'] as const).map((kind) => {
+            const isH = kind === 'hadith';
+            const dh = isH ? DAILY_HADITH : DAILY_AYAH;
+            return (
+              <Pressable
+                key={kind}
+                onPress={() => setDhOpen(kind)}
+                style={({ pressed }) => ({
+                  borderRadius: 24,
+                  overflow: 'hidden',
+                  backgroundColor: d.card,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  padding: 20,
+                  alignItems: 'center',
+                  opacity: pressed ? 0.96 : 1,
+                })}
+              >
+                {/* faint pattern backdrop */}
+                <Image
+                  source={isDark ? patternDark : patternLight}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isDark ? 0.5 : 0.4 }}
+                  resizeMode="cover"
+                />
+                {/* gold inner frame */}
+                <View
+                  pointerEvents="none"
+                  style={{ position: 'absolute', inset: 7, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(212,175,55,0.32)' }}
+                />
+                {/* corner accents */}
+                {[
+                  { top: 7, left: 7, borderTopWidth: 2, borderLeftWidth: 2, borderTopLeftRadius: 18 },
+                  { top: 7, right: 7, borderTopWidth: 2, borderRightWidth: 2, borderTopRightRadius: 18 },
+                  { bottom: 7, left: 7, borderBottomWidth: 2, borderLeftWidth: 2, borderBottomLeftRadius: 18 },
+                  { bottom: 7, right: 7, borderBottomWidth: 2, borderRightWidth: 2, borderBottomRightRadius: 18 },
+                ].map((cst, k) => (
+                  <View key={k} pointerEvents="none" style={{ position: 'absolute', width: 22, height: 22, ...cst, borderColor: 'rgba(212,175,55,0.8)' }} />
+                ))}
 
-          {/* 10 ─ Daily Hadith (full width, tap → modal) */}
-          <Pressable
-            onPress={() => setDhOpen('hadith')}
-            style={({ pressed }) => ({
-              borderRadius: 22,
-              overflow: 'hidden',
-              backgroundColor: d.card,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              padding: 18,
-              alignItems: 'center',
-              opacity: pressed ? 0.95 : 1,
-            })}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }}>
-              <FontAwesome5 name="scroll" size={11} color={d.gold} />
-              <T v="caption" style={{ color: d.subtext, fontSize: 9.5, fontWeight: '700', letterSpacing: 1.1 }}>
-                DAILY HADITH
-              </T>
-            </View>
-            <Text
-              style={{ fontFamily: 'Amiri', fontSize: 21, color: d.text, textAlign: 'center', lineHeight: 34, marginTop: 12, writingDirection: 'rtl' }}
-            >
-              {DAILY_HADITH.arabic}
-            </Text>
-            <View style={{ height: 1, width: 44, backgroundColor: d.cardBorder, marginTop: 12 }} />
-            <T v="caption" style={{ color: d.subtext, fontSize: 11.5, textAlign: 'center', marginTop: 10, lineHeight: 16, fontStyle: 'italic' }}>
-              “{DAILY_HADITH.meaning}”
-            </T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 }}>
-              <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600' }}>
-                {DAILY_HADITH.ref}
-              </T>
-              <T v="caption" style={{ color: d.emerald, fontSize: 9.5, fontWeight: '700' }}>
-                · Tap to share
-              </T>
-            </View>
-          </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 22, height: 1, backgroundColor: 'rgba(212,175,55,0.55)' }} />
+                  <FontAwesome5 name={isH ? 'scroll' : 'star-and-crescent'} size={11} color={d.gold} />
+                  <T v="caption" style={{ color: d.gold, fontSize: 10, fontWeight: '700', letterSpacing: 1.6 }}>
+                    {isH ? 'DAILY HADITH' : 'DAILY AYAH'}
+                  </T>
+                  <FontAwesome5 name={isH ? 'scroll' : 'star-and-crescent'} size={11} color={d.gold} style={{ transform: [{ scaleX: -1 }] }} />
+                  <View style={{ width: 22, height: 1, backgroundColor: 'rgba(212,175,55,0.55)' }} />
+                </View>
+
+                <Text
+                  style={{
+                    fontFamily: 'Amiri-Bold',
+                    fontSize: 27,
+                    color: d.text,
+                    textAlign: 'center',
+                    lineHeight: 44,
+                    marginTop: 12,
+                    writingDirection: 'rtl',
+                  }}
+                >
+                  {dh.arabic}
+                </Text>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                  <View style={{ width: 40, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: d.gold, transform: [{ rotate: '45deg' }] }} />
+                  <View style={{ width: 40, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                </View>
+
+                <T v="caption" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 11, lineHeight: 18, fontStyle: 'italic', paddingHorizontal: 12 }}>
+                  “{dh.meaning}”
+                </T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 }}>
+                  <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600', letterSpacing: 0.4 }}>
+                    {dh.ref.toUpperCase()}
+                  </T>
+                  <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: d.faint }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <FontAwesome5 name="image" size={9} color={d.emerald} />
+                    <T v="caption" style={{ color: d.emerald, fontSize: 9.5, fontWeight: '700' }}>
+                      Share as image
+                    </T>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* 11 ─ Accounts to follow (with photos) */}
+                {/* 11 ─ Accounts to follow (with photos) */}
         <View style={{ marginHorizontal: 16, marginTop: 26, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
@@ -1045,7 +1104,7 @@ export default function Home() {
       {/* ── Daily ayah / hadith modal ── */}
       <Modal visible={!!dhOpen} transparent animationType="fade" onRequestClose={() => setDhOpen(null)}>
         <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.75)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+          style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.78)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
           onPress={() => setDhOpen(null)}
         >
           {(() => {
@@ -1071,60 +1130,173 @@ export default function Home() {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }}>
                   <FontAwesome5 name={isHadith ? 'scroll' : 'star-and-crescent'} size={12} color={d.gold} />
-                  <T v="caption" style={{ color: d.subtext, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 }}>
+                  <T v="caption" style={{ color: d.gold, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 }}>
                     {isHadith ? 'DAILY HADITH' : 'DAILY AYAH'}
                   </T>
                 </View>
                 <Text
-                  style={{ fontFamily: 'Amiri', fontSize: 24, color: d.text, textAlign: 'center', lineHeight: 40, marginTop: 16, writingDirection: 'rtl' }}
+                  style={{ fontFamily: 'Amiri-Bold', fontSize: 26, color: d.text, textAlign: 'center', lineHeight: 42, marginTop: 14, writingDirection: 'rtl' }}
                 >
                   {dh.arabic}
                 </Text>
-                <View style={{ height: 1, width: 48, backgroundColor: d.cardBorder, marginTop: 14 }} />
-                <T v="caption" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 12, lineHeight: 18, fontStyle: 'italic' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12 }}>
+                  <View style={{ width: 34, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                  <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: d.gold, transform: [{ rotate: '45deg' }] }} />
+                  <View style={{ width: 34, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                </View>
+                <T v="caption" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 11, lineHeight: 18, fontStyle: 'italic' }}>
                   “{dh.meaning}”
                 </T>
-                <T v="caption" style={{ color: d.faint, fontSize: 10, textAlign: 'center', marginTop: 8, fontWeight: '600' }}>
-                  {dh.ref}
+                <T v="caption" style={{ color: d.faint, fontSize: 10, textAlign: 'center', marginTop: 8, fontWeight: '600', letterSpacing: 0.4 }}>
+                  {dh.ref.toUpperCase()}
                 </T>
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, alignSelf: 'stretch' }}>
-                  <Pressable
-                    onPress={() => Share.share({ message: `${dh.meaning} — ${dh.ref} (${dh.arabic})` }).catch(() => {})}
-                    style={{
-                      flex: 1,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 7,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: d.cardBorder,
-                      paddingVertical: 11,
-                    }}
-                  >
-                    <FontAwesome5 name="share-alt" size={13} color={d.subtext} />
-                    <T v="bodyS" style={{ color: d.text, fontSize: 12, fontWeight: '600' }}>
-                      Share
-                    </T>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setDhOpen(null);
-                      router.push(isHadith ? '/tools/hadith' : '/(tabs)/quran');
-                    }}
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, backgroundColor: d.emerald, paddingVertical: 11 }}
-                  >
-                    <FontAwesome5 name={isHadith ? 'book' : 'quran'} size={13} color="#fff" />
-                    <T v="bodyS" style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                      {isHadith ? 'Open Hadith' : 'Open Qur’an'}
-                    </T>
-                  </Pressable>
-                </View>
+
+                {dhShareView ? (
+                  <View style={{ marginTop: 14, alignSelf: 'stretch', alignItems: 'center' }}>
+                    {shareCard.status === 'ready' && shareCard.url ? (
+                      <Image
+                        source={{ uri: shareCard.url }}
+                        style={{ width: 252, height: 315, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }}
+                        resizeMode="contain"
+                      />
+                    ) : shareCard.status === 'loading' ? (
+                      <View
+                        style={{
+                          width: 252,
+                          height: 315,
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: d.cardBorder,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <FontAwesome5 name="spinner" spin size={22} color={d.gold} />
+                        <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 8 }}>
+                          Creating your share card…
+                        </T>
+                      </View>
+                    ) : (
+                      <T v="caption" style={{ color: d.faint, fontSize: 11, textAlign: 'center' }}>
+                        Couldn’t create the image. Try again.
+                      </T>
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, alignSelf: 'stretch' }}>
+                      <Pressable
+                        onPress={() => shareCard.url && downloadDataUrl(shareCard.url, `deenlink-daily-${isHadith ? 'hadith' : 'ayah'}.png`)}
+                        disabled={shareCard.status !== 'ready'}
+                        style={({ pressed }) => ({
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 7,
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: d.cardBorder,
+                          paddingVertical: 11,
+                          opacity: shareCard.status === 'ready' ? (pressed ? 0.7 : 1) : 0.45,
+                        })}
+                      >
+                        <FontAwesome5 name="download" size={13} color={d.text} />
+                        <T v="bodyS" style={{ color: d.text, fontSize: 12, fontWeight: '600' }}>
+                          Save
+                        </T>
+                      </Pressable>
+                      <Pressable
+                        onPress={() =>
+                          shareCard.url &&
+                          shareOrSaveCard(shareCard.url, `deenlink-daily-${isHadith ? 'hadith' : 'ayah'}.png`, `${dh.meaning} — ${dh.ref}`)
+                        }
+                        disabled={shareCard.status !== 'ready'}
+                        style={({ pressed }) => ({
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 7,
+                          borderRadius: 14,
+                          backgroundColor: d.emerald,
+                          paddingVertical: 11,
+                          opacity: shareCard.status === 'ready' ? (pressed ? 0.8 : 1) : 0.45,
+                        })}
+                      >
+                        <FontAwesome5 name="share-alt" size={13} color="#fff" />
+                        <T v="bodyS" style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                          Share
+                        </T>
+                      </Pressable>
+                    </View>
+                    <Pressable onPress={() => setDhShareView(false)} hitSlop={8} style={{ marginTop: 10 }}>
+                      <T v="caption" style={{ color: d.faint, fontSize: 10.5, fontWeight: '600' }}>
+                        ← Back
+                      </T>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, alignSelf: 'stretch' }}>
+                    <Pressable
+                      onPress={async () => {
+                        setDhShareView(true);
+                        setShareCard({ status: 'loading' });
+                        try {
+                          const url = await generateShareCard({
+                            kind: isHadith ? 'hadith' : 'ayah',
+                            arabic: dh.arabic,
+                            meaning: dh.meaning,
+                            ref: dh.ref,
+                          });
+                          setShareCard({ status: 'ready', url });
+                        } catch {
+                          setShareCard({ status: 'error' });
+                        }
+                      }}
+                      style={({ pressed }) => ({
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 7,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: 'rgba(212,175,55,0.55)',
+                        backgroundColor: 'rgba(212,175,55,0.10)',
+                        paddingVertical: 11,
+                        opacity: pressed ? 0.8 : 1,
+                      })}
+                    >
+                      <FontAwesome5 name="image" size={13} color={d.gold} />
+                      <T v="bodyS" style={{ color: d.gold, fontSize: 12, fontWeight: '700' }}>
+                        Share Image
+                      </T>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setDhOpen(null);
+                        router.push(isHadith ? '/tools/hadith' : '/(tabs)/quran');
+                      }}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, backgroundColor: d.emerald, paddingVertical: 11 }}
+                    >
+                      <FontAwesome5 name={isHadith ? 'book' : 'quran'} size={13} color="#fff" />
+                      <T v="bodyS" style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                        {isHadith ? 'Open Hadith' : 'Open Qur’an'}
+                      </T>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             );
           })()}
         </Pressable>
       </Modal>
+
+      {/* ── Instagram-style comments sheet ── */}
+      <CommentsModal
+        visible={!!commentPost}
+        post={commentPost}
+        seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        onClose={() => setCommentPost(null)}
+      />
     </View>
   );
 }
