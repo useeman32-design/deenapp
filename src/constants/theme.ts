@@ -8,6 +8,68 @@ export const brand = {
   gold: '#D4AF37',
 };
 
+/* --------------------- Premium dashboard palette --------------------- */
+/* Home dashboard + floating nav (Phase 2 design language):
+   deep forest green / near black, glass cards, emerald + warm gold. */
+
+export interface DashTheme {
+  bg: string;
+  bgSoft: string;
+  card: string;
+  cardBorder: string; // gold hairline
+  greenBorder: string;
+  emerald: string;
+  emeraldDeep: string;
+  gold: string;
+  goldBright: string;
+  text: string;
+  subtext: string;
+  faint: string;
+  navBg: string;
+  heroTop: string;
+  heroBottom: string;
+  patternOpacity: number;
+}
+
+const dashLight: DashTheme = {
+  bg: '#F1F5EF',
+  bgSoft: '#E8EFE6',
+  card: '#FFFFFF',
+  cardBorder: 'rgba(29,111,66,0.16)',
+  greenBorder: 'rgba(29,111,66,0.22)',
+  emerald: '#1D6F42',
+  emeraldDeep: '#155C35',
+  gold: '#B8860B',
+  goldBright: '#D4AF37',
+  text: '#182420',
+  subtext: 'rgba(24,36,32,0.62)',
+  faint: 'rgba(24,36,32,0.38)',
+  navBg: 'rgba(255,255,255,0.82)',
+  heroTop: 'rgba(10,34,22,0.9)',
+  heroBottom: 'rgba(10,34,22,0.78)',
+  patternOpacity: 0.3,
+};
+
+const dashDark: DashTheme = {
+  bg: '#060D09',
+  bgSoft: '#0A1710',
+  card: '#0D1B13',
+  cardBorder: 'rgba(212,175,55,0.22)',
+  greenBorder: 'rgba(46,204,113,0.28)',
+  emerald: '#2ECC71',
+  emeraldDeep: '#1E9E5A',
+  gold: '#D4AF37',
+  goldBright: '#F1C40F',
+  text: '#F2F7F3',
+  subtext: 'rgba(226,240,230,0.62)',
+  faint: 'rgba(226,240,230,0.36)',
+  navBg: 'rgba(8,18,12,0.86)',
+  heroTop: 'rgba(5,12,8,0.94)',
+  heroBottom: 'rgba(5,12,8,0.8)',
+  patternOpacity: 0.5,
+};
+
+
 export const light = {
   background: '#F5F5F5',
   card: '#FFFFFF',
@@ -34,6 +96,7 @@ export const light = {
   hadithPurple: '#6A1B9A',
   prayerBlue: '#1976D2',
   calendarPurple: '#7B1FA2',
+  dash: dashLight,
 };
 
 export const dark = {
@@ -62,6 +125,7 @@ export const dark = {
   hadithPurple: '#9B59B6',
   prayerBlue: '#3498DB',
   calendarPurple: '#9B59B6',
+  dash: dashDark,
 };
 
 export type Theme = typeof light;

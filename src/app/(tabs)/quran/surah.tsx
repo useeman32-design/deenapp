@@ -3,6 +3,7 @@ import { FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { QURAN } from '@/data/quran';
 import { storage } from '@/lib/storage';
+import { markActive, markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { PageHero } from '@/components/PageHero';
@@ -62,6 +63,8 @@ export default function SurahList() {
   }, [filter, q, favs]);
 
   const open = (number: number) => {
+    markActive();
+    markGoal('surah');
     storage.setItem('dl.quran.last', JSON.stringify({ surah: number }));
     const next = [number, ...recent.filter((n) => n !== number)].slice(0, 6);
     setRecent(next);

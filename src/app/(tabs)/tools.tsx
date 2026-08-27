@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
+import { markActive, markGoal } from '@/lib/routine';
 import { T } from '@/components/T';
 import { PageHero } from '@/components/PageHero';
 import {
@@ -324,6 +325,8 @@ function BeadsStyle() {
     if (n >= BEADS) {
       setCount(0);
       setDhikr((d) => (d + 1) % DHIKRS.length);
+      markGoal('dhikr');
+      markActive();
     } else setCount(n);
   };
 
@@ -449,7 +452,12 @@ function ModernStyle() {
       setCount(0);
       return;
     }
-    setCount((c) => c + 1);
+    const n = count + 1;
+    setCount(n);
+    if (target > 0 && n >= target) {
+      markGoal('dhikr');
+      markActive();
+    }
   };
 
   const R = 80;

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { DUA_CATEGORIES, DUAS } from '@/data/dua';
+import { markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
@@ -9,6 +10,10 @@ export default function Duas() {
   const { theme } = useTheme();
   const [cat, setCat] = useState<string>('All');
   const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    markGoal('dua');
+  }, []);
   const list = DUAS.filter((d) => cat === 'All' || d.category === cat);
 
   return (

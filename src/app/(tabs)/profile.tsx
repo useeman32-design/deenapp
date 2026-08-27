@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { storage } from '@/lib/storage';
+import { markActive, markGoal } from '@/lib/routine';
 import * as api from '@/api/client';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
@@ -61,6 +62,8 @@ export default function Profile() {
     }
     await storage.setItem(k, today);
     await api.dailyCheckin().catch(() => {});
+    markActive();
+    markGoal('checkin');
     setCheckin('done');
   };
 
