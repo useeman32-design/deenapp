@@ -38,7 +38,7 @@ export interface Scholar {
 
 export interface PostMedia {
   type?: string;
-  url?: string;
+  url?: string | number;
   thumb_url?: string;
   [k: string]: unknown;
 }

@@ -49,7 +49,7 @@ const dashLight: DashTheme = {
   subtext: 'rgba(24,36,32,0.62)',
   faint: 'rgba(24,36,32,0.38)',
   navBg: 'rgba(255,255,255,0.82)',
-  navTint: 'rgba(255,255,255,0.40)',
+  navTint: 'rgba(255,255,255,0.58)',
   navBorder: 'rgba(10,61,40,0.10)',
   greenSoft: '#E7F4EE',
   navShadow: '#08402A',

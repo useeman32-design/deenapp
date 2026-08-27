@@ -13,6 +13,7 @@ const p4 = require('../../assets/img/profiles/p4.jpg');
 const p5 = require('../../assets/img/profiles/p5.jpg');
 const p6 = require('../../assets/img/profiles/p6.jpg');
 const p7 = require('../../assets/img/profiles/p7.jpg');
+const postMosque = require('../../assets/img/post-mosque.jpg');
 export const PROFILE_PHOTOS = { p1, p2, p3, p4, p5, p6, p7 } as Record<string, number>;
 
 const u = (
@@ -72,8 +73,20 @@ export const MOCK_FEED: Post[] = [
     comment_count: 12,
     liked_by_me: false,
     is_public_qa: false,
-    user: u(2, 'alameen', 'Aminu Muhammad Suleiman', { badge: 'green', scholar: true, fields: 'Aqeedah, Fiqh', photo: p1 }),
+    user: u(2, 'alameen', 'Aminu Muhammad Suleiman', { badge: 'green', scholar: true, fields: 'Sunni · Mufti', photo: p1 }),
     media: [],
+  },
+  {
+    id: 105,
+    content_text:
+      'Sometimes the masjid speaks louder than words. May our hearts always find their way back to the prayer. 🕌',
+    time_ago: '3h',
+    like_count: 128,
+    comment_count: 17,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(6, 'salamatu_b', 'Salamatu Bello', { badge: 'blue', fields: 'Sufi', photo: p5 }),
+    media: [{ type: 'image', url: postMosque }],
   },
   {
     id: 102,
@@ -84,7 +97,7 @@ export const MOCK_FEED: Post[] = [
     comment_count: 21,
     liked_by_me: true,
     is_public_qa: false,
-    user: u(3, 'mayanchie12', 'Yahaya Umar', { badge: 'blue', fields: 'Tafsir', photo: p2 }),
+    user: u(3, 'mayanchie12', 'Yahaya Umar', { badge: 'blue', fields: 'Sunni', photo: p2 }),
     media: [],
   },
   {
@@ -101,7 +114,7 @@ export const MOCK_FEED: Post[] = [
       answer:
         'It is permissible to combine Dhuhr with Asr and Maghrib with Isha during travel, following the practice of the Prophet ﷺ.',
     },
-    user: u(4, 'usman_ahmad', 'Usman Ahmad Kanoma', { badge: 'gold', scholar: true, fields: 'Fiqh, Hadith', photo: p3 }),
+    user: u(4, 'usman_ahmad', 'Usman Ahmad Kanoma', { badge: 'gold', scholar: true, fields: 'Sunni · Sheikh', photo: p3 }),
     media: [],
   },
   {
@@ -113,7 +126,21 @@ export const MOCK_FEED: Post[] = [
     comment_count: 5,
     liked_by_me: false,
     is_public_qa: false,
-    user: u(5, 'Gimba', 'Abdulhameed Hassan Gimba', { badge: 'blue', fields: 'Seerah', photo: p4 }),
+    user: u(5, 'Gimba', 'Abdulhameed Hassan Gimba', { badge: 'blue', fields: 'Sufi', photo: p4 }),
+    media: [],
+  },
+  {
+    id: 106,
+    content_text:
+      'Beautiful recitation of Surah Al-Baqarah by Sheikh Ahmad Al-Shalabi. Press play, make wudu, and listen with your whole heart. 🌙',
+    time_ago: '6h',
+    like_count: 89,
+    comment_count: 14,
+    liked_by_me: false,
+    is_public_qa: false,
+    user: u(7, 'kunfai_ibrahim', 'Kunfa’i Ibrahim', { badge: 'green', scholar: true, fields: 'Sunni · Sheikh', photo: p6 }),
+    youtube_url: 'https://www.youtube.com/watch?v=hwWpWoOtsBY',
+    youtube_embed_url: 'https://www.youtube.com/embed/hwWpWoOtsBY',
     media: [],
   },
 ];
@@ -133,6 +160,29 @@ export type SampleComment = {
 
 /* Instagram-style sample comments (with nested replies + emoji). */
 export const MOCK_COMMENTS: Record<number, SampleComment[]> = {
+  105: [
+    {
+      id: 41, name: 'Maryam Sani', handle: 'maryam_sani', avatar: p6,
+      text: 'Assalamu alaikum, this picture brought tears to my eyes 🥺', time: '2h', likes: 12,
+      replies: [
+        { id: 42, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5, badge: 'blue', text: 'Ameen, may we never lose that feeling 🤲', time: '1h', likes: 5 },
+      ],
+    },
+    { id: 43, name: 'Usman Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'Jumu’ah mubarak to everyone 🕌✨', time: '1h', likes: 8 },
+    { id: 44, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, text: 'Beautiful 🤍', time: '40m', likes: 3 },
+  ],
+  106: [
+    {
+      id: 51, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue',
+      text: 'Al-Shalabi’s recitation is unmatched 🎧', time: '5h', likes: 11,
+    },
+    { id: 52, name: 'Ibn Abubakar', handle: 'ibn_abubakar', avatar: p5, text: 'Listened twice already, jazakAllah khair 🤲', time: '4h', likes: 7,
+      replies: [
+        { id: 53, name: 'Kunfa’i Ibrahim', handle: 'kunfai_ibrahim', avatar: p6, badge: 'green', text: 'That is the intention, inshā’Allah 🌙', time: '3h', likes: 4 },
+      ],
+    },
+    { id: 54, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p7, text: 'Perfect for the night before Fajr ✅', time: '2h', likes: 5 },
+  ],
   101: [
     {
       id: 1, name: 'Usman Ahmad', handle: 'usman_ahmad', avatar: p3, badge: 'gold',
@@ -201,33 +251,36 @@ export const MOCK_VIDEOS: Video[] = [
   {
     id: 1,
     video_type: 'daily',
-    title: 'Understanding Niyyah (Intention) in Worship',
-    description: 'A short reminder on the importance of intention in every deed.',
+    title: 'Surah Yasin — Beautiful Recitation',
+    description: 'A soul-stirring recitation of Surah Yasin. Listen with khushoo’ and make du’aa.',
     poster_url: null,
-    source_url: 'https://www.youtube.com/@DeenLink',
-    duration: '12:41',
+    source_url: 'https://www.youtube.com/watch?v=0R1LKPRwxR4',
+    embed_url: 'https://www.youtube.com/embed/0R1LKPRwxR4',
+    duration: '27:32',
     view_count: 1840,
     like_count: 96,
   },
   {
     id: 2,
     video_type: 'daily',
-    title: 'How to Make the Most of Rajab',
-    description: 'Virtues of the month of Rajab and how to prepare for Ramadan.',
+    title: 'Asma-ul-Husna — The 99 Names of Allah',
+    description: 'Reflect on the most beautiful names of Allah, one day at a time.',
     poster_url: null,
-    source_url: 'https://www.youtube.com/@DeenLink',
-    duration: '18:05',
+    source_url: 'https://www.youtube.com/watch?v=ta_tTZrarE0',
+    embed_url: 'https://www.youtube.com/embed/ta_tTZrarE0',
+    duration: '19:08',
     view_count: 3210,
     like_count: 210,
   },
   {
     id: 3,
     video_type: 'daily',
-    title: 'The Manners of Reciting the Qur’an',
-    description: 'Tajwid basics and the adab of the reciter, explained simply.',
+    title: 'Return to Allah — Daily Reminder',
+    description: 'A short reminder: however far we stray, the door of tawbah is open.',
     poster_url: null,
-    source_url: 'https://www.youtube.com/@DeenLink',
-    duration: '9:58',
+    source_url: 'https://www.youtube.com/watch?v=tlG38jgInLc',
+    embed_url: 'https://www.youtube.com/embed/tlG38jgInLc',
+    duration: '1:12',
     view_count: 954,
     like_count: 61,
   },

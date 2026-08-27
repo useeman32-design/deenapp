@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mock
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
 import { BeadsIcon } from '@/components/Icons';
-import { FeedCard } from '@/components/FeedCard';
+import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard } from '@/lib/shareCard';
 
@@ -98,7 +98,7 @@ const CAMPAIGNS = [
   },
 ];
 
-const POST_FIELDS: Record<number, string> = { 1: 'Aqeedah', 2: 'Fiqh', 3: 'Tajweed', 4: 'Dhikr' };
+const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh' };
 const SCHOLAR_AVATARS: Record<number, number> = { 1: scholarAvatar1, 2: scholarAvatar2, 3: scholarAvatar3 };
 
 const DAILY_AYAH = {
@@ -146,6 +146,7 @@ export default function Home() {
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [heroSz, setHeroSz] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
   const togglePostLike = (id: number) =>
@@ -321,9 +322,21 @@ export default function Home() {
         </View>
 
         {/* 2 ─ Prayer times hero card */}
-        <View style={{ marginHorizontal: 16, borderRadius: 26, overflow: 'hidden', backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder }}>
+
+        <View style={{ marginHorizontal: 16, borderRadius: 26, overflow: 'hidden', backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder }}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              if (width > 0 && height > 0) setHeroSz({ w: width, h: height });
+            }}
+          >
           <View style={{ position: 'relative', padding: 18, paddingBottom: 12 }}>
-            <Image source={mecca} style={{ position: 'absolute', width: '100%', height: '100%', transform: [{ scale: 1.12 }] }} resizeMode="cover" />
+            {heroSz.w > 0 ? (
+              <Image
+                source={mecca}
+                style={{ position: 'absolute', top: 0, left: 0, width: heroSz.w, height: heroSz.h }}
+                resizeMode="cover"
+              />
+            ) : null}
             <LinearGradient
               colors={[d.heroTop, d.heroBottom] as [string, string, ...string[]]}
               start={{ x: 0, y: 0 }}
@@ -762,7 +775,7 @@ export default function Home() {
             </Pressable>
           </View>
           <View style={{ gap: 12 }}>
-            {posts.slice(0, 4).map((p) => (
+            {posts.slice(0, 6).map((p) => (
               <FeedCard
                 key={p.id}
                 dash={d}
@@ -771,9 +784,10 @@ export default function Home() {
                   (p.user?.scholar?.fields_of_knowledge as string | undefined) ??
                   ((p.user as { fields?: string }).fields as string | undefined)
                 }
-                post={{ ...p, liked_by_me: likedPosts.has(p.id) }}
+                post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                 onLike={(id) => togglePostLike(id)}
                 onComments={(pp) => setCommentPost(pp)}
+                onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
               />
             ))}
           </View>
@@ -1002,38 +1016,49 @@ export default function Home() {
             onStartShouldSetResponder={() => true}
             style={{ width: 330, borderRadius: 26, overflow: 'hidden', backgroundColor: '#0B1512', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
           >
-            <Pressable
-              onPress={() => videoOpen?.source_url && Linking.openURL(videoOpen.source_url).catch(() => {})}
-              style={{ height: 420, alignItems: 'center', justifyContent: 'center', backgroundColor: '#07100C' }}
-            >
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  backgroundColor: d.emerald,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  shadowColor: d.emerald,
-                  shadowOpacity: 0.55,
-                  shadowRadius: 14,
-                  shadowOffset: { width: 0, height: 5 },
-                  elevation: 8,
-                }}
-              >
-                <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
-              </View>
-              <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10.5, marginTop: 12 }}>
-                Tap to play
-              </T>
-              {videoOpen?.duration ? (
-                <View style={{ position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <T v="caption" style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                    {String(videoOpen.duration)}
-                  </T>
+            {Platform.OS === 'web' && videoOpen?.embed_url ? (
+              <View style={{ height: 300, backgroundColor: '#07100C', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 302 }}>
+                  <YouTubeFrame src={String(videoOpen.embed_url)} height={208} />
                 </View>
-              ) : null}
-            </Pressable>
+                <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, marginTop: 10 }}>
+                  Now playing on YouTube
+                </T>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => videoOpen?.source_url && Linking.openURL(videoOpen.source_url).catch(() => {})}
+                style={{ height: 420, alignItems: 'center', justifyContent: 'center', backgroundColor: '#07100C' }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: d.emerald,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: d.emerald,
+                    shadowOpacity: 0.55,
+                    shadowRadius: 14,
+                    shadowOffset: { width: 0, height: 5 },
+                    elevation: 8,
+                  }}
+                >
+                  <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
+                </View>
+                <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10.5, marginTop: 12 }}>
+                  Tap to play
+                </T>
+                {videoOpen?.duration ? (
+                  <View style={{ position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <T v="caption" style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                      {String(videoOpen.duration)}
+                    </T>
+                  </View>
+                ) : null}
+              </Pressable>
+            )}
             <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 10 }}>
               <T v="body" style={{ color: '#fff', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
                 {videoOpen?.title ?? 'Daily reminder'}

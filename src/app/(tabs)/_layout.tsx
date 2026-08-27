@@ -89,7 +89,7 @@ function FloatingTabBar({
       }}
     >
       {/* glass layer 1 — blur */}
-      <BlurView intensity={isDark ? 42 : 58} tint="dark" style={{ position: 'absolute', inset: 0 }} />
+      <BlurView intensity={isDark ? 42 : 22} tint={isDark ? 'dark' : 'light'} style={{ position: 'absolute', inset: 0 }} />
       {/* glass layer 2 — translucent tint + hairline */}
       <View
         style={{
