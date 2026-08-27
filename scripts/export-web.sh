@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 BASE="/deenapp/"
 
 rm -rf dist
-npx expo export --platform web
+npx expo export --platform web --clear
 
 # This Expo version bakes process.env.EXPO_BASE_URL out of the bundle, so the
 # router forgets the Pages subpath. Patch the base-URL defaults in the bundle.
