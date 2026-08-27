@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Svg, { Circle, Defs, Path, RadialGradient as SvgRadial, Stop } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Defs, Line, Path, RadialGradient as SvgRadial, LinearGradient as SvgLinear, Stop } from 'react-native-svg';
 
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -33,15 +34,6 @@ const mecca = require('../../../assets/img/mecca.jpg');
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
-type PrayerKey = 'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha';
-const ARC_PRAYERS: { key: PrayerKey; icon: string; angle: number }[] = [
-  { key: 'Fajr', icon: 'cloud-sun', angle: 150 },
-  { key: 'Dhuhr', icon: 'sun', angle: 120 },
-  { key: 'Asr', icon: 'hourglass-half', angle: 90 },
-  { key: 'Maghrib', icon: 'cloud-moon', angle: 60 },
-  { key: 'Isha', icon: 'moon', angle: 30 },
-];
-
 const QUICK = [
   { key: 'quran', label: 'Quran', icon: { fa: 'quran' }, accent: 'emerald', href: '/(tabs)/quran' as const },
   { key: 'hadith', label: 'Hadith', icon: { fa: 'scroll' }, accent: 'gold', href: '/tools/hadith' as const },
@@ -55,6 +47,7 @@ export default function Home() {
   const d = theme.dash;
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [loc, setLoc] = useState<Loc | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -88,7 +81,12 @@ export default function Home() {
   );
 
   const times = loc ? computePrayerTimes(now, loc) : null;
-  const np = times ? nextPrayer(now, times) : null;
+  const np = useMemo(() => {
+    if (!times) return null;
+    const n = nextPrayer(now, times);
+    if (n.index !== 1) return n; // never "Sunrise"
+    return nextPrayer(n.time, times);
+  }, [times, now]);
 
   const countdown = useMemo(() => {
     if (!np) return '—';
@@ -123,7 +121,7 @@ export default function Home() {
         </View>
 
         {/* 1 ─ Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: insets.top + 8 }}>
           <Pressable
             onPress={() => router.push('/(tabs)/profile')}
             style={({ pressed }) => ({
@@ -204,57 +202,72 @@ export default function Home() {
         </View>
 
         {/* 2 ─ Prayer times hero card */}
-        <View style={{ marginHorizontal: 16, borderRadius: 28, overflow: 'hidden', backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder }}>
-          <View style={{ position: 'relative', padding: 20, minHeight: 272 }}>
+        <View style={{ marginHorizontal: 16, borderRadius: 26, overflow: 'hidden', backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder }}>
+          <View style={{ position: 'relative', padding: 18, paddingBottom: 12 }}>
             <Image source={mecca} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
             <LinearGradient
               colors={[d.heroTop, d.heroBottom] as [string, string, ...string[]]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 0.7, y: 1 }}
+              end={{ x: 0.55, y: 1 }}
               style={{ position: 'absolute', inset: 0 }}
             />
-            <View style={{ position: 'relative', flexDirection: 'row' }}>
-              {/* Left column */}
-              <View style={{ flex: 1, paddingRight: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ width: 46, height: 46, borderRadius: 23 }}>
-                    <Glow size={76} color={d.emerald} id="glow-mosque" opacity={0.4} />
-                    <View style={{ position: 'absolute', inset: 0, borderRadius: 23, borderWidth: 1, borderColor: `${d.emerald}66`, alignItems: 'center', justifyContent: 'center' }}>
-                      <FontAwesome5 name="mosque" size={20} color={d.emerald} />
-                    </View>
+            <View style={{ position: 'relative' }}>
+              {/* identity row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 42, height: 42, borderRadius: 21 }}>
+                  <Glow size={68} color={isDark ? d.emerald : '#5BE59B'} id="glow-mosque" opacity={0.45} />
+                  <View
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: 21,
+                      borderWidth: 1,
+                      borderColor: isDark ? `${d.emerald}59` : 'rgba(91,229,155,0.45)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FontAwesome5 name="mosque" size={19} color={isDark ? d.emerald : '#5BE59B'} />
                   </View>
-                  <Pressable onPress={() => router.push('/tools/prayer')} hitSlop={8}>
-                    <T v="caption" style={{ color: d.gold, fontSize: 11.5, fontWeight: '600' }}>
-                      View All <T v="caption" style={{ color: d.gold, fontSize: 11.5 }}>→</T>
-                    </T>
-                  </Pressable>
                 </View>
-
-                <T v="meta" style={{ color: d.subtext, marginTop: 16, letterSpacing: 1.2, fontSize: 10.5 }}>
-                  NEXT PRAYER
-                </T>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <T v="display" style={{ color: '#FFFFFF', fontSize: 29, fontWeight: '700' }}>
-                    {np?.name ?? '—'}
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <T v="meta" style={{ color: 'rgba(255,255,255,0.65)', letterSpacing: 1.4, fontSize: 9.5 }}>
+                    NEXT PRAYER
                   </T>
-                  <PulseDot color={d.emerald} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                    <T v="display" style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '700' }}>
+                      {np?.name ?? '—'}
+                    </T>
+                    <PulseDot color={isDark ? d.emerald : '#5BE59B'} />
+                  </View>
                 </View>
-                <T v="stat" style={{ color: d.emerald, fontSize: 23, fontWeight: '700', marginTop: 2 }}>
-                  {np ? formatTime(np.time) : '—'}
-                </T>
-                <T v="bodyS" style={{ color: d.gold, fontSize: 11.5, fontWeight: '500', marginTop: 5, lineHeight: 16 }}>
-                  {countdown}
-                </T>
+                <Pressable onPress={() => router.push('/tools/prayer')} hitSlop={8}>
+                  <T v="caption" style={{ color: d.goldBright, fontSize: 11, fontWeight: '600' }}>
+                    View All <T v="caption" style={{ color: d.goldBright, fontSize: 11 }}>→</T>
+                  </T>
+                </Pressable>
+              </View>
 
+              {/* time + qibla */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 16 }}>
+                <View>
+                  <T v="display" style={{ color: isDark ? d.emerald : '#5BE59B', fontSize: 24, fontWeight: '700' }}>
+                    {np ? formatTime(np.time) : '—'}
+                  </T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 }}>
+                    <FontAwesome5 name="clock" size={10} color={d.goldBright} />
+                    <T v="bodyS" style={{ color: d.goldBright, fontSize: 11.5, fontWeight: '500' }}>
+                      {countdown}
+                    </T>
+                  </View>
+                </View>
                 <Pressable
                   onPress={() => router.push('/tools/qibla')}
                   style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 7,
-                    alignSelf: 'flex-start',
-                    marginTop: 16,
-                    paddingHorizontal: 15,
+                    paddingHorizontal: 14,
                     paddingVertical: 9,
                     borderRadius: 999,
                     borderWidth: 1,
@@ -263,15 +276,17 @@ export default function Home() {
                     opacity: pressed ? 0.8 : 1,
                   })}
                 >
-                  <FontAwesome5 name="kaaba" size={13} color={d.goldBright} />
-                  <T v="button" style={{ color: d.goldBright, fontSize: 12.5, fontWeight: '600' }}>
+                  <FontAwesome5 name="kaaba" size={12} color={d.goldBright} />
+                  <T v="button" style={{ color: d.goldBright, fontSize: 12, fontWeight: '600' }}>
                     Qibla Finder
                   </T>
                 </Pressable>
               </View>
 
-              {/* Right: prayer arc */}
-              <PrayerArc current={np?.name ?? null} />
+              {/* sun path — real time-based day arc */}
+              <View style={{ marginTop: 16 }}>
+                <SunPath times={times} now={now} nextIndex={np?.index ?? null} />
+              </View>
             </View>
           </View>
         </View>
@@ -310,10 +325,10 @@ export default function Home() {
                   Quran Streak
                 </T>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
-                    <T v="display" style={{ color: d.text, fontSize: 28, fontWeight: '700' }}>
+                    <T v="display" style={{ color: d.text, fontSize: 26, fontWeight: '700' }}>
                       {streak.days}
                     </T>
                     <T v="caption" style={{ color: d.subtext, fontSize: 11 }}>
@@ -325,7 +340,7 @@ export default function Home() {
                   </T>
                 </View>
                 <ProgressRing
-                  size={56}
+                  size={52}
                   progress={streak.days === 0 ? 0 : (streak.days % 7) / 7 || 1}
                   color={d.emerald}
                   icon={<FontAwesome5 name="quran" size={15} color={d.emerald} />}
@@ -341,17 +356,17 @@ export default function Home() {
                   Today’s Goal
                 </T>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                <View>
-                  <T v="display" style={{ color: d.text, fontSize: 28, fontWeight: '700' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T v="display" style={{ color: d.text, fontSize: 26, fontWeight: '700' }}>
                     {Math.round((goal.done / goal.total) * 100)}%
                   </T>
-                  <T v="caption" style={{ color: d.subtext, fontSize: 10, marginTop: 4, lineHeight: 13 }}>
+                  <T v="caption" style={{ color: d.subtext, fontSize: 9.5, marginTop: 4, lineHeight: 12 }}>
                     {goal.done} of {goal.total} tasks completed
                   </T>
                 </View>
                 <ProgressRing
-                  size={56}
+                  size={52}
                   progress={goal.done / goal.total}
                   color={isDark ? d.goldBright : d.gold}
                   icon={<FontAwesome5 name="bullseye" size={15} color={isDark ? d.goldBright : d.gold} />}
@@ -745,114 +760,174 @@ function HexBadge() {
   );
 }
 
-/* --------------------------- Prayer arc (hero) --------------------------- */
+/* --------------------- Sun path (time-based day arc) --------------------- */
+/* Professional prayer-day visual: markers at their REAL positions on the
+   day's arc, sun/moon at the CURRENT time, next prayer highlighted. */
 
-function PrayerArc({ current }: { current: string | null }) {
-  const { theme } = useTheme();
-  const d = theme.dash;
-  const W = 150;
-  const H = 150;
-  const cx = W / 2;
-  const cy = H - 12;
-  const R = 64;
-  const pos = (angleDeg: number, radius = R) => {
-    const a = (angleDeg * Math.PI) / 180;
-    return { x: cx + radius * Math.cos(a), y: cy - radius * Math.sin(a) };
+function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; nextIndex: number | null }) {
+  const [w, setW] = useState(338);
+  const H = 120;
+  const pad = 18;
+  const baseline = 84;
+  const peak = 20;
+  // fixed palette — SunPath always renders on the dark hero card
+  const c = {
+    horizon: 'rgba(255,255,255,0.16)',
+    nowLine: 'rgba(255,255,255,0.22)',
+    curve: '#D4AF37',
+    area: '#D4AF37',
+    dotFill: '#0E241A',
+    dotStroke: 'rgba(255,255,255,0.5)',
+    active: '#2ECC71',
+    label: 'rgba(255,255,255,0.62)',
+    labelActive: '#4AE38F',
+    time: 'rgba(255,255,255,0.4)',
+    halo: '#F1C40F',
+    sunDay: '#F1C40F',
+    sunNight: '#B9C7E4',
+    sunRingDay: '#D4AF37',
+    sunRingNight: 'rgba(255,255,255,0.45)',
+    card: '#0E241A',
   };
-  const start = pos(150);
-  const end = pos(30);
 
-  // pulse for the current prayer node
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+  if (!times) {
+    return (
+      <View
+        onLayout={(e) => setW(Math.max(e.nativeEvent.layout.width, 200))}
+        style={{ height: H, justifyContent: 'center' }}
+      >
+        <View
+          style={{
+            position: 'absolute',
+            left: pad - 6,
+            right: pad - 6,
+            top: baseline,
+            borderTopWidth: 1,
+            borderTopColor: c.horizon,
+            opacity: 0.6,
+          }}
+        />
+        <T v="caption" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10.5 }}>
+          Calculating prayer times…
+        </T>
+      </View>
     );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
+  }
 
-  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] });
-  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
+  const fajr = times[0].getTime();
+  const dhuhr = times[2].getTime();
+  const asr = times[3].getTime();
+  const maghrib = times[4].getTime();
+  const isha = times[5].getTime();
+  const end = isha + 45 * 60e3;
+  const span = Math.max(end - fajr, 3600e3);
+
+  const X = (t: number) => pad + ((t - fajr) / span) * (w - 2 * pad);
+  const Y = (t: number) => {
+    const p = Math.min(Math.max((t - fajr) / span, 0), 1);
+    return baseline - (baseline - peak) * Math.sin(Math.PI * p);
+  };
+
+  const N = 48;
+  const pts: string[] = [];
+  for (let i = 0; i <= N; i++) {
+    const t = fajr + (span * i) / N;
+    pts.push(`${X(t).toFixed(1)},${Y(t).toFixed(1)}`);
+  }
+  const curve = `M ${pts.join(' L ')}`;
+  const area = `${curve} L ${X(end).toFixed(1)},${baseline} L ${X(fajr).toFixed(1)},${baseline} Z`;
+
+  const nowMs = now.getTime();
+  const sunT = Math.min(Math.max(nowMs, fajr), end);
+  const sx = X(sunT);
+  const sy = Y(sunT);
+  const isDay = nowMs >= fajr && nowMs < maghrib;
+  const npIndex = nextIndex;
+
+  const markers = [
+    { label: 'Fajr', t: fajr, idx: 0 },
+    { label: 'Dhuhr', t: dhuhr, idx: 2 },
+    { label: 'Asr', t: asr, idx: 3 },
+    { label: 'Maghrib', t: maghrib, idx: 4 },
+    { label: 'Isha', t: isha, idx: 5 },
+  ];
+
 
   return (
-    <View style={{ width: W, height: H, marginRight: 2 }}>
-      <Svg width={W} height={H}>
-        <Path
-          d={`M ${start.x} ${start.y} A ${R} ${R} 0 0 1 ${end.x} ${end.y}`}
-          stroke={d.text}
-          strokeOpacity={0.18}
-          strokeWidth={1.2}
-          strokeDasharray="1 5"
-          strokeLinecap="round"
-          fill="none"
-        />
+    <View onLayout={(e) => setW(Math.max(e.nativeEvent.layout.width, 200))} style={{ height: H }}>
+      <Svg width={w} height={H}>
+        <Defs>
+          <SvgLinear id="sun-area" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor={c.area} stopOpacity={0.14} />
+            <Stop offset="100%" stopColor={c.area} stopOpacity={0} />
+          </SvgLinear>
+          <SvgRadial id="sun-halo" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor={c.halo} stopOpacity={0.5} />
+            <Stop offset="100%" stopColor={c.halo} stopOpacity={0} />
+          </SvgRadial>
+        </Defs>
+        {/* horizon */}
+        <Line x1={pad - 8} y1={baseline} x2={w - pad + 8} y2={baseline} stroke={c.horizon} strokeWidth={1} strokeDasharray="1 4" strokeLinecap="round" />
+        {/* soft fill under the arc */}
+        <Path d={area} fill="url(#sun-area)" />
+        {/* the day arc */}
+        <Path d={curve} stroke={c.curve} strokeOpacity={0.55} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+        {/* now line */}
+        <Line x1={sx} y1={sy + 13} x2={sx} y2={baseline} stroke={c.nowLine} strokeWidth={1} />
+        {/* prayer markers at their real positions */}
+        {markers.map((m) => {
+          const active = npIndex === m.idx;
+          return active ? (
+            <Circle key={m.label} cx={X(m.t)} cy={Y(m.t)} r={4.5} fill={c.active} stroke={c.dotFill} strokeWidth={1.5} />
+          ) : (
+            <Circle key={m.label} cx={X(m.t)} cy={Y(m.t)} r={3} fill={c.dotFill} stroke={c.dotStroke} strokeWidth={1.2} />
+          );
+        })}
+        {/* sun / moon at the current time */}
+        <Circle cx={sx} cy={sy} r={17} fill="url(#sun-halo)" />
+        <Circle cx={sx} cy={sy} r={11} fill={c.card} stroke={isDay ? c.sunRingDay : c.sunRingNight} strokeWidth={1.2} />
       </Svg>
 
-      {/* sun at the top of the arc */}
-      <View style={{ position: 'absolute', left: cx - 11, top: cy - R - 28, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
-        <Glow size={36} color={d.goldBright} id="glow-sun" opacity={0.5} />
-        <FontAwesome5 name="sun" size={13} color={d.goldBright} />
+      {/* sun / moon glyph */}
+      <View
+        style={{
+          position: 'absolute',
+          left: sx - 11,
+          top: sy - 11,
+          width: 22,
+          height: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FontAwesome5 name={isDay ? 'sun' : 'moon'} size={11} color={isDay ? c.sunDay : c.sunNight} />
       </View>
 
-      {/* moon near Isha */}
-      <View style={{ position: 'absolute', left: pos(34, R - 26).x - 8, top: pos(34, R - 26).y - 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
-        <FontAwesome5 name="moon" size={9} color={d.faint} />
-      </View>
-
-      {/* prayer nodes */}
-      {ARC_PRAYERS.map((p) => {
-        const pt = pos(p.angle);
-        const active = current === p.key;
-        const size = active ? 34 : 24;
-        return (
-          <View key={p.key}>
-            {active ? (
-              <Animated.View
-                style={{
-                  position: 'absolute',
-                  left: pt.x - 19,
-                  top: pt.y - 19,
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
-                  borderWidth: 1.5,
-                  borderColor: d.emerald,
-                  transform: [{ scale: ringScale }],
-                  opacity: ringOpacity,
-                }}
-              />
-            ) : null}
-            <View
-              style={{
-                position: 'absolute',
-                left: pt.x - size / 2,
-                top: pt.y - size / 2,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: active ? d.emerald : d.card,
-                borderWidth: 1,
-                borderColor: active ? d.emerald : `${d.text}30`,
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: active ? d.emerald : 'transparent',
-                shadowOpacity: 0.7,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: active ? 6 : 1,
-              }}
-            >
-              <FontAwesome5 name={p.icon} size={active ? 14 : 10.5} color={active ? '#fff' : d.faint} />
-            </View>
-            <View style={{ position: 'absolute', left: pt.x - 22, top: pt.y + size / 2 + 3, width: 44, alignItems: 'center' }}>
-              <T v="caption" style={{ color: active ? d.emerald : d.faint, fontSize: 8.5, fontWeight: active ? '600' : '500' }}>
-                {p.key}
+      {/* labels: name + real time under each marker (collisions resolved L→R) */}
+      {(() => {
+        const W = [40, 40, 38, 48, 40]; // per-label box widths (fit name + time)
+        const GAP = 3;
+        const lefts = markers.map((m, i) => Math.min(Math.max(X(m.t) - W[i] / 2, 2), w - W[i] - 2));
+        // Right-to-left pass: the rightmost labels (Maghrib/Isha) are close in time,
+        // so keep the last at the edge and pull earlier boxes left of their neighbours.
+        for (let i = markers.length - 2; i >= 0; i--) {
+          lefts[i] = Math.min(lefts[i], lefts[i + 1] - W[i] - GAP);
+          lefts[i] = Math.max(lefts[i], 2);
+        }
+        return markers.map((m, i) => {
+          const active = npIndex === m.idx;
+          return (
+            <View key={`l-${m.label}`} style={{ position: 'absolute', left: lefts[i], top: baseline + 10, width: W[i], alignItems: 'center' }}>
+              <T v="caption" style={{ color: active ? c.labelActive : c.label, fontSize: 9, fontWeight: active ? '700' : '500' }}>
+                {m.label}
+              </T>
+              <T v="caption" style={{ color: c.time, fontSize: 8.5, marginTop: 1 }}>
+                {formatTime(new Date(m.t))}
               </T>
             </View>
-          </View>
-        );
-      })}
+          );
+        });
+      })()}
     </View>
   );
 }

@@ -14,8 +14,13 @@ npx expo export --platform web
 
 # This Expo version bakes process.env.EXPO_BASE_URL out of the bundle, so the
 # router forgets the Pages subpath. Patch the base-URL defaults in the bundle.
+# Patch both the base-URL default AND guard the path arg to always start with a
+# slash (expo-router sometimes passes slash-less paths, which mangles the URL
+# into e.g. /deenapponboarding).
+SLASHGUARD='t=String(t);if(!t.startsWith("/"))t="/"+t;'
 for f in dist/_expo/static/js/web/entry-*.js; do
-  perl -pi -e "s{e\\.getUrlWithReactNavigationConcessions=function\\(t,n=\"\"\\)}{e.getUrlWithReactNavigationConcessions=function(t,n=\"${BASE}\")}g; s{e\\.appendBaseUrl=function\\(t,n=\"\"\\)}{e.appendBaseUrl=function(t,n=\"${BASE}\")}g" "$f"
+  perl -pi -e "s#e\\.getUrlWithReactNavigationConcessions=function\\(t,n=\"\"\\)\\{#e.getUrlWithReactNavigationConcessions=function(t,n=\"${BASE}\"){${SLASHGUARD}#g; s#e\\.appendBaseUrl=function\\(t,n=\"\"\\)\\{#e.appendBaseUrl=function(t,n=\"${BASE}\"){${SLASHGUARD}#g" "$f"
+  grep -q 'startsWith("/"))t="/"+t' "$f" || { echo "ERROR: router patch failed on $f" >&2; exit 1; }
 done
 
 # Rewrite absolute URLs in all text assets of the export.

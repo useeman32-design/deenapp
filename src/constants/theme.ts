@@ -45,8 +45,8 @@ const dashLight: DashTheme = {
   subtext: 'rgba(24,36,32,0.62)',
   faint: 'rgba(24,36,32,0.38)',
   navBg: 'rgba(255,255,255,0.82)',
-  heroTop: 'rgba(10,34,22,0.9)',
-  heroBottom: 'rgba(10,34,22,0.78)',
+  heroTop: 'rgba(8,26,17,0.88)',
+  heroBottom: 'rgba(8,26,17,0.7)',
   patternOpacity: 0.3,
 };
 
@@ -64,8 +64,8 @@ const dashDark: DashTheme = {
   subtext: 'rgba(226,240,230,0.62)',
   faint: 'rgba(226,240,230,0.36)',
   navBg: 'rgba(8,18,12,0.86)',
-  heroTop: 'rgba(5,12,8,0.94)',
-  heroBottom: 'rgba(5,12,8,0.8)',
+  heroTop: 'rgba(4,12,8,0.88)',
+  heroBottom: 'rgba(4,12,8,0.68)',
   patternOpacity: 0.5,
 };
 
