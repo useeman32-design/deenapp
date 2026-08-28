@@ -20,6 +20,7 @@ import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/
 import { BeadsIcon } from '@/components/Icons';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
+import { VideoModal } from '@/components/VideoModal';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
 
 /** Soft radial glow (SVG-based, works on all platforms). */
@@ -1053,106 +1054,12 @@ export default function Home() {
       ) : null}
 
       {/* ── Video viewing modal (reels/shorts-style preview) ── */}
-      <Modal visible={!!videoOpen} transparent animationType="slide" onRequestClose={() => setVideoOpen(null)}>
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
-          onPress={() => setVideoOpen(null)}
-        >
-          <View
-            onStartShouldSetResponder={() => true}
-            style={{ width: 330, borderRadius: 26, overflow: 'hidden', backgroundColor: '#0B1512', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
-          >
-            {Platform.OS === 'web' && videoOpen?.embed_url ? (
-              <View style={{ height: 300, backgroundColor: '#07100C', alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ width: 302 }}>
-                  <YouTubeFrame src={String(videoOpen.embed_url)} height={208} />
-                </View>
-                <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, marginTop: 10 }}>
-                  Now playing on YouTube
-                </T>
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => videoOpen?.source_url && Linking.openURL(videoOpen.source_url).catch(() => {})}
-                style={{ height: 420, alignItems: 'center', justifyContent: 'center', backgroundColor: '#07100C' }}
-              >
-                <View
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    backgroundColor: d.emerald,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    shadowColor: d.emerald,
-                    shadowOpacity: 0.55,
-                    shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 5 },
-                    elevation: 8,
-                  }}
-                >
-                  <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
-                </View>
-                <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10.5, marginTop: 12 }}>
-                  Tap to play
-                </T>
-                {videoOpen?.duration ? (
-                  <View style={{ position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <T v="caption" style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                      {String(videoOpen.duration)}
-                    </T>
-                  </View>
-                ) : null}
-              </Pressable>
-            )}
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 10 }}>
-              <T v="body" style={{ color: '#fff', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
-                {videoOpen?.title ?? 'Daily reminder'}
-              </T>
-              {videoOpen?.description ? (
-                <T v="caption" style={{ color: 'rgba(255,255,255,0.58)', fontSize: 11.5, lineHeight: 16 }}>
-                  {videoOpen.description}
-                </T>
-              ) : null}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 2 }}>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => videoOpen && toggleVideoLike(videoOpen.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-                >
-                  <FontAwesome5
-                    name="heart"
-                    size={15}
-                    color={videoLiked.has(videoOpen?.id ?? -1) ? '#FF5A5A' : 'rgba(255,255,255,0.75)'}
-                  />
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' }}>
-                    {fmtViews((videoOpen?.like_count as number | undefined) ?? 0)}
-                  </T>
-                </Pressable>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <FontAwesome5 name="comment" size={14} color="rgba(255,255,255,0.75)" />
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' }}>
-                    {fmtViews((videoOpen?.view_count as number | undefined) ?? 0)}
-                  </T>
-                </View>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() =>
-                    videoOpen && Share.share({ message: `${videoOpen.title ?? 'Daily reminder'} — ${videoOpen.source_url ?? ''}` }).catch(() => {})
-                  }
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-                >
-                  <FontAwesome5 name="share-alt" size={14} color="rgba(255,255,255,0.75)" />
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' }}>
-                    Share
-                  </T>
-                </Pressable>
-                <View style={{ flex: 1 }} />
-              </View>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
+      <VideoModal
+        video={videoOpen}
+        liked={videoLiked.has(videoOpen?.id ?? -1)}
+        onLike={() => videoOpen && toggleVideoLike(videoOpen.id)}
+        onClose={() => setVideoOpen(null)}
+      />
 
       {/* ── Daily ayah / hadith modal ── */}
       <Modal visible={!!dhOpen} transparent animationType="fade" onRequestClose={() => setDhOpen(null)}>

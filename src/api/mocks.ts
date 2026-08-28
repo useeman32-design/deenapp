@@ -58,7 +58,7 @@ export const MOCK_USER: User = {
   username: 'deenlink_user',
   full_name: 'DeenLink User',
   user_type: 'user',
-  profile_image_url: null,
+  profile_image_url: p1,
   deenpoints_balance: 120,
   is_email_verified: 1,
   account_status: 'active',

@@ -37,6 +37,14 @@ import type {
 const BASE = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org';
 const TIMEOUT = 9000;
 
+/**
+ * FORCE_DEMO — mock-only mode.
+ * While true, NO network request is ever made: every call resolves against
+ * bundled mock data and the signed-in user is the demo profile.
+ * Flip to false to go live against deenlink.org.
+ */
+export const FORCE_DEMO = true;
+
 let session: string | null = null;
 let csrf: string | null = null;
 let live = false; // true once we've reached the real API this session
@@ -58,6 +66,9 @@ export interface ApiResult<T> {
 }
 
 async function request<T = Record<string, unknown>>(path: string, opts: ReqOptions = {}): Promise<ApiResult<T>> {
+  // Mock-only mode: never touch the network; every caller falls back to bundled data.
+  if (FORCE_DEMO) return { ok: false, data: {} as T, networkError: true };
+
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (session) headers['Cookie'] = `deenlink_session=${session}`;
@@ -109,6 +120,8 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
 /* ------------------------------- Session ------------------------------ */
 
 export async function restoreSession(): Promise<{ user: User | null; ok: boolean }> {
+  if (FORCE_DEMO) return { user: MOCK_USER, ok: false };
+
   const saved = await storage.getItem('dl.session');
   if (!saved) return { user: null, ok: false };
   session = saved;
@@ -304,6 +317,9 @@ export async function updateProfile(payload: {
   bio?: string;
   aqeedah?: string;
 }): Promise<{ ok: boolean; user?: User; message?: string }> {
+  if (FORCE_DEMO) {
+    return { ok: true, user: { ...MOCK_USER, ...payload } as User, message: 'Saved (demo mode)' };
+  }
   const r = await request<{ status?: string; message?: string; user?: User }>('/api/users/update_profile.php', {
     method: 'POST',
     body: payload,
@@ -316,6 +332,7 @@ export async function updateProfile(payload: {
 }
 
 export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> {
+  if (FORCE_DEMO) return { ok: true, points: 1 };
   const r = await request<{ status?: string; points?: number; deenpoints?: number }>('/api/users/daily_checkin.php', {
     method: 'POST',
     body: {},

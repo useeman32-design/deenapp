@@ -9,6 +9,7 @@ import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, 
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
+import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useRouter } from 'expo-router';
 
@@ -18,12 +19,14 @@ const patternLight = require('../../../assets/img/pattern-light.png');
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 const EMOJIS = ['😄', '', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '', '🕋'];
 
+const B = ({ children }: { children: ReactNode }) => <Text style={{ fontWeight: '800' }}>{children}</Text>;
+
 const ACTIVITY: Array<{ icon: any; color: 'gold' | 'green' | 'red'; text: ReactNode; time: string }> = [
-  { icon: 'comment-dots', color: 'green', text: <><b>Aisha Yusuf</b> commented: “JazakAllah khair for this 🤲”</>, time: '5m' },
-  { icon: 'heart', color: 'red', text: <><b>Usman Ahmad Kanoma</b> liked the Surah Yasin recitation post</>, time: '18m' },
-  { icon: 'user-plus', color: 'green', text: <><b>Maryam Sani</b> joined the community</>, time: '1h' },
-  { icon: 'thumbtack', color: 'gold', text: <><b>Kunfa’i Ibrahim</b> pinned a hadith on the manners of istikhara</>, time: '3h' },
-  { icon: 'comment-dots', color: 'green', text: <><b>Salamatu Bello</b> replied to <b>Yahaya Umar</b></>, time: '4h' },
+  { icon: 'comment-dots', color: 'green', text: <><B>Aisha Yusuf</B> commented: “JazakAllah khair for this 🤲”</>, time: '5m' },
+  { icon: 'heart', color: 'red', text: <><B>Usman Ahmad Kanoma</B> liked the Surah Yasin recitation post</>, time: '18m' },
+  { icon: 'user-plus', color: 'green', text: <><B>Maryam Sani</B> joined the community</>, time: '1h' },
+  { icon: 'thumbtack', color: 'gold', text: <><B>Kunfa’i Ibrahim</B> pinned a hadith on the manners of istikhara</>, time: '3h' },
+  { icon: 'comment-dots', color: 'green', text: <><B>Salamatu Bello</B> replied to <B>Yahaya Umar</B></>, time: '4h' },
 ];
 
 type FeedTab = 'foryou' | 'following' | 'scholars';
@@ -45,6 +48,7 @@ export default function CommunityScreen() {
   const [posts, setPosts] = useState<Post[]>(MOCK_FEED);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [videoPost, setVideoPost] = useState<Post | null>(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<FeedTab>('foryou');
   const [sticky, setSticky] = useState(false);
@@ -504,6 +508,12 @@ export default function CommunityScreen() {
                       onLike={(id) => togglePostLike(id)}
                       onComments={(pp) => setCommentPost(pp)}
                       onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
+                      onPlayVideo={(pp) =>
+                        setVideoPost({
+                          ...pp,
+                          like_count: (pp.like_count ?? 0) + (likedPosts.has(pp.id) ? 1 : 0),
+                        })
+                      }
                     />
                   ))
                 )}
@@ -799,6 +809,24 @@ export default function CommunityScreen() {
         seed={commentPost ? (MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? []) as SampleComment[] : []}
         onClose={() => setCommentPost(null)}
       />
+
+      {/* Video viewing modal */}
+      {videoPost ? (
+        <VideoModal
+          video={{
+            id: videoPost.id,
+            title: (videoPost.content_text ?? 'Video').slice(0, 60),
+            source_url: (videoPost as { youtube_url?: string }).youtube_url ?? null,
+            embed_url: (videoPost as { youtube_embed_url?: string | null }).youtube_embed_url ?? null,
+            duration: null,
+            view_count: videoPost.like_count ?? 0,
+            like_count: videoPost.like_count ?? 0,
+          }}
+          liked={likedPosts.has(videoPost.id)}
+          onLike={() => togglePostLike(videoPost.id)}
+          onClose={() => setVideoPost(null)}
+        />
+      ) : null}
     </View>
   );
 }
