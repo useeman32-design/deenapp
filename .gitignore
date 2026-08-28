@@ -43,3 +43,4 @@ example
 /android
 /dist
 content/
+.token

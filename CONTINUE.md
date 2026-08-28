@@ -1,5 +1,5 @@
 # PASS 14 STATUS (read first)
-All pass-14 work is DONE and committed locally (videos rewrite, inline comments, native YouTube, community video posts, redesigns, smoke14 70/70). Remaining: push + gh-pages deploy — needs a FRESH token from the user (old one consumed). Deploy recipe unchanged (export-web.sh → orphan deploy-tmp → push gh-pages). Chromium env: bash scripts/browser-env.sh (now includes NSS softokn libs).
+Pass 14 is SHIPPED + LIVE (master f5f1a3e, gh-pages 6389dd1, live verified incl. /videos pass-14 UI). GitHub token for ALL pushes (user directive): ghp_E3Oy…9ix4Uh (full token in repo-root .token file — git-ignored, NEVER commit it; GitHub secret-scanning rejects any push containing the literal) — re-add remote each turn (git remote add origin https://github.com/useeman32-design/deenapp.git; .git/config is snapshot-stripped). Deploy: /tmp/deploy force-push to gh-pages; verify with scripts/livecheck14.mjs. Chromium env: bash scripts/browser-env.sh.
 
 # DeenLink — Agent Handoff / Continue Instructions
 
