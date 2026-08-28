@@ -7,6 +7,15 @@ if [ ! -x /home/user/.cache/ms-playwright/chromium_headless_shell-1234/chrome-he
   npx playwright-core install chromium-headless-shell
 fi
 D=/home/user/.chromium-libs/usr/lib/x86_64-linux-gnu
+
+# NSS dlopen-only libs (libsoftokn3 etc.) — ldd never lists them but chrome
+# FATALS without them when a persistent profile is touched.
+D=/home/user/.chromium-libs/usr/lib/x86_64-linux-gnu
+if [ ! -f $D/libsoftokn3.so ]; then
+  sudo apt-get install -y libnss3 >/dev/null 2>&1 || true
+  cp -L /usr/lib/x86_64-linux-gnu/libsoftokn3.so /usr/lib/x86_64-linux-gnu/libfreeblpriv3.so /usr/lib/x86_64-linux-gnu/libnssdbm3.so $D/ 2>/dev/null || true
+fi
+
 CHROME=/home/user/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell
 if LD_LIBRARY_PATH=$D ldd "$CHROME" 2>/dev/null | grep -q "not found"; then
   sudo apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libxdamage1 libxkbcommon0 libasound2 libatspi2.0-0 >/dev/null

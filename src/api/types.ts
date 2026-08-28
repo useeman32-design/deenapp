@@ -67,6 +67,9 @@ export interface Post {
   content_text?: string | null;
   youtube_url?: string | null;
   youtube_embed_url?: string | null;
+  /** community video post — a picked/local video file (not a reel) */
+  video_url?: string | null;
+  video_poster?: number | { uri: string } | null;
   created_at?: string;
   time_ago?: string;
   like_count: number;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
@@ -33,7 +33,8 @@ function initialsOf(name: string) {
 }
 
 export default function Profile() {
-  const { theme, mode, setMode } = useTheme();
+  const { theme, mode, setMode, isDark } = useTheme();
+  const d = theme.dash;
   const { user, logout } = useAuth();
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -80,7 +81,7 @@ export default function Profile() {
   };
 
   const stat = (n: number, l: string) => (
-    <View style={{ flex: 1, backgroundColor: theme.cardSoft, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.035)' : 'rgba(20,36,28,0.04)', borderWidth: 1, borderColor: d.cardBorder, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
       <T v="stat" style={{ fontSize: 16 }}>
         {n.toLocaleString()}
       </T>
@@ -89,7 +90,7 @@ export default function Profile() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <FlatList
         data={posts}
         keyExtractor={(p) => String(p.id)}
@@ -100,16 +101,21 @@ export default function Profile() {
           <View>
             {/* Green hero */}
             <View style={{ height: 190, position: 'relative', overflow: 'hidden' }}>
+              <Image
+                source={mode === 'dark' ? require('../../../assets/img/pattern-dark.png') : require('../../../assets/img/pattern-light.png')}
+                style={{ position: 'absolute', width: '100%', height: '100%', opacity: d.patternOpacity * 0.55 }}
+                resizeMode="cover"
+              />
               <LinearGradient
                 colors={(mode === 'dark'
-                  ? ['rgba(46,204,113,0.95)', 'rgba(39,174,96,0.9)']
-                  : ['rgba(29,111,66,0.9)', 'rgba(29,111,66,0.8)']) as [string, string, ...string[]]}
+                  ? ['rgba(3,20,12,0.96)', 'rgba(8,44,27,0.9)']
+                  : ['rgba(6,38,23,0.92)', 'rgba(16,66,42,0.85)']) as [string, string, ...string[]]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={{ position: 'absolute', inset: 0 }}
               />
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', padding: 16 }}>
-                <T v="h2" color="onPrimary" style={{ fontWeight: '600', fontSize: 20 }}>
+                <T v="h2" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 20 }}>
                   Profile
                 </T>
                 <View style={{ flex: 1 }} />
@@ -167,14 +173,16 @@ export default function Profile() {
             {/* Profile card (overlaps hero) */}
             <View
               style={{
-                backgroundColor: theme.card,
+                backgroundColor: d.card,
+                borderWidth: 1,
+                borderColor: d.cardBorder,
                 borderRadius: 20,
                 margin: -54,
                 marginLeft: 16,
                 marginRight: 16,
                 padding: 20,
                 shadowColor: '#000',
-                shadowOpacity: 0.08,
+                shadowOpacity: isDark ? 0.3 : 0.08,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 6 },
                 elevation: 4,
@@ -201,8 +209,8 @@ export default function Profile() {
                       alignItems: 'center',
                       gap: 8,
                       marginTop: 12,
-                      backgroundColor: theme.primarySoft,
-                      borderColor: theme.primary,
+                      backgroundColor: isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)',
+                      borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.3)',
                       borderWidth: 1,
                       borderRadius: 999,
                       paddingHorizontal: 12,
@@ -284,10 +292,12 @@ export default function Profile() {
               </T>
               <View
                 style={{
-                  backgroundColor: theme.card,
+                  backgroundColor: d.card,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
                   borderRadius: 16,
                   shadowColor: '#000',
-                  shadowOpacity: 0.04,
+                  shadowOpacity: isDark ? 0.22 : 0.04,
                   shadowRadius: 10,
                   shadowOffset: { width: 0, height: 3 },
                   elevation: 1,

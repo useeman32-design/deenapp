@@ -46,9 +46,9 @@ export function Surface({
           borderWidth: 1,
           borderColor: isDark
             ? glow
-              ? 'rgba(52,166,110,0.38)'
-              : theme.border
-            : 'rgba(226,222,208,0.8)',
+              ? 'rgba(212,175,55,0.35)'
+              : 'rgba(212,175,55,0.18)'
+            : 'rgba(29,111,66,0.16)',
           ...(elevated ? shadows.dark.float : shadows.light.card),
         },
         style,

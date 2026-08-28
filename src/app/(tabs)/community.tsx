@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,7 +11,6 @@ import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
-import { subscribeUserReels, userReels } from '@/lib/reelStore';
 import { useRouter } from 'expo-router';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
@@ -21,14 +20,6 @@ const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 const EMOJIS = ['😄', '', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '', '🕋'];
 
 const B = ({ children }: { children: ReactNode }) => <Text style={{ fontWeight: '800' }}>{children}</Text>;
-
-const ACTIVITY: Array<{ icon: any; color: 'gold' | 'green' | 'red'; text: ReactNode; time: string }> = [
-  { icon: 'comment-dots', color: 'green', text: <><B>Aisha Yusuf</B> commented: “JazakAllah khair for this 🤲”</>, time: '5m' },
-  { icon: 'heart', color: 'red', text: <><B>Usman Ahmad Kanoma</B> liked the Surah Yasin recitation post</>, time: '18m' },
-  { icon: 'user-plus', color: 'green', text: <><B>Maryam Sani</B> joined the community</>, time: '1h' },
-  { icon: 'thumbtack', color: 'gold', text: <><B>Kunfa’i Ibrahim</B> pinned a hadith on the manners of istikhara</>, time: '3h' },
-  { icon: 'comment-dots', color: 'green', text: <><B>Salamatu Bello</B> replied to <B>Yahaya Umar</B></>, time: '4h' },
-];
 
 type FeedTab = 'foryou' | 'following' | 'scholars';
 
@@ -62,48 +53,32 @@ export default function CommunityScreen() {
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
   const [ytUrl, setYtUrl] = useState('');
+  const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
   const [posting, setPosting] = useState(false);
+  const videoFileRef = useRef<TextInput | null>(null);
 
-  // videos created in the studio also land here as video posts
-  const lastReelId = useRef(Math.max(0, ...userReels.map((r) => r.id)));
-  useEffect(
-    () =>
-      subscribeUserReels(() => {
-        const fresh = userReels.filter((r) => r.id > lastReelId.current);
-        if (!fresh.length) return;
-        lastReelId.current = Math.max(lastReelId.current, ...fresh.map((r) => r.id));
-        setPosts((ps) => [
-          ...fresh
-            .slice()
-            .reverse()
-            .map((r) => ({
-              id: 900000 + r.id,
-              content_text: r.caption,
-              time_ago: 'now',
-              like_count: 0,
-              comment_count: 0,
-              liked_by_me: false,
-              is_public_qa: false,
-              user: {
-                id: 99,
-                username: ME.handle,
-                full_name: ME.name,
-                user_type: 'user',
-                profile_image_url: null,
-                deenpoints_balance: 240,
-                is_email_verified: 1,
-                account_status: 'active',
-                verification_badge: null,
-                scholar: null,
-              } as Post['user'],
-              media: [],
-              video: { reelId: r.id, poster: r.poster },
-            } as Post)),
-          ...ps,
-        ]);
-      }),
-    [],
-  );
+  /** Pick a video file for a community video post (NOT a reel). */
+  const pickVideo = async () => {
+    haptic.light();
+    try {
+      if (Platform.OS === 'web') {
+        (videoFileRef.current as unknown as HTMLInputElement | null)?.click?.();
+        return;
+      }
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo-library access to pick a video.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        setVideoAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'Selected video' });
+      }
+    } catch {
+      Alert.alert('Could not open the picker', 'Please try again.');
+    }
+  };
 
   const togglePostLike = (id: number) =>
     setLikedPosts((prev) => {
@@ -174,6 +149,9 @@ export default function CommunityScreen() {
       if (pollOn && opts.length >= 2) {
         np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
       }
+      if (videoAttach) {
+        np.video_url = videoAttach.uri;
+      }
       if (ytOn && ytUrl.trim()) {
         const url = ytUrl.trim();
         const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/);
@@ -188,6 +166,7 @@ export default function CommunityScreen() {
       setPollOpts(['', '']);
       setYtOn(false);
       setYtUrl('');
+      setVideoAttach(null);
       haptic.success();
     }, 1600);
   };
@@ -645,60 +624,6 @@ export default function CommunityScreen() {
                 )}
               </View>
             </View>
-
-            {/* Recent activity */}
-            <View style={{ marginHorizontal: 16, marginTop: 26, marginBottom: 10 }}>
-              <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5, marginBottom: 12 }}>
-                Recent Activity
-              </T>
-              <View
-                style={{
-                  backgroundColor: d.card,
-                  borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  paddingVertical: 6,
-                }}
-              >
-                {ACTIVITY.map((a, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 11,
-                      paddingHorizontal: 13,
-                      paddingVertical: 11,
-                      borderTopWidth: i === 0 ? 0 : 1,
-                      borderTopColor: d.cardBorder,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: a.color === 'gold' ? `${d.gold}18` : a.color === 'red' ? 'rgba(231,76,60,0.14)' : `${d.emerald}18`,
-                        borderWidth: 1,
-                        borderColor: a.color === 'gold' ? `${d.gold}44` : a.color === 'red' ? 'rgba(231,76,60,0.3)' : `${d.emerald}44`,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <FontAwesome5
-                        name={a.icon}
-                        size={12}
-                        color={a.color === 'gold' ? d.gold : a.color === 'red' ? '#E74C3C' : d.emerald}
-                      />
-                    </View>
-                    <Text style={{ flex: 1, fontFamily: 'Poppins-Regular', fontSize: 12, lineHeight: 17, color: d.subtext }}>{a.text}</Text>
-                    <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600', flexShrink: 0 }}>
-                      {a.time}
-                    </T>
-                  </View>
-                ))}
-              </View>
-            </View>
           </>
         )}
       </ScrollView>
@@ -811,11 +736,7 @@ export default function CommunityScreen() {
               {/* attach: video / youtube */}
               <View style={{ flexDirection: 'row', gap: 9 }}>
                 <Pressable
-                  onPress={() => {
-                    haptic.selection();
-                    setComposerOpen(false);
-                    router.push('/videos?create=1');
-                  }}
+                  onPress={pickVideo}
                   style={({ pressed }) => ({
                     flex: 1,
                     flexDirection: 'row',
@@ -824,14 +745,15 @@ export default function CommunityScreen() {
                     gap: 7,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: d.cardBorder,
+                    borderColor: videoAttach ? d.emerald : d.cardBorder,
+                    backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
                     paddingVertical: 10,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <FontAwesome5 name="film" size={12} color={d.emerald} />
-                  <T v="bodyS" style={{ color: d.subtext, fontWeight: '700', fontSize: 11.5 }}>
-                    Video
+                  <FontAwesome5 name="film" size={12} color={videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
+                  <T v="bodyS" style={{ color: videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                    {videoAttach ? 'Video attached' : 'Video'}
                   </T>
                 </Pressable>
                 <Pressable
@@ -880,6 +802,31 @@ export default function CommunityScreen() {
                     paddingVertical: 8,
                   }}
                 />
+              ) : null}
+
+              {Platform.OS === 'web' ? (
+                <input
+                  ref={videoFileRef as never}
+                  type="file"
+                  accept="video/*"
+                  style={{ display: 'none' }}
+                  onChange={(e: unknown) => {
+                    const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
+                    if (file) setVideoAttach({ uri: URL.createObjectURL(file), name: file.name });
+                  }}
+                />
+              ) : null}
+
+              {videoAttach ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
+                  <FontAwesome5 name="video" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
+                    {videoAttach.name}
+                  </T>
+                  <Pressable onPress={() => setVideoAttach(null)} hitSlop={8}>
+                    <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                  </Pressable>
+                </View>
               ) : null}
 
               {/* poll builder */}

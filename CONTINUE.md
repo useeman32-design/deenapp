@@ -1,3 +1,6 @@
+# PASS 14 STATUS (read first)
+All pass-14 work is DONE and committed locally (videos rewrite, inline comments, native YouTube, community video posts, redesigns, smoke14 70/70). Remaining: push + gh-pages deploy — needs a FRESH token from the user (old one consumed). Deploy recipe unchanged (export-web.sh → orphan deploy-tmp → push gh-pages). Chromium env: bash scripts/browser-env.sh (now includes NSS softokn libs).
+
 # DeenLink — Agent Handoff / Continue Instructions
 
 Read this file FIRST if you are a new agent picking up this project. It is the single source of continuity.

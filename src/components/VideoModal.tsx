@@ -3,6 +3,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { YouTubeFrame } from '@/components/FeedCard';
+import { YouTubePlayer } from '@/components/YouTubePlayer';
 import type { Video } from '@/api/types';
 
 export function fmtViews(n?: number | null) {
@@ -40,10 +41,14 @@ export function VideoModal({
           onStartShouldSetResponder={() => true}
           style={{ width: 330, borderRadius: 26, overflow: 'hidden', backgroundColor: '#0B1512', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
         >
-          {Platform.OS === 'web' && video?.embed_url ? (
+          {video?.embed_url ? (
             <View style={{ height: 300, backgroundColor: '#07100C', alignItems: 'center', justifyContent: 'center' }}>
               <View style={{ width: 302 }}>
-                <YouTubeFrame src={String(video.embed_url)} height={208} />
+                {Platform.OS === 'web' ? (
+                  <YouTubeFrame src={String(video.embed_url)} height={208} />
+                ) : (
+                  <YouTubePlayer embedUrl={String(video.embed_url)} height={208} />
+                )}
               </View>
               <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, marginTop: 10 }}>
                 Now playing on YouTube

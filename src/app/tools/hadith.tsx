@@ -55,7 +55,7 @@ export default function Hadith() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.dash.bg }}>
       <TopBar
         title="Hadith"
         right={

@@ -13,7 +13,8 @@ export function Chip({
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
   return (
     <Pressable
       onPress={onPress}
@@ -22,15 +23,15 @@ export function Chip({
           paddingHorizontal: 14,
           paddingVertical: 8,
           borderRadius: 999,
-          backgroundColor: active ? theme.primary : theme.card,
+          backgroundColor: active ? (isDark ? 'rgba(46,204,113,0.18)' : 'rgba(29,111,66,0.1)') : d.card,
           borderWidth: 1,
-          borderColor: active ? theme.primary : theme.border,
+          borderColor: active ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder,
           opacity: pressed ? 0.85 : 1,
         },
         style,
       ]}
     >
-      <T v="caption" color={active ? 'onPrimary' : 'subtext'} style={{ fontWeight: '700' }}>{label}</T>
+      <T v="caption" style={{ fontWeight: '700', color: active ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext }}>{label}</T>
     </Pressable>
   );
 }

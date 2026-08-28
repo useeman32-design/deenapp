@@ -9,6 +9,8 @@ import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
 import { ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
+import { YouTubePlayer } from '@/components/YouTubePlayer';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -81,6 +83,77 @@ export function AvatarImage({
           {initials}
         </T>
       )}
+    </View>
+  );
+}
+
+/** Inline player for community video posts — plays in the card, expand → modal. */
+function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poster?: number | { uri: string } | null; accent: string; hairline: string }) {
+  const player = useVideoPlayer({ uri: src }, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
+  const [started, setStarted] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (started && !paused) player.play();
+    else player.pause();
+  }, [started, paused, player]);
+
+  return (
+    <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
+      <View style={{ height: 300 }}>
+        {started ? (
+          <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
+            <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
+          </View>
+        ) : poster != null ? (
+          <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
+        ) : null}
+        {!started ? (
+          <Pressable style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }} onPress={() => { haptic.medium(); setStarted(true); }}>
+            <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="play" size={20} color="#FFFFFF" />
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => setPaused((p) => !p)} style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+            {paused ? (
+              <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="play" size={19} color="#FFFFFF" />
+              </View>
+            ) : null}
+          </Pressable>
+        )}
+        {/* expand — opens the fullscreen modal */}
+        <Pressable
+          onPress={() => { haptic.light(); setExpanded(true); }}
+          hitSlop={8}
+          style={{ position: 'absolute', top: 8, right: 8, width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <FontAwesome5 name="expand" size={13} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      <Modal visible={expanded} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
+          <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
+            <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
+              <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} />
+            </View>
+          </Pressable>
+          <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="times" size={15} color="#fff" />
+          </Pressable>
+          {paused ? (
+            <Pressable onPress={() => setPaused(false)} style={{ position: 'absolute', alignSelf: 'center', top: '50%', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="play" size={21} color="#fff" />
+            </Pressable>
+          ) : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -509,49 +582,11 @@ export function FeedCard({
         </View>
       ) : null}
 
-      {/* Video post (from the create studio) — tap opens the full player */}
-      {(post as { video?: { reelId: number; poster: number | { uri: string } } }).video ? (
-        <Pressable
-          onPress={() => {
-            haptic.selection();
-            router.push(`/videos?start=${(post as { video?: { reelId: number } }).video?.reelId}`);
-          }}
-          style={{ marginBottom: 12 }}
-        >
-          <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
-            <Image
-              source={((post as { video?: { poster: number | { uri: string } } }).video!.poster) as never}
-              style={{ width: '100%', height: 300 }}
-              resizeMode="cover"
-            />
-            <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.28)', alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="play" size={20} color="#FFFFFF" />
-              </View>
-            </View>
-            <View
-              style={{
-                position: 'absolute',
-                left: 10,
-                bottom: 10,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                backgroundColor: 'rgba(4,12,8,0.62)',
-                borderWidth: 1,
-                borderColor: 'rgba(212,175,55,0.5)',
-                borderRadius: 9,
-                paddingHorizontal: 9,
-                paddingVertical: 5,
-              }}
-            >
-              <FontAwesome5 name="video" size={10} color="#E8C96A" />
-              <T v="caption" style={{ color: '#E8C96A', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
-                DEENLINK VIDEO
-              </T>
-            </View>
-          </View>
-        </Pressable>
+      {/* Community video post — plays inline in the card, expand → modal */}
+      {post.video_url ? (
+        <View style={{ marginBottom: 12 }}>
+          <VideoPostPlayer src={post.video_url} poster={post.video_poster ?? null} accent={accent} hairline={hairline} />
+        </View>
       ) : null}
 
       {/* Media image — single tap: preview · double tap: like */}
@@ -575,6 +610,10 @@ export function FeedCard({
             onPress={() => onTap(() => onPlayVideo?.(post))}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           />
+        </View>
+      ) : post.youtube_embed_url ? (
+        <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, marginBottom: 12, backgroundColor: '#000' }}>
+          <YouTubePlayer embedUrl={String(post.youtube_embed_url)} height={206} />
         </View>
       ) : post.youtube_url ? (
         <Pressable

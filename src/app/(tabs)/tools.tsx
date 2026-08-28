@@ -123,6 +123,7 @@ const TOOLS: ToolCard[] = [
 
 export default function Tools() {
   const { theme, isDark } = useTheme();
+  const d = theme.dash;
   const router = useRouter();
   const [tasbeehOpen, setTasbeehOpen] = useState(false);
 
@@ -133,7 +134,7 @@ export default function Tools() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon} />
         <View style={{ paddingTop: 20, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
@@ -144,7 +145,7 @@ export default function Tools() {
                 key={t.key}
                 onPress={() => open(t)}
                 style={({ pressed }) => ({
-                  backgroundColor: theme.card,
+                  backgroundColor: d.card,
                   borderRadius: 16,
                   padding: 18,
                   flexDirection: 'row',
@@ -154,12 +155,12 @@ export default function Tools() {
                   overflow: 'hidden',
                   opacity: pressed ? 0.9 : 1,
                   borderWidth: 1,
-                  borderColor: isDark ? 'rgba(106,130,145,0.2)' : theme.border,
+                  borderColor: d.cardBorder,
                   shadowColor: '#000',
-                  shadowOpacity: 0.05,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 1,
+                  shadowOpacity: isDark ? 0.22 : 0.05,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 5 },
+                  elevation: 3,
                 })}
               >
                 <View

@@ -614,6 +614,11 @@ const reelF2 = require('../../assets/vid/f2.mp4');
 const reelF3 = require('../../assets/vid/f3.mp4');
 const reelF4 = require('../../assets/vid/f4.mp4');
 const reelF5 = require('../../assets/vid/f5.mp4');
+const reelW1 = require('../../assets/vid/f1_wm.mp4');
+const reelW2 = require('../../assets/vid/f2_wm.mp4');
+const reelW3 = require('../../assets/vid/f3_wm.mp4');
+const reelW4 = require('../../assets/vid/f4_wm.mp4');
+const reelW5 = require('../../assets/vid/f5_wm.mp4');
 const reelP1 = require('../../assets/img/vid-f1.jpg');
 const reelP2 = require('../../assets/img/vid-f2.jpg');
 const reelP3 = require('../../assets/img/vid-f3.jpg');
@@ -624,6 +629,8 @@ export interface MockReel {
   id: number;
   src: number | { uri: string };
   poster: number | { uri: string };
+  /** watermarked copy used for downloads (sample reels only) */
+  wm?: number;
   username: string; // key into MOCK_ACCOUNTS
   caption: string;
   likes: number;
@@ -638,6 +645,7 @@ export const MOCK_REELS: MockReel[] = [
   {
     id: 201,
     src: reelF1,
+    wm: reelW1,
     poster: reelP1,
     username: 'alameen',
     caption: 'The House of Allah from above 🕋 SubhanAllah — one ummah, one qiblah.',
@@ -650,6 +658,7 @@ export const MOCK_REELS: MockReel[] = [
   {
     id: 202,
     src: reelF2,
+    wm: reelW2,
     poster: reelP2,
     username: 'kunfai_ibrahim',
     caption: 'Take a moment with the Book of Allah today 📖 even one ayah changes the heart.',
@@ -662,6 +671,7 @@ export const MOCK_REELS: MockReel[] = [
   {
     id: 203,
     src: reelF3,
+    wm: reelW3,
     poster: reelP3,
     username: 'salamatu_b',
     caption: 'Light upon light ✨ Allah guides to His light whom He wills. (An-Nur 24:35)',
@@ -674,6 +684,7 @@ export const MOCK_REELS: MockReel[] = [
   {
     id: 204,
     src: reelF4,
+    wm: reelW4,
     poster: reelP4,
     username: 'aisha_yusuf',
     caption: 'Above the clouds, His throne 🤍 “Be, and it is.” — take a breath and make dhikr.',
@@ -686,6 +697,7 @@ export const MOCK_REELS: MockReel[] = [
   {
     id: 205,
     src: reelF5,
+    wm: reelW5,
     poster: reelP5,
     username: 'Gimba',
     caption: 'Fajr at the masjid 🌅 the best journey is the one you make before sunrise.',

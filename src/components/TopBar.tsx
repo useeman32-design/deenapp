@@ -15,6 +15,7 @@ export function TopBar({
   right?: React.ReactNode;
 }) {
   const { theme } = useTheme();
+  const d = theme.dash;
   const router = useRouter();
   return (
     <View
@@ -24,17 +25,17 @@ export function TopBar({
         paddingHorizontal: 18,
         paddingTop: 12,
         paddingBottom: 14,
-        backgroundColor: theme.background,
+        backgroundColor: d.bg,
       }}
     >
       {showBack ? (
-        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
-          <T v="h2" color="primary" style={{ fontSize: 18 }}>‹</T>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+          <T v="h2" style={{ color: d.emerald, fontSize: 18, lineHeight: 24 }}>‹</T>
         </Pressable>
       ) : null}
       <View style={{ flex: 1 }}>
-        <T v="h1">{title}</T>
-        {subtitle ? <T v="caption" style={{ marginTop: 2 }}>{subtitle}</T> : null}
+        <T v="h1" style={{ color: d.text, fontWeight: '800', fontSize: 21 }}>{title}</T>
+        {subtitle ? <T v="caption" style={{ marginTop: 2, color: d.faint }}>{subtitle}</T> : null}
       </View>
       {right}
     </View>

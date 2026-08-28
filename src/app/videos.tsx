@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -7,6 +8,7 @@ import {
   FlatList,
   Image,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   Share,
@@ -14,10 +16,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
 import type { Post } from '@/api/types';
@@ -34,6 +38,7 @@ const { height: VH, width: VW } = Dimensions.get('window');
 
 const SAVES_KEY = 'dl.reels.saved';
 const REPOST_KEY = 'dl.reels.reposted';
+const SPEEDS = [0.5, 1, 2, 3];
 
 /** Sample clips offered in the create studio (demo picks). */
 const SAMPLE_CLIPS: Array<{ id: number; label: string; reel: MockReel }> = MOCK_REELS.slice(0, 5).map((r) => ({
@@ -41,6 +46,12 @@ const SAMPLE_CLIPS: Array<{ id: number; label: string; reel: MockReel }> = MOCK_
   label: `Clip ${r.id - 200}`,
   reel: r,
 }));
+
+const fmtTime = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+};
 
 /** reel → synthetic Post so the shared CommentsModal works unchanged. */
 function reelAsPost(r: MockReel, account: (typeof MOCK_ACCOUNTS)[number]): Post {
@@ -79,11 +90,13 @@ function ReelItem({
   liked,
   saved,
   reposted,
+  speed,
   onLike,
   onSave,
   onRepost,
   onComments,
   onOpenProfile,
+  onMore,
 }: {
   reel: MockReel;
   active: boolean;
@@ -91,11 +104,13 @@ function ReelItem({
   liked: boolean;
   saved: boolean;
   reposted: boolean;
+  speed: number;
   onLike: (id: number) => void;
   onSave: (id: number) => void;
   onRepost: (id: number) => void;
   onComments: (r: MockReel) => void;
   onOpenProfile: (username: string) => void;
+  onMore: (r: MockReel) => void;
 }) {
   const { isDark } = useTheme();
   const account = useMemo(
@@ -111,12 +126,21 @@ function ReelItem({
   );
   const player = useVideoPlayer(reel.src, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = false;
   });
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [scrub, setScrub] = useState<number | null>(null);
   const lastTap = useRef(0);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burst = useRef(new Animated.Value(0)).current;
+
+  useEffect(
+    () => () => {
+      if (tapTimer.current) clearTimeout(tapTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (active && !paused) player.play();
@@ -128,6 +152,10 @@ function ReelItem({
   }, [muted, player]);
 
   useEffect(() => {
+    player.playbackRate = speed;
+  }, [speed, player, active]);
+
+  useEffect(() => {
     const t = setInterval(() => {
       try {
         const d = player.duration;
@@ -135,7 +163,7 @@ function ReelItem({
       } catch {
         /* player not ready */
       }
-    }, 400);
+    }, 300);
     return () => clearInterval(t);
   }, [player]);
 
@@ -148,64 +176,68 @@ function ReelItem({
     ]).start(() => burst.setValue(0));
   };
 
-  /** tap = play/pause · double-tap = like */
+  /** tap = play/pause (delayed so a double-tap never pauses) · double-tap = like */
   const onTap = () => {
     const now = Date.now();
     const dbl = now - lastTap.current < 300;
     lastTap.current = now;
     if (dbl) {
+      if (tapTimer.current) {
+        clearTimeout(tapTimer.current);
+        tapTimer.current = null;
+      }
       if (!liked) {
         onLike(reel.id);
         likeBurst();
         haptic.medium();
       }
     } else {
-      setPaused((p) => {
-        if (p) player.play();
-        else player.pause();
-        return !p;
-      });
-      haptic.selection();
+      tapTimer.current = setTimeout(() => {
+        tapTimer.current = null;
+        setPaused((p) => {
+          if (p) player.play();
+          else player.pause();
+          return !p;
+        });
+        haptic.selection();
+      }, 280);
     }
   };
+
+  /* ------- draggable seek line ------- */
+  const grantX = useRef(0);
+  const seekTo = (fraction: number) => {
+    try {
+      player.currentTime = fraction * Math.max(0.001, player.duration);
+    } catch {
+      /* ignore */
+    }
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 3,
+      onPanResponderGrant: (e) => {
+        haptic.selection();
+        grantX.current = e.nativeEvent.locationX;
+        setScrub(Math.max(0, Math.min(1, grantX.current / VW)));
+      },
+      onPanResponderMove: (_e, g) => {
+        setScrub(Math.max(0, Math.min(1, (grantX.current + g.dx) / VW)));
+      },
+      onPanResponderRelease: () => {
+        setScrub((final) => {
+          if (final != null) seekTo(final);
+          return null;
+        });
+      },
+      onPanResponderTerminate: () => setScrub(null),
+    }),
+  ).current;
 
   const scale = burst.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.22, 1.02, 1.35] });
   const opacity = burst.interpolate({ inputRange: [0, 0.12, 0.72, 1], outputRange: [0, 0.95, 0.95, 0] });
-
-  const download = async () => {
-    haptic.light();
-    try {
-      // Bundled asset → resolve its served URL. Picked/user files already have one.
-      let uri: string;
-      if (typeof reel.src === 'number') {
-        const { Asset } = await import('expo-asset');
-        const asset = Asset.fromModule(reel.src);
-        await asset.downloadAsync();
-        uri = asset.localUri ?? asset.uri;
-      } else {
-        uri = reel.src.uri;
-      }
-      if (Platform.OS === 'web') {
-        const a = document.createElement('a');
-        a.href = uri;
-        a.download = `deenlink-video-${reel.id}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        return;
-      }
-      const MediaLibrary = await import('expo-media-library');
-      const perm = await MediaLibrary.requestPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo-library access to save videos.');
-        return;
-      }
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Saved ✓', 'Video saved to your gallery.');
-    } catch {
-      Alert.alert('Download failed', 'Please try again in a moment.');
-    }
-  };
 
   const railButton = (icon: string, label: string, onPress: () => void, tint?: string) => (
     <Pressable onPress={onPress} hitSlop={6} style={{ alignItems: 'center', gap: 4 }}>
@@ -216,9 +248,9 @@ function ReelItem({
           borderRadius: 22,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'rgba(10,20,14,0.45)',
+          backgroundColor: 'rgba(10,20,14,0.42)',
           borderWidth: 1,
-          borderColor: tint ? `${tint}88` : 'rgba(255,255,255,0.16)',
+          borderColor: tint ? `${tint}88` : 'rgba(255,255,255,0.15)',
         }}
       >
         <FontAwesome5 name={icon} size={17} color={tint ?? '#FFFFFF'} solid={icon === 'heart' || icon === 'bookmark'} />
@@ -231,14 +263,14 @@ function ReelItem({
 
   return (
     <View style={{ width: VW, height: VH, backgroundColor: '#000' }}>
-      {/* video layer — pointerEvents none so iOS native controls NEVER take over;
-          all interaction goes through our overlay (play/pause, double-tap like) */}
+      {/* video layer — no native chrome, no touches: our overlay owns interaction */}
       {active ? (
         <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
           <VideoView
             player={player}
             contentFit="cover"
             nativeControls={false}
+            playsInline
             style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
           />
         </View>
@@ -246,16 +278,26 @@ function ReelItem({
         <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
       )}
 
-      {/* legibility scrims */}
-      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 130, backgroundColor: 'rgba(0,0,0,0.32)' }} />
-      <View pointerEvents="none" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 250, backgroundColor: 'rgba(0,0,0,0.42)' }} />
+      {/* soft scrims — small, dissolving into the video at both ends */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.50)', 'rgba(0,0,0,0)']}
+        locations={[0, 1]}
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 84 }}
+      />
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.30)', 'rgba(0,0,0,0.58)']}
+        locations={[0, 0.45, 1]}
+        pointerEvents="none"
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 170 }}
+      />
 
-      {/* tap surface */}
-      <Pressable onPress={onTap} style={{ position: 'absolute', inset: 0 }} />
+      {/* tap + long-press surface (long-press = more menu) */}
+      <Pressable onPress={onTap} onLongPress={() => onMore(reel)} delayLongPress={380} style={{ position: 'absolute', inset: 0 }} />
       {paused && active ? (
         <View pointerEvents="none" style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
-          <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="play" size={26} color="#FFFFFF" />
+          <View style={{ width: 66, height: 66, borderRadius: 33, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="play" size={25} color="#FFFFFF" />
           </View>
         </View>
       ) : null}
@@ -268,20 +310,19 @@ function ReelItem({
         <HeartIcon size={104} filled color="#fff" />
       </Animated.View>
 
-      {/* right action rail */}
-      <View style={{ position: 'absolute', right: 12, bottom: 150, gap: 13 }}>
+      {/* right action rail — like · comment · save · share · ••• */}
+      <View style={{ position: 'absolute', right: 12, bottom: 152, gap: 13 }}>
         {railButton('heart', (reel.likes + (liked ? 1 : 0)).toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
         {railButton('comment', String(reel.comments), () => onComments(reel))}
         {railButton('bookmark', (reel.saves + (saved ? 1 : 0)).toLocaleString(), () => { haptic.light(); onSave(reel.id); }, saved ? '#E8C96A' : undefined)}
-        {railButton('retweet', 'Repost', () => { haptic.light(); onRepost(reel.id); }, reposted ? '#4AE38F' : undefined)}
         {railButton('share', 'Share', () => {
           Share.share({ message: `${account.full_name} on DeenLink Videos: ${reel.caption}` }).catch(() => {});
         })}
-        {railButton('download', 'Download', download)}
+        {railButton('ellipsis-h', '', () => { haptic.light(); onMore(reel); })}
       </View>
 
       {/* bottom info */}
-      <View style={{ position: 'absolute', left: 14, right: 74, bottom: 34 }}>
+      <View style={{ position: 'absolute', left: 14, right: 76, bottom: 96 }}>
         <Pressable
           onPress={() => onOpenProfile(reel.username)}
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, opacity: pressed ? 0.8 : 1 })}
@@ -314,16 +355,49 @@ function ReelItem({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }}>
             <FontAwesome5 name="music" size={10} color="rgba(255,255,255,0.85)" />
             <T v="caption" numberOfLines={1} style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11 }}>
-              {reel.music} · {reel.views.toLocaleString()} views
+              {reel.music} · {reel.views.toLocaleString()} views{speed !== 1 ? ` · ${speed}x` : ''}
             </T>
           </View>
         </View>
       </View>
 
-      {/* progress bar */}
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.18)' }}>
-        <View style={{ width: `${progress * 100}%`, height: 3, backgroundColor: isDark ? '#4AE38F' : '#2ECC71' }} />
+      {/* seek line — draggable scrubber */}
+      <View
+        {...pan.panHandlers}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 30, justifyContent: 'flex-end' }}
+      >
+        <SeekTrack progress={progress} scrub={scrub} duration={durSafe(player)} />
       </View>
+    </View>
+  );
+}
+
+const durSafe = (player: { duration: number }) => {
+  try {
+    return Math.max(0.001, player.duration);
+  } catch {
+    return 0.001;
+  }
+};
+
+/** visual track + thumb + time bubble */
+function SeekTrack({ progress, scrub, duration }: { progress: number; scrub: number | null; duration: number }) {
+  const shown = scrub ?? progress;
+  return (
+    <View style={{ height: 22, justifyContent: 'center' }}>
+      <View style={{ height: scrub != null ? 5 : 3, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 8 }}>
+        <View style={{ width: `${shown * 100}%`, height: '100%', borderRadius: 2.5, backgroundColor: '#2ECC71' }} />
+      </View>
+      {scrub != null ? (
+        <>
+          <View style={{ position: 'absolute', left: 8 + shown * (VW - 16) - 6.5, width: 13, height: 13, borderRadius: 7, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5 }} />
+          <View style={{ position: 'absolute', right: 14, bottom: 20, backgroundColor: 'rgba(8,16,11,0.9)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <T v="caption" style={{ color: '#EAF7EE', fontSize: 10.5, fontWeight: '800' }}>
+              {fmtTime(shown * duration)} / {fmtTime(duration)}
+            </T>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -373,7 +447,7 @@ export default function VideosFeed() {
 
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou');
   const [index, setIndex] = useState(0);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
   const [saved, setSaved] = useState<Set<number>>(new Set());
   const [reposted, setReposted] = useState<Set<number>>(new Set());
@@ -383,7 +457,10 @@ export default function VideosFeed() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('saved');
   const [createOpen, setCreateOpen] = useState(false);
+  const [moreReel, setMoreReel] = useState<MockReel | null>(null);
+  const [sendToOpen, setSendToOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [speed, setSpeed] = useState(1);
   const [storeTick, setStoreTick] = useState(0);
 
   const listRef = useRef<FlatList<MockReel>>(null);
@@ -420,7 +497,6 @@ export default function VideosFeed() {
     return [...mine, ...MOCK_REELS];
   }, [feedTab, storeTick]);
 
-  // deep link ?start=<reel id>
   useEffect(() => {
     if (params.start) {
       const i = reels.findIndex((r) => String(r.id) === params.start);
@@ -475,6 +551,47 @@ export default function VideosFeed() {
     showToast(added ? 'Reposted — your followers can see it' : 'Repost removed');
   };
 
+  const downloadReel = async (reel: MockReel) => {
+    haptic.light();
+    try {
+      let uri: string;
+      if (reel.wm != null) {
+        // bundled sample → use the pre-built DeenLink-watermarked copy
+        const { Asset } = await import('expo-asset');
+        const asset = Asset.fromModule(reel.wm);
+        await asset.downloadAsync();
+        uri = asset.localUri ?? asset.uri;
+      } else if (typeof reel.src === 'number') {
+        const { Asset } = await import('expo-asset');
+        const asset = Asset.fromModule(reel.src);
+        await asset.downloadAsync();
+        uri = asset.localUri ?? asset.uri;
+      } else {
+        uri = reel.src.uri;
+      }
+      if (Platform.OS === 'web') {
+        const a = document.createElement('a');
+        a.href = uri;
+        a.download = `deenlink-video-${reel.id}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('Downloading with DeenLink watermark');
+        return;
+      }
+      const MediaLibrary = await import('expo-media-library');
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo-library access to save videos.');
+        return;
+      }
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved ✓', reel.wm != null ? 'Video saved to your gallery with the DeenLink watermark.' : 'Video saved to your gallery.');
+    } catch {
+      Alert.alert('Download failed', 'Please try again in a moment.');
+    }
+  };
+
   const jumpToReel = useCallback(
     (r: MockReel) => {
       const i = reels.findIndex((x) => x.id === r.id);
@@ -507,55 +624,9 @@ export default function VideosFeed() {
   const likedReels = reels.filter((r) => liked.has(r.id));
   const repostedReels = reels.filter((r) => reposted.has(r.id));
 
-  const tabButton = (id: FeedTab, label: string) => {
-    const on = feedTab === id;
-    return (
-      <Pressable
-        key={id}
-        onPress={() => {
-          if (on) return;
-          haptic.selection();
-          setFeedTab(id);
-          setIndex(0);
-          listRef.current?.scrollToOffset({ offset: 0, animated: false });
-        }}
-        style={{ paddingHorizontal: 10, paddingVertical: 4 }}
-      >
-        <T v="body" style={{ color: on ? '#FFFFFF' : 'rgba(255,255,255,0.55)', fontWeight: on ? '800' : '600', fontSize: 15 }}>
-          {label}
-        </T>
-      </Pressable>
-    );
-  };
-
-  const topIcon = (icon: string, onPress: () => void) => (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(10,20,14,0.5)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.16)',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <FontAwesome5 name={icon} size={14} color="#FFFFFF" />
-    </Pressable>
-  );
-
-  const LIB_TABS: Array<{ id: LibraryTab; label: string; icon: string }> = [
-    { id: 'saved', label: 'Saved', icon: 'bookmark' },
-    { id: 'liked', label: 'Liked', icon: 'heart' },
-    { id: 'reposts', label: 'Reposts', icon: 'retweet' },
-  ];
-
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* top bar: close · tabs · search · library */}
+      {/* top bar: back · glassy tabs · search */}
       <View style={{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
         <Pressable
           onPress={() => router.back()}
@@ -564,24 +635,72 @@ export default function VideosFeed() {
             width: 36,
             height: 36,
             borderRadius: 18,
-            backgroundColor: 'rgba(10,20,14,0.5)',
+            backgroundColor: 'rgba(10,20,14,0.45)',
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.16)',
+            borderColor: 'rgba(255,255,255,0.15)',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <FontAwesome5 name="times" size={14} color="#FFFFFF" />
+          <FontAwesome5 name="chevron-left" size={15} color="#FFFFFF" />
         </Pressable>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-          {tabButton('following', 'Following')}
-          <View style={{ width: 1, height: 14, backgroundColor: 'rgba(255,255,255,0.25)' }} />
-          {tabButton('foryou', 'For you')}
+
+        {/* glassy Following / For you tab */}
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              borderRadius: 20,
+              overflow: 'hidden',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.16)',
+              backgroundColor: 'rgba(10,20,14,0.45)',
+            }}
+          >
+            {(['following', 'foryou'] as FeedTab[]).map((id) => {
+              const on = feedTab === id;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => {
+                    if (on) return;
+                    haptic.selection();
+                    setFeedTab(id);
+                    setIndex(0);
+                    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+                  }}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 7,
+                    backgroundColor: on ? 'rgba(46,204,113,0.22)' : 'transparent',
+                  }}
+                >
+                  <T v="body" style={{ color: on ? '#FFFFFF' : 'rgba(255,255,255,0.6)', fontWeight: on ? '800' : '600', fontSize: 13.5 }}>
+                    {id === 'following' ? 'Following' : 'For you'}
+                  </T>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          {topIcon('search', () => { haptic.selection(); setSearchOpen(true); })}
-          {topIcon('bookmark', () => { haptic.selection(); setLibraryOpen(true); })}
-        </View>
+
+        <Pressable
+          onPress={() => { haptic.selection(); setSearchOpen(true); }}
+          hitSlop={8}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(10,20,14,0.45)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.15)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <FontAwesome5 name="search" size={14} color="#FFFFFF" />
+        </Pressable>
       </View>
 
       {/* pager */}
@@ -597,11 +716,13 @@ export default function VideosFeed() {
             liked={liked.has(item.id)}
             saved={saved.has(item.id)}
             reposted={reposted.has(item.id)}
+            speed={speed}
             onLike={toggleLike}
             onSave={toggleSave}
             onRepost={toggleRepost}
             onComments={(r) => setCommentReel(r)}
             onOpenProfile={(u) => router.push(`/profile/${u}`)}
+            onMore={(r) => setMoreReel(r)}
           />
         )}
         pagingEnabled
@@ -618,52 +739,68 @@ export default function VideosFeed() {
         extraData={storeTick}
       />
 
-      {/* create button (TikTok-style center +) */}
-      <Pressable
-        onPress={() => { haptic.light(); setCreateOpen(true); }}
-        style={({ pressed }) => ({
-          position: 'absolute',
-          left: VW / 2 - 27,
-          bottom: 118,
-          width: 54,
-          height: 36,
-          borderRadius: 12,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          backgroundColor: 'rgba(10,20,14,0.6)',
-          borderWidth: 1,
-          borderColor: 'rgba(212,175,55,0.55)',
-          opacity: pressed ? 0.8 : 1,
-        })}
-      >
-        <FontAwesome5 name="plus" size={13} color="#E8C96A" />
-        <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 11.5 }}>
-          Create
-        </T>
-      </Pressable>
-
-      {/* mute toggle */}
-      <Pressable
-        onPress={() => { haptic.selection(); setMuted((m) => !m); }}
-        hitSlop={10}
+      {/* glassy bottom menu: saved · create · sound */}
+      <View
         style={{
           position: 'absolute',
-          right: 14,
-          top: insets.top + 54,
-          width: 34,
-          height: 34,
-          borderRadius: 17,
-          backgroundColor: 'rgba(10,20,14,0.5)',
+          left: VW / 2 - 96,
+          bottom: 18 + insets.bottom * 0.4,
+          width: 192,
+          height: 54,
+          borderRadius: 27,
+          overflow: 'hidden',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.16)',
-          alignItems: 'center',
-          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOpacity: 0.35,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 10,
         }}
       >
-        <FontAwesome5 name={muted ? 'volume-mute' : 'volume-up'} size={13} color="#FFFFFF" />
-      </Pressable>
+        <BlurView intensity={34} tint="dark" style={{ position: 'absolute', inset: 0 }} />
+        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(10,20,14,0.35)', flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable
+            onPress={() => { haptic.selection(); setLibraryOpen(true); }}
+            style={{ flex: 1, alignItems: 'center', gap: 3 }}
+          >
+            <FontAwesome5 name="bookmark" size={16} color="#FFFFFF" />
+            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 9.5, fontWeight: '700' }}>
+              Saved
+            </T>
+          </Pressable>
+          <Pressable
+            onPress={() => { haptic.light(); setCreateOpen(true); }}
+            style={({ pressed }) => ({
+              width: 54,
+              height: 40,
+              borderRadius: 14,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              backgroundColor: '#1F8F5C',
+              borderWidth: 1.5,
+              borderColor: 'rgba(212,175,55,0.65)',
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <FontAwesome5 name="plus" size={12} color="#FFFFFF" />
+            <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>
+              Create
+            </T>
+          </Pressable>
+          <Pressable
+            onPress={() => { haptic.selection(); setMuted((m) => !m); }}
+            style={{ flex: 1, alignItems: 'center', gap: 3 }}
+          >
+            <FontAwesome5 name={muted ? 'volume-mute' : 'volume-up'} size={16} color="#FFFFFF" />
+            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 9.5, fontWeight: '700' }}>
+              Sound
+            </T>
+          </Pressable>
+        </View>
+      </View>
 
       {/* toast */}
       {toast ? (
@@ -673,7 +810,7 @@ export default function VideosFeed() {
             position: 'absolute',
             left: VW / 2 - 140,
             width: 280,
-            bottom: 168,
+            bottom: 92 + insets.bottom,
             alignItems: 'center',
             backgroundColor: 'rgba(8,16,11,0.88)',
             borderWidth: 1,
@@ -783,7 +920,11 @@ export default function VideosFeed() {
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 14 }}>
-              {LIB_TABS.map((t) => {
+              {([
+                { id: 'saved', label: 'Saved', icon: 'bookmark' },
+                { id: 'liked', label: 'Liked', icon: 'heart' },
+                { id: 'reposts', label: 'Reposts', icon: 'retweet' },
+              ] as Array<{ id: LibraryTab; label: string; icon: string }>).map((t) => {
                 const on = libraryTab === t.id;
                 return (
                   <Pressable
@@ -813,7 +954,7 @@ export default function VideosFeed() {
             <View style={{ paddingHorizontal: 16 }}>
               {(libraryTab === 'saved' ? savedReels : libraryTab === 'liked' ? likedReels : repostedReels).length === 0 ? (
                 <View style={{ alignItems: 'center', paddingVertical: 34, gap: 8 }}>
-                  <FontAwesome5 name={LIB_TABS.find((t) => t.id === libraryTab)?.icon ?? 'bookmark'} size={20} color="rgba(242,247,243,0.35)" />
+                  <FontAwesome5 name={libraryTab === 'saved' ? 'bookmark' : libraryTab === 'liked' ? 'heart' : 'retweet'} size={20} color="rgba(242,247,243,0.35)" />
                   <T v="bodyS" style={{ color: 'rgba(242,247,243,0.55)', fontSize: 12.5 }}>
                     {libraryTab === 'saved' ? 'Videos you save will appear here.' : libraryTab === 'liked' ? 'Videos you like will appear here.' : 'Your reposts will appear here.'}
                   </T>
@@ -838,11 +979,95 @@ export default function VideosFeed() {
         </View>
       </Modal>
 
+      {/* ---------------- more menu (••• / long-press) ---------------- */}
+      <Modal visible={!!moreReel} transparent animationType="slide" onRequestClose={() => setMoreReel(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,10,6,0.7)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => { setMoreReel(null); setSendToOpen(false); }} />
+          <View
+            style={{
+              backgroundColor: '#0C1511',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.1)',
+              paddingTop: 12,
+              paddingBottom: 20,
+            }}
+          >
+            <View style={{ alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)' }} />
+            </View>
+
+            {!sendToOpen ? (
+              <View style={{ paddingHorizontal: 14, gap: 2 }}>
+                <MoreRow icon="retweet" label={moreReel && reposted.has(moreReel.id) ? 'Undo repost' : 'Repost'} tint="#4AE38F" onPress={() => { if (moreReel) toggleRepost(moreReel.id); setMoreReel(null); }} />
+                <MoreRow icon="download" label="Download (watermarked)" tint="#E8C96A" onPress={() => { if (moreReel) downloadReel(moreReel); setMoreReel(null); }} />
+                <MoreRow icon="paper-plane" label="Send to…" tint="#4AE38F" onPress={() => setSendToOpen(true)} />
+
+                {/* speed selector */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, paddingVertical: 10 }}>
+                  <View style={{ width: 30, alignItems: 'center' }}>
+                    <FontAwesome5 name="tachometer-alt" size={15} color="rgba(242,247,243,0.7)" />
+                  </View>
+                  {SPEEDS.map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => { haptic.selection(); setSpeed(s); }}
+                      style={{
+                        flex: 1,
+                        alignItems: 'center',
+                        paddingVertical: 7,
+                        borderRadius: 9,
+                        borderWidth: 1,
+                        borderColor: speed === s ? 'rgba(74,227,143,0.6)' : 'rgba(255,255,255,0.12)',
+                        backgroundColor: speed === s ? 'rgba(46,204,113,0.16)' : 'transparent',
+                      }}
+                    >
+                      <T v="caption" style={{ color: speed === s ? '#4AE38F' : 'rgba(242,247,243,0.7)', fontWeight: '800', fontSize: 11 }}>
+                        {s}x
+                      </T>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <MoreRow icon="flag" label="Report" tint="#FF7B7B" onPress={() => { setMoreReel(null); Alert.alert('Report submitted', 'JazakAllah khair — our moderation team will review this video.'); }} />
+                <MoreRow icon="eye-slash" label="Not interested" tint="rgba(242,247,243,0.7)" onPress={() => { setMoreReel(null); showToast('You’ll see fewer videos like this'); }} />
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 8 }}>
+                <T v="caption" style={{ color: 'rgba(242,247,243,0.55)', fontWeight: '800', fontSize: 10, letterSpacing: 0.7, paddingHorizontal: 10, marginBottom: 6 }}>
+                  SEND TO
+                </T>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                  {MOCK_ACCOUNTS.map((a) => (
+                    <Pressable
+                      key={a.username}
+                      onPress={() => {
+                        haptic.success();
+                        setSendToOpen(false);
+                        setMoreReel(null);
+                        showToast(`Sent to @${a.username}`);
+                      }}
+                      style={{ alignItems: 'center', width: 76, paddingVertical: 8, gap: 5 }}
+                    >
+                      <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint="rgba(46,204,113,0.16)" border="rgba(255,255,255,0.2)" />
+                      <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 9.5, fontWeight: '700' }}>
+                        @{a.username}
+                      </T>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* ---------------- create studio ---------------- */}
       <CreateReelModal
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
-        onPosted={(r) => {
+        onPosted={() => {
           setCreateOpen(false);
           setFeedTab('foryou');
           setIndex(0);
@@ -851,9 +1076,11 @@ export default function VideosFeed() {
         }}
       />
 
-      {/* comments */}
+      {/* comments — inline sheet on native (RN Modal inside a modal route
+          doesn't present reliably on iOS), system Modal on web */}
       <CommentsModal
         visible={!!commentPost}
+        inline={Platform.OS !== 'web'}
         post={commentPost}
         seed={(commentPost ? (REEL_COMMENTS[commentPost.id] ?? []) as SampleComment[] : [])}
         onClose={() => setCommentReel(null)}
@@ -862,17 +1089,40 @@ export default function VideosFeed() {
   );
 }
 
+function MoreRow({ icon, label, tint, onPress }: { icon: string; label: string; tint: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 11,
+        borderRadius: 12,
+        opacity: pressed ? 0.65 : 1,
+      })}
+    >
+      <View style={{ width: 30, alignItems: 'center' }}>
+        <FontAwesome5 name={icon} size={15} color={tint} />
+      </View>
+      <T v="body" style={{ color: '#F2F7F3', fontSize: 13.5, fontWeight: '600' }}>
+        {label}
+      </T>
+    </Pressable>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Create studio — caption + pick a video (library/file) or a sample clip     */
 /* -------------------------------------------------------------------------- */
 
-function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted: (r: MockReel) => void }) {
+function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted: () => void }) {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
   const [picked, setPicked] = useState<{ src: MockReel['src']; poster: MockReel['poster']; label: string } | null>(null);
   const [posting, setPosting] = useState(false);
-  // web-only hidden file input (rendered as a real <input> by RNW)
   const fileRef = useRef<TextInput | null>(null);
 
   const pickFromLibrary = async () => {
@@ -905,7 +1155,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
     haptic.medium();
     setPosting(true);
     setTimeout(() => {
-      const r = addUserReel({
+      addUserReel({
         src: picked.src,
         poster: picked.poster,
         username: 'abdalrahman',
@@ -915,7 +1165,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
       setPosting(false);
       setPicked(null);
       setCaption('');
-      onPosted(r);
+      onPosted();
     }, 1200);
   };
 
@@ -947,31 +1197,26 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
           </View>
 
           <View style={{ paddingHorizontal: 16, gap: 12 }}>
-            {/* source picker */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable
-                onPress={pickFromLibrary}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  alignItems: 'center',
-                  gap: 7,
-                  borderWidth: 1.5,
-                  borderStyle: 'dashed',
-                  borderColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.4)',
-                  borderRadius: 14,
-                  paddingVertical: 16,
-                  backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(184,134,11,0.04)',
-                  opacity: pressed ? 0.7 : 1,
-                })}
-              >
-                <FontAwesome5 name="photo-video" size={18} color={isDark ? '#E8C96A' : '#B8860B'} />
-                <T v="bodyS" style={{ color: isDark ? '#E8C96A' : '#B8860B', fontWeight: '700', fontSize: 12.5 }}>
-                  Choose video
-                </T>
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={pickFromLibrary}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                gap: 7,
+                borderWidth: 1.5,
+                borderStyle: 'dashed',
+                borderColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.4)',
+                borderRadius: 14,
+                paddingVertical: 16,
+                backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(184,134,11,0.04)',
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <FontAwesome5 name="photo-video" size={18} color={isDark ? '#E8C96A' : '#B8860B'} />
+              <T v="bodyS" style={{ color: isDark ? '#E8C96A' : '#B8860B', fontWeight: '700', fontSize: 12.5 }}>
+                Choose video
+              </T>
+            </Pressable>
 
-            {/* hidden web file input */}
             {Platform.OS === 'web' ? (
               <input
                 ref={fileRef as never}
@@ -997,7 +1242,6 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
               </View>
             ) : null}
 
-            {/* sample clips */}
             <View>
               <T v="caption" style={{ color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', fontWeight: '800', fontSize: 10, letterSpacing: 0.7, marginBottom: 7 }}>
                 OR USE A SAMPLE CLIP
@@ -1030,7 +1274,6 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
               </View>
             </View>
 
-            {/* caption */}
             <TextInput
               value={caption}
               onChangeText={setCaption}
@@ -1067,7 +1310,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
                 opacity: (picked ? 1 : 0.45) * (posting ? 0.8 : pressed ? 0.85 : 1),
               })}
             >
-              <FontAwesome5 name="video" size={13} color="#FFFFFF" />
+              {posting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FontAwesome5 name="video" size={13} color="#FFFFFF" />}
               <T v="body" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
                 {posting ? 'Posting… just a moment' : 'Post video'}
               </T>

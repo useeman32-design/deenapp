@@ -1,4 +1,16 @@
 
+# Pass 14 (2026-08-28) — COMPLETE, code committed, AWAITING TOKEN → deploy
+- videos.tsx full rewrite shipped: glassy tabs, back chevron (\uf053), thin dissolving scrims, autoplay unmuted, 280ms delayed-tap pause (double-tap never pauses), draggable scrubber (grant=locationX, move=grantX+dx/VW), rail=like/comment/save/share/••• only, ••• menu (repost / download-watermarked / send-to grid / speeds 0.5–3x / report / not-interested; long-press opens), glassy bottom pill Saved·Create·Sound, speed state LIFTED to feed (ReelItem takes `speed` prop).
+- CommentsModal rewritten: module-level CommentRow (fixes avatar glitch on like-tap), per-row isLiked resolver, `inline` prop (absolute sheet for native use inside /videos modal route).
+- YouTubePlayer.tsx NEW: react-native-webview 13.16.1 embed w/ playsinline=1 + allowsInlineMediaPlayback (native); webview import is LAZY require() inside the native branch (top-level import on web is not the crasher, but keep it lazy). VideoModal + FeedCard native YouTube now play in-app.
+- FeedCard: VideoPostPlayer (module-level) — community video posts play INLINE in the card (expo-video, nativeControls=false + playsInline), expand button → fullscreen modal. Post gained video_url/video_poster.
+- community.tsx: Recent Activities REMOVED; reelStore subscription REMOVED (community video posts are now REAL video posts, not reels); Video chip = direct picker (expo-image-picker native / hidden file input web) with attached-file chip + remove.
+- Redesigns: PageHero (dash forest gradient + pattern + gold eyebrow + back), TopBar, Chip, Surface (gold hairlines) → ALL tool screens inherit; quran hub rewritten (emerald Qur'an card + gold Hadith card + shortcuts); profile tab dash tokens (hero pattern + dash cards); tools hub cards dash.
+- CRITICAL ENV FIX: chromium renderer was dying (libsoftokn3.so missing → NSS FATAL). browser-env.sh now also stashes libsoftokn3/libfreeblpriv3/libnssdbm3 (dlopen-only, invisible to ldd). If home dashboard ever kills the renderer again → check NSS libs first.
+- smoke14.mjs: 70 executed checks, 70 PASS, 0 FAIL (stable x2). Shots in /home/user/shots-pass14/. More-menu check POLLS up to 5s for 'Send to' (sheet slides in slowly under load).
+- Export flow this pass: bash scripts/export-web.sh → rm -rf /tmp/w/deenapp && cp -r dist /tmp/w/deenapp → serve /tmp/w on :8152 (BASE=…/deenapp). dbg36.mjs = crash-isolation harness.
+- NEXT: get fresh GitHub token from user (pass-13 token consumed) → push master + deploy gh-pages (orphan deploy-tmp recipe) → verify live entry-2*.js + markers.
+
 # SESSION UPDATE 2026-08-27 ~12:30 (pass 6 SHIPPED)
 - master = app.json-metro commit (after 3b269be "Home pass 6..."), gh-pages = "Add .nojekyll (Jekyll was excluding _expo/)".
 - LIVE: https://useeman32-design.github.io/deenapp/ — bundle entry-3c21e9d2b46ce0a9713691f3214fe91b.js curl-verified (200, 2.1MB; greps: Daily Videos x2, Accounts to Follow, DAILY AYAH/HADITH, Tap to share, Open in YouTube, campaign-quran, scholar-1; FA ttf + campaign/scholar imgs 200).
