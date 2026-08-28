@@ -612,14 +612,18 @@ export const MOCK_WALLPAPERS: Wallpaper[] = [
 const reelF1 = require('../../assets/vid/f1.mp4');
 const reelF2 = require('../../assets/vid/f2.mp4');
 const reelF3 = require('../../assets/vid/f3.mp4');
+const reelF4 = require('../../assets/vid/f4.mp4');
+const reelF5 = require('../../assets/vid/f5.mp4');
 const reelP1 = require('../../assets/img/vid-f1.jpg');
 const reelP2 = require('../../assets/img/vid-f2.jpg');
 const reelP3 = require('../../assets/img/vid-f3.jpg');
+const reelP4 = require('../../assets/img/vid-f4.jpg');
+const reelP5 = require('../../assets/img/vid-f5.jpg');
 
 export interface MockReel {
   id: number;
-  src: number;
-  poster: number;
+  src: number | { uri: string };
+  poster: number | { uri: string };
   username: string; // key into MOCK_ACCOUNTS
   caption: string;
   likes: number;
@@ -667,6 +671,30 @@ export const MOCK_REELS: MockReel[] = [
     views: 12900,
     music: 'Soft piano nasheed — Noor',
   },
+  {
+    id: 204,
+    src: reelF4,
+    poster: reelP4,
+    username: 'aisha_yusuf',
+    caption: 'Above the clouds, His throne 🤍 “Be, and it is.” — take a breath and make dhikr.',
+    likes: 1512,
+    comments: 77,
+    saves: 388,
+    views: 22100,
+    music: 'Ambient nasheed — Sabr',
+  },
+  {
+    id: 205,
+    src: reelF5,
+    poster: reelP5,
+    username: 'Gimba',
+    caption: 'Fajr at the masjid 🌅 the best journey is the one you make before sunrise.',
+    likes: 733,
+    comments: 41,
+    saves: 167,
+    views: 9800,
+    music: 'Vocal nasheed — Fajr',
+  },
 ];
 
 /** Comment seeds for the reels feed (keys = reel ids). */
@@ -686,5 +714,14 @@ export const REEL_COMMENTS: Record<number, SampleComment[]> = {
   203: [
     { id: 2031, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, badge: 'blue', text: '“Allah is the Light of the heavens and the earth” — my favourite ayah ✨', time: '3h', likes: 27 },
     { id: 2032, name: 'Sheikh Abdurrahman Al-Ameen', handle: 'alameen', avatar: p1, badge: 'green', text: 'Beautiful reminder. Light upon light — An-Nur 35.', time: '2h', likes: 52 },
+  ],
+  204: [
+    { id: 2041, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue', text: 'SubhanAllah — above the clouds looks like jannah described 🤍', time: '2h', likes: 23 },
+    { id: 2042, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5, badge: 'blue', text: 'Saving this for my morning dhikr routine ✨', time: '1h', likes: 15, replies: [
+      { id: 2043, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, badge: 'blue', text: '@salamatu_b same here, it sets the perfect mood 🌅', time: '50m', likes: 6 },
+    ] },
+  ],
+  205: [
+    { id: 2051, name: 'Usman Ahmad Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: '“The two rak’ahs of Fajr are better than the whole world” — Muslim 🤲', time: '4h', likes: 44 },
   ],
 };

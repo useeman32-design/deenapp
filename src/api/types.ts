@@ -58,6 +58,8 @@ export interface PollOption {
 export interface PostPoll {
   question?: string;
   options: PollOption[];
+  /** Poll length in hours (composer picker). */
+  duration?: number;
 }
 
 export interface Post {

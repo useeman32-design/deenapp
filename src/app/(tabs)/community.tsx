@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
+import { subscribeUserReels, userReels } from '@/lib/reelStore';
 import { useRouter } from 'expo-router';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
@@ -58,7 +59,51 @@ export default function CommunityScreen() {
   const [cDraft, setCDraft] = useState('');
   const [pollOn, setPollOn] = useState(false);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
+  const [pollHours, setPollHours] = useState(24);
+  const [ytOn, setYtOn] = useState(false);
+  const [ytUrl, setYtUrl] = useState('');
   const [posting, setPosting] = useState(false);
+
+  // videos created in the studio also land here as video posts
+  const lastReelId = useRef(Math.max(0, ...userReels.map((r) => r.id)));
+  useEffect(
+    () =>
+      subscribeUserReels(() => {
+        const fresh = userReels.filter((r) => r.id > lastReelId.current);
+        if (!fresh.length) return;
+        lastReelId.current = Math.max(lastReelId.current, ...fresh.map((r) => r.id));
+        setPosts((ps) => [
+          ...fresh
+            .slice()
+            .reverse()
+            .map((r) => ({
+              id: 900000 + r.id,
+              content_text: r.caption,
+              time_ago: 'now',
+              like_count: 0,
+              comment_count: 0,
+              liked_by_me: false,
+              is_public_qa: false,
+              user: {
+                id: 99,
+                username: ME.handle,
+                full_name: ME.name,
+                user_type: 'user',
+                profile_image_url: null,
+                deenpoints_balance: 240,
+                is_email_verified: 1,
+                account_status: 'active',
+                verification_badge: null,
+                scholar: null,
+              } as Post['user'],
+              media: [],
+              video: { reelId: r.id, poster: r.poster },
+            } as Post)),
+          ...ps,
+        ]);
+      }),
+    [],
+  );
 
   const togglePostLike = (id: number) =>
     setLikedPosts((prev) => {
@@ -127,7 +172,13 @@ export default function CommunityScreen() {
       };
       (np.user as { fields?: string }).fields = 'Sunni';
       if (pollOn && opts.length >= 2) {
-        np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })) };
+        np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
+      }
+      if (ytOn && ytUrl.trim()) {
+        const url = ytUrl.trim();
+        const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/);
+        (np as { youtube_url?: string; youtube_embed_url?: string }).youtube_url = url;
+        if (m) (np as { youtube_embed_url?: string }).youtube_embed_url = `https://www.youtube.com/embed/${m[1]}`;
       }
       setPosts((ps) => [np, ...ps]);
       setPosting(false);
@@ -135,6 +186,8 @@ export default function CommunityScreen() {
       setCDraft('');
       setPollOn(false);
       setPollOpts(['', '']);
+      setYtOn(false);
+      setYtUrl('');
       haptic.success();
     }, 1600);
   };
@@ -159,8 +212,8 @@ export default function CommunityScreen() {
           backgroundColor: isDark ? 'rgba(6,14,10,0.96)' : 'rgba(246,249,245,0.97)',
           borderBottomWidth: 1,
           borderBottomColor: d.cardBorder,
-          paddingTop: insets.top,
-          paddingBottom: 8,
+          paddingTop: Math.max(insets.top, 12),
+          paddingBottom: 10,
           paddingHorizontal: 16,
           transform: [{ translateY: sticky ? 0 : -58 }],
         }}
@@ -273,78 +326,6 @@ export default function CommunityScreen() {
           </View>
         </View>
 
-        {/* Composer bar — back on top, opens the post sheet */}
-        {!searching ? (
-          <View style={{ marginHorizontal: 16, marginTop: 12 }}>
-            <Pressable
-              onPress={() => {
-                haptic.light();
-                setComposerOpen(true);
-              }}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                backgroundColor: d.card,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <View
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
-                  borderWidth: 1.5,
-                  borderColor: d.gold,
-                  backgroundColor: d.bgSoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <T v="h3" style={{ color: d.gold, fontWeight: '700', fontSize: 14 }}>
-                  A
-                </T>
-              </View>
-              <T v="bodyS" style={{ flex: 1, width: 0, color: d.faint, fontSize: 13 }}>
-                Share a thought, question or du’aa…
-              </T>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)',
-                  borderWidth: 1,
-                  borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <FontAwesome5 name="poll-h" size={13} color={isDark ? '#4AE38F' : '#0E7A46'} />
-              </View>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: isDark ? 'rgba(212,175,55,0.14)' : 'rgba(140,109,31,0.08)',
-                  borderWidth: 1,
-                  borderColor: isDark ? 'rgba(212,175,55,0.4)' : 'rgba(140,109,31,0.3)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <FontAwesome5 name="camera" size={13} color={isDark ? '#E8C96A' : '#8C6D1F'} />
-              </View>
-            </Pressable>
-          </View>
-        ) : null}
-
         {/* Search (posts + accounts) */}
         <View style={{ marginHorizontal: 16, marginTop: 10 }}>
           <View
@@ -384,6 +365,78 @@ export default function CommunityScreen() {
           </View>
         </View>
 
+        {/* Composer bar — under search, opens the post sheet */}
+        {!searching ? (
+          <View style={{ marginHorizontal: 16, marginTop: 12 }}>
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                setComposerOpen(true);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 11,
+                backgroundColor: d.card,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: d.cardBorder,
+                paddingHorizontal: 12,
+                paddingVertical: 11,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  borderWidth: 1.5,
+                  borderColor: d.gold,
+                  backgroundColor: d.bgSoft,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <T v="h3" style={{ color: d.gold, fontWeight: '700', fontSize: 15 }}>
+                  A
+                </T>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T v="bodyS" style={{ color: d.faint, fontSize: 13.5 }}>
+                  Share a thought, question or du’aa…
+                </T>
+                <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 2, letterSpacing: 0.3 }}>
+                  POLL · VIDEO · YOUTUBE
+                </T>
+              </View>
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  router.push('/videos?create=1');
+                }}
+                hitSlop={6}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              >
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    backgroundColor: isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FontAwesome5 name="film" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                </View>
+              </Pressable>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Trending */}
         {!searching ? (
           <View style={{ marginTop: 14 }}>
@@ -393,7 +446,7 @@ export default function CommunityScreen() {
                 TRENDING
               </T>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, gap: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4, gap: 10 }}>
               {MOCK_TRENDING.map((t) => (
                 <Pressable
                   key={t.tag}
@@ -409,8 +462,9 @@ export default function CommunityScreen() {
                     borderWidth: 1,
                     borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(140,109,31,0.3)',
                     backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(140,109,31,0.06)',
-                    paddingHorizontal: 11,
-                    paddingVertical: 7,
+                    paddingHorizontal: 13,
+                    paddingVertical: 8,
+                    marginRight: 2,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
@@ -754,6 +808,80 @@ export default function CommunityScreen() {
                 ))}
               </ScrollView>
 
+              {/* attach: video / youtube */}
+              <View style={{ flexDirection: 'row', gap: 9 }}>
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    setComposerOpen(false);
+                    router.push('/videos?create=1');
+                  }}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    paddingVertical: 10,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <FontAwesome5 name="film" size={12} color={d.emerald} />
+                  <T v="bodyS" style={{ color: d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                    Video
+                  </T>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    setYtOn((v) => !v);
+                  }}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: ytOn ? d.emerald : d.cardBorder,
+                    backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                    paddingVertical: 10,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <FontAwesome5 name="youtube" size={12} color={ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : '#E74C3C'} brand />
+                  <T v="bodyS" style={{ color: ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                    {ytOn ? 'Remove link' : 'YouTube'}
+                  </T>
+                </Pressable>
+              </View>
+
+              {ytOn ? (
+                <TextInput
+                  value={ytUrl}
+                  onChangeText={setYtUrl}
+                  placeholder="Paste a YouTube link…"
+                  placeholderTextColor={d.faint}
+                  autoCapitalize="none"
+                  editable={!posting}
+                  style={{
+                    fontFamily: 'Poppins-Regular',
+                    fontSize: 16,
+                    color: d.text,
+                    backgroundColor: d.bgSoft,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                  }}
+                />
+              ) : null}
+
               {/* poll builder */}
               <Pressable
                 onPress={() => {
@@ -836,6 +964,38 @@ export default function CommunityScreen() {
                     Add option
                   </T>
                 </Pressable>
+              ) : null}
+
+              {pollOn ? (
+                <View>
+                  <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, marginBottom: 6 }}>
+                    POLL DURATION
+                  </T>
+                  <View style={{ flexDirection: 'row', gap: 7 }}>
+                    {[{ h: 1, l: '1h' }, { h: 8, l: '8h' }, { h: 24, l: '1 day' }, { h: 72, l: '3 days' }, { h: 168, l: '7 days' }].map((o) => {
+                      const on = pollHours === o.h;
+                      return (
+                        <Pressable
+                          key={o.h}
+                          onPress={() => { haptic.selection(); setPollHours(o.h); }}
+                          style={{
+                            flex: 1,
+                            alignItems: 'center',
+                            paddingVertical: 7,
+                            borderRadius: 9,
+                            borderWidth: 1,
+                            borderColor: on ? d.gold : d.cardBorder,
+                            backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.12)' : 'rgba(140,109,31,0.07)') : 'transparent',
+                          }}
+                        >
+                          <T v="caption" style={{ color: on ? (isDark ? '#E8C96A' : '#8C6D1F') : d.subtext, fontWeight: '700', fontSize: 10.5 }}>
+                            {o.l}
+                          </T>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
               ) : null}
 
               {/* Post button w/ progress */}

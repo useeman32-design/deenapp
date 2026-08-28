@@ -10,6 +10,14 @@ import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
 import { ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 
+/** Poll length label from the composer duration picker. */
+const pollDurationLabel = (hours?: number): string => {
+  if (!hours) return '2 days';
+  if (hours < 24) return `${hours}h`;
+  const d = Math.round(hours / 24);
+  return d === 1 ? '1 day' : `${d} days`;
+};
+
 /* ------------------------------------------------------------------ */
 /* Web-only iframe (react-native-web renders custom components to DOM) */
 /* ------------------------------------------------------------------ */
@@ -412,7 +420,7 @@ export function FeedCard({
                 </T>
               )}
               <T v="caption" style={{ color: faint, fontSize: 9.5, fontWeight: '700', flexShrink: 0 }}>
-                2d left
+                {post.poll.duration ? `${pollDurationLabel(post.poll.duration)} left` : '2d left'}
               </T>
             </View>
 
@@ -494,11 +502,56 @@ export function FeedCard({
             {/* footer */}
             <T v="caption" style={{ color: faint, fontSize: 10, marginTop: 1 }}>
               {pollState.voted != null
-                ? `You voted for “${pollState.options.find((o) => o.id === pollState.voted)?.text ?? ''}” · tap another option to change · ${pollState.options.reduce((a, b) => a + b.votes, 0)} votes`
-                : `${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · tap an option to vote`}
+                ? `You voted for “${pollState.options.find((o) => o.id === pollState.voted)?.text ?? ''}” · tap another option to change · ${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · ends in ${pollDurationLabel(post.poll.duration)}`
+                : `${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · tap an option to vote · ends in ${pollDurationLabel(post.poll.duration)}`}
             </T>
           </View>
         </View>
+      ) : null}
+
+      {/* Video post (from the create studio) — tap opens the full player */}
+      {(post as { video?: { reelId: number; poster: number | { uri: string } } }).video ? (
+        <Pressable
+          onPress={() => {
+            haptic.selection();
+            router.push(`/videos?start=${(post as { video?: { reelId: number } }).video?.reelId}`);
+          }}
+          style={{ marginBottom: 12 }}
+        >
+          <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
+            <Image
+              source={((post as { video?: { poster: number | { uri: string } } }).video!.poster) as never}
+              style={{ width: '100%', height: 300 }}
+              resizeMode="cover"
+            />
+            <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.28)', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="play" size={20} color="#FFFFFF" />
+              </View>
+            </View>
+            <View
+              style={{
+                position: 'absolute',
+                left: 10,
+                bottom: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: 'rgba(4,12,8,0.62)',
+                borderWidth: 1,
+                borderColor: 'rgba(212,175,55,0.5)',
+                borderRadius: 9,
+                paddingHorizontal: 9,
+                paddingVertical: 5,
+              }}
+            >
+              <FontAwesome5 name="video" size={10} color="#E8C96A" />
+              <T v="caption" style={{ color: '#E8C96A', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+                DEENLINK VIDEO
+              </T>
+            </View>
+          </View>
+        </Pressable>
       ) : null}
 
       {/* Media image — single tap: preview · double tap: like */}
