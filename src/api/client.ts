@@ -120,7 +120,12 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
 /* ------------------------------- Session ------------------------------ */
 
 export async function restoreSession(): Promise<{ user: User | null; ok: boolean }> {
-  if (FORCE_DEMO) return { user: MOCK_USER, ok: false };
+  if (FORCE_DEMO) {
+    // Demo session persists after the first sign-in, so the (redesigned)
+    // login screen is shown once — not on every single boot.
+    const saved = await storage.getItem('dl.demoSession');
+    return saved === '1' ? { user: MOCK_USER, ok: false } : { user: null, ok: false };
+  }
 
   const saved = await storage.getItem('dl.session');
   if (!saved) return { user: null, ok: false };
@@ -168,6 +173,7 @@ export async function login(identifier: string, password: string, rememberMe = t
     await fetchCsrf();
     return { ok: true as const, user: r.data.user, demo: false };
   }
+  if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
   return {
     ok: false as const,
     user: null,
@@ -204,6 +210,7 @@ export async function register(payload: {
     await fetchCsrf();
     return { ok: true as const, user: r.data.user, demo: false };
   }
+  if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
   return {
     ok: false as const,
     user: null,
@@ -216,6 +223,7 @@ export async function logout() {
   await request('/api/auth/logout.php', { method: 'POST' });
   session = null;
   csrf = null;
+  if (FORCE_DEMO) await storage.removeItem('dl.demoSession');
 }
 
 /* -------------------------------- Feed -------------------------------- */

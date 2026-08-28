@@ -606,3 +606,85 @@ export const MOCK_WALLPAPERS: Wallpaper[] = [
   { id: 3, arabic: 'سُبْحَانَ اللّٰهِ', caption: 'Glory be to Allah', from: 'linear-gradient(160deg, #232526, #414345)' },
   { id: 4, arabic: 'اَلْحَمْدُ لِلّٰهِ', caption: 'Praise be to Allah', from: 'linear-gradient(160deg, #5614b0, #dbd65c)' },
 ];
+
+/* ------------------------ Reels feed (pass 12) ---------------------------- */
+
+const reelF1 = require('../../assets/vid/f1.mp4');
+const reelF2 = require('../../assets/vid/f2.mp4');
+const reelF3 = require('../../assets/vid/f3.mp4');
+const reelP1 = require('../../assets/img/vid-f1.jpg');
+const reelP2 = require('../../assets/img/vid-f2.jpg');
+const reelP3 = require('../../assets/img/vid-f3.jpg');
+
+export interface MockReel {
+  id: number;
+  src: number;
+  poster: number;
+  username: string; // key into MOCK_ACCOUNTS
+  caption: string;
+  likes: number;
+  comments: number;
+  saves: number;
+  views: number;
+  music: string;
+}
+
+/** TikTok-style vertical feed samples (bundled mp4s, no network needed). */
+export const MOCK_REELS: MockReel[] = [
+  {
+    id: 201,
+    src: reelF1,
+    poster: reelP1,
+    username: 'alameen',
+    caption: 'The House of Allah from above 🕋 SubhanAllah — one ummah, one qiblah.',
+    likes: 1284,
+    comments: 96,
+    saves: 312,
+    views: 18400,
+    music: 'Ambient nasheed — Tawassum',
+  },
+  {
+    id: 202,
+    src: reelF2,
+    poster: reelP2,
+    username: 'kunfai_ibrahim',
+    caption: 'Take a moment with the Book of Allah today 📖 even one ayah changes the heart.',
+    likes: 2048,
+    comments: 143,
+    saves: 577,
+    views: 31200,
+    music: 'Quran recitation — Surah Al-Furqan',
+  },
+  {
+    id: 203,
+    src: reelF3,
+    poster: reelP3,
+    username: 'salamatu_b',
+    caption: 'Light upon light ✨ Allah guides to His light whom He wills. (An-Nur 24:35)',
+    likes: 967,
+    comments: 58,
+    saves: 204,
+    views: 12900,
+    music: 'Soft piano nasheed — Noor',
+  },
+];
+
+/** Comment seeds for the reels feed (keys = reel ids). */
+export const REEL_COMMENTS: Record<number, SampleComment[]> = {
+  201: [
+    { id: 2011, name: 'Usman Ahmad Kanoma', handle: 'usman_ahmad', avatar: p3, badge: 'gold', text: 'SubhanAllah 🤲 the view from above puts everything in perspective.', time: '1h', likes: 34, replies: [
+      { id: 2012, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, badge: 'blue', text: '@usman_ahmad indeed — one qiblah, one ummah 🤍', time: '52m', likes: 12 },
+    ] },
+    { id: 2013, name: 'Yahaya Umar', handle: 'mayanchie12', avatar: p2, badge: 'blue', text: 'Saving this for Jummah reminders ✨', time: '44m', likes: 9 },
+  ],
+  202: [
+    { id: 2021, name: 'Salamatu Bello', handle: 'salamatu_b', avatar: p5, badge: 'blue', text: 'Even one ayah a day 📖 may Allah keep us consistent.', time: '2h', likes: 41, replies: [
+      { id: 2022, name: 'Kunfa’i Ibrahim', handle: 'kunfai_ibrahim', avatar: p6, badge: 'green', text: '@salamatu_b ameen — consistency is the sunnah way.', time: '1h', likes: 18 },
+      { id: 2023, name: 'Abdulhameed Hassan Gimba', handle: 'Gimba', avatar: p4, badge: 'blue', text: 'JazakAllah khair for sharing this 🤍', time: '58m', likes: 7 },
+    ] },
+  ],
+  203: [
+    { id: 2031, name: 'Aisha Yusuf', handle: 'aisha_yusuf', avatar: p7, badge: 'blue', text: '“Allah is the Light of the heavens and the earth” — my favourite ayah ✨', time: '3h', likes: 27 },
+    { id: 2032, name: 'Sheikh Abdurrahman Al-Ameen', handle: 'alameen', avatar: p1, badge: 'green', text: 'Beautiful reminder. Light upon light — An-Nur 35.', time: '2h', likes: 52 },
+  ],
+};

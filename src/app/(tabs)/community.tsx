@@ -273,6 +273,78 @@ export default function CommunityScreen() {
           </View>
         </View>
 
+        {/* Composer bar — back on top, opens the post sheet */}
+        {!searching ? (
+          <View style={{ marginHorizontal: 16, marginTop: 12 }}>
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                setComposerOpen(true);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                backgroundColor: d.card,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: d.cardBorder,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  borderWidth: 1.5,
+                  borderColor: d.gold,
+                  backgroundColor: d.bgSoft,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <T v="h3" style={{ color: d.gold, fontWeight: '700', fontSize: 14 }}>
+                  A
+                </T>
+              </View>
+              <T v="bodyS" style={{ flex: 1, width: 0, color: d.faint, fontSize: 13 }}>
+                Share a thought, question or du’aa…
+              </T>
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <FontAwesome5 name="poll-h" size={13} color={isDark ? '#4AE38F' : '#0E7A46'} />
+              </View>
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: isDark ? 'rgba(212,175,55,0.14)' : 'rgba(140,109,31,0.08)',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(212,175,55,0.4)' : 'rgba(140,109,31,0.3)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <FontAwesome5 name="camera" size={13} color={isDark ? '#E8C96A' : '#8C6D1F'} />
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Search (posts + accounts) */}
         <View style={{ marginHorizontal: 16, marginTop: 10 }}>
           <View
@@ -586,7 +658,7 @@ export default function CommunityScreen() {
         style={({ pressed }) => ({
           position: 'absolute',
           right: 16,
-          bottom: insets.bottom + 78,
+          bottom: insets.bottom + 96,
           width: 54,
           height: 54,
           borderRadius: 27,

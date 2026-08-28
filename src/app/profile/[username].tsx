@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, Share, View } from 'react-native';
+import { Dimensions, Image, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import {
   MOCK_ACCOUNTS,
   MOCK_FEED,
   MOCK_PROFILES,
+  MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
 import { T } from '@/components/T';
@@ -18,6 +19,8 @@ import { haptic } from '@/lib/haptics';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
+
+const W = Dimensions.get('window').width;
 
 const ANSWERED: Record<string, Array<{ q: string; a: string }>> = {
   alameen: [
@@ -44,7 +47,7 @@ const ANSWERED: Record<string, Array<{ q: string; a: string }>> = {
   ],
 };
 
-type ProfileTab = 'posts' | 'questions' | 'about';
+type ProfileTab = 'posts' | 'questions' | 'videos';
 
 /**
  * Public profile — refined from deenlink.org's public profile page to
@@ -60,6 +63,9 @@ export default function PublicProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [tab, setTab] = useState<ProfileTab>('posts');
+
+  // the account's reels — shown in the Videos tab
+  const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);
   const [following, setFollowing] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
 
@@ -138,7 +144,7 @@ export default function PublicProfileScreen() {
   const TABS: Array<{ id: ProfileTab; label: string }> = [
     { id: 'posts', label: 'Posts' },
     ...(isScholar ? [{ id: 'questions' as ProfileTab, label: 'Questions' }] : []),
-    { id: 'about', label: 'About' },
+    { id: 'videos', label: 'Videos' },
   ];
 
   return (
@@ -499,70 +505,60 @@ export default function PublicProfileScreen() {
           </View>
         ) : null}
 
-        {/* About */}
-        {tab === 'about' ? (
-          <View style={{ marginHorizontal: 16, gap: 12 }}>
-            {[
-              { icon: 'graduation-cap' as const, title: 'Education & Qualifications', body: profile.education },
-              { icon: 'briefcase' as const, title: 'Professional Experience', body: profile.experience },
-              { icon: 'book-open' as const, title: 'Publications', body: profile.publications },
-              { icon: 'star' as const, title: 'Areas of Expertise', body: profile.expertise },
-            ]
-              .filter((x) => !!x.body)
-              .map((x) => (
-                <View
-                  key={x.title}
-                  style={{
-                    backgroundColor: d.card,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: d.cardBorder,
-                    padding: 14,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                    <View
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 14,
-                        backgroundColor: isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)',
-                        borderWidth: 1,
-                        borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <FontAwesome5 name={x.icon} size={11} color={d.emerald} />
-                    </View>
-                    <T v="bodyS" style={{ color: d.text, fontWeight: '800', fontSize: 12.5 }}>
-                      {x.title}
-                    </T>
-                  </View>
-                  <T v="bodyS" style={{ color: d.subtext, fontSize: 12, lineHeight: 17.5 }}>
-                    {x.body}
-                  </T>
-                </View>
-              ))}
-
-            {!profile.education && !profile.experience && !profile.publications && !profile.expertise ? (
+        {/* Videos — the account's reels (was: About) */}
+        {tab === 'videos' ? (
+          <View style={{ marginHorizontal: 16 }}>
+            {userReels.length === 0 ? (
               <View
                 style={{
                   backgroundColor: d.card,
                   borderRadius: 16,
                   borderWidth: 1,
                   borderColor: d.cardBorder,
-                  padding: 24,
+                  padding: 26,
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 9,
                 }}
               >
-                <FontAwesome5 name="id-card" size={20} color={d.faint} />
-                <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, fontWeight: '600' }}>
-                  No bio details shared yet.
+                <FontAwesome5 name="video" size={22} color={d.faint} />
+                <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, fontWeight: '600', textAlign: 'center' }}>
+                  No videos yet — posts from this account will appear here.
                 </T>
               </View>
-            ) : null}
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {userReels.map((r) => (
+                  <Pressable
+                    key={r.id}
+                    onPress={() => {
+                      haptic.selection();
+                      router.push({ pathname: '/videos', params: { start: String(r.id) } });
+                    }}
+                    style={({ pressed }) => ({
+                      width: (W - 44) / 3,
+                      borderRadius: 13,
+                      overflow: 'hidden',
+                      borderWidth: 1,
+                      borderColor: d.cardBorder,
+                      opacity: pressed ? 0.85 : 1,
+                    })}
+                  >
+                    <Image source={r.poster} style={{ width: '100%', height: (((W - 44) / 3) * 16) / 9 }} resizeMode="cover" />
+                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(4,12,8,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name="play" size={12} color="#FFFFFF" />
+                      </View>
+                    </View>
+                    <View style={{ position: 'absolute', left: 6, bottom: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <FontAwesome5 name="play" size={8} color="#FFFFFF" />
+                      <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                        {r.views > 999 ? `${(r.views / 1000).toFixed(1)}K` : r.views}
+                      </T>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         ) : null}
       </ScrollView>

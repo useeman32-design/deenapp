@@ -120,6 +120,13 @@ export function CommentsModal({
     setReplyingTo({ id: c.id, name: c.name ?? c.handle, handle: c.handle });
   };
 
+  /** Opens a public profile — closes this sheet first so it never lingers. */
+  const openProfile = (handle: string) => {
+    haptic.selection();
+    onClose();
+    setTimeout(() => router.push(`/profile/${handle}`), 140);
+  };
+
   const addComment = () => {
     const t = draft.trim();
     if (!t) return;
@@ -157,12 +164,14 @@ export function CommentsModal({
     const nReplies = c.replies?.length ?? 0;
     const repliesOpen = openReplies.has(c.id);
     return (
-      <View style={{ flexDirection: 'row', gap: 9, marginTop: isReply ? 8 : 14, marginLeft: isReply ? 26 : 0 }}>
-        {isReply ? <View style={{ position: 'absolute', left: 9, top: 14, bottom: 2, width: 2, borderRadius: 1, backgroundColor: hairline }} /> : null}
-        <AvatarImage source={cImg} name={cName} size={isReply ? 28 : 32} tint={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} border={hairline} />
+      <View style={{ flexDirection: 'row', gap: 9, marginTop: isReply ? 8 : 14 }}>
+        {/* only the avatar + name open a profile — the comment body never does */}
+        <Pressable onPress={() => openProfile(c.handle)} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+          <AvatarImage source={cImg} name={cName} size={isReply ? 27 : 32} tint={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} border={hairline} />
+        </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ borderRadius: 12, backgroundColor: bubble, paddingHorizontal: 10, paddingVertical: 7 }}>
-            <Pressable hitSlop={4} onPress={() => router.push(`/profile/${c.handle}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ borderRadius: 13, backgroundColor: bubble, paddingHorizontal: 11, paddingVertical: 7 }}>
+            <Pressable onPress={() => openProfile(c.handle)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
               <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '700', fontSize: 11, color: txt, flexShrink: 1 }}>
                 {cName}
               </T>
@@ -192,15 +201,28 @@ export function CommentsModal({
               </T>
             </Pressable>
             {nReplies > 0 ? (
-              <Pressable hitSlop={6} onPress={() => toggleReplies(c.id)}>
-                <T v="caption" style={{ fontSize: 9.5, color: sub, fontWeight: '700' }}>
+              <Pressable hitSlop={6} onPress={() => toggleReplies(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <T v="caption" style={{ fontSize: 9.5, color: emerald, fontWeight: '700' }}>
                   {repliesOpen ? 'Hide replies' : `View ${nReplies} ${nReplies === 1 ? 'reply' : 'replies'}`}
                 </T>
+                <FontAwesome5 name={repliesOpen ? 'chevron-up' : 'chevron-down'} size={8} color={emerald} />
               </Pressable>
             ) : null}
           </View>
           {nReplies > 0 && repliesOpen ? (
-            <View style={{ marginTop: 2 }}>
+            // thread rail — a single soft emerald line under the parent avatar,
+            // replies indented inside it (no more full-height hairline per row)
+            <View
+              style={{
+                marginLeft: 3,
+                marginTop: 6,
+                paddingLeft: 13,
+                borderLeftWidth: 2,
+                borderLeftColor: isDark ? 'rgba(74,227,143,0.22)' : 'rgba(14,122,70,0.16)',
+                borderTopLeftRadius: 8,
+                borderBottomLeftRadius: 8,
+              }}
+            >
               {c.replies!.map((r) => (
                 <CommentRow key={r.id} c={r} isReply />
               ))}

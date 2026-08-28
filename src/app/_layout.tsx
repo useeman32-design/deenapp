@@ -34,7 +34,10 @@ function Root() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* TikTok-style reels feed — opens over everything, swipe up/down */}
+        <Stack.Screen name="videos" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', statusBarHidden: false }} />
+      </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </>
   );

@@ -76,7 +76,7 @@ function FloatingTabBar({
         position: 'absolute',
         left: 16,
         right: 16,
-        bottom: 20 + insets.bottom,
+        bottom: 8 + insets.bottom,
         height: 74,
         borderRadius: 26,
         overflow: 'hidden',

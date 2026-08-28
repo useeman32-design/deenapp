@@ -44,6 +44,7 @@ const patternLight = require('../../../assets/img/pattern-light.png');
 const campaignQuran = require('../../../assets/img/campaign-quran.jpg');
 const campaignRamadan = require('../../../assets/img/campaign-ramadan.jpg');
 const campaignScholars = require('../../../assets/img/campaign-scholars.jpg');
+const campaignVideos = require('../../../assets/img/campaign-videos.jpg');
 const scholarAvatar1 = require('../../../assets/img/scholar-1.jpg');
 const scholarAvatar2 = require('../../../assets/img/scholar-2.jpg');
 const scholarAvatar3 = require('../../../assets/img/scholar-3.jpg');
@@ -75,6 +76,13 @@ function useQuickAccess(): QuickItem[] {
 /* ------------------------------ Campaigns ------------------------------ */
 
 const CAMPAIGNS = [
+  {
+    key: 'videos',
+    image: campaignVideos,
+    title: 'DeenLink Videos',
+    sub: 'Watch, learn and grow — swipe the feed.',
+    href: '/videos',
+  },
   {
     key: 'quran',
     image: campaignQuran,
@@ -707,7 +715,7 @@ export default function Home() {
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
               Daily Videos
             </T>
-            <Pressable onPress={() => router.push('/tools/videos')} hitSlop={8}>
+            <Pressable onPress={() => router.push('/videos')} hitSlop={8}>
               <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
                 Watch more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
               </T>

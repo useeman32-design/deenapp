@@ -41,7 +41,8 @@
         {
           "locationWhenInUsePermission": "DeenLink uses your location to calculate accurate prayer times and the Qibla direction."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

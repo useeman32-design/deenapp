@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -373,81 +373,129 @@ export function FeedCard({
         </View>
       ) : null}
 
-      {/* Poll */}
+      {/* Poll — pro redesign: pick / change / retract your vote */}
       {post.poll ? (
-        <View style={{ marginTop: 10, gap: 6 }}>
+        <View style={{ marginTop: 10 }}>
           <View
             style={{
-              gap: 6,
               borderWidth: 1,
               borderColor: dash ? dash.greenBorder : hairline,
-              borderRadius: 14,
+              borderRadius: 16,
               padding: 12,
               backgroundColor: dash ? dash.bgSoft : soft,
+              gap: 9,
             }}
           >
-            {post.poll.question ? (
-              <T v="body" style={{ color: txt, fontWeight: '700', fontSize: 13 }}>
-                {post.poll.question}
+            {/* poll header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 8,
+                  backgroundColor: isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <FontAwesome5 name="poll-h" size={10} color={dash ? dash.emerald : accent} />
+              </View>
+              {post.poll.question ? (
+                <T v="body" numberOfLines={2} style={{ color: txt, fontWeight: '700', fontSize: 13, flex: 1, flexShrink: 1 }}>
+                  {post.poll.question}
+                </T>
+              ) : (
+                <T v="caption" style={{ color: faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.6, flex: 1 }}>
+                  POLL
+                </T>
+              )}
+              <T v="caption" style={{ color: faint, fontSize: 9.5, fontWeight: '700', flexShrink: 0 }}>
+                2d left
               </T>
-            ) : null}
+            </View>
+
+            {/* options */}
             {pollState.options.map((opt) => {
-              const total = pollState.options.reduce((a, b) => a + b.votes, 0) || 1;
-              const pct = Math.round((opt.votes / total) * 100);
+              const total = pollState.options.reduce((a, b) => a + b.votes, 0);
+              const pct = total > 0 ? Math.round((opt.votes / total) * 100) : 0;
               const mine = pollState.voted === opt.id;
+              const topVotes = Math.max(...pollState.options.map((o) => o.votes));
+              const leads = total > 0 && opt.votes === topVotes && opt.votes > 0;
+              const fill = mine ? (dash ? `${gold}30` : `${accent}26`) : leads ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)') : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.05)';
+              const voted = pollState.voted != null;
               return (
                 <Pressable
                   key={opt.id}
                   onPress={() => {
-                    if (pollState.voted != null) return;
                     haptic.selection();
-                    setPollState((prev) => ({
-                      voted: opt.id,
-                      options: prev.options.map((o) => (o.id === opt.id ? { ...o, votes: o.votes + 1 } : o)),
-                    }));
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setPollState((prev) => {
+                      // tapping the same option again retracts the vote
+                      if (prev.voted === opt.id) {
+                        return { voted: null, options: prev.options.map((o) => (o.id === opt.id ? { ...o, votes: Math.max(0, o.votes - 1) } : o)) };
+                      }
+                      // switching: remove the old vote, add the new one
+                      return {
+                        voted: opt.id,
+                        options: prev.options.map((o) => {
+                          let votes = o.votes;
+                          if (prev.voted != null && o.id === prev.voted) votes = Math.max(0, votes - 1);
+                          if (o.id === opt.id) votes += 1;
+                          return { ...o, votes };
+                        }),
+                      };
+                    });
                   }}
                   style={({ pressed }) => ({
-                    borderRadius: 10,
-                    padding: 10,
-                    borderWidth: 1,
+                    position: 'relative',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 9,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
                     borderColor: mine ? (dash ? gold : accent) : 'transparent',
-                    backgroundColor: mine ? (dash ? `${gold}14` : `${accent}0f`) : 'transparent',
-                    opacity: pressed && pollState.voted == null ? 0.7 : 1,
+                    paddingVertical: 9,
+                    paddingHorizontal: 10,
+                    overflow: 'hidden',
+                    opacity: pressed ? 0.75 : 1,
                   })}
                 >
-                  {pollState.voted != null ? (
-                    <View style={{ gap: 5 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <T v="body" numberOfLines={1} style={{ color: mine ? (dash ? gold : accent) : txt, fontWeight: '700', fontSize: 12, flexShrink: 1 }}>
-                          {opt.text}
-                        </T>
-                        <T v="caption" style={{ color: sub, fontSize: 11, fontWeight: '700' }}>
-                          {pct}%
-                        </T>
-                      </View>
-                      <View style={{ height: 5, borderRadius: 3, backgroundColor: dash ? dash.greenBorder : hairline, overflow: 'hidden' }}>
-                        <View
-                          style={{
-                            width: `${pct}%`,
-                            height: 5,
-                            borderRadius: 3,
-                            backgroundColor: mine ? (dash ? gold : accent) : dash ? dash.emerald : '#9DB2A8',
-                          }}
-                        />
-                      </View>
-                    </View>
-                  ) : (
-                    <T v="body" numberOfLines={1} style={{ color: txt, fontSize: 12.5, fontWeight: '600' }}>
-                      {opt.text}
+                  {/* result fill */}
+                  {voted ? <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, backgroundColor: fill }} /> : null}
+                  {/* indicator: radio → check when yours */}
+                  <View
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      borderWidth: 1.8,
+                      borderColor: mine ? (dash ? gold : accent) : voted ? (leads ? dash?.emerald ?? accent : faint) : isDark ? 'rgba(255,255,255,0.25)' : 'rgba(20,36,28,0.25)',
+                      backgroundColor: mine ? (dash ? gold : accent) : 'transparent',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {mine ? <FontAwesome5 name="check" size={9} color={isDark ? '#06230F' : '#FFFFFF'} /> : null}
+                  </View>
+                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: txt, fontSize: 12.5, fontWeight: mine ? '800' : '600' }}>
+                    {opt.text}
+                  </T>
+                  {voted ? (
+                    <T v="caption" style={{ color: mine ? (dash ? gold : accent) : sub, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>
+                      {pct}%
                     </T>
-                  )}
+                  ) : null}
                 </Pressable>
               );
             })}
-            <T v="caption" style={{ color: faint, fontSize: 10.5, marginTop: 2 }}>
+
+            {/* footer */}
+            <T v="caption" style={{ color: faint, fontSize: 10, marginTop: 1 }}>
               {pollState.voted != null
-                ? `Thanks for voting · ${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · Poll ends in 2 days`
-                : `${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · Tap an option to vote · Poll ends in 2 days`}
+                ? `You voted for “${pollState.options.find((o) => o.id === pollState.voted)?.text ?? ''}” · tap another option to change · ${pollState.options.reduce((a, b) => a + b.votes, 0)} votes`
+                : `${pollState.options.reduce((a, b) => a + b.votes, 0)} votes · tap an option to vote`}
             </T>
           </View>
         </View>

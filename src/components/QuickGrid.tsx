@@ -40,7 +40,7 @@ export interface QuickItem {
  */
 export const QUICK_ITEMS: QuickItem[] = [
   { key: 'askquestion', label: 'Ask Question', icon: HelpIcon, action: { type: 'route', href: '/tools/scholars' } },
-  { key: 'videos', label: 'Watch Videos', icon: PlayIcon, action: { type: 'route', href: '/tools/videos' } },
+  { key: 'videos', label: 'Watch Videos', icon: PlayIcon, action: { type: 'route', href: '/videos' } },
   { key: 'deenai', label: 'DeenLink AI', icon: SparkleIcon, action: { type: 'web', url: 'https://deenlink.org/deenlink-ai/deenai.html' } },
   { key: 'shop', label: 'Shop', icon: BagIcon, action: { type: 'web', url: 'https://deenlink.org/shop/' } },
   { key: 'dua', label: 'Dua', icon: PrayingHandsIcon, action: { type: 'route', href: '/tools/dua' } },

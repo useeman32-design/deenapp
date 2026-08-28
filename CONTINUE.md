@@ -7,13 +7,22 @@ Web (GitHub Pages): https://useeman32-design.github.io/deenapp/ — live build =
 Native: users run via **Expo Go** (Expo SDK 57). Windows dev machine: `C:\Projects\deenapp`.
 
 ## Current state (last verified)
-- master = pass 11 (`b44d246`). gh-pages = "Deploy pass 11" (117 files).
+- master = pass 12 (assets diet + zips staged/wiped, onboarding/login/register redesign, TikTok Videos feed, community/poll/comments fixes, nav lowered). gh-pages = still pass 11 until next deploy.
 - **`FORCE_DEMO = true` in `src/api/client.ts`** — the app is MOCK-ONLY right now (user's request, "for now").
   Zero network calls; every endpoint resolves to bundled data (`src/api/mocks.ts`); signed-in user is always `MOCK_USER` (photo = asset `p1`).
   Flip the constant to `false` to go live against `https://deenlink.org` (PHP API; session-cookie + CSRF auth, already implemented in `client.ts`).
-- Pass 11 also fixed: native crash in Community tab (HTML `<b>` tags in the ACTIVITY list — replaced with bold `<Text>`), and a shared
-  `src/components/VideoModal.tsx` (web = YouTube iframe; native = player-style thumbnail preview + explicit "Watch on YouTube" button)
-  wired into both Home and Community.
+- Pass 11 also fixed: native crash in Community tab (HTML `<b>` tags), shared `VideoModal.tsx` (web iframe / native preview + Watch on YouTube).
+- Pass 12 highlights:
+  * **Demo session is now persistent**: `dl.demoSession` in storage. FORCE_DEMO boots to the (redesigned) login ONCE; sign-in (any input / Google pill = instant demo) sets the flag; logout clears it. Tests MUST seed `dl.demoSession=1` to be signed in.
+  * **Videos feed** `src/app/videos.tsx` — root-level route, `presentation: fullScreenModal`. Vertical pager (FlatList, snapToInterval=VH), expo-video `useVideoPlayer` per item (loop, muted default; only the ACTIVE index mounts a VideoView, others show posters). Rail: like/comment(CommentsModal via reelAsPost)/bookmark(persist `dl.reels.saved`)/share/download (web: expo-asset → <a download>; native: MediaLibrary.saveToLibraryAsync). Entry points: Quick Access FIRST button (href /videos, storage key bumped `dl.quickaccess.v2`), Home campaign banner "DeenLink Videos", "Watch more", QuickGrid; `/tools/videos` redirects.
+  * Sample reels: `assets/vid/f1-f3.mp4` (540x960 center-cropped from Mixkit 720p landscape clips — mixkit.co has no portrait Islamic footage; drone mosque / Quran reading / bright interior; 3.7MB total, no audio). Posters `vid-f*.jpg`, banner `campaign-videos.jpg` (ffmpeg frames).
+  * Profile `[username].tsx`: About tab → **Videos** tab (poster grid → tap opens feed at that reel via `?start=`).
+  * **Poll rebuilt** (FeedCard): tap = vote, tap another = change, tap own = retract; radio→check indicator, fill bars, winner emerald, own gold; LayoutAnimation on web is no-op (fine).
+  * **Comments**: only avatar + name open a profile (comment body never does); `openProfile()` closes the sheet THEN pushes after 140ms; nested replies inside a soft emerald left-rail container (no more full-height hairline).
+  * Bottom nav: `bottom: 8 + insets.bottom` (was 20 — "too high on mobile"). Community FAB: `bottom: insets.bottom + 96`. Composer bar back on top of Community (opens the same modal).
+  * Login/register redesign (`AuthShell.tsx` + fields): user's mock — forest bg `assets/img/auth-bg-dark.jpg` / cream `auth-bg-light.jpg` (his uploads, compressed), emerald `#1F8F5C` Sign In, white Google pill (demo sign-in), OR divider, 16px inputs. Onboarding restyled (dash tokens, framed images, stats card, Skip).
+  * **Assets diet**: `scripts/slim-assets.py` (run after adding images) — 13.4MB → 4.0MB. onboard-*.png → .jpg (quantize/Palette). icon.png 780K→47K, patterns 3.9MB→943K, all visually lossless (verified vs git HEAD).
+  * **Zips wiped from tree**: frontend-usable data staged at `content/` (114 surah JSONs + ayah index + dua/99names/seera/quiz, 8.3MB, **gitignored** — workspace-only). Full originals stay recoverable in git history (content-pack zip blob).
 
 ## User & working style
 - Based in Badagry, Lagos (NG). Runs the native app on his phone via Expo Go (a standing constraint — no dev builds).
@@ -43,7 +52,7 @@ Native: users run via **Expo Go** (Expo SDK 57). Windows dev machine: `C:\Projec
 ## Testing (headless, in this sandbox)
 - Chromium: `/home/user/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell`, always with `LD_LIBRARY_PATH=/home/user/.chromium-libs/usr/lib/x86_64-linux-gnu`.
 - Local server: dist must be served UNDER `/deenapp/` (bundle base path): `mkdir -p /tmp/serve2 && ln -sfn <repo>/dist /tmp/serve2/deenapp && cd /tmp/serve2 && python3 -m http.server 8152`. Kill by PID via `ss -ltnp` — never `pkill -f` (matches your own shell).
-- `scripts/smoke11.mjs` = 36-check pass-10/11 web suite (run: `LD_LIBRARY_PATH=… node scripts/smoke11.mjs`). `scripts/livecheck.mjs` = renders the LIVE site's profile deep link. `scripts/dbg15–34.mjs` = historical probes (read for technique: elementFromPoint hit-testing, RNW quirks).
+- `scripts/smoke12.mjs` = 47-check suite (36 old + pass-12: videos feed, login redesign, composer, poll change-vote). Run: `LD_LIBRARY_PATH=… node scripts/smoke12.mjs` after export+slashguard+serve. `scripts/livecheck.mjs` = renders the LIVE site's profile deep link. `scripts/dbg15–34.mjs` = historical probes (read for technique: elementFromPoint hit-testing, RNW quirks).
 - Hard-won web-test gotchas: expo-router Tabs keeps ALL tab screens in the DOM (home first, hidden) → hit-test with elementFromPoint + prefer in-viewport y, or you grab hidden home copies; FA5 icons render as text-glyph divs (no svg); headless rAF throttling lags animated DOM ~300ms → verify end-state, not mid-frames; RN inputs set value via native setter + `input` event; video thumbs: center covered by play icon → click a corner and accept ancestor containing 'Surah'.
 - **Web passing ≠ native safe**: HTML-like lowercase tags (`<b>`, `<i>`…) render as divs on web but CRASH native ("View config getter for component `x` must be a function"). After any pass: `grep -rnE "<(b|i|em|strong|small|span|br|u|s|sub|sup|mark|font|center)\b" src/`.
 - Typecheck: `./node_modules/.bin/tsc --noEmit` (plain `npx tsc` grabs a fake package).
