@@ -1,7 +1,7 @@
 # DeenLink — Agent Handoff / Continue Instructions
 
 Read this file FIRST if you are a new agent picking up this project. It is the single source of continuity.
-Also in the workspace root: `/home/user/.session-memory.md` — chronological pass-by-pass log with extra test gotchas and exact hashes (older entries supersede in favor of this file if they conflict).
+Also: `SESSION-MEMORY.md` (repo root, sanitized copy of the workspace log at `/home/user/.session-memory.md`) — chronological pass-by-pass log with extra test gotchas and exact hashes. If both exist and conflict: this file (CONTINUE.md) wins, then workspace log, then repo copy.
 Workspace: `deenlink-app/` (this repo). Repo: `github.com/useeman32-design/deenapp` (NOT deenlink-app).
 Web (GitHub Pages): https://useeman32-design.github.io/deenapp/ — live build = whatever is on branch `gh-pages`.
 Native: users run via **Expo Go** (Expo SDK 57). Windows dev machine: `C:\Projects\deenapp`.
