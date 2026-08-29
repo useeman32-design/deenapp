@@ -255,25 +255,27 @@ export function MushafPage({
           </View>
 
           <View>
-            <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6, marginBottom: 8 }}>TEXT SIZE</T>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {SIZES.map((s, i) => (
-                <Pressable
-                  key={s}
-                  onPress={() => {
-                    haptic.selection();
-                    setSizeStep(i);
-                    setFitStep(0);
-                    setScrollable(false);
-                    triedFit.current = 0;
-                    savePrefs(themeId, i);
-                  }}
-                  style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: sizeStep === i ? (d.emerald ?? theme.primary) : d.cardBorder, backgroundColor: sizeStep === i ? 'rgba(46,204,113,0.12)' : 'transparent' }}
-                >
-                  <Text style={{ fontFamily: 'Amiri', fontSize: Math.min(s, 22), color: d.text }}>{i === 0 ? 'A' : i === SIZES.length - 1 ? 'ا' : 'ا'}</Text>
-                </Pressable>
-              ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6 }}>TEXT SIZE</T>
+              {/* live size readout */}
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, borderRadius: 9, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 9, paddingVertical: 3 }}>
+                <Text style={{ fontFamily: 'Amiri-Bold', fontSize: 15, color: d.text }}>{SIZES[sizeStep]}</Text>
+                <T v="caption" style={{ fontSize: 9, color: d.faint, fontWeight: '700' }}>pt</T>
+              </View>
             </View>
+            <SizeBar
+              value={sizeStep}
+              min={0}
+              max={SIZES.length - 1}
+              onValue={(v) => {
+                setSizeStep(v);
+                setFitStep(0);
+                setScrollable(false);
+                triedFit.current = 0;
+                savePrefs(themeId, v);
+              }}
+            />
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 7, textAlign: 'center' }}>Drag to resize the mushaf text</T>
           </View>
         </View>
       </View>
@@ -296,7 +298,7 @@ export function MushafPage({
             backgroundColor: skin.bg,
             paddingHorizontal: 12,
             paddingTop: 8,
-            paddingBottom: 26,
+            paddingBottom: 30,
             overflow: 'hidden',
           }}
         >
@@ -366,7 +368,7 @@ export function MushafPage({
           contentH.current = e.nativeEvent.layout.height;
           tryFit();
         }}
-        style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: skin.text, textAlign: 'right', writingDirection: 'rtl', flex: scrollable ? undefined : 1 }}
+        style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: skin.text, textAlign: 'justify', textAlignVertical: 'top', writingDirection: 'rtl', flex: scrollable ? undefined : 1, paddingBottom: 22 }}
       >
         {(pg?.ayahs ?? []).map((a) => {
           const active = a.global === activeGlobal && audio.surah != null;
@@ -394,4 +396,71 @@ function juzOf(page: number): number {
   let j = 1;
   for (let i = 0; i < bounds.length; i++) if (page >= bounds[i]) j = i + 1;
   return j;
+}
+
+/* Drag slider for the mushaf text size — continuous drag, snaps to steps. */
+function SizeBar({ value, min, max, onValue }: { value: number; min: number; max: number; onValue: (v: number) => void }) {
+  const { theme } = useTheme();
+  const d = theme.dash;
+  const trackW = useRef(1);
+  const [dragging, setDragging] = useState(false);
+  const frac = (value - min) / (max - min);
+
+  const posToStep = (x: number) => {
+    const f = Math.max(0, Math.min(1, x / (trackW.current || 1)));
+    return Math.round(min + f * (max - min));
+  };
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (e) => {
+          setDragging(true);
+          haptic.selection();
+          onValue(posToStep(e.nativeEvent.locationX));
+        },
+        onPanResponderMove: (e) => onValue(posToStep(e.nativeEvent.locationX)),
+        onPanResponderRelease: () => setDragging(false),
+        onPanResponderTerminate: () => setDragging(false),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  return (
+    <View
+      {...pan.panHandlers}
+      onLayout={(e) => (trackW.current = e.nativeEvent.layout.width)}
+      style={{ height: 34, justifyContent: 'center' }}
+    >
+      {/* track */}
+      <View style={{ height: 6, borderRadius: 3, backgroundColor: d.bgSoft, overflow: 'hidden' }}>
+        <View style={{ width: `${frac * 100}%`, height: 6, borderRadius: 3, backgroundColor: 'rgba(46,204,113,0.75)' }} />
+      </View>
+      {/* knob */}
+      <View
+        style={{
+          position: 'absolute',
+          left: `${frac * 100}%`,
+          marginLeft: -12,
+          width: 24,
+          height: 24,
+          borderRadius: 12,
+          backgroundColor: '#FFFFFF',
+          borderWidth: 2.5,
+          borderColor: dragging ? '#1F8F5C' : 'rgba(31,143,92,0.75)',
+          shadowColor: '#000',
+          shadowOpacity: 0.2,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 4,
+        }}
+      />
+      {/* min/max arabic glyphs */}
+      <Text style={{ position: 'absolute', left: 0, bottom: -13, fontFamily: 'Amiri', fontSize: 11, color: d.faint }}>ا</Text>
+      <Text style={{ position: 'absolute', right: 0, bottom: -13, fontFamily: 'Amiri', fontSize: 17, color: d.faint }}>ا</Text>
+    </View>
+  );
 }

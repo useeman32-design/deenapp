@@ -27,7 +27,7 @@ export function ContentShareSheet({
   visible: boolean;
   onClose: () => void;
   /** input for the styled image card */
-  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar'; arabic: string; meaning: string; ref: string } | null;
+  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post'; arabic?: string; meaning: string; ref: string } | null;
   link: string;
 }) {
   const { theme, isDark } = useTheme();

@@ -81,11 +81,10 @@ export default function Quiz() {
     if (lock.current || !q) return;
     lock.current = true;
     clearTimer();
-    const correct = choice === q.answer;
-    setPicked(choice);
-    if (correct) haptic.success();
-    else haptic.medium();
-    setAnswers((a) => [...a, { q, picked: choice, correct, timedOut }]);
+    setPicked(choice); // neutral selection only — no reveal until the end
+    setAnswers((a) => [...a, { q, picked: choice, correct: choice === q.answer, timedOut }]);
+    haptic.selection();
+    setTimeout(() => next(), 420); // glide to the next question
   };
 
   const next = () => {
@@ -208,44 +207,30 @@ export default function Quiz() {
 
           <View style={{ gap: 10 }}>
             {q.options.map((opt, idx) => {
-              const isRight = picked != null && idx === q.answer;
-              const isWrong = picked === idx && idx !== q.answer;
+              const chosen = picked === idx;
               return (
                 <Pressable
                   key={idx}
                   disabled={picked != null}
                   onPress={() => submit(idx)}
                   style={({ pressed }) => ({
-                    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1.5,
-                    borderColor: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : picked != null ? d.cardBorder : d.cardBorder,
-                    backgroundColor: isRight ? 'rgba(46,204,113,0.14)' : isWrong ? 'rgba(255,123,123,0.12)' : d.card,
+                    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15,
+                    borderWidth: 1.5,
+                    borderColor: chosen ? (isDark ? 'rgba(74,227,143,0.7)' : 'rgba(29,111,66,0.6)') : d.cardBorder,
+                    backgroundColor: chosen ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : d.card,
                     paddingHorizontal: 14, paddingVertical: 13, opacity: picked == null && pressed ? 0.7 : 1,
                   })}
                 >
-                  <View style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 1.5, borderColor: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : d.cardBorder, backgroundColor: isRight ? 'rgba(46,204,113,0.2)' : isWrong ? 'rgba(255,123,123,0.15)' : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : d.subtext }}>{String.fromCharCode(65 + idx)}</T>
+                  <View style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 1.5, borderColor: chosen ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, backgroundColor: chosen ? 'rgba(46,204,113,0.18)' : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: chosen ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{String.fromCharCode(65 + idx)}</T>
                   </View>
                   <T v="bodyS" style={{ flex: 1, fontSize: 13.5, lineHeight: 19 }}>{opt}</T>
-                  {isRight ? <FontAwesome5 name="check-circle" size={17} color="#4AE38F" /> : null}
-                  {isWrong ? <FontAwesome5 name="times-circle" size={17} color="#FF7B7B" /> : null}
                 </Pressable>
               );
             })}
           </View>
 
-          {picked != null && q.explanation ? (
-            <View style={{ marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', padding: 13 }}>
-              <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.7, color: isDark ? '#E8C96A' : '#8C6D1F' }}>WHY</T>
-              <T v="caption" style={{ fontSize: 11.5, lineHeight: 17, marginTop: 4, color: d.subtext }}>{q.explanation}</T>
-            </View>
-          ) : null}
 
-          {picked != null ? (
-            <Pressable onPress={next} style={({ pressed }) => ({ marginTop: 18, alignItems: 'center', paddingVertical: 14, borderRadius: 15, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1, flexDirection: 'row', justifyContent: 'center', gap: 8 })}>
-              <T v="button" style={{ fontWeight: '800', fontSize: 13.5 }}>{i + 1 >= deck.length ? 'See results' : 'Next question'}</T>
-              <FontAwesome5 name="arrow-right" size={11} color="rgba(255,255,255,0.85)" />
-            </Pressable>
-          ) : null}
         </ScrollView>
       </View>
     );

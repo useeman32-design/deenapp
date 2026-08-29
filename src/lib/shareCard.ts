@@ -15,8 +15,9 @@ const bgMidnight = require('../../assets/img/share-midnight.jpg');
 const bgCream = require('../../assets/img/share-cream.jpg');
 
 export interface ShareCardInput {
-  kind: 'ayah' | 'hadith' | 'dua' | 'athkar';
-  arabic: string;
+  kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post';
+  /** optional — posts have no arabic line */
+  arabic?: string;
   meaning: string;
   ref: string;
 }
@@ -129,15 +130,16 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   const ctx = canvas.getContext('2d');
 
   /* measure text first → dynamic height for long content */
+  const hasArabic = !!input.arabic;
   ctx.font = '700 92px "Amiri-Bold"';
   ctx.direction = 'rtl';
-  const arabicLines = wrapText(ctx, input.arabic, W - 320);
+  const arabicLines = hasArabic ? wrapText(ctx, input.arabic ?? '', W - 320) : [];
   ctx.direction = 'ltr';
   ctx.font = '400 44px "Poppins-Regular"';
   const mLines = wrapText(ctx, `“${input.meaning}”`, W - 300);
 
   const aStart = 620;
-  const afterArabic = aStart + (arabicLines.length - 1) * 130 + 60;
+  const afterArabic = hasArabic ? aStart + (arabicLines.length - 1) * 130 + 60 : aStart - 90;
   const afterMeaning = afterArabic + 90 + (mLines.length - 1) * 62 + 70;
   const footerTop = afterMeaning + 90;
   const H = Math.max(H_MIN, footerTop + 216 + 120);
@@ -236,7 +238,7 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   ctx.fillStyle = inkGold;
   ctx.font = '700 30px "Poppins-Bold"';
   (ctx as any).letterSpacing = '9px';
-  const LABELS: Record<ShareCardInput['kind'], string> = { ayah: 'QUR’AN', hadith: 'HADITH', dua: 'DUA', athkar: 'DHIKR' };
+  const LABELS: Record<ShareCardInput['kind'], string> = { ayah: 'QUR’AN', hadith: 'HADITH', dua: 'DUA', athkar: 'DHIKR', post: 'COMMUNITY' };
   const label = LABELS[input.kind];
   ctx.fillText(label, W / 2, eyY);
   (ctx as any).letterSpacing = '0px';
@@ -250,12 +252,14 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   ctx.lineTo(W / 2 + lw + 90, eyY - 10);
   ctx.stroke();
 
-  /* arabic */
-  ctx.fillStyle = ink;
-  ctx.font = '700 92px "Amiri-Bold"';
-  ctx.direction = 'rtl';
-  arabicLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * 130));
-  ctx.direction = 'ltr';
+  /* arabic (skipped for posts) */
+  if (hasArabic) {
+    ctx.fillStyle = ink;
+    ctx.font = '700 92px "Amiri-Bold"';
+    ctx.direction = 'rtl';
+    arabicLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * 130));
+    ctx.direction = 'ltr';
+  }
 
   /* divider */
   ctx.strokeStyle = inkGold;
@@ -310,6 +314,10 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   ctx.fillText('the DeenLink app', bx - 40, by + boxS / 2 + 34);
   ctx.textAlign = 'center';
 
+  /* pass 21: return a BLOB url — multi-MB data: URLs fail to render on
+   * mobile Safari/Chrome; blob: previews everywhere and shares as a File */
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b: Blob | null) => res(b), 'image/png'));
+  if (blob) return URL.createObjectURL(blob);
   return canvas.toDataURL('image/png');
 }
 

@@ -9,6 +9,17 @@ import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+
+/** english is {narrator, text} in some books — always flatten to a string */
+const enOf = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const o = e as { text?: unknown; narrator?: unknown };
+    const t = typeof o.text === 'string' ? o.text : typeof o.text === 'object' && o.text ? enOf(o.text) : '';
+    return t || '';
+  }
+  return '';
+};
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 
 /**
@@ -32,6 +43,7 @@ export default function HadithBookScreen() {
   const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
 
   useEffect(() => {
+    if (chapterParam) storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: `c${chapterParam}`, at: new Date().toISOString() }));
     loadBookMeta(book.id)
       .then((m) => setMeta(m.chapters))
       .catch(() => setMeta([]));
@@ -51,6 +63,8 @@ export default function HadithBookScreen() {
     setChapter(id);
     setLimit(25);
     storage.setItem(`dl.hadith.last.${book.id}`, id);
+    /* global pointer powers the Continue-reading hero on the collections screen */
+    storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: id, at: new Date().toISOString() }));
   };
 
   /* stream the full book file on first reader open */
@@ -173,9 +187,9 @@ export default function HadithBookScreen() {
                     <T v="arabic" style={{ color: d.text, fontSize: 19, textAlign: 'right', lineHeight: 34 }}>
                       {h.arabic}
                     </T>
-                    {h.english ? (
+                    {enOf(h.english) ? (
                       <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 10, lineHeight: 19 }}>
-                        {h.english}
+                        {enOf(h.english)}
                       </T>
                     ) : null}
                     {h.grade ? (
@@ -188,7 +202,7 @@ export default function HadithBookScreen() {
                         haptic.selection();
                         setShareH({
                           arabic: h.arabic,
-                          meaning: h.english ?? h.chapter_name?.english ?? '',
+                          meaning: enOf(h.english) || h.chapter_name?.english || '',
                           ref: `${book.name ?? book.id} ${h.hadith_number ?? ''}${h.grade ? ` · ${h.grade}` : ''}`,
                         });
                       }}

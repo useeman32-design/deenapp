@@ -10,6 +10,7 @@ import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
 import { BookmarkIcon, ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 import { savedStore } from '@/lib/savedPosts';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
@@ -110,10 +111,24 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
 
   useEffect(() => {
     const t = player.addListener('timeUpdate', (st: { currentTime: number; duration?: number }) => {
-      setFrac(st.duration && st.duration > 0 ? Math.min(1, st.currentTime / st.duration) : 0);
-      if (st.duration && st.duration > 0) setDur(st.duration);
+      if (st.duration && st.duration > 0) {
+        setDur(st.duration);
+        setFrac(Math.min(1, st.currentTime / st.duration));
+      }
     });
-    return () => t.remove();
+    /* some web engines don't emit timeUpdate until seeked — poll as backup */
+    const iv = setInterval(() => {
+      const ct = (player as unknown as { currentTime?: number }).currentTime ?? 0;
+      const du = (player as unknown as { duration?: number }).duration ?? 0;
+      if (du > 0) {
+        setDur(du);
+        setFrac(Math.min(1, ct / du));
+      }
+    }, 500);
+    return () => {
+      t.remove();
+      clearInterval(iv);
+    };
   }, [player]);
 
   const cycleRate = () => {
@@ -269,6 +284,7 @@ export function FeedCard({
   const [reportType, setReportType] = useState<string | null>(null);
   const [reportDesc, setReportDesc] = useState('');
   const [savedNow, setSavedNow] = useState(() => savedStore.has(post.id));
+  const [shareOpen, setShareOpen] = useState(false);
   const lastTap = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burst = useRef(new Animated.Value(0)).current;
@@ -281,9 +297,8 @@ export function FeedCard({
   );
 
   const sharePost = () => {
-    Share.share({
-      message: `${name} (@${user.username}) on DeenLink: ${post.content_text ?? ''}`,
-    }).catch(() => {});
+    haptic.light();
+    setShareOpen(true);
   };
 
   const liked = !!post.liked_by_me;
@@ -766,6 +781,14 @@ export function FeedCard({
           </Pressable>
         </View>
       ) : null}
+
+      {/* share — same sheet as the videos: friends / link / more / image */}
+      <ContentShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        card={{ kind: 'post', arabic: '', meaning: post.content_text ?? `${name} on DeenLink`, ref: `@${user.username} · DeenLink` }}
+        link={`https://deenlink.org/post/${post.id}`}
+      />
 
       {/* Double-tap heart burst (over the whole card) */}
       <Animated.View

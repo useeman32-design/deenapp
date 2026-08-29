@@ -40,10 +40,14 @@ export default function Reader() {
   const [lang, setLang] = useState<'en' | 'ha'>('en');
   const [shareAyah, setShareAyah] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
   const [mushafSurah, setMushafSurah] = useState(n);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const announcedNext = useRef<number | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const rowY = useRef<Record<number, number>>({});
-  const activeAyah = audio.surah === n ? audio.ayah : null;
+  /* deep-linked ayah (?ayah=n) stays highlighted until audio takes over */
+  const [flashAyah, setFlashAyah] = useState<number | null>(startAyah > 1 ? startAyah : null);
+  const activeAyah = audio.surah === n ? audio.ayah : flashAyah;
 
   /* ── LOCAL dataset (the /content pack): basmallah flag + arabic/english/hausa ── */
   useEffect(() => {
@@ -66,6 +70,41 @@ export default function Reader() {
       alive = false;
     };
   }, [n, startAyah]);
+
+  /* next-surah handoff: during the announcement count 5→1, then follow the
+   * audio into the next surah — the whole reader (list/mushaf/title) swaps */
+  useEffect(() => {
+    if (audio.announcement) {
+      announcedNext.current = audio.announcement.surah;
+      setCountdown(5);
+      const iv = setInterval(() => setCountdown((c) => (c != null && c > 1 ? c - 1 : null)), 1000);
+      return () => clearInterval(iv);
+    }
+    setCountdown(null);
+  }, [audio.announcement]);
+
+  useEffect(() => {
+    const target = announcedNext.current;
+    if (audio.surah != null && target != null && audio.surah === target && audio.surah !== n) {
+      announcedNext.current = null;
+      router.replace({ pathname: '/read/[id]', params: { id: String(audio.surah), ayah: '1' } } as never);
+    }
+  }, [audio.surah, n, router]);
+
+  /* deep-link flash: clear when real audio starts on this surah */
+  useEffect(() => {
+    if (audio.surah === n) setFlashAyah(null);
+  }, [audio.surah, n]);
+
+  /* scroll to the deep-linked ayah once the surah loads */
+  useEffect(() => {
+    if (!data || flashAyah == null || mode !== 'reading') return;
+    const t = setTimeout(() => {
+      const y = rowY.current[flashAyah];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 130), animated: false });
+    }, 650);
+    return () => clearTimeout(t);
+  }, [data, flashAyah, mode]);
 
   /* smooth tracking */
   useEffect(() => {
@@ -169,7 +208,7 @@ export default function Reader() {
                 }}
                 onPress={() => {
                   haptic.selection();
-                  audio.playSurah(n, a.ayah);
+                  audio.playAyah(n, a.ayah);
                 }}
                 style={{
                   backgroundColor: isActive ? (isDark ? 'rgba(46,204,113,0.13)' : 'rgba(29,111,66,0.08)') : d.card,
@@ -235,7 +274,7 @@ export default function Reader() {
             borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.25)',
             backgroundColor: isDark ? 'rgba(8,20,13,0.95)' : 'rgba(255,255,255,0.97)',
             paddingHorizontal: 11,
-            paddingVertical: 7,
+            paddingVertical: 5,
             shadowColor: '#000',
             shadowOpacity: 0.25,
             shadowRadius: 10,
@@ -256,16 +295,10 @@ export default function Reader() {
               <FontAwesome5 name={audio.surah === n && audio.playing ? 'pause' : 'play'} size={12} color="#FFFFFF" />
             </Pressable>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-                <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11, flexShrink: 1 }}>
-                  {QURAN.find((x) => x.number === (audio.surah ?? n))?.english ?? meta.english}
-                </T>
-                <T v="arabic" numberOfLines={1} style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 13, flexShrink: 1 }}>
-                  {QURAN.find((x) => x.number === (audio.surah ?? n))?.name ?? meta.name}
-                </T>
-              </View>
-              <T v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 0.5 }} numberOfLines={1}>
-                Ayah {audio.surah != null ? audio.ayah : (activeAyah ?? startAyah)} · {reciterName}
+              <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>
+                {QURAN.find((x) => x.number === (audio.surah ?? n))?.english ?? meta.english}
+                <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 12.5 }}> {QURAN.find((x) => x.number === (audio.surah ?? n))?.name ?? meta.name} </T>
+                <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600' }}>· Ayah {audio.surah != null ? audio.ayah : (activeAyah ?? startAyah)} · {reciterName}</T>
               </T>
             </View>
             <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
@@ -289,7 +322,7 @@ export default function Reader() {
               audio.seekTo(f);
             }}
             onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-            style={{ height: 18, justifyContent: 'center', marginTop: 1 }}
+            style={{ height: 16, justifyContent: 'center', marginTop: 0 }}
           >
             <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)' }} />
             <View style={{ position: 'absolute', left: 0, width: `${audio.progress * 100}%`, height: 4, borderRadius: 2, backgroundColor: isDark ? '#4AE38F' : '#1D6F42' }} />
@@ -333,7 +366,7 @@ export default function Reader() {
             <FontAwesome5 name="forward" size={11} color="#E8C96A" />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5 }}>UP NEXT — PLAYING IN 3…</T>
+            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5 }}>UP NEXT — PLAYING IN {countdown ?? 5}…</T>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
               <T v="bodyS" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 12.5, flexShrink: 1 }}>{QURAN.find((x) => x.number === audio.announcement!.surah)?.english}</T>
               <T v="arabic" numberOfLines={1} style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 13, flexShrink: 1 }}>{QURAN.find((x) => x.number === audio.announcement!.surah)?.name}</T>

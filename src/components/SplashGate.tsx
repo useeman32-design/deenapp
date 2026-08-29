@@ -24,14 +24,12 @@ class SplashVideoBoundary extends React.Component<{ children: React.ReactNode },
 }
 
 export function SplashGate({ ready, children }: { ready: boolean; children: React.ReactNode }) {
+  /* pass 21: on WEB the splash now shows on EVERY cold page load (each visit to
+     the site). The old sessionStorage gate made it once-per-tab — and iOS
+     Safari keeps tabs alive for days, so users literally never saw it again
+     ("splash not working"). Native keeps once-per-app-lifetime. */
   const oncePerSession = () => {
-    try {
-      if (Platform.OS === 'web') {
-        if (sessionStorage.getItem('dl.splash.seen')) return false;
-        sessionStorage.setItem('dl.splash.seen', '1');
-        return true;
-      }
-    } catch {}
+    if (Platform.OS === 'web') return true;
     if (nativeSeen) return false;
     nativeSeen = true;
     return true;

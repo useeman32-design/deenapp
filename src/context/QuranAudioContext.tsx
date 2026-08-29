@@ -98,6 +98,8 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
     if (surah == null) return;
     player.playbackRate = rate;
     player.play();
+    // single-ayah session: make sure loop/surah continuation can't resume it
+    if (single.current) return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surah, ayah, reciter]);
 
@@ -138,7 +140,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
           setSurah(next);
           setAyah(1);
           setPlaying(true);
-        }, 3000);
+        }, 5000);
       } else {
         player.pause();
         setPlaying(false);

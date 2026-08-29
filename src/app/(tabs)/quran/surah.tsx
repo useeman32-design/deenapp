@@ -146,7 +146,7 @@ export default function SurahList() {
         ListHeaderComponent={
           <View>
             {/* ── Ayah bookmarks (pass 20) ── */}
-            {filter === 'bookmarks' && ayahMarks.length ? (
+            {ayahMarks.length > 0 ? (
               <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
                 <T v="caption" style={{ color: d.faint, fontWeight: '800', fontSize: 10, letterSpacing: 0.6, marginBottom: 8 }}>
                   SAVED AYAHS · {ayahMarks.length}
@@ -233,7 +233,7 @@ export default function SurahList() {
               </View>
 
               <Pressable
-                onPress={() => open(cur.number)}
+                onPress={() => router.push({ pathname: '/read/[id]', params: { id: String(cur.number), ayah: String(curAyah) } } as never)}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -270,21 +270,11 @@ export default function SurahList() {
               }}
             >
               <FontAwesome5 name="search" size={13} color={d.faint} />
-              <TextInput
-                value={q}
-                onChangeText={setQ}
-                placeholder="Search surah by name or number…"
-                placeholderTextColor={d.faint}
-                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13*/, color: d.text, paddingVertical: 11, paddingLeft: 9 }}
-              />
-              {/* deep search — scans the whole Qur'an (EN · HA · Arabic) */}
               <Pressable
                 onPress={() => { haptic.selection(); setDeepSearch(true); }}
-                hitSlop={8}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, marginLeft: 6 }}
+                style={{ flex: 1, paddingVertical: 11, paddingLeft: 9 }}
               >
-                <FontAwesome5 name="book-open" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>AYAHS</T>
+                <T v="caption" style={{ color: d.faint, fontSize: 13.5 }}>Search surah or ayah…</T>
               </Pressable>
               {q ? (
                 <Pressable onPress={() => setQ('')} hitSlop={8}>

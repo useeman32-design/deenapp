@@ -38,17 +38,27 @@ export function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Headline block: "Welcome back!" + supporting line. */
+/** Headline block: real DeenLink logo + slogan, then "Welcome back!" + line. */
 export function AuthHeading({ title, sub }: { title: string; sub: string }) {
   const { isDark } = useTheme();
   return (
     <View style={{ marginTop: 30, marginBottom: 18 }}>
-      {/* DeenLink logo */}
-      <Image
-        source={require('../../assets/images/logo.png')}
-        style={{ width: 64, height: 69, marginBottom: 14 }}
-        resizeMode="contain"
-      />
+      {/* real DeenLink logo (from deenlink.org) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <Image
+          source={require('../../assets/img/logo-badge.png')}
+          style={{ width: 58, height: 59 }}
+          resizeMode="contain"
+        />
+        <View style={{ flex: 1 }}>
+          <T v="caption" style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, color: isDark ? '#D4AF37' : '#B8860B' }}>
+            DEENLINK
+          </T>
+          <T v="caption" style={{ fontSize: 11.5, marginTop: 2, color: isDark ? 'rgba(242,247,243,0.65)' : 'rgba(20,36,28,0.65)' }}>
+            All-in-one islamic app
+          </T>
+        </View>
+      </View>
       <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>
         {title}
       </T>

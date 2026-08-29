@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -9,6 +9,16 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
 import { loadBook, loadBookMeta } from '@/lib/content';
+import { storage } from '@/lib/storage';
+
+const enOf = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const o = e as { text?: unknown };
+    return typeof o.text === 'string' ? o.text : '';
+  }
+  return '';
+};
 
 const TINTS = ['#4AE38F', '#E8C96A', '#5BC8F5', '#F0A8C0', '#7FD8A8', '#C9A0F0', '#F09A5B', '#8FB8F0', '#66E0C4', '#D8C87A', '#A8E06A', '#7AC8D8', '#F0B26A', '#B0A8F0', '#8C6D1F'];
 
@@ -20,6 +30,16 @@ export default function HadithCollections() {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [last, setLast] = useState<{ book: string; chapter: string; at: string } | null>(null);
+
+  useEffect(() => {
+    storage.getItem('dl.hadith.last').then((r) => {
+      if (r)
+        try {
+          setLast(JSON.parse(r));
+        } catch {}
+    });
+  }, []);
 
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -55,6 +75,42 @@ export default function HadithCollections() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
+          <View>
+          {last ? (
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                const b = HADITH_BOOKS.find((x) => x.id === last.book);
+                if (!b) return;
+                const num = last.chapter.startsWith('c') ? last.chapter.slice(1) : last.chapter;
+                router.push({ pathname: '/tools/hadith/[book]', params: { book: b.id, chapter: num } });
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                marginHorizontal: 18,
+                marginTop: 14,
+                padding: 13,
+                borderRadius: 14,
+                backgroundColor: isDark ? '#1F8F5C' : '#1D6F42',
+                opacity: pressed ? 0.88 : 1,
+              })}
+            >
+              <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="book-open" size={13} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5 }}>
+                  CONTINUE READING
+                </T>
+                <T v="bodyS" numberOfLines={1} style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12.5, marginTop: 2 }}>
+                  {HADITH_BOOKS.find((x) => x.id === last.book)?.name ?? 'Book'} · Chapter {last.chapter.replace(/^c/, '')}
+                </T>
+              </View>
+              <FontAwesome5 name="arrow-right" size={12} color="rgba(255,255,255,0.85)" />
+            </Pressable>
+          ) : null}
           <View
             style={{
               flexDirection: 'row',
@@ -77,6 +133,7 @@ export default function HadithCollections() {
               placeholderTextColor={d.faint}
               style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16, color: d.text, paddingVertical: 10, paddingLeft: 9 }}
             />
+          </View>
           </View>
         }
         renderItem={({ item: b, index }) => {
@@ -158,11 +215,11 @@ export default function HadithCollections() {
               const list = await loadBook(bid);
               const b = HADITH_BOOKS.find((x) => x.id === bid);
               for (const h of list) {
-                if (h.arabic.includes(qq.trim()) || (h.english ?? '').toLowerCase().includes(needle)) {
+                if (h.arabic.includes(qq.trim()) || enOf(h.english).toLowerCase().includes(needle)) {
                   hits.push({
                     key: `h-${bid}-${h.chapter_number}-${h.hadith_number ?? Math.random()}`,
                     title: `${b?.name ?? bid} · ${h.hadith_number ?? ''}`,
-                    subtitle: (h.english ?? h.chapter_name?.english ?? '').slice(0, 90),
+                    subtitle: (enOf(h.english) || h.chapter_name?.english || '').slice(0, 90),
                     arabic: h.arabic.slice(0, 44),
                     onPress: () => router.push(`/tools/hadith/${bid}?chapter=${h.chapter_number}` as never),
                   });

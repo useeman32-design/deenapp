@@ -8,6 +8,7 @@ import type { Post } from '@/api/types';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
+import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
@@ -49,6 +50,7 @@ export default function CommunityScreen() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [cDraft, setCDraft] = useState('');
   const [pollOn, setPollOn] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
@@ -303,6 +305,7 @@ export default function CommunityScreen() {
               </T>
             </View>
             <Pressable
+              onPress={() => { haptic.selection(); setInboxOpen(true); }}
               style={({ pressed }) => ({
                 position: 'relative',
                 width: 40,
@@ -656,6 +659,9 @@ export default function CommunityScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* community inbox — shared posts/reels/ayahs, reactions only */}
+      <CommunityInbox visible={inboxOpen} onClose={() => setInboxOpen(false)} />
 
       {/* FAB — new post */}
       <Pressable
