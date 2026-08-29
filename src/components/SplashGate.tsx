@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Platform, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
@@ -10,6 +10,18 @@ import { useVideoPlayer, VideoView } from 'expo-video';
  * Once per session on web; once per app lifetime on native.
  */
 let nativeSeen = false;
+
+/** A dead video must never kill the app — fall back to a static splash. */
+class SplashVideoBoundary extends React.Component<{ children: React.ReactNode }, { dead: boolean }> {
+  state = { dead: false };
+  static getDerivedStateFromError() {
+    return { dead: true };
+  }
+  componentDidCatch() {}
+  render() {
+    return this.state.dead ? null : this.props.children;
+  }
+}
 
 export function SplashGate({ ready, children }: { ready: boolean; children: React.ReactNode }) {
   const oncePerSession = () => {
@@ -80,7 +92,9 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
         style={{ position: 'absolute', inset: 0, zIndex: 999, backgroundColor: '#06140D', alignItems: 'center', justifyContent: 'center', opacity: fade }}
       >
         <View pointerEvents="none" style={{ width: Math.min(W, 640), aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden' }}>
-          <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }} />
+          <SplashVideoBoundary>
+            <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }} />
+          </SplashVideoBoundary>
         </View>
       </Animated.View>
     </>
