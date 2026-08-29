@@ -1,3 +1,11 @@
+# PASS 18 SHIPPED (read first)
+Pass 18 live (master 6b0a3bd, gh-pages redeployed + base-path FIXED): all-our-data build (quran/hadith/dua/names/seerah/quiz from assets/content zip), splash video, live compass qibla, TikTok inbox, saved posts, edit-profile mirror, DeenPoints logo, input zoom fixes.
+
+## CRITICAL RULES learned in pass 18 (DO NOT REPEAT)
+1. **NEVER deploy a raw `npx expo export`** — the site lives under the GitHub Pages subpath `/deenapp/`, and a raw export emits absolute `/_expo/...` + `/assets/...` URLs → **blank white screen**. ALWAYS `bash export-web.sh` (it runs slashguard.mjs + .nojekyll + 404.html fallback). Verify live by checking the HTML's `<script src>` starts with `/deenapp/`.
+2. **Workspace snapshot cap ≈ 128MB / 10k files** — exceeding it rolls the workspace back (lost a turn's git state this way). Keep at turn end: shallow .git (~34M), assets ≤ ~35M, NO extracted assets/content (88M — it's a tracked zip `assets/content.zip`, unpacked on demand by export-web.sh), no dist (auto-excluded), node_modules/.npm auto-excluded. After deploy: `rm -rf dist assets/content`.
+3. Deploy recipe: fresh /tmp/ghp clone of gh-pages → wipe → `cp -r dist/deenapp/. .` → commit → push. Push with explicit token URL: `git push https://x-access-token:$(cat .token)@github.com/useeman32-design/deenapp.git <branch>`; set repo-local git user.email/name first (they don't survive snapshots).
+
 # PASS 17 SHIPPED (read first)
 Pass 17 live (master dd7236b, gh-pages f796fec): quran /v1 API fix, cassette cancel, inbox/friends/videos upgrades, avatar previews, settings screen, quiz + daily cards redesign, learning shortcut, audio in samples. Details in SESSION-MEMORY pass-17 section. Token: .token. Re-add remote each turn.
 
