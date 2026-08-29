@@ -13,12 +13,13 @@ const HOLIDAYS = [
 ];
 
 export default function CalendarScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
   const now = new Date();
   const h = hijriDate(now);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar title="Islamic Calendar" />
       <View style={{ padding: 16 }}>
         <Card style={{ backgroundColor: theme.primary, borderColor: 'transparent', alignItems: 'center', paddingVertical: 26 }}>

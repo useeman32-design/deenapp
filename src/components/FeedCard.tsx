@@ -438,7 +438,7 @@ export function FeedCard({
 
       {/* Body text — double-tap to like, Show more/less when long */}
       {fullText ? (
-        <View style={{ marginBottom: longText ? 4 : 12 }}>
+        <View style={{ marginBottom: 12 }}>
           <Pressable onPress={() => onTap()}>
             <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20.5, color: txt }}>
               {shownText}
@@ -587,6 +587,16 @@ export function FeedCard({
         <View style={{ marginBottom: 12 }}>
           <VideoPostPlayer src={post.video_url} poster={post.video_poster ?? null} accent={accent} hairline={hairline} />
         </View>
+      ) : null}
+
+      {/* Picked photo post — opens preview on tap */}
+
+      {post.image_url ? (
+        <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
+          <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
+            <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 280 }} resizeMode="cover" />
+          </View>
+        </Pressable>
       ) : null}
 
       {/* Media image — single tap: preview · double tap: like */}

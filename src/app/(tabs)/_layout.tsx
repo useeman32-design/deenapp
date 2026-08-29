@@ -7,6 +7,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { haptic } from '@/lib/haptics';
+import { QuranMiniPlayer } from '@/components/QuranMiniPlayer';
 
 /* ------------------------------------------------------------------ */
 /* Floating glassy tab bar with ONE sliding pill.                      */
@@ -208,10 +209,10 @@ function FloatingTabBar({
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: SIDE_PAD + centerRouteIdx * itemW + (itemW - 60) / 2,
-            top: -21,
-            width: 60,
-            height: 60,
+            left: SIDE_PAD + centerRouteIdx * itemW + (itemW - 52) / 2,
+            top: -13,
+            width: 52,
+            height: 52,
             transform: [{ scale: circleScale }],
           }}
         >
@@ -220,19 +221,19 @@ function FloatingTabBar({
               haptic.selection();
               if (state.index !== centerRouteIdx) navigation.navigate('tools');
             }}
-            style={{ width: 60, height: 60 }}
+            style={{ width: 52, height: 52 }}
           >
             <LinearGradient
               colors={(isDark ? ['#2ECC71', '#145A32'] : ['#2FC46E', '#1D6F42']) as [string, string, ...string[]]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={{
-                width: 60,
-                height: 60,
-                borderRadius: 30,
+                width: 52,
+                height: 52,
+                borderRadius: 26,
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderWidth: 2.5,
+                borderWidth: 2,
                 borderColor: isDark ? 'rgba(10,27,18,0.95)' : '#FFFFFF',
                 shadowColor: '#2ECC71',
                 shadowOpacity: 0.45,
@@ -241,18 +242,18 @@ function FloatingTabBar({
                 elevation: 12,
               }}
             >
-              <FontAwesome5 name="mosque" size={22} color="#FFFFFF" solid />
+              <FontAwesome5 name="mosque" size={19} color="#FFFFFF" solid />
             </LinearGradient>
             {/* gold active ring */}
             <Animated.View
               pointerEvents="none"
               style={{
                 position: 'absolute',
-                top: -3.5,
-                left: -3.5,
-                right: -3.5,
-                bottom: -3.5,
-                borderRadius: 33,
+                top: -3,
+                left: -3,
+                right: -3,
+                bottom: -3,
+                borderRadius: 29,
                 borderWidth: 2,
                 borderColor: '#E8C96A',
                 opacity: ringOpacity,
@@ -306,15 +307,16 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
-    <Tabs
-      tabBar={(props) => <FloatingTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="quran" options={{ title: 'Quran & Hadith' }} />
-      <Tabs.Screen name="tools" options={{ title: 'Worship Tools' }} />
-      <Tabs.Screen name="community" options={{ title: 'Community' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs tabBar={(props) => <FloatingTabBar {...props} />} screenOptions={{ headerShown: false }}>
+        <Tabs.Screen name="index" options={{ title: 'Home' }} />
+        <Tabs.Screen name="quran" options={{ title: 'Quran & Hadith' }} />
+        <Tabs.Screen name="tools" options={{ title: 'Worship Tools' }} />
+        <Tabs.Screen name="community" options={{ title: 'Community' }} />
+        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      </Tabs>
+      {/* global qur'an audio cassette — visible wherever audio is playing */}
+      <QuranMiniPlayer />
+    </View>
   );
 }

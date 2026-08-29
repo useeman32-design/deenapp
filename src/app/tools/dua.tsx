@@ -7,7 +7,8 @@ import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
 
 export default function Duas() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
   const [cat, setCat] = useState<string>('All');
   const [open, setOpen] = useState<string | null>(null);
 
@@ -17,7 +18,7 @@ export default function Duas() {
   const list = DUAS.filter((d) => cat === 'All' || d.category === cat);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar title="Duas" subtitle="From the Qur’an & Sunnah" />
       <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

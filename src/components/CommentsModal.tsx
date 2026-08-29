@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 
-const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '', '🔥', '🕋'];
+const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
 
 /** Renders @mentions in comment text as colored + bold (IG-style). */
 function MentionText({ text, base, mention }: { text: string; base: object; mention: object }) {
@@ -203,7 +203,7 @@ export function CommentsModal({
 
   // re-seed whenever a different post opens
   const seedKey = post?.id ?? -1;
-  useMemo(() => {
+  useEffect(() => {
     if (visible) {
       setItems(seed.map((c) => ({ ...c, replies: c.replies?.map((r) => ({ ...r })) })));
       const l: Record<number, boolean> = {};
@@ -291,7 +291,9 @@ export function CommentsModal({
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{
-        maxHeight: 560,
+        flex: 1,
+        maxHeight: 580,
+        minHeight: 430,
         backgroundColor: card,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
@@ -374,8 +376,8 @@ export function CommentsModal({
 
       {/* Emoji row (IG-style) */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, paddingBottom: 4 }}>
-        {EMOJIS.map((e) => (
-          <Pressable key={e} onPress={() => setDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }} onPressIn={() => haptic.selection()}>
+        {EMOJIS.map((e, i) => (
+          <Pressable key={`e${i}`} onPress={() => setDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }} onPressIn={() => haptic.selection()}>
             <T v="caption" style={{ fontSize: 20, fontWeight: '400' }}>
               {e}
             </T>

@@ -631,6 +631,8 @@ export interface MockReel {
   poster: number | { uri: string };
   /** watermarked copy used for downloads (sample reels only) */
   wm?: number;
+  /** friend who reposted this reel into your feed (tiktok-style pill) */
+  repostedBy?: string;
   username: string; // key into MOCK_ACCOUNTS
   caption: string;
   likes: number;
@@ -657,6 +659,7 @@ export const MOCK_REELS: MockReel[] = [
   },
   {
     id: 202,
+    repostedBy: 'aisha_yusuf',
     src: reelF2,
     wm: reelW2,
     poster: reelP2,
@@ -683,6 +686,7 @@ export const MOCK_REELS: MockReel[] = [
   },
   {
     id: 204,
+    repostedBy: 'alameen',
     src: reelF4,
     wm: reelW4,
     poster: reelP4,

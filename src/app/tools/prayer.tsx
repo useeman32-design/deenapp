@@ -12,7 +12,8 @@ import { CompassIcon, MosqueIcon } from '@/components/Icons';
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function PrayerTimes() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
   const [loc, setLoc] = useState<Loc | null>(null);
   const [offset, setOffset] = useState(0); // days from today, -3..+3
 
@@ -39,7 +40,7 @@ export default function PrayerTimes() {
 
   if (!loc) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
         <T v="caption">Locating you…</T>
       </View>
     );
@@ -63,7 +64,7 @@ export default function PrayerTimes() {
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar
         title="Prayer times"
         subtitle={`${selDate.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${loc.name}`}

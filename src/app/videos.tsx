@@ -11,6 +11,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   Share,
   Text,
   TextInput,
@@ -29,6 +30,7 @@ import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
+import * as Clipboard from 'expo-clipboard';
 import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
@@ -97,6 +99,7 @@ function ReelItem({
   onComments,
   onOpenProfile,
   onMore,
+  onShare,
 }: {
   reel: MockReel;
   active: boolean;
@@ -111,6 +114,7 @@ function ReelItem({
   onComments: (r: MockReel) => void;
   onOpenProfile: (username: string) => void;
   onMore: (r: MockReel) => void;
+  onShare: (r: MockReel) => void;
 }) {
   const { isDark } = useTheme();
   const account = useMemo(
@@ -132,8 +136,8 @@ function ReelItem({
   const [progress, setProgress] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
   const lastTap = useRef(0);
+  const [bursts, setBursts] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const burst = useRef(new Animated.Value(0)).current;
 
   useEffect(
     () => () => {
@@ -167,17 +171,15 @@ function ReelItem({
     return () => clearInterval(t);
   }, [player]);
 
-  const likeBurst = () => {
-    burst.setValue(0);
-    Animated.sequence([
-      Animated.timing(burst, { toValue: 1, duration: 420, easing: Easing.out(Easing.back(1.9)), useNativeDriver: true }),
-      Animated.delay(120),
-      Animated.timing(burst, { toValue: 0, duration: 220, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-    ]).start(() => burst.setValue(0));
+  /** burst at the tap position — every double-tap, even when already liked */
+  const spawnBurst = (x: number, y: number) => {
+    const id = Date.now() + Math.random();
+    setBursts((b) => [...b.slice(-5), { id, x, y }]);
+    setTimeout(() => setBursts((b) => b.filter((it) => it.id !== id)), 780);
   };
 
-  /** tap = play/pause (delayed so a double-tap never pauses) · double-tap = like */
-  const onTap = () => {
+  /** tap = play/pause (delayed so a double-tap never pauses) · double-tap = like at finger */
+  const onTap = (e: { nativeEvent: { locationX?: number; locationY?: number; pageX?: number; pageY?: number } }) => {
     const now = Date.now();
     const dbl = now - lastTap.current < 300;
     lastTap.current = now;
@@ -186,9 +188,11 @@ function ReelItem({
         clearTimeout(tapTimer.current);
         tapTimer.current = null;
       }
+      const x = e.nativeEvent.locationX ?? e.nativeEvent.pageX ?? VW / 2;
+      const y = e.nativeEvent.locationY ?? e.nativeEvent.pageY ?? VH / 2;
+      spawnBurst(x, y);
       if (!liked) {
         onLike(reel.id);
-        likeBurst();
         haptic.medium();
       }
     } else {
@@ -236,8 +240,21 @@ function ReelItem({
     }),
   ).current;
 
-  const scale = burst.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.22, 1.02, 1.35] });
-  const opacity = burst.interpolate({ inputRange: [0, 0.12, 0.72, 1], outputRange: [0, 0.95, 0.95, 0] });
+  /** one-off heart burst at a tap position */
+  function HeartBurst({ x, y }: { x: number; y: number }) {
+    const a = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+      Animated.timing(a, { toValue: 1, duration: 640, useNativeDriver: true, easing: Easing.out(Easing.poly(3)) }).start();
+    }, [a]);
+    const bOpacity = a.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 1, 0] });
+    const bScale = a.interpolate({ inputRange: [0, 0.3, 0.8, 1], outputRange: [0.3, 1.25, 1.0, 0.92] });
+    const bTy = a.interpolate({ inputRange: [0, 1], outputRange: [0, -44] });
+    return (
+      <Animated.View pointerEvents="none" style={{ position: 'absolute', left: x - 52, top: y - 52, opacity: bOpacity, transform: [{ scale: bScale }, { translateY: bTy }] }}>
+        <HeartIcon size={104} filled color="#fff" />
+      </Animated.View>
+    );
+  }
 
   const railButton = (icon: string, label: string, onPress: () => void, tint?: string) => (
     <Pressable onPress={onPress} hitSlop={6} style={{ alignItems: 'center', gap: 4 }}>
@@ -302,27 +319,49 @@ function ReelItem({
         </View>
       ) : null}
 
-      {/* double-tap heart burst */}
-      <Animated.View
-        pointerEvents="none"
-        style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', inset: 0, opacity, transform: [{ scale }] }}
-      >
-        <HeartIcon size={104} filled color="#fff" />
-      </Animated.View>
+      {/* double-tap heart bursts — wherever the finger tapped */}
+      {bursts.map((b) => (
+        <HeartBurst key={b.id} x={b.x} y={b.y} />
+      ))}
 
       {/* right action rail — like · comment · save · share · ••• */}
       <View style={{ position: 'absolute', right: 12, bottom: 152, gap: 13 }}>
         {railButton('heart', (reel.likes + (liked ? 1 : 0)).toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
         {railButton('comment', String(reel.comments), () => onComments(reel))}
         {railButton('bookmark', (reel.saves + (saved ? 1 : 0)).toLocaleString(), () => { haptic.light(); onSave(reel.id); }, saved ? '#E8C96A' : undefined)}
-        {railButton('share', 'Share', () => {
-          Share.share({ message: `${account.full_name} on DeenLink Videos: ${reel.caption}` }).catch(() => {});
-        })}
+        {railButton('share', 'Share', () => { haptic.light(); onShare(reel); })}
         {railButton('ellipsis-h', '', () => { haptic.light(); onMore(reel); })}
       </View>
 
       {/* bottom info */}
       <View style={{ position: 'absolute', left: 14, right: 76, bottom: 96 }}>
+        {reel.repostedBy ? (
+          <Pressable
+            onPress={() => onOpenProfile(reel.repostedBy as string)}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              alignSelf: 'flex-start',
+              backgroundColor: 'rgba(10,20,14,0.45)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.16)',
+              borderRadius: 999,
+              paddingLeft: 3,
+              paddingRight: 9,
+              paddingVertical: 3,
+              marginBottom: 8,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(46,204,113,0.35)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="retweet" size={8} color="#FFFFFF" />
+            </View>
+            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' }}>
+              Reposted by @{reel.repostedBy}
+            </T>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => onOpenProfile(reel.username)}
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, opacity: pressed ? 0.8 : 1 })}
@@ -452,6 +491,9 @@ export default function VideosFeed() {
   const [saved, setSaved] = useState<Set<number>>(new Set());
   const [reposted, setReposted] = useState<Set<number>>(new Set());
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
+  const [shareReel, setShareReel] = useState<MockReel | null>(null);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -738,6 +780,7 @@ export default function VideosFeed() {
             onSave={toggleSave}
             onRepost={toggleRepost}
             onComments={(r) => setCommentReel(r)}
+            onShare={(r) => setShareReel(r)}
             onOpenProfile={(u) => router.push(`/profile/${u}`)}
             onMore={(r) => setMoreReel(r)}
           />
@@ -756,13 +799,13 @@ export default function VideosFeed() {
         extraData={storeTick}
       />
 
-      {/* glassy bottom menu: saved · create · sound — padded + separated */}
+      {/* bottom menu: Inbox · Friends · Saved · + (circle) */}
       <View
         style={{
           position: 'absolute',
           alignSelf: 'center',
-          bottom: 18 + insets.bottom * 0.4,
-          borderRadius: 29,
+          bottom: 16 + insets.bottom * 0.4,
+          borderRadius: 27,
           overflow: 'hidden',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.16)',
@@ -779,58 +822,210 @@ export default function VideosFeed() {
             backgroundColor: 'rgba(10,20,14,0.35)',
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: 10,
-            paddingVertical: 8,
-            gap: 10,
+            paddingHorizontal: 8,
+            paddingVertical: 7,
+            gap: 4,
           }}
         >
-          <Pressable
-            onPress={() => { haptic.selection(); setLibraryOpen(true); }}
-            style={({ pressed }) => ({ alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 3, opacity: pressed ? 0.7 : 1 })}
-          >
-            <FontAwesome5 name="bookmark" size={15} color="#FFFFFF" />
-            <T v="caption" style={{ color: 'rgba(255,255,255,0.87)', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-              Saved
-            </T>
-          </Pressable>
+          {[
+            { id: 'inbox', icon: 'comment-dots', label: 'Inbox' },
+            { id: 'friends', icon: 'user-friends', label: 'Friends' },
+            { id: 'saved', icon: 'bookmark', label: 'Saved' },
+          ].map((b) => (
+            <Pressable
+              key={b.id}
+              onPress={() => {
+                haptic.selection();
+                if (b.id === 'saved') setLibraryOpen(true);
+                else if (b.id === 'inbox') setInboxOpen(true);
+                else setFriendsOpen(true);
+              }}
+              style={({ pressed }) => ({ alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 13, paddingVertical: 3, opacity: pressed ? 0.7 : 1 })}
+            >
+              <FontAwesome5 name={b.icon as never} size={15} color="#FFFFFF" />
+              <T v="caption" style={{ color: 'rgba(255,255,255,0.87)', fontSize: 9.5, fontWeight: '700', letterSpacing: 0.3 }}>
+                {b.label}
+              </T>
+            </Pressable>
+          ))}
 
-          <View style={{ width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.14)' }} />
+          <View style={{ width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.14)', marginHorizontal: 6 }} />
 
+          {/* plus — create */}
           <Pressable
             onPress={() => { haptic.light(); setCreateOpen(true); }}
             style={({ pressed }) => ({
-              flexDirection: 'row',
+              width: 46,
+              height: 46,
+              borderRadius: 23,
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6,
-              paddingHorizontal: 16,
-              height: 40,
-              borderRadius: 20,
               backgroundColor: '#1F8F5C',
-              borderWidth: 1.5,
-              borderColor: 'rgba(212,175,55,0.65)',
+              borderWidth: 2,
+              borderColor: 'rgba(212,175,55,0.75)',
               opacity: pressed ? 0.85 : 1,
             })}
           >
-            <FontAwesome5 name="plus" size={12} color="#FFFFFF" />
-            <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11.5, letterSpacing: 0.3 }}>
-              Create
-            </T>
-          </Pressable>
-
-          <View style={{ width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.14)' }} />
-
-          <Pressable
-            onPress={() => { haptic.selection(); setMuted((m) => !m); }}
-            style={({ pressed }) => ({ alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 3, opacity: pressed ? 0.7 : 1 })}
-          >
-            <FontAwesome5 name={muted ? 'volume-mute' : 'volume-up'} size={15} color="#FFFFFF" />
-            <T v="caption" style={{ color: 'rgba(255,255,255,0.87)', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-              Sound
-            </T>
+            <FontAwesome5 name="plus" size={17} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>
+
+      {/* inbox sheet */}
+      {inboxOpen ? (
+        <View style={{ position: 'absolute', inset: 0, zIndex: 80, backgroundColor: 'rgba(4,8,6,0.72)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setInboxOpen(false)} />
+          <View style={{ maxHeight: 520, backgroundColor: '#0C1712', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16, gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <T v="body" style={{ flex: 1, color: '#F2F7F3', fontWeight: '800', fontSize: 15 }}>
+                Inbox
+              </T>
+              <Pressable onPress={() => setInboxOpen(false)} hitSlop={10} style={{ padding: 4 }}>
+                <FontAwesome5 name="times" size={15} color="rgba(242,247,243,0.5)" />
+              </Pressable>
+            </View>
+            {[
+              { u: 'aisha_yusuf', t: 'liked your video', w: '2m' },
+              { u: 'alameen', t: 'reposted your video', w: '18m' },
+              { u: 'usman_ahmad', t: 'started following you', w: '1h' },
+              { u: 'Gimba', t: 'mentioned you in a comment', w: '3h' },
+              { u: 'mayanchie12', t: 'sent you a video', w: '1d' },
+            ].map((n) => (
+              <Pressable
+                key={n.u}
+                onPress={() => { setInboxOpen(false); router.push(`/profile/${n.u}`); }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', opacity: pressed ? 0.7 : 1 })}
+              >
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(46,204,113,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="user-circle" size={17} color="#4AE38F" />
+                </View>
+                <T v="bodyS" style={{ flex: 1, color: 'rgba(242,247,243,0.9)', fontSize: 12.5 }}>
+                  <T style={{ fontWeight: '800', color: '#F2F7F3' }}>@{n.u}</T> {n.t}
+                </T>
+                <T v="caption" style={{ color: 'rgba(242,247,243,0.4)', fontSize: 10 }}>
+                  {n.w}
+                </T>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* friends sheet */}
+      {friendsOpen ? (
+        <View style={{ position: 'absolute', inset: 0, zIndex: 80, backgroundColor: 'rgba(4,8,6,0.72)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setFriendsOpen(false)} />
+          <View style={{ maxHeight: 520, backgroundColor: '#0C1712', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16, gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <T v="body" style={{ flex: 1, color: '#F2F7F3', fontWeight: '800', fontSize: 15 }}>
+                Friends
+              </T>
+              <Pressable onPress={() => setFriendsOpen(false)} hitSlop={10} style={{ padding: 4 }}>
+                <FontAwesome5 name="times" size={15} color="rgba(242,247,243,0.5)" />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 8 }}>
+              {MOCK_ACCOUNTS.filter((a) => a.username !== 'abdalrahman').map((a) => (
+                <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
+                  <View style={{ flex: 1 }}>
+                    <T v="bodyS" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 12.5 }}>
+                      {a.full_name}
+                    </T>
+                    <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5 }}>
+                      @{a.username}
+                    </T>
+                  </View>
+                  <Pressable
+                    onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(46,204,113,0.18)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.45)' }}
+                  >
+                    <T v="caption" style={{ color: '#4AE38F', fontWeight: '800', fontSize: 10.5 }}>
+                      Send
+                    </T>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
+
+      {/* share sheet — send to · copy link · more (native share) */}
+      {shareReel ? (
+        <View style={{ position: 'absolute', inset: 0, zIndex: 85, backgroundColor: 'rgba(4,8,6,0.72)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShareReel(null)} />
+          <View style={{ backgroundColor: '#0C1712', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+              <T v="body" style={{ flex: 1, color: '#F2F7F3', fontWeight: '800', fontSize: 15 }}>
+                Share
+              </T>
+              <Pressable onPress={() => setShareReel(null)} hitSlop={10} style={{ padding: 4 }}>
+                <FontAwesome5 name="times" size={15} color="rgba(242,247,243,0.5)" />
+              </Pressable>
+            </View>
+            <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginBottom: 10 }}>
+              SEND TO
+            </T>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 6 }}>
+              {MOCK_ACCOUNTS.filter((a) => a.username !== 'abdalrahman').map((a) => (
+                <Pressable
+                  key={a.username}
+                  onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); setShareReel(null); }}
+                  style={{ alignItems: 'center', gap: 6, width: 64 }}
+                >
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={52} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
+                  <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 10 }}>
+                    {a.full_name.split(' ')[0]}
+                  </T>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 14 }} />
+            <Pressable
+              onPress={async () => {
+                haptic.light();
+                const link = `https://useeman32-design.github.io/deenapp/videos?start=${shareReel.id}`;
+                await Clipboard.setStringAsync(link).catch(() => {});
+                showToast('Link copied');
+              }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="link" size={14} color="#E8C96A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="body" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 13 }}>
+                  Copy line
+                </T>
+                <T v="caption" style={{ color: 'rgba(242,247,243,0.45)', fontSize: 10.5 }}>
+                  Copy a direct link to this video
+                </T>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                Share.share({ message: `${shareReel.username} on DeenLink Videos — https://useeman32-design.github.io/deenapp/videos?start=${shareReel.id}` }).catch(() => {});
+                setShareReel(null);
+              }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(46,204,113,0.14)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="ellipsis-h" size={14} color="#4AE38F" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="body" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 13 }}>
+                  More
+                </T>
+                <T v="caption" style={{ color: 'rgba(242,247,243,0.45)', fontSize: 10.5 }}>
+                  Open the system share sheet
+                </T>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* toast */}
       {toast ? (

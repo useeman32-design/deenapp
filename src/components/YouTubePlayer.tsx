@@ -1,16 +1,15 @@
 import { Platform } from 'react-native';
 
 /**
- * In-app YouTube playback (pass 14).
- *  · Native — react-native-webview (bundled in Expo Go) rendering the YouTube
- *    embed with inline playback (playsinline=1 + allowsInlineMediaPlayback),
- *    so videos play INSIDE the app instead of handing off to the YouTube app.
- *  · Web — handled by the existing <iframe> (YouTubeFrame in FeedCard);
- *    this component is only used on native.
+ * In-app YouTube playback (pass 16).
+ * Native — react-native-webview with an HTML iframe source: the reliable way
+ * to get true inline playback (YouTube blocks bare embed URLs in some
+ * webviews with "Video unavailable"; an iframe document with
+ * allowsInlineMediaPlayback + dom storage plays inline).
+ * Web — plain iframe (existing behavior).
  */
 export function YouTubePlayer({ embedUrl, height = 210, borderRadius = 12 }: { embedUrl: string; height?: number; borderRadius?: number }) {
   if (Platform.OS === 'web') {
-    // Web callers should use YouTubeFrame; fall back to a simple iframe.
     return (
       <iframe
         src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}rel=0&modestbranding=1`}
@@ -21,18 +20,25 @@ export function YouTubePlayer({ embedUrl, height = 210, borderRadius = 12 }: { e
       />
     );
   }
-  const src = `${embedUrl}${embedUrl.includes('?') ? '&' : '?'}playsinline=1&rel=0&modestbranding=1&autoplay=0`;
+
+  const id = (embedUrl.split('/embed/')[1] ?? '').split(/[?&]/)[0];
+  const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>body{margin:0;background:#000;overflow:hidden}iframe{width:100%;height:100%;border:0}</style></head><body>
+  <iframe src="https://www.youtube.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&autoplay=0" title="DeenLink video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+  </body></html>`;
+
   const { WebView } = require('react-native-webview');
   return (
     <WebView
-      source={{ uri: src }}
+      source={{ html }}
       style={{ width: '100%', height, borderRadius, backgroundColor: '#000' }}
+      containerStyle={{ overflow: 'hidden', borderRadius }}
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       javaScriptEnabled
-      domStorageEnabled={false}
+      domStorageEnabled
       originWhitelist={['*']}
-      containerStyle={{ overflow: 'hidden', borderRadius }}
+      mixedContentCompatibilityMode
+      setSupportMultipleWindows={false}
     />
   );
 }

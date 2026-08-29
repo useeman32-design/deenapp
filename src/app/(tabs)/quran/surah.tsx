@@ -89,7 +89,7 @@ export default function SurahList() {
     const next = [number, ...recent.filter((n) => n !== number)].slice(0, 8);
     setRecent(next);
     storage.setItem('dl.quran.recent', JSON.stringify(next));
-    router.push(`/(tabs)/quran/${number}` as never);
+    router.push(`/read/${number}` as never);
   };
 
   const list = useMemo(() => {
@@ -107,6 +107,26 @@ export default function SurahList() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* fixed header — never scrolls away */}
+      <View style={{ paddingHorizontal: 18, paddingTop: insets.top + 12, paddingBottom: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <FontAwesome5 name="chevron-left" size={14} color={d.emerald} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>
+              The Holy Qur'an
+            </T>
+            <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
+              114 Surahs · 6,236 Verses · 30 Juz
+            </T>
+          </View>
+        </View>
+      </View>
       <FlatList
         data={list}
         keyExtractor={(s) => String(s.number)}
@@ -114,27 +134,6 @@ export default function SurahList() {
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <View>
-            {/* header */}
-            <View style={{ paddingHorizontal: 18, paddingTop: insets.top + 12, paddingBottom: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Pressable
-                  onPress={() => router.back()}
-                  hitSlop={10}
-                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <FontAwesome5 name="chevron-left" size={14} color={d.emerald} />
-                </Pressable>
-                <View style={{ flex: 1 }}>
-                  <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>
-                    The Holy Qur'an
-                  </T>
-                  <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
-                    114 Surahs · 6,236 Verses · 30 Juz
-                  </T>
-                </View>
-              </View>
-            </View>
-
             {/* ── Reading Progress hero card ── */}
             <View
               style={{

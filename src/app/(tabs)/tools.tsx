@@ -110,6 +110,16 @@ const TOOLS: ToolCard[] = [
     action: { type: 'route', href: '/tools/zakat' },
   },
   {
+    key: 'seerah',
+    title: 'Seerah Timeline',
+    desc: 'The life of the Prophet ﷺ, year by year',
+    badge: 'New',
+    icon: StarCrescentIcon,
+    bar: '#8C6D1F',
+    grad: ['#8C6D1F', '#D4AF37'],
+    action: { type: 'route', href: '/tools/seerah' },
+  },
+  {
     key: 'donation',
     title: 'Donations',
     desc: 'Give Zakat, Sadaqah, or support DeenLink',

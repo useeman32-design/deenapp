@@ -17,7 +17,7 @@ const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
-const EMOJIS = ['😄', '', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '', '🕋'];
+const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
 
 const B = ({ children }: { children: ReactNode }) => <Text style={{ fontWeight: '800' }}>{children}</Text>;
 
@@ -54,6 +54,31 @@ export default function CommunityScreen() {
   const [ytOn, setYtOn] = useState(false);
   const [ytUrl, setYtUrl] = useState('');
   const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
+  const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+  const imageFileRef = useRef<TextInput | null>(null);
+
+  /** Pick an image for the post (native picker / web file input). */
+  const pickImage = async () => {
+    haptic.light();
+    try {
+      if (Platform.OS === 'web') {
+        (imageFileRef.current as unknown as HTMLInputElement | null)?.click?.();
+        return;
+      }
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: false });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        setImageAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'Selected photo' });
+      }
+    } catch {
+      Alert.alert('Could not open the picker', 'Please try again.');
+    }
+  };
   const [posting, setPosting] = useState(false);
   const videoFileRef = useRef<TextInput | null>(null);
 
@@ -149,6 +174,9 @@ export default function CommunityScreen() {
       if (pollOn && opts.length >= 2) {
         np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
       }
+      if (imageAttach) {
+        np.image_url = imageAttach.uri;
+      }
       if (videoAttach) {
         np.video_url = videoAttach.uri;
       }
@@ -167,6 +195,7 @@ export default function CommunityScreen() {
       setYtOn(false);
       setYtUrl('');
       setVideoAttach(null);
+      setImageAttach(null);
       haptic.success();
     }, 1600);
   };
@@ -724,8 +753,8 @@ export default function CommunityScreen() {
 
               {/* emoji row */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingBottom: 2 }}>
-                {EMOJIS.map((e) => (
-                  <Pressable key={e} onPress={() => setCDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }}>
+                {EMOJIS.map((e, i) => (
+                  <Pressable key={`e${i}`} onPress={() => setCDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }}>
                     <T v="caption" style={{ fontSize: 21, fontWeight: '400' }}>
                       {e}
                     </T>
@@ -733,8 +762,29 @@ export default function CommunityScreen() {
                 ))}
               </ScrollView>
 
-              {/* attach: video / youtube */}
+              {/* attach: image / video / youtube */}
               <View style={{ flexDirection: 'row', gap: 9 }}>
+                <Pressable
+                  onPress={pickImage}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: imageAttach ? d.emerald : d.cardBorder,
+                    backgroundColor: imageAttach ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                    paddingVertical: 10,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <FontAwesome5 name="image" size={12} color={imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
+                  <T v="bodyS" style={{ color: imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                    {imageAttach ? 'Photo added' : 'Photo'}
+                  </T>
+                </Pressable>
                 <Pressable
                   onPress={pickVideo}
                   style={({ pressed }) => ({
@@ -805,6 +855,17 @@ export default function CommunityScreen() {
               ) : null}
 
               {Platform.OS === 'web' ? (
+                <>
+                <input
+                  ref={imageFileRef as never}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e: unknown) => {
+                    const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
+                    if (file) setImageAttach({ uri: URL.createObjectURL(file), name: file.name });
+                  }}
+                />
                 <input
                   ref={videoFileRef as never}
                   type="file"
@@ -815,6 +876,19 @@ export default function CommunityScreen() {
                     if (file) setVideoAttach({ uri: URL.createObjectURL(file), name: file.name });
                   }}
                 />
+                </>
+              ) : null}
+
+              {imageAttach ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
+                  <FontAwesome5 name="image" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
+                    {imageAttach.name}
+                  </T>
+                  <Pressable onPress={() => setImageAttach(null)} hitSlop={8}>
+                    <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                  </Pressable>
+                </View>
               ) : null}
 
               {videoAttach ? (

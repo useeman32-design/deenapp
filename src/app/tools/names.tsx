@@ -6,7 +6,8 @@ import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
 
 export default function Names() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
   const [q, setQ] = useState('');
 
   const list = useMemo(() => {
@@ -22,7 +23,7 @@ export default function Names() {
   }, [q]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar title="99 Names of Allah" subtitle={`${list.length} of ${NAMES_99.length} names`} />
       <View style={{ padding: 16, paddingBottom: 8 }}>
         <TextInput
