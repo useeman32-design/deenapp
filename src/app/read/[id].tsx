@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { QURAN } from '@/data/quran';
 import { loadSurah, type SurahContent } from '@/lib/content';
+import { MushafPage } from '@/components/MushafPage';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuranAudio, RECITERS } from '@/context/QuranAudioContext';
@@ -34,11 +35,6 @@ export default function Reader() {
   const [reciterOpen, setReciterOpen] = useState(false);
   const [barOpen, setBarOpen] = useState(true);
   const [barW, setBarW] = useState(300);
-
-  /* mushaf page state */
-  const [page, setPage] = useState<number | null>(null);
-  const [pageAyahs, setPageAyahs] = useState<Array<{ numberInSurah: number; text: string; firstAyahInSurah?: boolean; surahName?: string }>>([]);
-  const [pageLoading, setPageLoading] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const rowY = useRef<Record<number, number>>({});
@@ -73,37 +69,9 @@ export default function Reader() {
     if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 130), animated: true });
   }, [activeAyah, mode]);
 
-  /* mushaf page fetch (uthmani layout) */
-  const loadPage = async (p: number) => {
-    setPageLoading(true);
-    try {
-      const r = await fetch(`https://api.alquran.cloud/v1/page/${p}/quran-uthmani`);
-      const dd = await r.json();
-      const list = (dd?.data?.ayahs ?? []) as Array<{ numberInSurah: number; text: string; number: number; surah?: { englishName: string; name: string; number: number } }>;
-      setPageAyahs(
-        list.map((a, i) => ({
-          numberInSurah: a.numberInSurah,
-          text: a.text,
-          firstAyahInSurah: i === 0 || list[i - 1].surah?.number !== a.surah?.number,
-          surahName: a.surah?.name ?? '',
-        })),
-      );
-      setPage(p);
-    } catch {}
-    setPageLoading(false);
-  };
-
-  const enterMushaf = async () => {
+  const enterMushaf = () => {
     haptic.selection();
     setMode('mushaf');
-    if (page == null) {
-      try {
-        const r = await fetch(`https://api.alquran.cloud/v1/ayah/${n}:${activeAyah ?? startAyah ?? 1}/quran-uthmani`);
-        const dd = await r.json();
-        const p = dd?.data?.page;
-        if (p) await loadPage(p);
-      } catch {}
-    }
   };
 
   const toggleAyahMark = (num: number) => {
@@ -139,7 +107,7 @@ export default function Reader() {
           </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
-              {mode === 'mushaf' ? `Mushaf · Page ${page ?? '…'}` : meta.english}
+              {mode === 'mushaf' ? 'Mushaf · Uthmani' : meta.english}
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 1 }} numberOfLines={1}>
               {mode === 'mushaf' ? 'Uthmani script · page layout' : `${meta.name} · ${meta.ayahs} verses · ${meta.revelation}`}
@@ -201,7 +169,7 @@ export default function Reader() {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                   <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: isActive ? 'rgba(46,204,113,0.25)' : isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 11, fontWeight: '800' }}>{a.ayah}</Text>
+                    <Text style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 11, fontWeight: '800', fontFamily: 'Poppins-Bold' }}>{a.ayah}</Text>
                   </View>
                   <View style={{ flex: 1 }} />
                   <Pressable onPress={() => toggleAyahMark(a.ayah)} hitSlop={8} style={{ padding: 4 }}>
@@ -209,73 +177,17 @@ export default function Reader() {
                   </Pressable>
                 </View>
                 <Text style={{ fontSize: 25, fontFamily: 'Amiri', color: d.text, textAlign: 'right', lineHeight: 46 }}>{a.arabic}</Text>
-                {a.english ? <Text style={{ color: d.subtext, fontSize: 13.5, marginTop: 10, lineHeight: 20 }}>{a.english}</Text> : null}
-                {a.hausa ? <Text style={{ color: d.faint, fontSize: 12, marginTop: 6, lineHeight: 17 }}>{a.hausa}</Text> : null}
+                {a.english ? <T v="bodyS" style={{ color: d.subtext, marginTop: 10 }}>{a.english}</T> : null}
+                {a.hausa ? <T v="caption" style={{ color: d.faint, marginTop: 6 }}>{a.hausa}</T> : null}
               </Pressable>
             );
           })}
 
-          {!data ? <Text style={{ color: d.subtext, textAlign: 'center', marginTop: 30, fontSize: 13 }}>Loading surah…</Text> : null}
+          {!data ? <T v="bodyS" style={{ textAlign: 'center', marginTop: 30 }}>Loading surah…</T> : null}
         </ScrollView>
       ) : (
-        /* ── mushaf page — FITS the screen like a real page ── */
-        <View style={{ flex: 1, padding: 10, paddingBottom: 90 }}>
-          <View
-            style={{
-              flex: 1,
-              borderRadius: 12,
-              borderWidth: 2,
-              borderColor: isDark ? 'rgba(212,175,55,0.55)' : 'rgba(184,134,11,0.55)',
-              backgroundColor: isDark ? '#0A130E' : '#FFFCF2',
-              padding: 14,
-              overflow: 'hidden',
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-              <View style={{ height: 1, backgroundColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.5)', flex: 1 }} />
-              <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginHorizontal: 10 }}>
-                {page ? `${page} / 604` : 'LOADING…'}
-              </T>
-              <View style={{ height: 1, backgroundColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.5)', flex: 1 }} />
-            </View>
-
-            {/* flowing uthmani text — basmallah separated, arabic ayah markers */}
-            <Text style={{ flex: 1, fontSize: 21, fontFamily: 'Amiri', color: d.text, textAlign: 'right', lineHeight: 42, writingDirection: 'rtl' }}>
-              {pageAyahs.map((a, i) => {
-                const parts: string[] = [];
-                if (a.firstAyahInSurah) {
-                  parts.push(`\n${a.surahName ?? ''}\n`);
-                  if (!/التوبة|9$/.test(String(a.surahName)) && a.numberInSurah === 1) parts.push('بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ\n');
-                }
-                parts.push(a.text + ` ﴿${arNum(a.numberInSurah)}﴾ `);
-                return i === 0 ? parts.join('') : parts.join('');
-              })}
-            </Text>
-
-            {pageLoading || pageAyahs.length === 0 ? (
-              <Text style={{ color: d.faint, textAlign: 'center', marginTop: 40, fontSize: 12 }}>{pageLoading ? 'Loading page…' : 'Mushaf pages need an internet connection.'}</Text>
-            ) : null}
-          </View>
-
-          {/* page nav */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 10 }}>
-            <Pressable onPress={() => page && page > 1 && loadPage(page - 1)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card }}>
-              <FontAwesome5 name="chevron-left" size={10} color={d.subtext} />
-              <T v="caption" style={{ color: d.subtext, fontWeight: '700', fontSize: 11 }}>
-                Prev
-              </T>
-            </Pressable>
-            <T v="caption" style={{ color: d.faint, fontSize: 11, fontWeight: '700' }}>
-              {page ?? '—'} / 604
-            </T>
-            <Pressable onPress={() => page && page < 604 && loadPage(page + 1)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card }}>
-              <T v="caption" style={{ color: d.subtext, fontWeight: '700', fontSize: 11 }}>
-                Next
-              </T>
-              <FontAwesome5 name="chevron-right" size={10} color={d.subtext} />
-            </Pressable>
-          </View>
-        </View>
+        /* ── mushaf page — true 604-page layout, always fits (own component) ── */
+        <MushafPage n={n} englishName={meta.english} local={data} startAyah={activeAyah ?? startAyah ?? 1} />
       )}
 
       {/* ── player: full bar ⇄ cassette-only ── */}

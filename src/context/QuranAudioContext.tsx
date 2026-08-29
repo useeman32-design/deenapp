@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useVideoPlayer } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { QURAN } from '@/data/quran';
 
 /**
@@ -57,15 +57,15 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
   const [rate, setRate] = useState(1);
   const [progress, setProgress] = useState(0);
 
-  const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah)) : 'about:blank';
-  const player = useVideoPlayer({ uri }, (p) => {
+  const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah)) : null;
+  const player = useVideoPlayer(uri ? { uri } : null, (p) => {
     p.loop = false;
   });
 
   /* expo-video does not reliably swap sources via the hook arg — replace() */
-  const lastSrc = useRef<string>(uri);
+  const lastSrc = useRef<string | null>(uri);
   useEffect(() => {
-    if (uri !== lastSrc.current) {
+    if (uri && uri !== lastSrc.current) {
       lastSrc.current = uri;
       try {
         player.replace({ uri });
@@ -161,5 +161,19 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
     [surah, ayah, reciter, playing, rate, player],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  /* The player must own a mounted media element — on WEB expo-video only
+   * creates its <video> when a <VideoView> is attached, so without this
+   * hidden view the recitation is completely silent in browsers.
+   * (Native would play without it; harmless either way.) */
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      <VideoView
+        player={player}
+        style={{ position: 'absolute', width: 2, height: 2, opacity: 0.01, pointerEvents: 'none' }}
+        contentFit="contain"
+        nativeControls={false}
+      />
+    </Ctx.Provider>
+  );
 }
