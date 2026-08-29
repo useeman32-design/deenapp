@@ -1,3 +1,6 @@
+# PASS 19 SHIPPED (read first)
+Pass 19 live (master ac111bc): WEB AUDIO FIXED — the global Quran player never had a mounted VideoView, and expo-video on web only creates its <video> when one is attached → recitation was silent in ALL browsers since pass 16. QuranAudioProvider now renders a hidden VideoView (null initial source). Also: pass-18 raw <Text> font regressions fixed (always use <T> or explicit Poppins*/Amiri family — raw Text renders system font on web); mushaf rebuilt as src/components/MushafPage.tsx (nested styled spans, strips API-prefixed basmallah on ayah 1 — was doubling, auto-fit 22→13pt then scroll, offline fallback to local surah data). Diagnosed with headless chromium: scripts/diag19*.mjs + scripts/pages-server.mjs (GitHub-Pages-like 404.html server — `serve` does NOT exercise deep routes).
+
 # PASS 18 SHIPPED (read first)
 Pass 18 live (master 6b0a3bd, gh-pages redeployed + base-path FIXED): all-our-data build (quran/hadith/dua/names/seerah/quiz from assets/content zip), splash video, live compass qibla, TikTok inbox, saved posts, edit-profile mirror, DeenPoints logo, input zoom fixes.
 
