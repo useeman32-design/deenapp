@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -103,6 +103,37 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   const [dur, setDur] = useState(0);
   const [rate, setRate] = useState(1);
   const barW = useRef(300);
+  const [dragging, setDragging] = useState(false);
+  const [dragFrac, setDragFrac] = useState(0);
+  const dragFracRef = useRef(0);
+  /* draggable seek — tap or SLIDE the bar (pass 22; the old tap-only bar never moved) */
+  const seekPan = () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        setDragging(true);
+        const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
+        dragFracRef.current = f;
+        setDragFrac(f);
+      },
+      onPanResponderMove: (e) => {
+        const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
+        dragFracRef.current = f;
+        setDragFrac(f);
+      },
+      onPanResponderRelease: () => {
+        setDragging(false);
+        const f = dragFracRef.current;
+        setFrac(f);
+        if (dur > 0) {
+          try {
+            player.currentTime = f * dur;
+          } catch {}
+        }
+      },
+      onPanResponderTerminate: () => setDragging(false),
+    });
 
   useEffect(() => {
     if (started && !paused) player.play();
@@ -143,10 +174,12 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   return (
     <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
       <View style={{ height: 300 }}>
-        {started ? (
+        {started && !expanded ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
           </View>
+        ) : started && expanded ? (
+          <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000' }} />
         ) : poster != null ? (
           <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
         ) : null}
@@ -179,7 +212,7 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
           <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
             <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
-              <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} />
+              {expanded ? <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} /> : null}
             </View>
           </Pressable>
           <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
@@ -195,24 +228,25 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
     
       {/* pass 20: seek bar + speed — always visible once started */}
       {started ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(4,12,8,0.55)' }}>
+        <View
+          style={[
+            { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(10,20,14,0.55)' },
+            { backdropFilter: 'blur(14px) saturate(1.3)', WebkitBackdropFilter: 'blur(14px) saturate(1.3)' } as unknown as ViewStyle,
+          ]}
+        >
           <Pressable onPress={() => setPaused((p) => !p)} hitSlop={6}>
             <FontAwesome5 name={paused ? 'play' : 'pause'} size={12} color="#FFFFFF" />
           </Pressable>
           <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(frac * dur)}</T>
-          <Pressable
-            onPress={(e) => {
-              const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
-              setFrac(f);
-              if (dur > 0) player.currentTime = f * dur;
-            }}
+          <View
+            {...seekPan().panHandlers}
             onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
-            style={{ flex: 1, height: 18, justifyContent: 'center' }}
+            style={{ flex: 1, height: 20, justifyContent: 'center' }}
           >
-            <View style={{ height: 3.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
-            <View style={{ position: 'absolute', left: 0, width: `${frac * 100}%`, height: 3.5, borderRadius: 2, backgroundColor: '#4AE38F' }} />
-            <View style={{ position: 'absolute', left: `${frac * 100}%`, marginLeft: -4.5, width: 9, height: 9, borderRadius: 5, backgroundColor: '#FFFFFF' }} />
-          </Pressable>
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+            <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+            <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F', transform: [{ scale: dragging ? 1.25 : 1 }] }} />
+          </View>
           <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
           <Pressable onPress={cycleRate} hitSlop={6} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>

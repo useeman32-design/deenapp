@@ -7,6 +7,8 @@ import Svg, { Circle } from 'react-native-svg';
 import { QURAN } from '@/data/quran';
 import { loadSurah, type SurahContent } from '@/lib/content';
 import { MushafPage } from '@/components/MushafPage';
+import { GlassPlayerBar } from '@/components/GlassPlayerBar';
+import { ActivityIndicator } from 'react-native';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { Image } from 'expo-image';
 import { storage } from '@/lib/storage';
@@ -231,8 +233,20 @@ export default function Reader() {
                 {lang === 'ha' && a.hausa ? <T v="bodyS" style={{ color: d.subtext, marginTop: 10 }}>{a.hausa}</T> : null}
                 {/* per-ayah actions: play just this ayah · bookmark · share */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 11, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
-                  <Pressable onPress={() => { haptic.light(); audio.playAyah(n, a.ayah); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <FontAwesome5 name="play" size={11} color={activeAyah === a.ayah && audio.playing ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
+                  <Pressable
+                    onPress={() => {
+                      haptic.light();
+                      /* same ayah playing → pause/resume; otherwise play just this ayah */
+                      if (audio.surah === n && audio.ayah === a.ayah && (audio.playing || audio.loading)) audio.toggle();
+                      else audio.playAyah(n, a.ayah);
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    {audio.surah === n && audio.ayah === a.ayah && audio.loading ? (
+                      <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                    ) : (
+                      <FontAwesome5 name={audio.surah === n && audio.ayah === a.ayah && audio.playing ? 'pause' : 'play'} size={11} color={activeAyah === a.ayah && audio.playing ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
+                    )}
                     <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: activeAyah === a.ayah && audio.playing ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>Ayah</T>
                   </Pressable>
                   <Pressable onPress={() => toggleAyahMark(a.ayah)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -258,78 +272,53 @@ export default function Reader() {
         </ScrollView>
       ) : (
         /* ── mushaf page — true 604-page layout, always fits (own component) ── */
-        <MushafPage n={n} englishName={meta.english} local={data} startAyah={activeAyah ?? startAyah ?? 1} onSurahChange={(s) => setMushafSurah(s)} />
+        <MushafPage
+          n={n}
+          englishName={meta.english}
+          local={data}
+          startAyah={activeAyah ?? startAyah ?? 1}
+          onSurahChange={(s) => {
+            setMushafSurah(s);
+            /* keep reader + mushaf on the SAME surah — swap the whole screen */
+            if (s !== n) router.replace({ pathname: '/read/[id]', params: { id: String(s) } } as never);
+          }}
+        />
       )}
 
-      {/* ── player: full bar ⇄ cassette-only ── */}
+      {/* ── player: glassy bar ⇄ cassette-only ── */}
       {barOpen ? (
-        <View
-          style={{
-            position: 'absolute',
-            left: 14,
-            right: 14,
-            bottom: 16,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.25)',
-            backgroundColor: isDark ? 'rgba(8,20,13,0.95)' : 'rgba(255,255,255,0.97)',
-            paddingHorizontal: 11,
-            paddingVertical: 5,
-            shadowColor: '#000',
-            shadowOpacity: 0.25,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 5 },
-            elevation: 8,
-          }}
-        >
-          {/* title row — english + arabic + collapse */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Pressable
-              onPress={() => {
-                haptic.light();
-                if (audio.surah === n) audio.toggle();
-                else audio.playSurah(n, startAyah);
-              }}
-              style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}
-            >
-              <FontAwesome5 name={audio.surah === n && audio.playing ? 'pause' : 'play'} size={12} color="#FFFFFF" />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>
-                {QURAN.find((x) => x.number === (audio.surah ?? n))?.english ?? meta.english}
-                <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 12.5 }}> {QURAN.find((x) => x.number === (audio.surah ?? n))?.name ?? meta.name} </T>
-                <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600' }}>· Ayah {audio.surah != null ? audio.ayah : (activeAyah ?? startAyah)} · {reciterName}</T>
-              </T>
-            </View>
-            <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
-              <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10.5 }}>
-                {audio.rate}x
-              </T>
-            </Pressable>
-            <Pressable onPress={() => { haptic.selection(); setReciterOpen(true); }} hitSlop={6} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)', overflow: 'hidden' }}>
-              <Image source={RECITERS.find((r) => r.id === audio.reciter)?.photo ?? RECITERS[0].photo} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-            </Pressable>
-            {/* collapse → cassette only */}
-            <Pressable onPress={() => { haptic.selection(); setBarOpen(false); }} hitSlop={8} style={{ width: 24, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="chevron-down" size={12} color={d.faint} />
-            </Pressable>
-          </View>
-
-          {/* seek bar — surah progress (drag to jump ayahs) */}
-          <Pressable
-            onPress={(e) => {
-              const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / barW));
-              audio.seekTo(f);
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 50 }}>
+          <GlassPlayerBar
+            player={null}
+            playing={audio.surah === n && audio.playing}
+            loading={audio.surah === n && audio.loading}
+            title={QURAN.find((x) => x.number === (audio.surah ?? n))?.english ?? meta.english}
+            arabic={QURAN.find((x) => x.number === (audio.surah ?? n))?.name ?? meta.name}
+            subtitle={`Ayah ${audio.surah != null ? audio.ayah : (activeAyah ?? startAyah)} · ${reciterName}`}
+            onToggle={() => {
+              haptic.light();
+              if (audio.surah === n) audio.toggle();
+              else audio.playSurah(n, startAyah);
             }}
-            onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-            style={{ height: 16, justifyContent: 'center', marginTop: 0 }}
-          >
-            <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)' }} />
-            <View style={{ position: 'absolute', left: 0, width: `${audio.progress * 100}%`, height: 4, borderRadius: 2, backgroundColor: isDark ? '#4AE38F' : '#1D6F42' }} />
-            <View style={{ position: 'absolute', left: `${audio.progress * 100}%`, marginLeft: -5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: isDark ? '#4AE38F' : '#1D6F42' }} />
-          </Pressable>
+            frac={audio.surah === n ? audio.progress : 0}
+            onSeek={(f) => audio.seekTo(f)}
+            seekMargins={{ left: 46, right: 6 }}
+            right={
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
+                  <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10.5 }}>{audio.rate}x</T>
+                </Pressable>
+                <Pressable onPress={() => { haptic.selection(); setReciterOpen(true); }} hitSlop={6} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)', overflow: 'hidden' }}>
+                  <Image source={RECITERS.find((r) => r.id === audio.reciter)?.photo ?? RECITERS[0].photo} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                </Pressable>
+                <Pressable onPress={() => { haptic.selection(); setBarOpen(false); }} hitSlop={8} style={{ width: 22, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="chevron-down" size={12} color={d.faint} />
+                </Pressable>
+              </View>
+            }
+          />
         </View>
-      ) : (
+            ) : (
         /* cassette-only (same design as outside the reader) */
         <Pressable
           onPress={() => {

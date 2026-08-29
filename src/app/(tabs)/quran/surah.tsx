@@ -145,9 +145,9 @@ export default function SurahList() {
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <View>
-            {/* ── Ayah bookmarks (pass 20) ── */}
-            {ayahMarks.length > 0 ? (
-              <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
+            {/* ── Saved ayahs — shown in the BOOKMARKS tab (pass 22) ── */}
+            {filter === 'bookmarks' && ayahMarks.length > 0 ? (
+              <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 6 }}>
                 <T v="caption" style={{ color: d.faint, fontWeight: '800', fontSize: 10, letterSpacing: 0.6, marginBottom: 8 }}>
                   SAVED AYAHS · {ayahMarks.length}
                 </T>
@@ -160,14 +160,14 @@ export default function SurahList() {
                         onPress={() => router.push({ pathname: '/read/[id]', params: { id: String(m.surah), ayah: String(m.ayah) } } as never)}
                         style={({ pressed }) => ({ minWidth: 132, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, gap: 3, opacity: pressed ? 0.75 : 1 })}
                       >
-                        <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 16 }}>{sm?.name ?? ''}</T>
+                        <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 18 }}>{sm?.name ?? ''}</T>
                         <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>{sm?.english}</T>
                         <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>Ayah {m.ayah}</T>
                       </Pressable>
                     );
                   })}
                 </ScrollView>
-                <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 8, marginBottom: 4 }}>Bookmarked surahs below ↓</T>
+                {favs.length > 0 ? <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 8, marginBottom: 4 }}>Bookmarked surahs below ↓</T> : null}
               </View>
             ) : null}
             {/* ── Reading Progress hero card ── */}
@@ -416,7 +416,7 @@ export default function SurahList() {
               <FontAwesome5 name="bookmark" size={15} solid={favs.includes(s.number)} color={favs.includes(s.number) ? '#E8C96A' : d.faint} />
             </Pressable>
 
-            <T v="arabic" style={{ color: d.text, fontSize: 16 }}>
+            <T v="arabic" style={{ color: d.text, fontSize: 23, lineHeight: 32 }}>
               {s.name}
             </T>
           </Pressable>

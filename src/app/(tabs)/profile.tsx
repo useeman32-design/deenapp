@@ -176,20 +176,31 @@ export default function Profile() {
             {/* stats */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {[
-                { label: 'Posts', value: fmt(counts.posts) },
-                { label: 'Followers', value: fmt(counts.followers) },
-                { label: 'Following', value: fmt(counts.following) },
-                { label: 'Charity', value: `₦ ${fmt(counts.donations)}` },
-              ].map((s) => (
-                <View key={s.label} style={{ flex: 1, borderRadius: 13, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 9, alignItems: 'center' }}>
-                  <T v="stat" style={{ color: d.text, fontWeight: '800', fontSize: 13.5 }}>
-                    {s.value}
-                  </T>
-                  <T v="caption" style={{ color: d.faint, fontSize: 9, fontWeight: '700', letterSpacing: 0.3, marginTop: 1 }}>
-                    {s.label.toUpperCase()}
-                  </T>
-                </View>
-              ))}
+                { label: 'Posts', value: fmt(counts.posts), tab: null },
+                { label: 'Followers', value: fmt(counts.followers), tab: 'followers' },
+                { label: 'Following', value: fmt(counts.following), tab: 'following' },
+                { label: 'Charity', value: `₦ ${fmt(counts.donations)}`, tab: null },
+              ].map((s) => {
+                const inner = (
+                  <View style={{ flex: 1, borderRadius: 13, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 9, alignItems: 'center' }}>
+                    <T v="stat" style={{ color: d.text, fontWeight: '800', fontSize: 13.5 }}>
+                      {s.value}
+                    </T>
+                    <T v="caption" style={{ color: d.faint, fontSize: 9, fontWeight: '700', letterSpacing: 0.3, marginTop: 1 }}>
+                      {s.label.toUpperCase()}
+                    </T>
+                  </View>
+                );
+                return s.tab ? (
+                  <Pressable key={s.label} style={{ flex: 1 }} onPress={() => { haptic.selection(); router.push({ pathname: '/tools/connections', params: { tab: s.tab! } } as never); }}>
+                    {inner}
+                  </Pressable>
+                ) : (
+                  <View key={s.label} style={{ flex: 1 }}>
+                    {inner}
+                  </View>
+                );
+              })}
             </View>
 
             {/* actions */}

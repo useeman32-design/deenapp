@@ -129,18 +129,56 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   canvas.height = H_MIN;
   const ctx = canvas.getContext('2d');
 
-  /* measure text first → dynamic height for long content */
+  /* measure text first → dynamic height for long content.
+   * pass 22: LONG texts auto-shrink (in steps) so they always fit nicely —
+   * huge cards looked broken; text that STILL overflows is truncated. */
   const hasArabic = !!input.arabic;
-  ctx.font = '700 92px "Amiri-Bold"';
-  ctx.direction = 'rtl';
-  const arabicLines = hasArabic ? wrapText(ctx, input.arabic ?? '', W - 320) : [];
-  ctx.direction = 'ltr';
-  ctx.font = '400 44px "Poppins-Regular"';
-  const mLines = wrapText(ctx, `“${input.meaning}”`, W - 300);
+  const MAX_A_LINES = 9;
+  const MAX_M_LINES = 8;
+  let arFs = 92;
+  let arLineH = 130;
+  let arLines: string[] = [];
+  if (hasArabic) {
+    for (const size of [92, 82, 72, 64, 56]) {
+      ctx.font = `700 ${size}px "Amiri-Bold"`;
+      ctx.direction = 'rtl';
+      arLines = wrapText(ctx, input.arabic ?? '', W - 320);
+      if (arLines.length <= MAX_A_LINES) {
+        arFs = size;
+        arLineH = Math.round(size * 1.42);
+        break;
+      }
+      if (size === 56) {
+        arFs = size;
+        arLineH = Math.round(size * 1.42);
+        arLines = arLines.slice(0, MAX_A_LINES);
+        arLines[MAX_A_LINES - 1] = arLines[MAX_A_LINES - 1].trim() + '…';
+      }
+    }
+    ctx.direction = 'ltr';
+  }
+  let mFs = 44;
+  let mLineH = 62;
+  let mLines: string[] = [];
+  for (const size of [44, 40, 36, 32, 28]) {
+    ctx.font = `400 ${size}px "Poppins-Regular"`;
+    mLines = wrapText(ctx, `“${input.meaning}”`, W - 300);
+    if (mLines.length <= MAX_M_LINES) {
+      mFs = size;
+      mLineH = Math.round(size * 1.42);
+      break;
+    }
+    if (size === 28) {
+      mFs = size;
+      mLineH = Math.round(size * 1.42);
+      mLines = mLines.slice(0, MAX_M_LINES);
+      mLines[MAX_M_LINES - 1] = mLines[MAX_M_LINES - 1].trim() + '…';
+    }
+  }
 
   const aStart = 620;
-  const afterArabic = hasArabic ? aStart + (arabicLines.length - 1) * 130 + 60 : aStart - 90;
-  const afterMeaning = afterArabic + 90 + (mLines.length - 1) * 62 + 70;
+  const afterArabic = hasArabic ? aStart + (arLines.length - 1) * arLineH + 60 : aStart - 90;
+  const afterMeaning = afterArabic + 90 + (mLines.length - 1) * mLineH + 70;
   const footerTop = afterMeaning + 90;
   const H = Math.max(H_MIN, footerTop + 216 + 120);
   canvas.height = H;
@@ -255,9 +293,9 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   /* arabic (skipped for posts) */
   if (hasArabic) {
     ctx.fillStyle = ink;
-    ctx.font = '700 92px "Amiri-Bold"';
+    ctx.font = `700 ${arFs}px "Amiri-Bold"`;
     ctx.direction = 'rtl';
-    arabicLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * 130));
+    arLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * arLineH));
     ctx.direction = 'ltr';
   }
 
@@ -275,8 +313,8 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
 
   /* meaning */
   ctx.fillStyle = inkSub;
-  ctx.font = '400 44px "Poppins-Regular"';
-  mLines.forEach((ln, i) => ctx.fillText(ln, W / 2, afterArabic + 90 + i * 62));
+  ctx.font = `400 ${mFs}px "Poppins-Regular"`;
+  mLines.forEach((ln, i) => ctx.fillText(ln, W / 2, afterArabic + 90 + i * mLineH));
 
   /* ref */
   ctx.fillStyle = inkGold;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Share, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -77,38 +77,28 @@ export function ContentShareSheet({
           <T v="caption" style={{ color: theme.subtext, fontWeight: '800', fontSize: 10.5, letterSpacing: 0.8, paddingHorizontal: 16, marginBottom: 4 }}>
             SEND TO
           </T>
-          {/* friends — in-app share (like the videos sheet) */}
-          <Pressable
-            onPress={() => {
-              haptic.light();
-              setSent(s => (s === 'friends' ? null : 'friends'));
-            }}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }}
-          >
-            <T v="caption" style={{ color: theme.primary, fontWeight: '800', fontSize: 11 }}>
-              {sent === 'friends' ? 'Hide friends' : 'Choose friend ▾'}
-            </T>
-          </Pressable>
-          {sent === 'friends' ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 }}>
-              {MOCK_ACCOUNTS.map((a) => (
-                <Pressable
-                  key={a.username}
-                  onPress={() => {
-                    haptic.success();
+          {/* friends — ALWAYS visible (like the videos sheet, pass 22) */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, gap: 2 }}>
+            {MOCK_ACCOUNTS.map((a) => (
+              <Pressable
+                key={a.username}
+                onPress={() => {
+                  haptic.success();
+                  setSent(a.username);
+                  setTimeout(() => {
                     onClose();
                     setSent(null);
-                  }}
-                  style={{ alignItems: 'center', width: 74, paddingVertical: 7, gap: 5 }}
-                >
-                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={`${theme.primary}26`} border={theme.border} />
-                  <T v="caption" numberOfLines={1} style={{ color: theme.subtext, fontSize: 9.5, fontWeight: '700' }}>
-                    @{a.username}
-                  </T>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+                  }, 550);
+                }}
+                style={{ alignItems: 'center', width: 74, paddingVertical: 7, gap: 5, opacity: sent === a.username ? 0.45 : 1 }}
+              >
+                <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={`${theme.primary}26`} border={theme.border} />
+                <T v="caption" numberOfLines={1} style={{ color: sent === a.username ? theme.primary : theme.subtext, fontSize: 9.5, fontWeight: '700' }}>
+                  {sent === a.username ? 'Sent' : `@${a.username}`}
+                </T>
+              </Pressable>
+            ))}
+          </ScrollView>
 
           <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
             <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: link }).catch(() => {}); }} />

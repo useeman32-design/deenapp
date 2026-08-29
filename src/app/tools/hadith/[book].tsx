@@ -45,8 +45,24 @@ export default function HadithBookScreen() {
   useEffect(() => {
     if (chapterParam) storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: `c${chapterParam}`, at: new Date().toISOString() }));
     loadBookMeta(book.id)
-      .then((m) => setMeta(m.chapters))
-      .catch(() => setMeta([]));
+      .then((m) => setMeta(m.chapters?.length ? m.chapters : null) ?? Promise.reject(new Error('empty')))
+      .catch(async () => {
+        /* no chapters meta (e.g. Nawawi 40 — one big chapter) → derive it
+         * from the book data itself by grouping chapter names */
+        try {
+          const all = await loadBook(book.id);
+          const byName = new Map<string, MetaChapter>();
+          for (const h of all) {
+            const name = h.chapter_name?.english ?? `Chapter ${h.chapter_number ?? 1}`;
+            const e = byName.get(name);
+            if (e) e.hadith_count += 1;
+            else byName.set(name, { chapter_number: byName.size + 1, arabic: h.chapter_name?.arabic ?? '', english: name, hadith_count: 1 });
+          }
+          setMeta([...byName.values()]);
+        } catch {
+          setMeta([]);
+        }
+      });
     storage.getItem(`dl.hadith.last.${book.id}`).then((r) => {
       if (r) setChapter(r);
     });
@@ -72,12 +88,18 @@ export default function HadithBookScreen() {
     if (!chapter) return;
     if (hadiths) return;
     setLoading(true);
+    const t0 = Date.now();
     loadBook(book.id)
       .then((all) => {
-        setHadiths(all);
+        /* books without chapter numbers (nawawi40) → all in chapter 1 */
+        setHadiths(all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h)));
       })
       .catch(() => setHadiths([]))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        /* large books (bukhari 25MB) — keep the spinner honest */
+        const wait = Math.max(0, 600 - (Date.now() - t0));
+        setTimeout(() => setLoading(false), wait);
+      });
   }, [chapter, hadiths, book.id]);
 
   const chNum = chapter ? Number(chapter.slice(1)) : null;

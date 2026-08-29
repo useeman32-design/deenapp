@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Platform, View } from 'react-native';
+import { useTheme } from '@/context/ThemeContext';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 /**
@@ -24,6 +25,7 @@ class SplashVideoBoundary extends React.Component<{ children: React.ReactNode },
 }
 
 export function SplashGate({ ready, children }: { ready: boolean; children: React.ReactNode }) {
+  const { isDark } = useTheme();
   /* pass 21: on WEB the splash now shows on EVERY cold page load (each visit to
      the site). The old sessionStorage gate made it once-per-tab — and iOS
      Safari keeps tabs alive for days, so users literally never saw it again
@@ -89,7 +91,7 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
         pointerEvents={readyAt == null ? 'box-none' : 'none'}
         style={{ position: 'absolute', inset: 0, zIndex: 999, backgroundColor: '#06140D', alignItems: 'center', justifyContent: 'center', opacity: fade }}
       >
-        <View pointerEvents="none" style={{ width: Math.min(W, 640), aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden' }}>
+        <View pointerEvents="none" style={{ width: Math.min(W, 640), aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden', borderWidth: isDark ? 0 : 1, borderColor: 'rgba(20,36,28,0.08)', backgroundColor: isDark ? 'transparent' : '#FFFFFF' }}>
           <SplashVideoBoundary>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }} />
           </SplashVideoBoundary>

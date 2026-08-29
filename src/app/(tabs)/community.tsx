@@ -637,9 +637,9 @@ export default function CommunityScreen() {
                     </T>
                   </View>
                 ) : (
-                  visiblePosts.map((p) => (
-                    <FeedCard
-                      key={p.id}
+                  visiblePosts.map((p, pi) => (
+                    <View key={p.id}>
+                      <FeedCard
                       dash={d}
                       post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                       onLike={(id) => togglePostLike(id)}
@@ -652,6 +652,9 @@ export default function CommunityScreen() {
                         })
                       }
                     />
+                      {/* every 5th card — suggested accounts while you scroll (pass 22) */}
+                      {(pi + 1) % 5 === 0 ? <SuggestStrip dash={d} /> : null}
+                    </View>
                   ))
                 )}
               </View>
@@ -1086,6 +1089,47 @@ export default function CommunityScreen() {
           onClose={() => setVideoPost(null)}
         />
       ) : null}
+    </View>
+  );
+}
+
+
+/* Suggested accounts card — interleaved into the community feed (pass 22). */
+function SuggestStrip({ dash }: { dash: any }) {
+  const { isDark } = useTheme();
+  const router = useRouter();
+  const [followed, setFollowed] = useState<string[]>([]);
+  const picks = useMemo(() => MOCK_ACCOUNTS.slice().sort(() => Math.random() - 0.5).slice(0, 3), []);
+  return (
+    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: dash.faint }}>SUGGESTED FOR YOU</T>
+        <Pressable onPress={() => { haptic.selection(); router.push('/tools/suggestions'); }} hitSlop={8}>
+          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
+        </Pressable>
+      </View>
+      {picks.map((a) => (
+        <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+          <Pressable onPress={() => router.push(`/profile/${a.username}`)}>
+            <AvatarImage source={a.photo ?? null} name={a.full_name} size={38} tint={dash.bgSoft} border={dash.cardBorder} />
+          </Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 12.5, color: dash.text }}>{a.full_name}</T>
+            <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: dash.faint, marginTop: 1 }}>@{a.username}</T>
+          </View>
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              setFollowed((f) => (f.includes(a.username) ? f.filter((x) => x !== a.username) : [...f, a.username]));
+            }}
+            style={{ borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: followed.includes(a.username) ? dash.cardBorder : 'transparent', backgroundColor: followed.includes(a.username) ? 'transparent' : '#1F8F5C' }}
+          >
+            <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: followed.includes(a.username) ? dash.subtext : '#FFFFFF' }}>
+              {followed.includes(a.username) ? 'Following' : 'Follow'}
+            </T>
+          </Pressable>
+        </View>
+      ))}
     </View>
   );
 }

@@ -577,12 +577,12 @@ export default function PublicProfileScreen() {
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.95)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setPhotoPreview(false)}>
           <View>
             <AvatarImage source={photo} name={name} size={300} tint={`${theme.primary}26`} border="rgba(212,175,55,0.55)" />
-            {/* DeenLink tag — overlapping the photo's bottom-right corner */}
+            {/* DeenLink tag — sitting ON TOP of the photo, top-right (pass 22) */}
             <View
               style={{
                 position: 'absolute',
                 right: -10,
-                bottom: -12,
+                top: -12,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 5,

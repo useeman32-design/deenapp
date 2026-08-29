@@ -88,27 +88,21 @@ export default function HadithCollections() {
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 10,
-                marginHorizontal: 18,
+                justifyContent: 'center',
+                gap: 8,
+                marginHorizontal: 16,
                 marginTop: 14,
-                padding: 13,
-                borderRadius: 14,
+                paddingVertical: 12,
+                borderRadius: 13,
                 backgroundColor: isDark ? '#1F8F5C' : '#1D6F42',
                 opacity: pressed ? 0.88 : 1,
               })}
             >
-              <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="book-open" size={13} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5 }}>
-                  CONTINUE READING
-                </T>
-                <T v="bodyS" numberOfLines={1} style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12.5, marginTop: 2 }}>
-                  {HADITH_BOOKS.find((x) => x.id === last.book)?.name ?? 'Book'} · Chapter {last.chapter.replace(/^c/, '')}
-                </T>
-              </View>
-              <FontAwesome5 name="arrow-right" size={12} color="rgba(255,255,255,0.85)" />
+              <FontAwesome5 name="book-open" size={13} color="#FFFFFF" />
+              <T v="body" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+                Continue Reading — {HADITH_BOOKS.find((x) => x.id === last.book)?.name ?? 'Book'} {last.chapter.replace(/^c/, 'Ch ')}
+              </T>
+              <FontAwesome5 name="arrow-right" size={11} color="rgba(255,255,255,0.85)" />
             </Pressable>
           ) : null}
           <View

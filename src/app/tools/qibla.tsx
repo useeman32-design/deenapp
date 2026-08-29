@@ -103,7 +103,7 @@ export default function Qibla() {
 
       <View style={{ paddingHorizontal: 18, marginTop: 8 }}>
         <T v="h3" style={{ marginBottom: 10 }}>Direction to Makkah</T>
-        <RouteMap distanceKm={km} fromName={loc.name} bearing={bearing} />
+        <RouteMap distanceKm={km} fromName={loc.name} bearing={bearing} userLoc={{ lat: loc.latitude, lon: loc.longitude }} />
         <T v="caption" style={{ marginTop: 8, fontSize: 10.5, color: theme.subtext }}>
           {km.toFixed(0)} km from Makkah · for best accuracy keep the phone flat and away from magnets, metal and cases with magnetic clasps, then figure-8 it once.
         </T>

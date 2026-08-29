@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { ATHKAR } from '@/data/athkar';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { DhikrCounter } from '@/components/DhikrCounter';
 import { TopBar } from '@/components/TopBar';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
+import { GlassPlayerBar } from '@/components/GlassPlayerBar';
 import { haptic } from '@/lib/haptics';
 
 export default function AtharDetail() {
@@ -16,6 +18,8 @@ export default function AtharDetail() {
   const { theme } = useTheme();
   const [count, setCount] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
+  /* pass 22: guided session — same glass player design; play auto-counts */
+  const [session, setSession] = useState(false);
 
   useEffect(() => {
     storage.getItem(`dl.athkar.${id}`).then((raw) => {
@@ -28,6 +32,23 @@ export default function AtharDetail() {
       }
     });
   }, [id]);
+
+  useEffect(() => {
+    if (!session) return;
+    const iv = setInterval(async () => {
+      const meta = ATHKAR.find((a) => a.id === id);
+      setCount((c) => {
+        const next = c + 1;
+        void storage.setItem(`dl.athkar.${id}`, String(next));
+        if (meta && meta.count > 0 && next >= meta.count) {
+          setSession(false);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        }
+        return next;
+      });
+    }, 1600);
+    return () => clearInterval(iv);
+  }, [session, id]);
 
   if (!item) return null;
 
@@ -56,7 +77,7 @@ export default function AtharDetail() {
         title={item.name}
         subtitle={`${item.group} · ${item.count === 0 ? 'unlimited' : `${item.count} counts`}`}
       />
-      <View style={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         <DhikrCounter
           arabic={item.arabic}
           label={item.transliteration}
@@ -72,7 +93,29 @@ export default function AtharDetail() {
         >
           <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 12 }}>Share this dhikr</Text>
         </Pressable>
-      </View>
+      </ScrollView>
+      {(session || count > 0) ? (
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 18 }}>
+          <GlassPlayerBar
+            player={null}
+            playing={session}
+            title={item.transliteration}
+            arabic={''}
+            subtitle={item.count > 0 ? `${Math.min(count, item.count)} / ${item.count} · ${item.group}` : `${count} · ${item.group}`}
+            onToggle={() => {
+              haptic.selection();
+              setSession((v) => !v);
+            }}
+            frac={item.count > 0 ? Math.min(1, count / item.count) : 0}
+            right={
+              <Pressable onPress={reset} hitSlop={8} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="undo" size={11} color={theme.subtext} />
+              </Pressable>
+            }
+          />
+        </View>
+      ) : null}
+
       <ContentShareSheet
         visible={shareOpen}
         onClose={() => setShareOpen(false)}

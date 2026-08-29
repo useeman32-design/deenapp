@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
@@ -238,6 +238,7 @@ export default function Quiz() {
 
   /* ---------------- results ---------------- */
   const score = answers.filter((a) => a.correct).length;
+  const allCorrect = answers.length > 0 && score === answers.length;
   const pct = answers.length ? Math.round((score / answers.length) * 100) : 0;
   const R2 = 62;
   const C2 = 2 * Math.PI * R2;
@@ -252,8 +253,29 @@ export default function Quiz() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 20, padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* score ring */}
+        {/* trophy — always shown on results; confetti when ALL correct */}
+        <Confetti fire={allCorrect} />
         <View style={{ alignItems: 'center', marginBottom: 22 }}>
+          <View
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 22,
+              borderWidth: 1.5,
+              borderColor: allCorrect ? 'rgba(212,175,55,0.75)' : pct >= 70 ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)',
+              backgroundColor: allCorrect ? 'rgba(212,175,55,0.14)' : 'rgba(46,204,113,0.10)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 12,
+              shadowColor: allCorrect ? '#D4AF37' : '#1F8F5C',
+              shadowOpacity: allCorrect ? 0.55 : 0.3,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 10,
+            }}
+          >
+            <FontAwesome5 name="trophy" size={30} color={allCorrect ? '#E8C96A' : pct >= 70 ? '#4AE38F' : isDark ? '#4AE38F' : '#1D6F42'} />
+          </View>
           <View style={{ width: 150, height: 150, alignItems: 'center', justifyContent: 'center' }}>
             <Svg style={{ position: 'absolute' }} width={150} height={150}>
               <Circle cx={75} cy={75} r={R2} fill="none" stroke={d.bgSoft} strokeWidth={10} />
@@ -310,6 +332,65 @@ export default function Quiz() {
           </Pressable>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+
+/* Celebration confetti — fires only when the user nailed every question. */
+function Confetti({ fire }: { fire: boolean }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 26 }, (_, i) => ({
+        id: i,
+        x: Math.random() * (Dimensions.get('window').width - 20),
+        delay: Math.random() * 700,
+        dur: 1700 + Math.random() * 1400,
+        size: 6 + Math.random() * 7,
+        color: ['#4AE38F', '#E8C96A', '#5BC8F5', '#F0A8C0', '#D4AF37'][i % 5],
+        drift: (Math.random() - 0.5) * 90,
+        round: Math.random() > 0.5,
+      })),
+    [],
+  );
+  const vals = useRef<Animated.Value[]>([]);
+  if (vals.current.length === 0) vals.current = pieces.map(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!fire) return;
+    haptic.success();
+    vals.current.forEach((v, i) => {
+      Animated.sequence([
+        Animated.delay(pieces[i].delay),
+        Animated.timing(v, { toValue: 1, duration: pieces[i].dur, easing: Easing.in(Easing.poly(2)), useNativeDriver: false }),
+      ]).start();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fire]);
+
+  if (!fire) return null;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', inset: 0, zIndex: 90, overflow: 'hidden' }}>
+      {pieces.map((p, i) => (
+        <Animated.View
+          key={p.id}
+          style={{
+            position: 'absolute',
+            top: -14,
+            left: p.x,
+            width: p.size,
+            height: p.round ? p.size : p.size * 0.5,
+            borderRadius: p.round ? p.size / 2 : 2,
+            backgroundColor: p.color,
+            opacity: vals.current[i].interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }),
+            transform: [
+              { translateY: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: [0, Dimensions.get('window').height + 40] }) },
+              { translateX: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: [0, p.drift] }) },
+              { rotate: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.drift * 4}deg`] }) },
+            ],
+          }}
+        />
+      ))}
     </View>
   );
 }

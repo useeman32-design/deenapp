@@ -125,7 +125,9 @@ const DAILY_AYAH_FALLBACK = {
   ref: 'Ash-Sharh 94:6',
 };
 
-const hadithToday = DAILY_HADITH_POOL[DAY_OF_YEAR % DAILY_HADITH_POOL.length];
+/* pass 22: only reasonably-short hadiths become the Daily Hadith card */
+const DAILY_HADITH_SHORT = DAILY_HADITH_POOL.filter((h) => h.arabic.length <= 210);
+const hadithToday = (DAILY_HADITH_SHORT.length ? DAILY_HADITH_SHORT : DAILY_HADITH_POOL)[DAY_OF_YEAR % (DAILY_HADITH_SHORT.length || DAILY_HADITH_POOL.length)];
 const DAILY_HADITH = {
   arabic: hadithToday.arabic,
   meaning: hadithToday.chapter || '—',
@@ -167,7 +169,18 @@ export default function Home() {
     const meta = QURAN[DAY_OF_YEAR % QURAN.length];
     loadSurah(meta.number)
       .then((surah) => {
-        const v = surah.verses[DAY_OF_YEAR % surah.verses.length];
+        if (!surah?.verses?.length) return;
+        /* pass 22: very long ayahs make broken cards — walk forward to a
+         * reasonably short verse from the same surah */
+        let idx = DAY_OF_YEAR % surah.verses.length;
+        for (let i = 0; i < surah.verses.length; i++) {
+          const cand = surah.verses[(idx + i) % surah.verses.length];
+          if (cand?.arabic && cand.arabic.length <= 190 && (cand.english ?? '').length <= 300) {
+            idx = (idx + i) % surah.verses.length;
+            break;
+          }
+        }
+        const v = surah.verses[idx];
         if (v?.arabic) setDailyAyah({ arabic: v.arabic, meaning: v.english || '—', ref: `${meta.english} ${meta.number}:${v.ayah}` });
       })
       .catch(() => {});
@@ -965,7 +978,7 @@ export default function Home() {
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
               Accounts to Follow
             </T>
-            <Pressable onPress={() => router.push('/tools/scholars')} hitSlop={8}>
+            <Pressable onPress={() => router.push('/tools/suggestions')} hitSlop={8}>
               <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
                 View more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
               </T>
