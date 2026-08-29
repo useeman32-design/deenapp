@@ -9,11 +9,11 @@ import { QURAN } from '@/data/quran';
  */
 
 export const RECITERS = [
-  { id: 'ar.alafasy', name: 'Mishary Alafasy' },
-  { id: 'ar.husary', name: 'Mahmoud Al-Husary' },
-  { id: 'ar.abdulbasitmurattal', name: 'Abdul Basit' },
-  { id: 'ar.minshawi', name: 'Al-Minshawi' },
-  { id: 'ar.shaatree', name: 'Abu Bakr Ash-Shaatree' },
+  { id: 'ar.alafasy', name: 'Mishary Alafasy', photo: require('../../assets/img/reciters/alafasy.jpg') },
+  { id: 'ar.husary', name: 'Mahmoud Al-Husary', photo: require('../../assets/img/reciters/husary.jpg') },
+  { id: 'ar.abdulbasitmurattal', name: 'Abdul Basit', photo: require('../../assets/img/reciters/abdulbasit.jpg') },
+  { id: 'ar.minshawi', name: 'Al-Minshawi', photo: require('../../assets/img/reciters/minshawi.jpg') },
+  { id: 'ar.shaatree', name: 'Abu Bakr Ash-Shaatree', photo: require('../../assets/img/reciters/shaatree.jpg') },
 ] as const;
 
 const ayahAudio = (reciter: string, globalAyah: number) => `https://cdn.islamic.network/quran/audio/128/${reciter}/${globalAyah}.mp3`;
@@ -25,6 +25,16 @@ export function globalAyahOf(surah: number, ayah: number) {
   return n + ayah;
 }
 
+/** {surah, ayah} from a global ayah number (1..6236) — for mushaf highlight */
+export function surahOfGlobal(global: number): { surah: number; ayah: number } {
+  let n = 0;
+  for (const s of QURAN) {
+    if (global <= n + s.ayahs) return { surah: s.number, ayah: global - n };
+    n += s.ayahs;
+  }
+  return { surah: 114, ayah: 6 };
+}
+
 type AudioState = {
   surah: number | null;
   ayah: number;
@@ -34,6 +44,10 @@ type AudioState = {
   reciter: string;
   playing: boolean;
   rate: number;
+  /** set for ~3s when a surah ends and the next one is about to play */
+  announcement: { surah: number; at: number } | null;
+  /** play ONE ayah (stops after it) — the per-ayah play button */
+  playAyah: (surah: number, ayah: number) => void;
   playSurah: (surah: number, ayah?: number) => void;
   stop: () => void;
   toggle: () => void;
@@ -56,6 +70,10 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const [progress, setProgress] = useState(0);
+  /** single-ayah mode: play one ayah then stop (ayah action row) */
+  const single = useRef(false);
+  /** when the surah ends we announce the next one for 3s, then continue */
+  const [announcement, setAnnouncement] = useState<{ surah: number; at: number } | null>(null);
 
   const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah)) : null;
   const player = useVideoPlayer(uri ? { uri } : null, (p) => {
@@ -105,7 +123,23 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       if (surah == null) return;
       const meta = QURAN.find((s) => s.number === surah);
       if (meta && ayah < meta.ayahs) setAyah((a) => a + 1); // next ayah auto-plays via replace()
-      else {
+      else if (single.current) {
+        // single-ayah mode: stop cleanly
+        single.current = false;
+        player.pause();
+        setPlaying(false);
+        setSurah(null);
+      } else if (meta && surah < 114) {
+        // end of surah → announce the next one for 3s, then continue playing
+        const next = surah + 1;
+        setAnnouncement({ surah: next, at: Date.now() });
+        setTimeout(() => {
+          setAnnouncement(null);
+          setSurah(next);
+          setAyah(1);
+          setPlaying(true);
+        }, 3000);
+      } else {
         player.pause();
         setPlaying(false);
         setSurah(null);
@@ -126,6 +160,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       playing,
       rate,
       progress,
+      announcement,
       seekTo: (fraction: number) => {
         if (surah == null) return;
         const meta = QURAN.find((s) => s.number === surah);
@@ -134,11 +169,22 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         setAyah(target);
       },
       playSurah: (s: number, a = 1) => {
+        single.current = false;
+        setAnnouncement(null);
+        setSurah(s);
+        setAyah(a);
+        setPlaying(true);
+      },
+      playAyah: (s: number, a: number) => {
+        single.current = true;
+        setAnnouncement(null);
         setSurah(s);
         setAyah(a);
         setPlaying(true);
       },
       stop: () => {
+        single.current = false;
+        setAnnouncement(null);
         player.pause();
         setPlaying(false);
         setSurah(null);
@@ -158,7 +204,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       },
       cycleRate: () => setRate((r) => (r === 1 ? 1.25 : r === 1.25 ? 1.5 : r === 1.5 ? 0.75 : 1)),
     }),
-    [surah, ayah, reciter, playing, rate, player],
+    [surah, ayah, reciter, playing, rate, player, announcement],
   );
 
   /* The player must own a mounted media element — on WEB expo-video only

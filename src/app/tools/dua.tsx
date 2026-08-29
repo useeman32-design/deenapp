@@ -1,28 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { loadDuas, type ContentDua } from '@/lib/content';
 import { markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { DUA_SECTIONS, groupBySection, type DuaSectionId } from '@/lib/duaSections';
+import { ContentSearchOverlay, type SearchHit } from '@/components/ContentSearchOverlay';
 
 /**
- * Duas & Adhkar (pass 18) — the user's /content dataset (dua.json):
- * categories → duas with FULL arabic text, translation and AUDIO
- * (hisnmuslim.com CDN).
+ * Duas (pass 20) — sections list (from the user's dua pack): each section
+ * opens /tools/dua/[id] listing its duas. Plus full-text search.
  */
 export default function Duas() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [pack, setPack] = useState<Record<string, ContentDua[]> | null>(null);
-  const [cat, setCat] = useState<string>('All');
-  const [openId, setOpenId] = useState<number | null>(null);
-  const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     markGoal('dua');
@@ -32,43 +31,24 @@ export default function Duas() {
   }, []);
 
   const english = useMemo(() => (pack ? (pack['English'] ?? []) : []), [pack]);
-  const categories = useMemo(() => ['All', ...english.map((c) => c.TITLE)], [english]);
-  const list = useMemo(() => (cat === 'All' ? english : english.filter((c) => c.TITLE === cat)), [english, cat]);
+  const grouped = useMemo(() => groupBySection(english), [english]);
 
-  const player = useVideoPlayer({ uri: playingUrl ?? 'about:blank' }, (p) => {
-    p.loop = false;
-  });
-  const [playing, setPlaying] = useState(false);
-
-  useEffect(() => {
-    if (!playingUrl) return;
-    try {
-      player.replace({ uri: playingUrl });
-      player.play();
-      setPlaying(true);
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playingUrl]);
-
-  useEffect(() => {
-    const sub = player.addListener('playToEnd', () => setPlaying(false));
-    return () => sub.remove();
-  }, [player]);
-
-  const toggleAudio = (url?: string) => {
-    haptic.light();
-    if (!url) return;
-    if (playingUrl === url && playing) {
-      player.pause();
-      setPlaying(false);
-    } else {
-      setPlayingUrl(url);
-    }
+  const metaSearch = (q: string): SearchHit[] => {
+    const needle = q.toLowerCase();
+    return english
+      .filter((c) => c.TITLE.toLowerCase().includes(needle))
+      .slice(0, 15)
+      .map((c) => ({
+        key: `d${c.ID}`,
+        title: c.TITLE,
+        subtitle: `${c.TEXT.length} part${c.TEXT.length > 1 ? 's' : ''} · ${c.AUDIO_URL ? 'audio' : 'text'}`,
+        arabic: c.TEXT[0]?.ARABIC_TEXT?.slice(0, 40),
+        onPress: () => router.push(`/tools/dua/${sectionIdOf(grouped, c.ID)}?open=${c.ID}` as never),
+      }));
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      {/* header */}
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1 }}>
@@ -76,98 +56,79 @@ export default function Duas() {
               Duas & Adhkar
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
-              {english.length} collections · arabic + audio
+              {english.length} duas from the Hisn al-Muslim collection
             </T>
           </View>
+          <Pressable onPress={() => { haptic.selection(); setSearchOpen(true); }} style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="search" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          </Pressable>
         </View>
       </View>
 
-      {/* categories */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
-        {categories.slice(0, 12).map((c) => {
-          const on = cat === c;
-          return (
-            <Pressable
-              key={c}
-              onPress={() => {
-                haptic.selection();
-                setCat(c);
-              }}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder,
-                backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(29,111,66,0.08)') : d.card,
-              }}
-            >
-              <T v="caption" style={{ color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext, fontWeight: '800', fontSize: 11 }} numberOfLines={1}>
-                {c === 'All' ? 'All' : c.length > 26 ? c.slice(0, 26) + '…' : c}
-              </T>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-        {pack == null ? (
-          <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
-        ) : (
-          list.map((c) => {
-            const open = openId === c.ID;
-            const isThisPlaying = playingUrl === c.AUDIO_URL && playing;
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 10, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {!pack ? <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>Loading duas…</T> : null}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {DUA_SECTIONS.filter((s) => grouped[s.id]?.length).map((s) => {
+            const count = grouped[s.id].length;
             return (
-              <View key={c.ID} style={{ borderRadius: 16, borderWidth: 1, borderColor: open ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)') : d.cardBorder, backgroundColor: d.card, marginBottom: 10, overflow: 'hidden' }}>
-                <Pressable
-                  onPress={() => {
-                    haptic.selection();
-                    setOpenId(open ? null : c.ID);
-                  }}
-                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, opacity: pressed ? 0.8 : 1 })}
-                >
-                  <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', alignItems: 'center', justifyContent: 'center' }}>
-                    <FontAwesome5 name="praying-hands" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                  </View>
-                  <T v="body" style={{ flex: 1, color: d.text, fontWeight: '700', fontSize: 13, lineHeight: 18 }}>
-                    {c.TITLE}
-                  </T>
-                  {c.AUDIO_URL ? (
-                    <Pressable onPress={() => toggleAudio(c.AUDIO_URL)} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isThisPlaying ? 'rgba(46,204,113,0.25)' : d.bgSoft, borderWidth: 1, borderColor: isThisPlaying ? 'rgba(74,227,143,0.6)' : d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-                      <FontAwesome5 name={isThisPlaying ? 'pause' : 'play'} size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                    </Pressable>
-                  ) : null}
-                  <FontAwesome5 name={open ? 'chevron-up' : 'chevron-down'} size={11} color={d.faint} />
-                </Pressable>
-
-                {open ? (
-                  <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 12 }}>
-                    {c.TEXT.map((t) => (
-                      <View key={t.ID} style={{ paddingTop: 10, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
-                        <T v="arabic" style={{ color: d.text, fontSize: 20, textAlign: 'right', lineHeight: 36 }}>
-                          {t.ARABIC_TEXT}
-                        </T>
-                        {t.ENGLISH_TEXT ? (
-                          <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 6, lineHeight: 19 }}>
-                            {t.ENGLISH_TEXT}
-                          </T>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-              </View>
+              <Pressable
+                key={s.id}
+                onPress={() => {
+                  haptic.selection();
+                  router.push(`/tools/dua/${s.id}` as never);
+                }}
+                style={({ pressed }) => ({
+                  width: '47.5%',
+                  flexGrow: 1,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  backgroundColor: d.card,
+                  padding: 13,
+                  gap: 7,
+                  opacity: pressed ? 0.75 : 1,
+                })}
+              >
+                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={s.icon as never} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                </View>
+                <T v="body" style={{ color: d.text, fontWeight: '800', fontSize: 12.5, lineHeight: 17 }}>{s.label}</T>
+                <T v="caption" style={{ color: d.faint, fontSize: 10 }}>{count} dua{count > 1 ? 's' : ''}</T>
+              </Pressable>
             );
-          })
-        )}
+          })}
+        </View>
       </ScrollView>
 
-      {/* hidden engine surface (web) */}
-      {Platform.OS === 'web' ? (
-        <View pointerEvents="none" style={{ width: 1, height: 1, opacity: 0 }}>
-          <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: 1, height: 1 }} />
-        </View>
-      ) : null}
+      <ContentSearchOverlay
+        visible={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        placeholder="Search duas — title or text…"
+        metaSearch={metaSearch}
+        contentSearch={async (q) => {
+          const needle = q.toLowerCase();
+          return english
+            .flatMap((c) =>
+              c.TEXT.map((t, i) => ({ c, t, i }))
+                .filter(({ t }) => (t.ARABIC_TEXT || '').includes(q.trim()) || (t.ENGLISH_TEXT || '').toLowerCase().includes(needle))
+                .slice(0, 2),
+            )
+            .slice(0, 40)
+            .map(({ c, t }) => ({
+              key: `c${t.ID}`,
+              title: c.TITLE,
+              subtitle: (t.ENGLISH_TEXT || '').slice(0, 90),
+              arabic: (t.ARABIC_TEXT || '').slice(0, 44),
+              onPress: () => router.push(`/tools/dua/${sectionIdOf(grouped, c.ID)}?open=${c.ID}` as never),
+            }));
+        }}
+        contentLabel="In dua texts"
+      />
     </View>
   );
+}
+
+function sectionIdOf(grouped: Record<DuaSectionId, ContentDua[]>, id: number): DuaSectionId {
+  for (const s of DUA_SECTIONS) if (grouped[s.id]?.some((c) => c.ID === id)) return s.id;
+  return 'other';
 }

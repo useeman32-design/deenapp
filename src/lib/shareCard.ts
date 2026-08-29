@@ -15,7 +15,7 @@ const bgMidnight = require('../../assets/img/share-midnight.jpg');
 const bgCream = require('../../assets/img/share-cream.jpg');
 
 export interface ShareCardInput {
-  kind: 'ayah' | 'hadith';
+  kind: 'ayah' | 'hadith' | 'dua' | 'athkar';
   arabic: string;
   meaning: string;
   ref: string;
@@ -236,7 +236,8 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   ctx.fillStyle = inkGold;
   ctx.font = '700 30px "Poppins-Bold"';
   (ctx as any).letterSpacing = '9px';
-  const label = input.kind === 'hadith' ? 'DAILY HADITH' : 'DAILY AYAH';
+  const LABELS: Record<ShareCardInput['kind'], string> = { ayah: 'QUR’AN', hadith: 'HADITH', dua: 'DUA', athkar: 'DHIKR' };
+  const label = LABELS[input.kind];
   ctx.fillText(label, W / 2, eyY);
   (ctx as any).letterSpacing = '0px';
   const lw = ctx.measureText(label).width / 2;

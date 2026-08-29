@@ -9,25 +9,27 @@ import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 
 /**
  * A hadith book (pass 18): REAL chapters from the user's dataset, and the
  * reader streams the book's full text file (filtered by chapter).
  */
 export default function HadithBookScreen() {
-  const { book: bookId } = useLocalSearchParams<{ book: string }>();
+  const { book: bookId, chapter: chapterParam } = useLocalSearchParams<{ book: string; chapter?: string }>();
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const book = HADITH_BOOKS.find((b) => b.id === bookId) ?? HADITH_BOOKS[0];
 
-  const [chapter, setChapter] = useState<string | null>(null); // 'c3'
+  const [chapter, setChapter] = useState<string | null>(chapterParam ? `c${chapterParam}` : null);
   const [meta, setMeta] = useState<MetaChapter[] | null>(null);
   const [hadiths, setHadiths] = useState<ContentHadith[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [marks, setMarks] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(25);
+  const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
 
   useEffect(() => {
     loadBookMeta(book.id)
@@ -181,6 +183,20 @@ export default function HadithBookScreen() {
                         {h.grade}
                       </T>
                     ) : null}
+                    <Pressable
+                      onPress={() => {
+                        haptic.selection();
+                        setShareH({
+                          arabic: h.arabic,
+                          meaning: h.english ?? h.chapter_name?.english ?? '',
+                          ref: `${book.name ?? book.id} ${h.hadith_number ?? ''}${h.grade ? ` · ${h.grade}` : ''}`,
+                        });
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}
+                    >
+                      <FontAwesome5 name="share-alt" size={10} color={d.faint} />
+                      <T v="caption" style={{ color: d.subtext, fontWeight: '700', fontSize: 10.5 }}>Share this hadith</T>
+                    </Pressable>
                   </View>
                 );
               })}
@@ -195,6 +211,12 @@ export default function HadithBookScreen() {
           )}
         </ScrollView>
       )}
+      <ContentShareSheet
+        visible={shareH != null}
+        onClose={() => setShareH(null)}
+        card={shareH ? { kind: 'hadith', ...shareH } : null}
+        link="https://deenlink.org/tools/hadith"
+      />
     </View>
   );
 }

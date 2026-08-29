@@ -212,6 +212,8 @@ export type SampleComment = {
   avatar?: number | string | null;
   badge?: 'blue' | 'green' | 'gold' | null;
   text: string;
+  /** bundled animated sticker (pass 20 GIF comments) */
+  gif?: number;
   time: string;
   likes: number;
   liked?: boolean;

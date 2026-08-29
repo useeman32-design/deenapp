@@ -97,11 +97,33 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   const [started, setStarted] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [paused, setPaused] = useState(false);
+  /* pass 20: seek + speed */
+  const [frac, setFrac] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [rate, setRate] = useState(1);
+  const barW = useRef(300);
 
   useEffect(() => {
     if (started && !paused) player.play();
     else player.pause();
   }, [started, paused, player]);
+
+  useEffect(() => {
+    const t = player.addListener('timeUpdate', (st: { currentTime: number; duration?: number }) => {
+      setFrac(st.duration && st.duration > 0 ? Math.min(1, st.currentTime / st.duration) : 0);
+      if (st.duration && st.duration > 0) setDur(st.duration);
+    });
+    return () => t.remove();
+  }, [player]);
+
+  const cycleRate = () => {
+    setRate((r) => (r === 1 ? 1.25 : r === 1.25 ? 1.5 : r === 1.5 ? 2 : 1));
+  };
+  useEffect(() => {
+    player.playbackRate = rate;
+  }, [rate, player]);
+
+  const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
   return (
     <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
@@ -155,7 +177,33 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
           ) : null}
         </View>
       </Modal>
-    </View>
+    
+      {/* pass 20: seek bar + speed — always visible once started */}
+      {started ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(4,12,8,0.55)' }}>
+          <Pressable onPress={() => setPaused((p) => !p)} hitSlop={6}>
+            <FontAwesome5 name={paused ? 'play' : 'pause'} size={12} color="#FFFFFF" />
+          </Pressable>
+          <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(frac * dur)}</T>
+          <Pressable
+            onPress={(e) => {
+              const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
+              setFrac(f);
+              if (dur > 0) player.currentTime = f * dur;
+            }}
+            onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
+            style={{ flex: 1, height: 18, justifyContent: 'center' }}
+          >
+            <View style={{ height: 3.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+            <View style={{ position: 'absolute', left: 0, width: `${frac * 100}%`, height: 3.5, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+            <View style={{ position: 'absolute', left: `${frac * 100}%`, marginLeft: -4.5, width: 9, height: 9, borderRadius: 5, backgroundColor: '#FFFFFF' }} />
+          </Pressable>
+          <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
+          <Pressable onPress={cycleRate} hitSlop={6} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
+          </Pressable>
+        </View>
+      ) : null}</View>
   );
 }
 

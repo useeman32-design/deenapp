@@ -7,6 +7,8 @@ import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
+import { loadBook, loadBookMeta } from '@/lib/content';
 
 const TINTS = ['#4AE38F', '#E8C96A', '#5BC8F5', '#F0A8C0', '#7FD8A8', '#C9A0F0', '#F09A5B', '#8FB8F0', '#66E0C4', '#D8C87A', '#A8E06A', '#7AC8D8', '#F0B26A', '#B0A8F0', '#8C6D1F'];
 
@@ -17,6 +19,7 @@ export default function HadithCollections() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -40,6 +43,9 @@ export default function HadithCollections() {
               15 books · full texts · {HADITH_BOOKS.reduce((a, b) => a + b.total, 0).toLocaleString()} narrations
             </T>
           </View>
+          <Pressable onPress={() => { haptic.selection(); setSearchOpen(true); }} style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="search" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          </Pressable>
         </View>
       </View>
 
@@ -118,6 +124,56 @@ export default function HadithCollections() {
             </Pressable>
           );
         }}
+      />
+
+      {/* search: books & chapters instantly; hadith texts scanned on demand */}
+      <ContentSearchOverlay
+        visible={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        placeholder="Search hadith — book, chapter or text…"
+        metaSearch={(qq) => {
+          const needle = qq.toLowerCase();
+          const bookHits = HADITH_BOOKS.filter((b) => b.name.toLowerCase().includes(needle) || b.author.toLowerCase().includes(needle))
+            .map((b) => ({ key: `b-${b.id}`, title: b.name, subtitle: `${b.total.toLocaleString()} narrations · ${b.author}`, onPress: () => router.push(`/tools/hadith/${b.id}` as never) }));
+          return bookHits;
+        }}
+        contentSearch={async (qq) => {
+          const needle = qq.toLowerCase().trim();
+          const hits: Array<{ key: string; title: string; subtitle?: string; arabic?: string; onPress: () => void }> = [];
+          // 1) chapter names across all books (meta files are small)
+          for (const b of HADITH_BOOKS) {
+            try {
+              const m = await loadBookMeta(b.id);
+              for (const c of m.chapters ?? []) {
+                if ((c.english ?? '').toLowerCase().includes(needle) || (c.arabic ?? '').includes(qq.trim())) {
+                  hits.push({ key: `c-${b.id}-${c.chapter_number}`, title: `${b.name} · Chapter ${c.chapter_number}`, subtitle: c.english, arabic: c.arabic, onPress: () => router.push(`/tools/hadith/${b.id}?chapter=${c.chapter_number}` as never) });
+                  if (hits.length >= 15) return hits;
+                }
+              }
+            } catch {}
+          }
+          // 2) hadith text scan (small books first, capped)
+          for (const bid of ['nawawi40', 'shamail_muhammadiyah', 'riyad_assalihin', 'malik']) {
+            try {
+              const list = await loadBook(bid);
+              const b = HADITH_BOOKS.find((x) => x.id === bid);
+              for (const h of list) {
+                if (h.arabic.includes(qq.trim()) || (h.english ?? '').toLowerCase().includes(needle)) {
+                  hits.push({
+                    key: `h-${bid}-${h.chapter_number}-${h.hadith_number ?? Math.random()}`,
+                    title: `${b?.name ?? bid} · ${h.hadith_number ?? ''}`,
+                    subtitle: (h.english ?? h.chapter_name?.english ?? '').slice(0, 90),
+                    arabic: h.arabic.slice(0, 44),
+                    onPress: () => router.push(`/tools/hadith/${bid}?chapter=${h.chapter_number}` as never),
+                  });
+                  if (hits.length >= 40) return hits;
+                }
+              }
+            } catch {}
+          }
+          return hits;
+        }}
+        contentLabel="In chapters & texts"
       />
     </View>
   );

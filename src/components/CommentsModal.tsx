@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
@@ -14,6 +15,19 @@ import { useRouter } from 'expo-router';
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 
 const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
+
+/* pass 20: bundled animated stickers for comments */
+const GIFS = {
+  mashallah: require('../../assets/img/gifs/mashallah.gif'),
+  subhanallah: require('../../assets/img/gifs/subhanallah.gif'),
+  alhamdulillah: require('../../assets/img/gifs/alhamdulillah.gif'),
+  allahuakbar: require('../../assets/img/gifs/allahuakbar.gif'),
+  jazakallah: require('../../assets/img/gifs/jazakallah.gif'),
+  heart: require('../../assets/img/gifs/heart.gif'),
+  ameen: require('../../assets/img/gifs/ameen.gif'),
+  mosque: require('../../assets/img/gifs/mosque.gif'),
+  dua: require('../../assets/img/gifs/dua.gif'),
+} as const;
 
 /** Renders @mentions in comment text as colored + bold (IG-style). */
 function MentionText({ text, base, mention }: { text: string; base: object; mention: object }) {
@@ -85,11 +99,14 @@ function CommentRow({
             </T>
             {c.badge ? <VerificationBadge type={c.badge} size={11} /> : null}
           </Pressable>
-          <MentionText
-            text={c.text}
-            base={{ fontSize: 12.5, lineHeight: 17.5, color: colors.txt, marginTop: 2 }}
-            mention={{ fontSize: 12.5, fontWeight: '800', color: colors.emerald }}
-          />
+          {c.text ? (
+            <MentionText
+              text={c.text}
+              base={{ fontSize: 12.5, lineHeight: 17.5, color: colors.txt, marginTop: 2 }}
+              mention={{ fontSize: 12.5, fontWeight: '800', color: colors.emerald }}
+            />
+          ) : null}
+          {c.gif ? <Image source={c.gif} style={{ width: 96, height: 96, marginTop: 6, borderRadius: 12 }} contentFit="contain" /> : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 }}>
           <T v="caption" style={{ fontSize: 9.5, color: colors.faint, fontWeight: '600' }}>
@@ -195,6 +212,20 @@ export function CommentsModal({
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const [gifOpen, setGifOpen] = useState(false);
+  /* pass 20: drag-to-grow sheet — snap 430 ⇄ 580 ⇄ 92% screen */
+  const [sheetH, setSheetH] = useState(580);
+  const drag = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 6,
+      onPanResponderRelease: (_e, g) => {
+        const vh = 844;
+        if (g.dy < -40) setSheetH((h) => (h >= 700 ? Math.round(vh * 0.92) : 700));
+        else if (g.dy > 40) setSheetH((h) => (h > 640 ? 580 : 430));
+      },
+    }),
+  ).current;
 
   const colors = useMemo(
     () => ({ txt: txt as string, sub: sub as string, faint: faint as string, hairline: hairline as string, bubble: bubble as string, emerald: emerald as string, isDark }),
@@ -260,29 +291,35 @@ export function CommentsModal({
     setTimeout(() => router.push(`/profile/${handle}`), 140);
   };
 
-  const addComment = () => {
-    const t = draft.trim();
-    if (!t) return;
-    haptic.light();
-    const nc: SampleComment = { id: Date.now(), name: ME.name, handle: ME.handle, avatar: null, text: t, time: 'now', likes: 0 };
+  const pushComment = (nc: SampleComment) => {
     setItems((prev) => {
       if (replyingTo) {
         return prev.map((c) => {
-          if (c.id === replyingTo.id) {
-            return { ...c, replies: [...(c.replies ?? []), nc] };
-          }
+          if (c.id === replyingTo.id) return { ...c, replies: [...(c.replies ?? []), nc] };
           const ri = (c.replies ?? []).find((r) => r.id === replyingTo.id);
-          if (ri) {
-            return { ...c, replies: [...(c.replies ?? []), nc] };
-          }
+          if (ri) return { ...c, replies: [...(c.replies ?? []), nc] };
           return c;
         });
       }
       return [...prev, nc];
     });
     if (replyingTo) setOpenReplies((s) => new Set(s).add(replyingTo.id));
-    setDraft('');
     setReplyingTo(null);
+  };
+
+  const sendGif = (g: number) => {
+    haptic.success();
+    pushComment({ id: Date.now(), name: ME.name, handle: ME.handle, avatar: null, text: '', gif: g, time: 'now', likes: 0 });
+    setGifOpen(false);
+  };
+
+  const addComment = () => {
+    const t = draft.trim();
+    if (!t) return;
+    haptic.light();
+    const nc: SampleComment = { id: Date.now(), name: ME.name, handle: ME.handle, avatar: null, text: t, time: 'now', likes: 0 };
+    pushComment(nc);
+    setDraft('');
   };
 
   const total = (list: SampleComment[]) => list.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0);
@@ -292,8 +329,8 @@ export function CommentsModal({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{
         flex: 1,
-        maxHeight: 580,
-        minHeight: 430,
+        height: sheetH,
+        maxHeight: '92%',
         backgroundColor: card,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
@@ -306,8 +343,13 @@ export function CommentsModal({
         elevation: 16,
       }}
     >
+      {/* drag handle — pull up to grow the sheet (pass 20) */}
+      <View {...drag.panHandlers} style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 6 }}>
+        <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)' }} />
+      </View>
+
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: hairline }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: hairline }}>
         <View style={{ flex: 1 }} />
         <T v="body" style={{ fontWeight: '700', fontSize: 14, color: txt }}>
           Comments
@@ -374,7 +416,7 @@ export function CommentsModal({
         </View>
       ) : null}
 
-      {/* Emoji row (IG-style) */}
+      {/* Emoji row (IG-style) + GIF picker (pass 20) */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, paddingBottom: 4 }}>
         {EMOJIS.map((e, i) => (
           <Pressable key={`e${i}`} onPress={() => setDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }} onPressIn={() => haptic.selection()}>
@@ -383,7 +425,24 @@ export function CommentsModal({
             </T>
           </Pressable>
         ))}
+        <Pressable onPress={() => { haptic.selection(); setGifOpen((o) => !o); }} hitSlop={4} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 8, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: gifOpen ? 'rgba(74,227,143,0.55)' : hairline, backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : 'transparent' }}>
+          <FontAwesome5 name="photo-video" size={10} color={gifOpen ? emerald : faint} />
+          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: gifOpen ? emerald : faint }}>GIF</T>
+        </Pressable>
       </ScrollView>
+
+      {/* GIF picker — bundled animated stickers */}
+      {gifOpen ? (
+        <View style={{ paddingHorizontal: 12, paddingBottom: 8, maxHeight: 150 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {Object.entries(GIFS).map(([name, g]) => (
+              <Pressable key={name} onPress={() => sendGif(g)} style={({ pressed }) => ({ width: 96, height: 96, borderRadius: 13, overflow: 'hidden', borderWidth: 1, borderColor: pressed ? emerald : hairline, opacity: pressed ? 0.75 : 1 })}>
+                <Image source={g} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {/* Add a comment (font 16px → no iOS auto-zoom on focus) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: hairline }}>
