@@ -1,4 +1,7 @@
-# PASS 15 SHIPPED (read first)
+# PASS 16 SHIPPED (read first)
+Pass 16 live (master b7cf9cc, gh-pages 5a4797b): videos menu/hearts/share/repost/comments, YouTube webview fix, community photos+key fix, /read reader + global audio (reciters, cassette, tracking, mushaf), quiz/seerah datasets, sticky headers, cleanup. Token: .token (never commit). Re-add remote each turn.
+
+# PASS 15 SHIPPED (historical)
 Pass 15 live (master e74b031, gh-pages da2628e): logos, splash gate, circle tab, videos polish, quran/hadith/profile/tools redesigns, smoke15 83/83. Deploy recipe + gotchas in SESSION-MEMORY (pass-15 section). Token: repo-root .token (never commit). Re-add git remote each turn.
 
 # PASS 14 STATUS (obsoleted)
