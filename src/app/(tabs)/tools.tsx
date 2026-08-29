@@ -138,72 +138,56 @@ export default function Tools() {
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon} />
         <View style={{ paddingTop: 20, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
-          {TOOLS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => open(t)}
-                style={({ pressed }) => ({
-                  backgroundColor: d.card,
-                  borderRadius: 16,
-                  padding: 18,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 16,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  opacity: pressed ? 0.9 : 1,
-                  borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  shadowColor: '#000',
-                  shadowOpacity: isDark ? 0.22 : 0.05,
-                  shadowRadius: 12,
-                  shadowOffset: { width: 0, height: 5 },
-                  elevation: 3,
-                })}
-              >
-                <View
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 4,
-                    backgroundColor: t.bar,
-                  }}
-                />
-                <View style={{ width: 50, height: 50, borderRadius: 12, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
-                  <LinearGradient colors={t.grad as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={22} color="#fff" />
-                  </LinearGradient>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <T v="h3">{t.title}</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {TOOLS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => open(t)}
+                  style={({ pressed }) => ({
+                    width: '48%',
+                    flexGrow: 1,
+                    backgroundColor: d.card,
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    padding: 14,
+                    gap: 10,
+                    opacity: pressed ? 0.82 : 1,
+                    shadowColor: '#000',
+                    shadowOpacity: isDark ? 0.2 : 0.05,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 4 },
+                    elevation: 3,
+                  })}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 42, height: 42, borderRadius: 13, overflow: 'hidden' }}>
+                      <LinearGradient colors={t.grad as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={19} color="#fff" />
+                      </LinearGradient>
+                    </View>
                     {t.badge ? (
-                      <View
-                        style={{
-                          backgroundColor: t.badgeTint ? 'rgba(0,131,143,0.1)' : theme.primarySoft,
-                          borderRadius: 10,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                        }}
-                      >
-                        <T v="caption" style={{ fontSize: 10, fontWeight: '600', color: t.badgeTint ? '#00838F' : theme.primary }}>
-                          {t.badge}
-                        </T>
+                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                        <View style={{ backgroundColor: t.badgeTint ? 'rgba(0,131,143,0.12)' : isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2.5, borderWidth: 1, borderColor: t.badgeTint ? 'rgba(0,131,143,0.35)' : isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)' }}>
+                          <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: t.badgeTint ? '#00838F' : isDark ? '#4AE38F' : '#1D6F42' }}>
+                            {t.badge.toUpperCase()}
+                          </T>
+                        </View>
                       </View>
                     ) : null}
                   </View>
-                  <T v="caption" style={{ marginTop: 4, lineHeight: 16 }}>
+                  <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13, lineHeight: 17 }}>
+                    {t.title}
+                  </T>
+                  <T v="caption" style={{ color: d.faint, fontSize: 10, lineHeight: 14 }}>
                     {t.desc}
                   </T>
-                </View>
-                <ChevronRightIcon size={16} color={theme.subtext} />
-              </Pressable>
-            );
-          })}
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </ScrollView>
 

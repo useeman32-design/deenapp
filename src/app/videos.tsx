@@ -462,6 +462,8 @@ export default function VideosFeed() {
   const [toast, setToast] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [storeTick, setStoreTick] = useState(0);
+  const SEG_W = 84;
+  const thumbX = useRef(new Animated.Value(0)).current;
 
   const listRef = useRef<FlatList<MockReel>>(null);
 
@@ -645,19 +647,37 @@ export default function VideosFeed() {
           <FontAwesome5 name="chevron-left" size={15} color="#FFFFFF" />
         </Pressable>
 
-        {/* glassy Following / For you tab */}
+        {/* Following / For-you — segmented control with sliding thumb */}
         <View style={{ flex: 1, alignItems: 'center' }}>
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              borderRadius: 20,
-              overflow: 'hidden',
+              borderRadius: 21,
+              padding: 3,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.16)',
-              backgroundColor: 'rgba(10,20,14,0.45)',
+              borderColor: 'rgba(255,255,255,0.14)',
+              backgroundColor: 'rgba(8,16,11,0.55)',
             }}
           >
+            {/* sliding thumb */}
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 3,
+                left: 3,
+                width: SEG_W,
+                height: 30,
+                borderRadius: 18,
+                backgroundColor: '#F2F7F3',
+                shadowColor: '#000',
+                shadowOpacity: 0.25,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 3,
+                transform: [{ translateX: thumbX }],
+              }}
+            />
             {(['following', 'foryou'] as FeedTab[]).map((id) => {
               const on = feedTab === id;
               return (
@@ -669,14 +689,11 @@ export default function VideosFeed() {
                     setFeedTab(id);
                     setIndex(0);
                     listRef.current?.scrollToOffset({ offset: 0, animated: false });
+                    Animated.spring(thumbX, { toValue: id === 'following' ? 0 : SEG_W, useNativeDriver: true, friction: 7, tension: 90 }).start();
                   }}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 7,
-                    backgroundColor: on ? 'rgba(46,204,113,0.22)' : 'transparent',
-                  }}
+                  style={{ width: SEG_W, height: 30, alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <T v="body" style={{ color: on ? '#FFFFFF' : 'rgba(255,255,255,0.6)', fontWeight: on ? '800' : '600', fontSize: 13.5 }}>
+                  <T v="body" style={{ color: on ? '#0B1512' : 'rgba(255,255,255,0.62)', fontWeight: on ? '800' : '600', fontSize: 12.5, letterSpacing: 0.2 }}>
                     {id === 'following' ? 'Following' : 'For you'}
                   </T>
                 </Pressable>
@@ -739,15 +756,13 @@ export default function VideosFeed() {
         extraData={storeTick}
       />
 
-      {/* glassy bottom menu: saved · create · sound */}
+      {/* glassy bottom menu: saved · create · sound — padded + separated */}
       <View
         style={{
           position: 'absolute',
-          left: VW / 2 - 96,
+          alignSelf: 'center',
           bottom: 18 + insets.bottom * 0.4,
-          width: 192,
-          height: 54,
-          borderRadius: 27,
+          borderRadius: 29,
           overflow: 'hidden',
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.16)',
@@ -759,26 +774,38 @@ export default function VideosFeed() {
         }}
       >
         <BlurView intensity={34} tint="dark" style={{ position: 'absolute', inset: 0 }} />
-        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(10,20,14,0.35)', flexDirection: 'row', alignItems: 'center' }}>
+        <View
+          style={{
+            backgroundColor: 'rgba(10,20,14,0.35)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            gap: 10,
+          }}
+        >
           <Pressable
             onPress={() => { haptic.selection(); setLibraryOpen(true); }}
-            style={{ flex: 1, alignItems: 'center', gap: 3 }}
+            style={({ pressed }) => ({ alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 3, opacity: pressed ? 0.7 : 1 })}
           >
-            <FontAwesome5 name="bookmark" size={16} color="#FFFFFF" />
-            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 9.5, fontWeight: '700' }}>
+            <FontAwesome5 name="bookmark" size={15} color="#FFFFFF" />
+            <T v="caption" style={{ color: 'rgba(255,255,255,0.87)', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
               Saved
             </T>
           </Pressable>
+
+          <View style={{ width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.14)' }} />
+
           <Pressable
             onPress={() => { haptic.light(); setCreateOpen(true); }}
             style={({ pressed }) => ({
-              width: 54,
-              height: 40,
-              borderRadius: 14,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 5,
+              gap: 6,
+              paddingHorizontal: 16,
+              height: 40,
+              borderRadius: 20,
               backgroundColor: '#1F8F5C',
               borderWidth: 1.5,
               borderColor: 'rgba(212,175,55,0.65)',
@@ -786,16 +813,19 @@ export default function VideosFeed() {
             })}
           >
             <FontAwesome5 name="plus" size={12} color="#FFFFFF" />
-            <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>
+            <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11.5, letterSpacing: 0.3 }}>
               Create
             </T>
           </Pressable>
+
+          <View style={{ width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.14)' }} />
+
           <Pressable
             onPress={() => { haptic.selection(); setMuted((m) => !m); }}
-            style={{ flex: 1, alignItems: 'center', gap: 3 }}
+            style={({ pressed }) => ({ alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 3, opacity: pressed ? 0.7 : 1 })}
           >
-            <FontAwesome5 name={muted ? 'volume-mute' : 'volume-up'} size={16} color="#FFFFFF" />
-            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 9.5, fontWeight: '700' }}>
+            <FontAwesome5 name={muted ? 'volume-mute' : 'volume-up'} size={15} color="#FFFFFF" />
+            <T v="caption" style={{ color: 'rgba(255,255,255,0.87)', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
               Sound
             </T>
           </Pressable>

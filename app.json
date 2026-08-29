@@ -14,7 +14,7 @@
     "android": {
       "package": "org.deenlink.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0E7A5F",
+        "backgroundColor": "#06140D",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -47,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "backgroundColor": "#06140D",
+      "resizeMode": "contain"
+    },
+    "backgroundColor": "#06140D"
   }
 }

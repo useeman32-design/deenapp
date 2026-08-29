@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
+import { SplashGate } from '@/components/SplashGate';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -33,13 +34,13 @@ function Root() {
   if (!fontsLoaded) return null;
 
   return (
-    <>
+    <SplashGate ready={ready}>
       <Stack screenOptions={{ headerShown: false }}>
         {/* TikTok-style reels feed — opens over everything, swipe up/down */}
         <Stack.Screen name="videos" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', statusBarHidden: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-    </>
+    </SplashGate>
   );
 }
 

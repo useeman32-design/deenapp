@@ -1,135 +1,129 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
-import { HADITH_CATEGORIES, HADITHS, type Hadith } from '@/data/hadith';
+import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { useTheme } from '@/context/ThemeContext';
-import { ArchCard } from '@/components/ArchCard';
-import { Surface } from '@/components/Surface';
 import { T } from '@/components/T';
-import { TopBar } from '@/components/TopBar';
-import { Chip } from '@/components/Chip';
-import {
-  BookmarkIcon,
-  FilterIcon,
-  HeartIcon,
-  HomeIcon,
-  MosqueIcon,
-  SearchIcon,
-  ShareIcon,
-  ShieldIcon,
-} from '@/components/Icons';
+import { haptic } from '@/lib/haptics';
 
-const TABS = ['All', 'Sahih Bukhari', 'Sahih Muslim', 'Other'] as const;
+/** Hadith collections (pass 15) — same browse pattern as the Qur'an: collection → chapters → reader. */
+export default function HadithCollections() {
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [q, setQ] = useState('');
 
-const CAT_ICON: Record<string, (p: { size?: number; color?: string }) => React.ReactNode> = {
-  shield: ShieldIcon,
-  mosque: MosqueIcon,
-  heart: HeartIcon,
-  home: HomeIcon,
-};
-
-export default function Hadith() {
-  const { theme } = useTheme();
-  const [tab, setTab] = useState<(typeof TABS)[number]>('All');
-
-  const list = useMemo(() => HADITHS.filter((h) => tab === 'All' || h.book === tab), [tab]);
-  const [h0] = HADITHS;
-
-  const Row = ({ h }: { h: Hadith }) => (
-    <Surface style={{ padding: 15, marginBottom: 10 }}>
-      <T v="arabic" style={{ textAlign: 'right' }}>
-        {h.arabic}
-      </T>
-      <T v="bodyS" style={{ marginTop: 10, lineHeight: 20 }}>
-        {h.translation}
-      </T>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 }}>
-        <T v="meta" style={{ letterSpacing: 0.5 }}>
-          {h.source} · {h.number}
-        </T>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <ShareIcon size={15} color={theme.subtext} />
-          <BookmarkIcon size={15} color={theme.subtext} />
-        </View>
-      </View>
-    </Surface>
-  );
+  const list = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return HADITH_BOOKS;
+    return HADITH_BOOKS.filter((b) => b.name.toLowerCase().includes(query) || b.author.toLowerCase().includes(query));
+  }, [q]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.dash.bg }}>
-      <TopBar
-        title="Hadith"
-        right={
-          <View style={{ flexDirection: 'row', gap: 16 }}>
-            <SearchIcon size={20} color={theme.subtext} />
-            <FilterIcon size={17} color={theme.subtext} />
-          </View>
-        }
-      />
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
       <FlatList
         data={list}
-        keyExtractor={(h) => h.id}
-        renderItem={({ item }) => <Row h={item} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 34 }}
+        keyExtractor={(b) => b.id}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <View>
-            {/* Source tabs */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-              {TABS.map((t) => (
-                <Chip key={t} label={t} active={tab === t} onPress={() => setTab(t)} />
-              ))}
-            </View>
-
-            {/* Daily hadith */}
-            <ArchCard archHeight={48} strokeColor={theme.accent} strokeWidth={1.2} padding={16}>
-              <T v="meta" color="accent" uppercase style={{ textAlign: 'center', letterSpacing: 1.2 }}>
-                Daily hadith
-              </T>
-              <T v="arabicL" style={{ textAlign: 'center', marginTop: 14 }}>
-                {h0.arabic}
-              </T>
-              <T v="bodyS" style={{ marginTop: 12, fontStyle: 'italic', textAlign: 'center' }}>
-                {h0.translation}
-              </T>
-              <T v="caption" style={{ marginTop: 6, textAlign: 'center' }}>
-                {h0.source} {h0.number}
-              </T>
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 16, marginTop: 10 }}>
-                <ShareIcon size={16} color={theme.subtext} />
-                <BookmarkIcon size={16} color={theme.subtext} />
+            <View style={{ paddingHorizontal: 18, paddingTop: insets.top + 12, paddingBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Pressable
+                  onPress={() => router.back()}
+                  hitSlop={10}
+                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <FontAwesome5 name="chevron-left" size={14} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>
+                    Hadith Collections
+                  </T>
+                  <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
+                    14 collections · chapters · narrations
+                  </T>
+                </View>
               </View>
-            </ArchCard>
-
-            {/* Categories */}
-            <T v="h3" style={{ marginTop: 20, marginBottom: 10 }}>Categories</T>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {HADITH_CATEGORIES.map((c) => {
-                const Icon = CAT_ICON[c.icon];
-                const count = HADITHS.filter((h) => h.category === c.id).length;
-                return (
-                  <Surface key={c.id} soft style={{ flex: 1, minWidth: '46%', padding: 12, flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={17} color={theme.primary} />
-                    </View>
-                    <View style={{ marginLeft: 10 }}>
-                      <T v="bodyS" style={{ fontWeight: '700' }}>{c.label}</T>
-                      <T v="caption" style={{ marginTop: 1 }}>{count} hadiths</T>
-                    </View>
-                  </Surface>
-                );
-              })}
             </View>
 
-            <T v="h3" style={{ marginTop: 20, marginBottom: 10 }}>
-              {tab === 'All' ? 'All hadiths' : tab}
-            </T>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: d.card,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: d.cardBorder,
+                marginTop: 14,
+                marginHorizontal: 16,
+                marginBottom: 6,
+                paddingHorizontal: 13,
+              }}
+            >
+              <FontAwesome5 name="search" size={13} color={d.faint} />
+              <TextInput
+                value={q}
+                onChangeText={setQ}
+                placeholder="Search collections…"
+                placeholderTextColor={d.faint}
+                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 13, color: d.text, paddingVertical: 11, paddingLeft: 9 }}
+              />
+            </View>
           </View>
         }
-        ListFooterComponent={
-          <T v="caption" style={{ textAlign: 'center', marginTop: 8, lineHeight: 17 }}>
-            Demo set — connects to your /hadith endpoint with the full collections.
-          </T>
-        }
+        renderItem={({ item: b }) => (
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              router.push(`/tools/hadith/${b.id}` as never);
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 13,
+              marginHorizontal: 16,
+              marginTop: 10,
+              padding: 14,
+              borderRadius: 17,
+              backgroundColor: d.card,
+              borderWidth: 1,
+              borderColor: d.cardBorder,
+              opacity: pressed ? 0.82 : 1,
+            })}
+          >
+            <LinearGradient
+              colors={b.grad as [string, string, ...string[]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <FontAwesome5 name="book" size={17} color="#FFFFFF" />
+            </LinearGradient>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 14 }} numberOfLines={1}>
+                  {b.name}
+                </T>
+                <T v="arabic" style={{ color: d.faint, fontSize: 13 }}>
+                  {b.arabic}
+                </T>
+              </View>
+              <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }} numberOfLines={1}>
+                {b.author} · {b.chapters.length} chapters
+              </T>
+              <T v="caption" style={{ color: b.tint, fontSize: 10, fontWeight: '800', marginTop: 2 }}>
+                {b.total.toLocaleString()} narrations
+              </T>
+            </View>
+            <FontAwesome5 name="chevron-right" size={13} color={d.faint} />
+          </Pressable>
+        )}
       />
     </View>
   );

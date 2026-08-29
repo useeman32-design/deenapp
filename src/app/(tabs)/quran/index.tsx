@@ -122,6 +122,62 @@ export default function QuranHub() {
         </View>
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 14 }}>
+          {/* Daily Ayah */}
+          <View
+            style={{
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.22)',
+              backgroundColor: isDark ? 'rgba(21,92,53,0.22)' : 'rgba(29,111,66,0.06)',
+              padding: 16,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <FontAwesome5 name="quote-right" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5, letterSpacing: 1.2 }}>
+                DAILY AYAH
+              </T>
+              <View style={{ flex: 1 }} />
+              <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
+                Ash-Sharh 94:6
+              </T>
+            </View>
+            <T v="arabic" style={{ color: d.text, fontSize: 21, textAlign: 'right', lineHeight: 38, marginTop: 10 }}>
+              فَإِنَّ مَعَ الْعُسْرِ يُسْرًا
+            </T>
+            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 8, fontStyle: 'italic' }}>
+              "For indeed, with hardship [will be] ease."
+            </T>
+          </View>
+
+          {/* Daily Hadith */}
+          <View
+            style={{
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(212,175,55,0.28)' : 'rgba(184,134,11,0.25)',
+              backgroundColor: isDark ? 'rgba(140,109,31,0.14)' : 'rgba(184,134,11,0.05)',
+              padding: 16,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <FontAwesome5 name="book-reader" size={10} color={isDark ? '#E8C96A' : '#B8860B'} />
+              <T v="caption" style={{ color: isDark ? '#E8C96A' : '#B8860B', fontWeight: '800', fontSize: 9.5, letterSpacing: 1.2 }}>
+                DAILY HADITH
+              </T>
+              <View style={{ flex: 1 }} />
+              <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
+                Sahih al-Bukhari 1
+              </T>
+            </View>
+            <T v="arabic" style={{ color: d.text, fontSize: 21, textAlign: 'right', lineHeight: 38, marginTop: 10 }}>
+              إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ
+            </T>
+            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 8, fontStyle: 'italic' }}>
+              "Actions are only by intentions."
+            </T>
+          </View>
+
           <BigCard
             eyebrow="READ · LISTEN · REFLECT"
             title="The Holy Qur'an"

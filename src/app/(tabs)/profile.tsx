@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
@@ -9,34 +12,27 @@ import { markActive, markGoal } from '@/lib/routine';
 import * as api from '@/api/client';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
-import { Avatar } from '@/components/Avatar';
-import { FeedCard } from '@/components/FeedCard';
+import { AvatarImage } from '@/components/FeedCard';
 import { VerificationBadge } from '@/components/VerificationBadge';
-import {
-  BellIcon,
-  CheckIcon,
-  GearIcon,
-  GiftIcon,
-  LogOutIcon,
-  MoonStarIcon,
-  ShareIcon,
-  SunIcon,
-} from '@/components/Icons';
+import { FeedCard } from '@/components/FeedCard';
+import { haptic } from '@/lib/haptics';
 
-function initialsOf(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-}
+const patternDark = require('../../../assets/img/pattern-dark.png');
+const patternLight = require('../../../assets/img/pattern-light.png');
 
+type Tab = 'posts' | 'settings';
+
+/**
+ * Personal profile (pass 15) — rebuilt on the public-profile design: pattern
+ * header, gold-ring identity card, 4-stat row, tabbed Posts / Settings.
+ */
 export default function Profile() {
   const { theme, mode, setMode, isDark } = useTheme();
   const d = theme.dash;
   const { user, logout } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<Tab>('posts');
   const [posts, setPosts] = useState<Post[]>([]);
   const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
@@ -52,8 +48,10 @@ export default function Profile() {
   const bio = (user?.bio as string) || '';
   const aqeedah = (user?.aqeedah as string) || '';
   const deenpoints = (user?.deenpoints_balance as number) ?? 0;
+  const photo = (user?.profile_image_url as string | number | null) ?? null;
 
   const doCheckIn = async () => {
+    haptic.success();
     const k = 'dl.checkin.date';
     const today = new Date().toISOString().slice(0, 10);
     const last = (await storage.getItem(k)) || '';
@@ -69,9 +67,7 @@ export default function Profile() {
   };
 
   const like = (id: number) =>
-    setPosts((ps) =>
-      ps.map((p) => (p.id === id ? { ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) } : p)),
-    );
+    setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) } : p)));
 
   const signOut = () => {
     Alert.alert('Sign out', 'Leave DeenLink? Your session on this device will end.', [
@@ -80,321 +76,230 @@ export default function Profile() {
     ]);
   };
 
-  const stat = (n: number, l: string) => (
-    <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.035)' : 'rgba(20,36,28,0.04)', borderWidth: 1, borderColor: d.cardBorder, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
-      <T v="stat" style={{ fontSize: 16 }}>
-        {n.toLocaleString()}
-      </T>
-      <T v="caption" style={{ fontSize: 10, marginTop: 2 }}>{l}</T>
-    </View>
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
+
+  const Setting = ({ icon, label, desc, tint, onPress }: { icon: string; label: string; desc: string; tint: string; onPress: () => void }) => (
+    <Pressable
+      onPress={() => {
+        haptic.selection();
+        onPress();
+      }}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, opacity: pressed ? 0.7 : 1 })}
+    >
+      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${tint}18`, borderWidth: 1, borderColor: `${tint}44`, alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesome5 name={icon as never} size={13} color={tint} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13 }}>
+          {label}
+        </T>
+        <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+          {desc}
+        </T>
+      </View>
+      <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+    </Pressable>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <FlatList
-        data={posts}
-        keyExtractor={(p) => String(p.id)}
-        renderItem={({ item }) => <FeedCard post={item} onLike={like} />}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View>
-            {/* Green hero */}
-            <View style={{ height: 190, position: 'relative', overflow: 'hidden' }}>
-              <Image
-                source={mode === 'dark' ? require('../../../assets/img/pattern-dark.png') : require('../../../assets/img/pattern-light.png')}
-                style={{ position: 'absolute', width: '100%', height: '100%', opacity: d.patternOpacity * 0.55 }}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={(mode === 'dark'
-                  ? ['rgba(3,20,12,0.96)', 'rgba(8,44,27,0.9)']
-                  : ['rgba(6,38,23,0.92)', 'rgba(16,66,42,0.85)']) as [string, string, ...string[]]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ position: 'absolute', inset: 0 }}
-              />
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', padding: 16 }}>
-                <T v="h2" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 20 }}>
-                  Profile
-                </T>
-                <View style={{ flex: 1 }} />
-                <Pressable
-                  onPress={() => router.push('/(tabs)/profile')}
-                  style={({ pressed }) => ({
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: theme.glass,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 8,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <BellIcon size={15} color="#fff" />
-                </Pressable>
-                <Pressable
-                  onPress={() => {}}
-                  style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                    backgroundColor: theme.glass,
-                    borderRadius: 20,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    marginRight: 8,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <GiftIcon size={13} color="#fff" />
-                  <T v="caption" color="onPrimary" style={{ fontWeight: '700' }}>
-                    {deenpoints.toLocaleString()}
-                  </T>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push('/settings/edit-profile')}
-                  style={({ pressed }) => ({
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: theme.glass,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <GearIcon size={16} color="#fff" />
-                </Pressable>
-              </View>
-            </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+        {/* header pattern */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 250, overflow: 'hidden' }}>
+          <Image source={isDark ? patternDark : patternLight} style={{ width: '100%', height: '100%', opacity: d.patternOpacity * 0.5 }} />
+          <LinearGradient colors={['transparent', d.bg] as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
+        </View>
 
-            {/* Profile card (overlaps hero) */}
-            <View
-              style={{
-                backgroundColor: d.card,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                borderRadius: 20,
-                margin: -54,
-                marginLeft: 16,
-                marginRight: 16,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOpacity: isDark ? 0.3 : 0.08,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 4,
-              }}
-            >
-              <View style={{ alignItems: 'center' }}>
-                <Avatar name={name} color={theme.primary} size={110} />
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
-                  <T v="display" style={{ fontSize: 24 }}>{name}</T>
-                  {badge ? <VerificationBadge type={badge as 'blue' | 'green' | 'gold'} size={17} /> : null}
-                </View>
-                <T v="body" color="subtext" style={{ marginTop: 4 }}>
-                  {username ? `@${username}` : 'Member'}
-                </T>
-                {bio ? (
-                  <T v="body" style={{ marginTop: 10, textAlign: 'center', lineHeight: 20, maxWidth: 340 }}>
-                    {bio}
+        {/* top bar */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + 8, paddingBottom: 6 }}>
+          <T v="h2" style={{ flex: 1, fontWeight: '800', fontSize: 18, color: d.text }}>
+            Profile
+          </T>
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              doCheckIn();
+            }}
+            hitSlop={8}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.08)', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 6, marginRight: 8, opacity: pressed ? 0.75 : 1 })}
+          >
+            <FontAwesome5 name="gift" size={11} color={d.gold} />
+            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
+              {fmt(deenpoints)}
+            </T>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              haptic.selection();
+              setTab('settings');
+            }}
+            hitSlop={8}
+            style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 })}
+          >
+            <FontAwesome5 name="cog" size={14} color={d.subtext} />
+          </Pressable>
+        </View>
+
+        {/* identity card */}
+        <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+          <View style={{ backgroundColor: d.card, borderRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
+              <View style={{ borderWidth: 2, borderColor: d.gold, borderRadius: 40, padding: 2.5 }}>
+                <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <T v="h3" numberOfLines={1} ellipsizeMode="tail" style={{ color: d.text, fontWeight: '800', fontSize: 16.5, flexShrink: 1 }}>
+                    {name}
                   </T>
-                ) : null}
+                  {badge ? <VerificationBadge type={badge as 'blue' | 'green' | 'gold'} size={14} /> : null}
+                </View>
+                <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 11.5, fontWeight: '600' }}>
+                  @{username}
+                </T>
                 {aqeedah ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                      marginTop: 12,
-                      backgroundColor: isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)',
-                      borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.3)',
-                      borderWidth: 1,
-                      borderRadius: 999,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                    }}
-                  >
-                    <CheckIcon size={13} color={theme.primary} />
-                    <T v="caption" color="primary" style={{ fontWeight: '600' }}>
-                      {aqeedah}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 7, paddingVertical: 2.5, alignSelf: 'flex-start' }}>
+                    <FontAwesome5 name="check-circle" size={8.5} color={d.emerald} />
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.subtext, letterSpacing: 0.4 }}>
+                      {aqeedah.toUpperCase()}
                     </T>
                   </View>
                 ) : null}
               </View>
-
-              {/* Stats */}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-                {stat(counts.posts, 'Posts')}
-                {stat(counts.followers, 'Followers')}
-                {stat(counts.following, 'Following')}
-                {stat(counts.donations, 'Donations')}
-              </View>
-
-              {/* Actions */}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                <Pressable
-                  onPress={() => router.push('/settings/edit-profile')}
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    backgroundColor: theme.primary,
-                    borderRadius: 12,
-                    padding: 12,
-                    alignItems: 'center',
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <T v="button" color="onPrimary" style={{ fontWeight: '700' }}>
-                    Edit Profile
-                  </T>
-                </Pressable>
-                <Pressable
-                  onPress={doCheckIn}
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    backgroundColor: checkin === 'done' ? theme.accentSoft : theme.primarySoft,
-                    borderRadius: 12,
-                    padding: 12,
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: checkin === 'done' ? theme.accent : 'transparent',
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <T v="button" color={checkin === 'done' ? 'accent' : 'primary'} style={{ fontWeight: '700' }}>
-                    {checkin === 'done' ? 'Checked In ✓' : checkin === 'already' ? 'Checked In' : 'Check In'}
-                  </T>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push('/tools/charity')}
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    backgroundColor: theme.cardSoft,
-                    borderRadius: 12,
-                    padding: 12,
-                    alignItems: 'center',
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <T v="button" style={{ fontWeight: '700' }}>
-                    Donate
-                  </T>
-                </Pressable>
-              </View>
             </View>
 
-            {/* Settings row */}
-            <View style={{ paddingTop: 18, paddingLeft: 16, paddingRight: 16, paddingBottom: 4 }}>
-              <T v="h3" style={{ marginBottom: 10 }}>
-                Settings
-              </T>
-              <View
-                style={{
-                  backgroundColor: d.card,
+            {bio ? <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>{bio}</T> : null}
+
+            {/* stats */}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[
+                { label: 'Posts', value: fmt(counts.posts) },
+                { label: 'Followers', value: fmt(counts.followers) },
+                { label: 'Following', value: fmt(counts.following) },
+                { label: 'Charity', value: `₦ ${fmt(counts.donations)}` },
+              ].map((s) => (
+                <View key={s.label} style={{ flex: 1, borderRadius: 13, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 9, alignItems: 'center' }}>
+                  <T v="stat" style={{ color: d.text, fontWeight: '800', fontSize: 13.5 }}>
+                    {s.value}
+                  </T>
+                  <T v="caption" style={{ color: d.faint, fontSize: 9, fontWeight: '700', letterSpacing: 0.3, marginTop: 1 }}>
+                    {s.label.toUpperCase()}
+                  </T>
+                </View>
+              ))}
+            </View>
+
+            {/* actions */}
+            <View style={{ flexDirection: 'row', gap: 9 }}>
+              <Pressable
+                onPress={() => {
+                  haptic.light();
+                  router.push('/settings/edit-profile');
+                }}
+                style={({ pressed }) => ({ flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, backgroundColor: d.emerald, paddingVertical: 10, opacity: pressed ? 0.85 : 1 })}
+              >
+                <FontAwesome5 name="user-edit" size={12} color="#FFFFFF" />
+                <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 12.5 }}>
+                  Edit Profile
+                </T>
+              </Pressable>
+              <Pressable
+                onPress={doCheckIn}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  borderRadius: 16,
-                  shadowColor: '#000',
-                  shadowOpacity: isDark ? 0.22 : 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 3 },
-                  elevation: 1,
+                  borderColor: checkin === 'idle' ? 'rgba(212,175,55,0.5)' : 'rgba(74,227,143,0.5)',
+                  backgroundColor: checkin === 'idle' ? (isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)') : 'rgba(46,204,113,0.12)',
+                  paddingVertical: 10,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <FontAwesome5 name={checkin === 'idle' ? 'calendar-check' : 'check'} size={12} color={checkin === 'idle' ? d.gold : d.emerald} />
+                <T v="button" style={{ color: checkin === 'idle' ? (isDark ? '#E8C96A' : '#8C6D1F') : (isDark ? '#4AE38F' : '#1D6F42'), fontWeight: '800', fontSize: 12.5 }}>
+                  {checkin === 'done' ? 'Checked In' : checkin === 'already' ? 'Checked In' : 'Check In'}
+                </T>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  router.push('/tools/charity' as never);
+                }}
+                style={({ pressed }) => ({ width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, opacity: pressed ? 0.8 : 1 })}
+              >
+                <FontAwesome5 name="hand-holding-heart" size={14} color={d.emerald} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* tabs */}
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 16 }}>
+          {([
+            { id: 'posts' as Tab, label: 'My Posts', icon: 'th-large' },
+            { id: 'settings' as Tab, label: 'Settings', icon: 'cog' },
+          ]).map((t) => {
+            const on = tab === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => {
+                  haptic.selection();
+                  setTab(t.id);
+                }}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  paddingVertical: 9,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder,
+                  backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.07)') : d.card,
                 }}
               >
-                <SettingRow
-                  icon={mode === 'dark' ? <MoonStarIcon size={18} color={theme.primary} /> : <SunIcon size={18} color={theme.primary} />}
-                  label="Appearance"
-                  desc={mode === 'dark' ? 'Dark mode on' : 'Light mode on'}
-                  onPress={() => setMode((mode === 'dark' ? 'light' : 'dark') as ThemeMode)}
-                />
-                <SettingRow
-                  icon={<ShareIcon size={18} color={theme.primary} />}
-                  label="Share DeenLink"
-                  desc="Invite friends to the community"
-                  onPress={() => Alert.alert('Share', 'DeenLink — your deen, connected.')}
-                />
-                <SettingRow
-                  icon={<GiftIcon size={18} color={theme.primary} />}
-                  label="DeenPoints"
-                  desc="How to earn & spend your points"
-                  onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')}
-                />
-                <SettingRow
-                  icon={<LogOutIcon size={18} color={theme.danger} />}
-                  label="Sign Out"
-                  desc="End your session on this device"
-                  danger
-                  onPress={signOut}
-                />
-              </View>
-            </View>
+                <FontAwesome5 name={t.icon as never} size={11} color={on ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
+                <T v="caption" style={{ color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext, fontWeight: '800', fontSize: 12 }}>
+                  {t.label}
+                </T>
+              </Pressable>
+            );
+          })}
+        </View>
 
-            {/* Posts */}
-            <View style={{ paddingTop: 18, paddingLeft: 16, paddingRight: 16, paddingBottom: 4 }}>
-              <T v="h3" style={{ marginBottom: 12 }}>
-                Your Posts
+        {tab === 'posts' ? (
+          <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
+            {posts.map((p) => (
+              <FeedCard key={p.id} post={p} onLike={like} />
+            ))}
+            {posts.length === 0 ? (
+              <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
+                No posts yet — share your first thought in the community.
               </T>
+            ) : null}
+          </View>
+        ) : (
+          <View style={{ paddingTop: 14, paddingHorizontal: 16 }}>
+            <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 18, overflow: 'hidden' }}>
+              <Setting icon="moon" label="Appearance" desc={mode === 'dark' ? 'Dark mode on' : 'Light mode on'} tint={d.emerald} onPress={() => setMode((mode === 'dark' ? 'light' : 'dark') as ThemeMode)} />
+              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
+              <Setting icon="user-edit" label="Edit Profile" desc="Name, bio, aqeedah & photo" tint="#5BC8F5" onPress={() => router.push('/settings/edit-profile')} />
+              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
+              <Setting icon="gift" label="DeenPoints" desc="How to earn & spend your points" tint={d.gold} onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')} />
+              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
+              <Setting icon="share-alt" label="Share DeenLink" desc="Invite friends to the community" tint={d.emerald} onPress={() => Alert.alert('Share', 'DeenLink — your deen, connected.')} />
+              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
+              <Setting icon="sign-out-alt" label="Sign out" desc="End session on this device" tint="#FF7B7B" onPress={signOut} />
             </View>
           </View>
-        }
-        ListEmptyComponent={
-          <View style={{ paddingTop: 10, paddingLeft: 24, paddingRight: 24, paddingBottom: 30 }}>
-            <T v="caption" style={{ textAlign: 'center' }}>
-              {api.isLive() ? 'You haven’t posted yet.' : 'No posts yet — share a reminder!'}
-            </T>
-          </View>
-        }
-      />
+        )}
+      </ScrollView>
     </View>
-  );
-}
-
-function SettingRow({
-  icon,
-  label,
-  desc,
-  danger,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  desc?: string;
-  danger?: boolean;
-  onPress: () => void;
-}) {
-  const { theme } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.cardSoft,
-        opacity: pressed ? 0.6 : 1,
-      })}
-    >
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: danger ? theme.dangerSoft : theme.primarySoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {icon}
-      </View>
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <T v="bodyS" style={{ fontWeight: '700', color: danger ? theme.danger : theme.text }}>
-          {label}
-        </T>
-        {desc ? <T v="caption" style={{ marginTop: 1 }}>{desc}</T> : null}
-      </View>
-    </Pressable>
   );
 }

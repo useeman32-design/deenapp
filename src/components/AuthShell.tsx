@@ -43,6 +43,12 @@ export function AuthHeading({ title, sub }: { title: string; sub: string }) {
   const { isDark } = useTheme();
   return (
     <View style={{ marginTop: 30, marginBottom: 18 }}>
+      {/* DeenLink logo */}
+      <Image
+        source={require('../../assets/images/logo.png')}
+        style={{ width: 64, height: 69, marginBottom: 14 }}
+        resizeMode="contain"
+      />
       <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>
         {title}
       </T>

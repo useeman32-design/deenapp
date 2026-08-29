@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -53,6 +54,9 @@ function FloatingTabBar({
   const itemW = barW > 0 ? (barW - 2 * SIDE_PAD) / n : 0;
   const pillX = (i: number) => SIDE_PAD + i * itemW + (itemW - PILL_W) / 2;
 
+  /* routes render in declaration order — tools sits center */
+  const centerRouteIdx = state.routes.findIndex((r) => r.name === 'tools');
+
   const pos = useRef(new Animated.Value(state.index)).current;
 
   useEffect(() => {
@@ -64,9 +68,26 @@ function FloatingTabBar({
     }).start();
   }, [state.index, pos]);
 
+  // glide across route indices but skip the center slot
+  const stops = Array.from({ length: n }, (_, i) => i).filter((i) => i !== centerRouteIdx);
   const pillTranslate = pos.interpolate({
-    inputRange: [0, n - 1],
-    outputRange: [pillX(0), pillX(n - 1)],
+    inputRange: stops,
+    outputRange: stops.map((i) => pillX(i)),
+  });
+  const pillOpacity = pos.interpolate({
+    inputRange: [centerRouteIdx - 0.6, centerRouteIdx - 0.4, centerRouteIdx + 0.4, centerRouteIdx + 0.6],
+    outputRange: [1, 0, 0, 1],
+    extrapolate: 'clamp',
+  });
+  const ringOpacity = pos.interpolate({
+    inputRange: [centerRouteIdx - 0.45, centerRouteIdx - 0.1, centerRouteIdx + 0.1, centerRouteIdx + 0.45],
+    outputRange: [0, 1, 1, 0],
+    extrapolate: 'clamp',
+  });
+  const circleScale = pos.interpolate({
+    inputRange: [centerRouteIdx - 0.55, centerRouteIdx, centerRouteIdx + 0.55],
+    outputRange: [1, 1.07, 1],
+    extrapolate: 'clamp',
   });
 
   return (
@@ -78,17 +99,23 @@ function FloatingTabBar({
         right: 16,
         bottom: 8 + insets.bottom,
         height: 74,
-        borderRadius: 26,
-        overflow: 'hidden',
         backgroundColor: 'transparent',
-        // soft deep-green lift
-        shadowColor: d.navShadow,
-        shadowOpacity: 0.14,
-        shadowRadius: 28,
-        shadowOffset: { width: 0, height: 12 },
-        elevation: 10,
       }}
     >
+      <View
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 26,
+          overflow: 'hidden',
+          // soft deep-green lift
+          shadowColor: d.navShadow,
+          shadowOpacity: 0.14,
+          shadowRadius: 28,
+          shadowOffset: { width: 0, height: 12 },
+          elevation: 10,
+        }}
+      >
       {/* glass layer 1 — blur */}
       <BlurView intensity={isDark ? 42 : 22} tint={isDark ? 'dark' : 'light'} style={{ position: 'absolute', inset: 0 }} />
       {/* glass layer 2 — translucent tint + hairline */}
@@ -114,6 +141,7 @@ function FloatingTabBar({
             height: PILL_H,
             borderRadius: PILL_R,
             backgroundColor: d.greenSoft,
+            opacity: pillOpacity,
             transform: [{ translateX: pillTranslate }],
           }}
         />
@@ -122,7 +150,9 @@ function FloatingTabBar({
       {/* per-tab content */}
       <View style={{ position: 'absolute', inset: 0, flexDirection: 'row', paddingHorizontal: SIDE_PAD }}>
         {state.routes.map((route, i) => {
-          const tab = TABS.find((t) => t.name === route.name) ?? TABS[0];
+          const name = route.name;
+          const isCenter = name === 'tools';
+          const tab = TABS.find((t) => t.name === name) ?? TABS[0];
           const lit = pos.interpolate({
             inputRange: [i - 0.55, i, i + 0.55],
             outputRange: [0, 1, 0],
@@ -141,28 +171,96 @@ function FloatingTabBar({
                 }
               }}
             >
-              {/* stacked icons: faint base + lit green, cross-faded */}
-              <View style={{ height: PILL_H, alignItems: 'center', justifyContent: 'center' }}>
-                <Animated.View style={{ position: 'absolute', opacity: dim }}>
-                  <FontAwesome5 name={tab.icon} size={19} color={d.faint} />
-                </Animated.View>
-                <Animated.View style={{ opacity: lit }}>
-                  <FontAwesome5 name={tab.icon} size={19} color={d.emerald} />
-                </Animated.View>
-              </View>
-              {/* stacked labels: faint base + lit, cross-faded */}
-              <View style={{ height: 24, marginTop: 4, width: itemW }}>
-                <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: itemW, opacity: dim }}>
-                  <TabLabels first={tab.first} second={tab.second} color={d.faint} width={itemW} />
-                </Animated.View>
-                <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: itemW, opacity: lit }}>
-                  <TabLabels first={tab.first} second={tab.second} color={isDark ? '#FFFFFF' : d.text} active color2={d.emerald} width={itemW} />
-                </Animated.View>
-              </View>
+              {isCenter ? (
+                /* center slot — the raised circle renders above the glass; keep the space */
+                <View style={{ height: PILL_H }} />
+              ) : (
+                <>
+                  {/* stacked icons: faint base + lit green, cross-faded */}
+                  <View style={{ height: PILL_H, alignItems: 'center', justifyContent: 'center' }}>
+                    <Animated.View style={{ position: 'absolute', opacity: dim }}>
+                      <FontAwesome5 name={tab.icon} size={19} color={d.faint} />
+                    </Animated.View>
+                    <Animated.View style={{ opacity: lit }}>
+                      <FontAwesome5 name={tab.icon} size={19} color={d.emerald} />
+                    </Animated.View>
+                  </View>
+                  {/* stacked labels: faint base + lit, cross-faded */}
+                  <View style={{ height: 24, marginTop: 4, width: itemW }}>
+                    <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: itemW, opacity: dim }}>
+                      <TabLabels first={tab.first} second={tab.second} color={d.faint} width={itemW} />
+                    </Animated.View>
+                    <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: itemW, opacity: lit }}>
+                      <TabLabels first={tab.first} second={tab.second} color={isDark ? '#FFFFFF' : d.text} active color2={d.emerald} width={itemW} />
+                    </Animated.View>
+                  </View>
+                </>
+              )}
             </Pressable>
           );
         })}
       </View>
+      </View>
+
+      {/* center circle — Worship Tools raised above the bar */}
+      {itemW > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: SIDE_PAD + centerRouteIdx * itemW + (itemW - 60) / 2,
+            top: -21,
+            width: 60,
+            height: 60,
+            transform: [{ scale: circleScale }],
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              haptic.selection();
+              if (state.index !== centerRouteIdx) navigation.navigate('tools');
+            }}
+            style={{ width: 60, height: 60 }}
+          >
+            <LinearGradient
+              colors={(isDark ? ['#2ECC71', '#145A32'] : ['#2FC46E', '#1D6F42']) as [string, string, ...string[]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 30,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 2.5,
+                borderColor: isDark ? 'rgba(10,27,18,0.95)' : '#FFFFFF',
+                shadowColor: '#2ECC71',
+                shadowOpacity: 0.45,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 12,
+              }}
+            >
+              <FontAwesome5 name="mosque" size={22} color="#FFFFFF" solid />
+            </LinearGradient>
+            {/* gold active ring */}
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: -3.5,
+                left: -3.5,
+                right: -3.5,
+                bottom: -3.5,
+                borderRadius: 33,
+                borderWidth: 2,
+                borderColor: '#E8C96A',
+                opacity: ringOpacity,
+              }}
+            />
+          </Pressable>
+        </Animated.View>
+      )}
     </View>
   );
 }
