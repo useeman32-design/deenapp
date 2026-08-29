@@ -216,7 +216,11 @@ export function MushafPage({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 40,
+        onStartShouldSetPanResponderCapture: () => false,
+        /* CAPTURE phase — children (text/scroll) otherwise eat the gesture on
+         * iOS Safari and the page stops being swippable (pass 23 fix) */
+        onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
         onPanResponderRelease: (_e, g) => {
           if (g.dx < -40) go(1);
           else if (g.dx > 40) go(-1);
@@ -365,7 +369,7 @@ export function MushafPage({
                 </View>
                 {/* bold basmallah — ONLY at a true surah start (never 1: it IS ayah 1, never 9) */}
                 {seg.start.surahNo !== 1 ? (
-                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(12, fs * 0.58), color: skin.basm, lineHeight: Math.max(20, fs * 0.58 * 1.7), marginTop: 1 }}>
+                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(15, fs * 0.78), color: skin.basm, lineHeight: Math.max(24, fs * 0.78 * 1.7), marginTop: 2 }}>
                     {BASMALLAH}
                   </Text>
                 ) : null}

@@ -110,6 +110,7 @@ export default function DuaSection() {
       {nowPlaying ? (
         <View style={{ position: 'absolute', left: 14, right: 14, bottom: Math.max(insets.bottom, 14) + 4, zIndex: 40 }}>
           <GlassPlayerBar
+            compact
             player={audio.player}
             playing={audio.playing}
             loading={audio.loading}

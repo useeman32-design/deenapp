@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { probeAdvancing } from '@/lib/mediaProbe';
 
 /* expo-video web play() can silently abort after replace() — make sure the
  * actual <video> element carrying this src plays (DOM-level fallback). */
@@ -31,6 +32,24 @@ export function useAudio() {
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
   });
+
+  /* honest loading/playing from the real media element (web) */
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!url) {
+        setLoading(false);
+        return;
+      }
+      if (probeAdvancing(url)) {
+        setLoading(false);
+        setPlaying(true);
+      } else if (wantPlay.current) {
+        setLoading(true);
+        setPlaying(false);
+      }
+    }, 350);
+    return () => clearInterval(iv);
+  }, [url]);
 
   useEffect(() => {
     if (!url) return;
@@ -95,11 +114,7 @@ export function useAudio() {
       setPlaying(false);
       setFrac(1);
     });
-    const st = player.addListener('statusChange', () => {
-      setPlaying(player.playing);
-      const s = (player as unknown as { status?: string }).status;
-      setLoading(s === 'loading' || s === 'buffering');
-    });
+    const st = player.addListener('statusChange', () => setPlaying(player.playing));
     return () => {
       t.remove();
       clearInterval(iv);

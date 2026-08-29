@@ -27,6 +27,7 @@ export function GlassPlayerBar({
   onSeek,
   seekMargins,
   right,
+  compact,
 }: {
   player: VideoPlayer | null;
   playing: boolean;
@@ -42,6 +43,8 @@ export function GlassPlayerBar({
   /** shrink the seek bar a little (e.g. { left: 46, right: 8 }) */
   seekMargins?: { left: number; right: number };
   right?: React.ReactNode;
+  /** compact: no timestamps, tighter — dua/athkar height */
+  compact?: boolean;
 }) {
   const { isDark } = useTheme();
   const trackW = useRef(1);
@@ -94,7 +97,7 @@ export function GlassPlayerBar({
           shadowOffset: { width: 0, height: 6 },
           elevation: 10,
           paddingHorizontal: 10,
-          paddingVertical: 8,
+          paddingVertical: compact ? 5 : 7,
         },
         /* frosted glass — RNW forwards web-only props to the DOM */
         {
@@ -139,7 +142,7 @@ export function GlassPlayerBar({
             {arabic ? <T v="arabic" style={{ fontSize: 12 }}> {arabic}</T> : null}
           </T>
           {subtitle ? (
-            <T v="caption" numberOfLines={1} style={{ color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', fontSize: 9.5, fontWeight: '600', marginTop: 1 }}>
+            <T v="caption" numberOfLines={1} style={{ color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', fontSize: 9.5, fontWeight: '600', marginTop: 0, lineHeight: 12 }}>
               {subtitle}
             </T>
           ) : null}
@@ -148,7 +151,7 @@ export function GlassPlayerBar({
       </View>
 
       {hasSeek ? (
-        <View style={{ marginTop: 6, marginBottom: 2, marginLeft: seekMargins?.left ?? 0, marginRight: seekMargins?.right ?? 0 }}>
+        <View style={{ marginTop: 4, marginBottom: compact ? 0 : 2, marginLeft: seekMargins?.left ?? 0, marginRight: seekMargins?.right ?? 0 }}>
           <View {...pan.panHandlers} onLayout={(e) => (trackW.current = e.nativeEvent.layout.width)} style={{ height: 20, justifyContent: 'center' }}>
             <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.12)' }} />
             <View style={{ position: 'absolute', left: 0, width: `${shown * 100}%`, height: 4, borderRadius: 2, backgroundColor: isDark ? '#4AE38F' : '#1D6F42' }} />
@@ -171,7 +174,7 @@ export function GlassPlayerBar({
               }}
             />
           </View>
-          {duration && duration > 0 ? (
+          {!compact && duration && duration > 0 ? (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}>
               <T v="caption" style={{ fontSize: 8.5, color: isDark ? 'rgba(242,247,243,0.45)' : 'rgba(20,36,28,0.45)', fontVariant: ['tabular-nums'] }}>{mmss(shown * duration)}</T>
               <T v="caption" style={{ fontSize: 8.5, color: isDark ? 'rgba(242,247,243,0.45)' : 'rgba(20,36,28,0.45)', fontVariant: ['tabular-nums'] }}>{mmss(duration)}</T>

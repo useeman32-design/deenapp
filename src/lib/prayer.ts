@@ -1,4 +1,5 @@
 import { CalculationMethod, Coordinates, Madhab, PrayerTimes, Qibla } from 'adhan';
+import { storage } from '@/lib/storage';
 
 /** Ozubulu / Owerri, Anambra State, Nigeria — used when no location is available. */
 export const FALLBACK_LOCATION = {
@@ -136,3 +137,88 @@ export function distanceKm(
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
+
+
+/* ---------------- pass 23: settings-aware prayer engine ---------------- */
+
+export type MethodId = 'MWL' | 'Karachi' | 'Egyptian' | 'UmmAlQura' | 'Dubai' | 'Kuwait' | 'Qatar' | 'Singapore' | 'Turkey' | 'Tehran' | 'NorthAmerica' | 'Moonsighting';
+
+export const METHODS: Array<{ id: MethodId; label: string; region: string }> = [
+  { id: 'MWL', label: 'Muslim World League', region: 'Europe, Far East' },
+  { id: 'Karachi', label: 'University of Islamic Sciences, Karachi', region: 'Pakistan, India, Bangladesh' },
+  { id: 'Egyptian', label: 'Egyptian General Authority', region: 'Egypt, Africa' },
+  { id: 'UmmAlQura', label: 'Umm al-Qura University', region: 'Saudi Arabia' },
+  { id: 'Dubai', label: 'Dubai (UAE)', region: 'UAE' },
+  { id: 'Kuwait', label: 'Kuwait', region: 'Kuwait' },
+  { id: 'Qatar', label: 'Qatar', region: 'Qatar' },
+  { id: 'Singapore', label: 'Singapore', region: 'Singapore, Malaysia' },
+  { id: 'Turkey', label: 'Diyanet (Turkey)', region: 'Turkey' },
+  { id: 'Tehran', label: 'Tehran Institute of Geophysics', region: 'Iran' },
+  { id: 'NorthAmerica', label: 'ISNA (North America)', region: 'USA, Canada' },
+  { id: 'Moonsighting', label: 'Moonsighting Committee', region: 'Worldwide' },
+];
+
+export type PrayerSettings = {
+  method: MethodId;
+  madhab: 'shafi' | 'hanafi';
+  /** per-prayer minute adjustments (index matches PRAYER_NAMES) */
+  adjustments: number[];
+  adhan: boolean;
+  city: string;
+};
+
+export const DEFAULT_SETTINGS: PrayerSettings = {
+  method: 'MWL',
+  madhab: 'shafi',
+  adjustments: [0, 0, 0, 0, 0, 0],
+  adhan: false,
+  city: '',
+};
+
+const SETTINGS_KEY = 'dl.prayer.settings.v1';
+
+export async function loadPrayerSettings(): Promise<PrayerSettings> {
+  try {
+    const raw = await storage.getItem(SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_SETTINGS;
+}
+
+export async function savePrayerSettings(s: PrayerSettings) {
+  storage.setItem(SETTINGS_KEY, JSON.stringify(s)).catch(() => {});
+}
+
+const METHOD_FACTORIES: Record<MethodId, () => any> = {
+  MWL: () => CalculationMethod.MuslimWorldLeague(),
+  Karachi: () => CalculationMethod.Karachi(),
+  Egyptian: () => CalculationMethod.Egyptian(),
+  UmmAlQura: () => CalculationMethod.UmmAlQura(),
+  Dubai: () => CalculationMethod.Dubai(),
+  Kuwait: () => CalculationMethod.Kuwait(),
+  Qatar: () => CalculationMethod.Qatar(),
+  Singapore: () => CalculationMethod.Singapore(),
+  Turkey: () => CalculationMethod.Turkey(),
+  Tehran: () => CalculationMethod.Tehran(),
+  NorthAmerica: () => CalculationMethod.NorthAmerica(),
+  Moonsighting: () => CalculationMethod.MoonsightingCommittee(),
+};
+
+/** times with the user's method + madhab + per-prayer adjustments applied */
+export function computePrayerTimesWith(date: Date, coords: { latitude: number; longitude: number }, s: PrayerSettings): Date[] {
+  const params = METHOD_FACTORIES[s.method]();
+  params.madhab = s.madhab === 'hanafi' ? Madhab.Hanafi : Madhab.Shafi;
+  const times = new PrayerTimes(new Coordinates(coords.latitude, coords.longitude), date, params);
+  const base = [times.fajr, times.sunrise, times.dhuhr, times.asr, times.maghrib, times.isha];
+  return base.map((t, i) => new Date(t.getTime() + (s.adjustments[i] ?? 0) * 60000));
+}
+
+/** hh:mm AA remaining e.g. "2h 14m" */
+export function countdownTo(from: Date, to: Date): string {
+  const ms = Math.max(0, to.getTime() - from.getTime());
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h > 0) return `${h}h ${String(mm).padStart(2, '0')}m`;
+  return `${mm}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`;
+}

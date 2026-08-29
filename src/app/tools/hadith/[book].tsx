@@ -63,9 +63,8 @@ export default function HadithBookScreen() {
           setMeta([]);
         }
       });
-    storage.getItem(`dl.hadith.last.${book.id}`).then((r) => {
-      if (r) setChapter(r);
-    });
+    /* pass 23: do NOT auto-restore the last chapter — opening a book always
+     * shows its CHAPTER LIST first (continue via the hero button) */
     storage.getItem(`dl.hadith.marks.${book.id}`).then((r) => {
       if (r)
         try {

@@ -18,6 +18,7 @@ import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mock
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
 import { DAILY_HADITH_POOL } from '@/data/hadithDaily';
+import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
@@ -313,6 +314,9 @@ export default function Home() {
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
               May Allah bless your day
+            </T>
+            <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 2 }}>
+              {formatHijri(new Date())} AH · {formatGregorian(new Date())}
             </T>
           </View>
           <Pressable

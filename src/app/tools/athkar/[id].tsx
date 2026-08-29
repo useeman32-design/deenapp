@@ -97,6 +97,7 @@ export default function AtharDetail() {
       {(session || count > 0) ? (
         <View style={{ position: 'absolute', left: 14, right: 14, bottom: 18 }}>
           <GlassPlayerBar
+            compact
             player={null}
             playing={session}
             title={item.transliteration}

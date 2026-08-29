@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -213,16 +213,19 @@ export function CommentsModal({
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [gifOpen, setGifOpen] = useState(false);
-  /* pass 20: drag-to-grow sheet — snap 430 ⇄ 580 ⇄ 92% screen */
-  const [sheetH, setSheetH] = useState(580);
+  /* pass 23: drag-to-grow — CAPTURE phase so taps inside content don't eat it;
+   * snaps 660 ⇄ 92% screen (taller default per user feedback) */
+  const [sheetH, setSheetH] = useState(660);
   const drag = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 6,
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 14 && Math.abs(g.dx) < 18,
+      onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dy) > 14 && Math.abs(g.dx) < 18,
       onPanResponderRelease: (_e, g) => {
-        const vh = 844;
-        if (g.dy < -40) setSheetH((h) => (h >= 700 ? Math.round(vh * 0.92) : 700));
-        else if (g.dy > 40) setSheetH((h) => (h > 640 ? 580 : 430));
+        const vh = Dimensions.get('window').height;
+        if (g.dy < -40) setSheetH(Math.round(vh * 0.92));
+        else if (g.dy > 40) setSheetH((h) => (h > Math.round(vh * 0.8) ? 660 : Math.round(vh * 0.55)));
       },
     }),
   ).current;
@@ -425,9 +428,9 @@ export function CommentsModal({
             </T>
           </Pressable>
         ))}
-        <Pressable onPress={() => { haptic.selection(); setGifOpen((o) => !o); }} hitSlop={4} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 8, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: gifOpen ? 'rgba(74,227,143,0.55)' : hairline, backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : 'transparent' }}>
-          <FontAwesome5 name="photo-video" size={10} color={gifOpen ? emerald : faint} />
-          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: gifOpen ? emerald : faint }}>GIF</T>
+        <Pressable onPress={() => { haptic.selection(); setGifOpen((o) => !o); }} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 11, borderWidth: 1.5, borderColor: gifOpen ? 'rgba(74,227,143,0.65)' : 'rgba(212,175,55,0.55)', backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : 'rgba(212,175,55,0.10)' }}>
+          <FontAwesome5 name="photo-video" size={12} color={gifOpen ? emerald : '#E8C96A'} />
+          <T v="caption" style={{ fontSize: 11, fontWeight: '900', color: gifOpen ? emerald : '#E8C96A', letterSpacing: 0.5 }}>GIFs</T>
         </Pressable>
       </ScrollView>
 

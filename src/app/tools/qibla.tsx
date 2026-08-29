@@ -9,6 +9,7 @@ import { Compass } from '@/components/Compass';
 import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { RouteMap } from '@/components/RouteMap';
+import { GlobeMap } from '@/components/GlobeMap';
 import { haptic } from '@/lib/haptics';
 
 /**
@@ -101,9 +102,9 @@ export default function Qibla() {
         )}
       </View>
 
-      <View style={{ paddingHorizontal: 18, marginTop: 8 }}>
+      <View style={{ paddingHorizontal: 18, marginTop: 10 }}>
         <T v="h3" style={{ marginBottom: 10 }}>Direction to Makkah</T>
-        <RouteMap distanceKm={km} fromName={loc.name} bearing={bearing} userLoc={{ lat: loc.latitude, lon: loc.longitude }} />
+        <GlobeMap userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} bearing={bearing} />
         <T v="caption" style={{ marginTop: 8, fontSize: 10.5, color: theme.subtext }}>
           {km.toFixed(0)} km from Makkah · for best accuracy keep the phone flat and away from magnets, metal and cases with magnetic clasps, then figure-8 it once.
         </T>

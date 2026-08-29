@@ -18,6 +18,7 @@ export const QUICK_CATALOG: QuickItem[] = [
   { key: 'calendar', label: 'Calendar', icon: { fa: 'calendar' }, accent: 'emerald', href: '/tools/calendar' },
   { key: 'names', label: 'Names of Allah', icon: { fa: 'gem' }, accent: 'gold', href: '/tools/names' },
   { key: 'zakat', label: 'Zakat', icon: { fa: 'hand-holding-heart' }, accent: 'gold', href: '/tools/charity' },
+  { key: 'zakatcalc', label: 'Zakat Calc', icon: { fa: 'balance-scale' }, accent: 'emerald', href: '/tools/zakat' },
   { key: 'wallpapers', label: 'Wallpapers', icon: { fa: 'image' }, accent: 'emerald', href: '/tools/wallpapers' },
   { key: 'courses', label: 'Courses', icon: { fa: 'graduation-cap' }, accent: 'emerald', href: '/(tabs)/learning' },
   { key: 'learning', label: 'Learning', icon: { fa: 'book-open' }, accent: 'gold', href: '/(tabs)/learning' },

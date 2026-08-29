@@ -52,20 +52,20 @@ export function Compass({
 
   /* rotation-direction chevrons: pointing from the top pointer toward the
    * qibla marker along the ring — the shortest way round */
+  /* bold rotation arrows — point the way the phone must turn (pass 23) */
   const chevrons: React.ReactNode[] = [];
   if (delta != null && !aligned) {
     const dir = delta > 0 ? 1 : -1; // right / left
-    const spread = Math.min(150, Math.abs(delta));
-    for (let i = 0; i < 3; i++) {
-      const deg = dir * (12 + i * 22);
+    for (let i = 0; i < 4; i++) {
+      const deg = dir * (10 + i * 20);
       const rad = ((deg - 90) * Math.PI) / 180;
-      const rr = R - 34;
+      const rr = R - 30;
       const x = c + rr * Math.cos(rad);
       const y = c + rr * Math.sin(rad);
       const rot = deg + (dir > 0 ? 90 : -90);
       chevrons.push(
-        <G key={i} transform={`translate(${x} ${y}) rotate(${rot})`} opacity={0.85 - i * 0.18}>
-          <Polygon points="0,-6 6,4 0,1 -6,4" fill={i === 0 ? '#D4AF37' : 'rgba(212,175,55,0.55)'} />
+        <G key={i} transform={`translate(${x} ${y}) rotate(${rot})`} opacity={1 - i * 0.2}>
+          <Polygon points="0,-8.5 8.5,6 0,2 -8.5,6" fill={i === 0 ? '#D4AF37' : 'rgba(212,175,55,0.6)'} stroke={i === 0 ? '#8C6D1F' : 'none'} strokeWidth={0.6} />
         </G>,
       );
     }

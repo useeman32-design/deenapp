@@ -44,6 +44,8 @@ export default function Reader() {
   const [mushafSurah, setMushafSurah] = useState(n);
   const [countdown, setCountdown] = useState<number | null>(null);
   const announcedNext = useRef<number | null>(null);
+  /* another surah is playing and the user opened a different one → ask */
+  const [switchAsk, setSwitchAsk] = useState<number | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const rowY = useRef<Record<number, number>>({});
@@ -92,6 +94,16 @@ export default function Reader() {
       router.replace({ pathname: '/read/[id]', params: { id: String(audio.surah), ayah: '1' } } as never);
     }
   }, [audio.surah, n, router]);
+
+  /* pass 23: "currently playing X — switch to Y?" when entering another surah */
+  useEffect(() => {
+    setSwitchAsk(null);
+    if (audio.surah != null && audio.surah !== n && (audio.playing || audio.loading)) {
+      const t = setTimeout(() => setSwitchAsk(audio.surah as number), 450);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n, audio.surah]);
 
   /* deep-link flash: clear when real audio starts on this surah */
   useEffect(() => {
@@ -193,9 +205,9 @@ export default function Reader() {
             <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 8, letterSpacing: 0.5 }}>
               SURAH {meta.number} · {meta.revelation.toUpperCase()}
             </T>
-            {data?.hasBasmallah && n !== 1 ? (
-              <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 19, marginTop: 10, textAlign: 'center' }}>
-                {data.basmallah}
+            {n !== 1 && n !== 9 ? (
+              <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 22, marginTop: 10, textAlign: 'center', fontWeight: '700' }}>
+                بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
               </T>
             ) : null}
           </View>
@@ -303,6 +315,7 @@ export default function Reader() {
             frac={audio.surah === n ? audio.progress : 0}
             onSeek={(f) => audio.seekTo(f)}
             seekMargins={{ left: 46, right: 6 }}
+            compact
             right={
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
@@ -347,6 +360,39 @@ export default function Reader() {
           <FontAwesome5 name="compact-disc" size={22} color={isDark ? '#4AE38F' : '#1D6F42'} />
         </Pressable>
       )}
+
+      {/* switch-recitation prompt — entering a surah while another plays */}
+      {switchAsk != null ? (
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 118, zIndex: 70, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.55)', backgroundColor: isDark ? 'rgba(12,23,18,0.97)' : 'rgba(255,252,242,0.98)', padding: 13, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 32, height: 32, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="exchange-alt" size={12} color="#E8C96A" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 9, letterSpacing: 0.5 }}>CURRENTLY PLAYING</T>
+              <T v="bodyS" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 12.5, marginTop: 1 }}>
+                {QURAN.find((x) => x.number === switchAsk)?.english} — switch to {meta.english}?
+              </T>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+            <Pressable onPress={() => setSwitchAsk(null)} style={{ flex: 1, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 9, alignItems: 'center' }}>
+              <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 11 }}>Keep playing</T>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                const to = n;
+                setSwitchAsk(null);
+                audio.playSurah(to, 1);
+              }}
+              style={{ flex: 1, borderRadius: 11, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingVertical: 9, alignItems: 'center' }}
+            >
+              <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Yes, switch</T>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* next-surah announcement — shown ~3s while switching surahs automatically */}
       {audio.announcement ? (

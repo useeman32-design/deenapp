@@ -5,7 +5,8 @@ import { NAMES_99 as FALLBACK_NAMES } from '@/data/names99';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
-import { GlassPlayerBar } from '@/components/GlassPlayerBar';
+import { VideoView } from 'expo-video';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useAudio } from '@/lib/useAudio';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -29,6 +30,8 @@ export default function Names() {
   const [q, setQ] = useState('');
   const [pack, setPack] = useState<NameEntry[] | null>(null);
   const [openNo, setOpenNo] = useState<number | null>(null);
+  const [lang, setLang] = useState<'en' | 'ar'>('en');
+  const [shareName, setShareName] = useState<NameEntry | null>(null);
   const audio = useAudio();
 
   useEffect(() => {
@@ -67,8 +70,18 @@ export default function Names() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar title="99 Names of Allah" subtitle={pack ? `${list.length} of ${pack.length} names · audio` : `${list.length} names · offline list`} />
-      <View style={{ padding: 16, paddingBottom: 8 }}>
-        <TextInput
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+        <Pressable
+          onPress={() => { haptic.selection(); setLang((l) => (l === 'en' ? 'ar' : 'en')); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card }}
+        >
+          <FontAwesome5 name="language" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          <T v="caption" style={{ color: lang === 'en' ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext, fontWeight: '800', fontSize: 10.5 }}>EN</T>
+          <T v="caption" style={{ color: theme.subtext, fontWeight: '800', fontSize: 10.5 }}>|</T>
+          <T v="caption" style={{ color: lang === 'ar' ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext, fontWeight: '800', fontSize: 10.5 }}>AR</T>
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <TextInput
           value={q}
           onChangeText={setQ}
           placeholder="Search by name or meaning…"
@@ -84,6 +97,7 @@ export default function Names() {
             fontSize: 16 /* no iOS zoom */,
           }}
         />
+        </View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         {!pack ? (
@@ -103,8 +117,20 @@ export default function Names() {
                   }}
                   style={{ flex: 1 }}
                 >
-                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14.5, fontFamily: 'Poppins-SemiBold' }}>{n.transliteration}</Text>
-                  <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 2, fontFamily: 'Poppins' }}>{n.translation}</Text>
+                  {lang === 'en' ? (
+                    <>
+                      <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14.5, fontFamily: 'Poppins-SemiBold' }}>{n.transliteration}</Text>
+                      <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 2, fontFamily: 'Poppins' }}>{n.translation}</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ fontFamily: 'Amiri-Bold', color: theme.text, fontSize: 21, lineHeight: 30, textAlign: 'left' }}>{n.arabic}</Text>
+                      <Text style={{ color: theme.subtext, fontSize: 11.5, marginTop: 1, fontFamily: 'Poppins', fontStyle: 'italic' }}>{n.transliteration}</Text>
+                    </>
+                  )}
+                </Pressable>
+                <Pressable onPress={() => { haptic.selection(); setShareName(n); }} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 11, marginLeft: 6, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="share-alt" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
                 </Pressable>
                 {n.audio ? (
                   <Pressable
@@ -141,24 +167,17 @@ export default function Names() {
         })}
       </ScrollView>
 
-      {/* shared glass player — mounts the audio element */}
-      {(audio.playing || audio.loading) && playingName ? (
-        <View style={{ position: 'absolute', left: 14, right: 14, bottom: Math.max(insets.bottom, 14) + 4 }}>
-          <GlassPlayerBar
-            player={audio.player}
-            playing={audio.playing}
-            loading={audio.loading}
-            title={playingName.transliteration}
-            arabic={playingName.arabic}
-            subtitle={playingName.translation}
-            onToggle={() => audio.toggle(audioUrl(playingName.audio))}
-            frac={audio.frac}
-            duration={audio.duration}
-            onSeek={(f) => audio.seekFrac(f)}
-            seekMargins={{ left: 46, right: 6 }}
-          />
-        </View>
-      ) : null}
+      {/* pass 23: no floating player — the per-row play button is enough.
+       * The audio element still needs a mounted view for the web engine. */}
+      <View style={{ position: 'absolute', width: 2, height: 2, opacity: 0.01 }} pointerEvents="none">
+        <VideoView player={audio.player} style={{ width: 2, height: 2 }} contentFit="contain" nativeControls={false} />
+      </View>
+      <ContentShareSheet
+        visible={shareName != null}
+        onClose={() => setShareName(null)}
+        card={shareName ? { kind: 'post', arabic: shareName.arabic, meaning: `${shareName.transliteration} — ${shareName.translation}. ${shareName.meaning}`.slice(0, 400), ref: `99 Names of Allah · No. ${shareName.number}` } : null}
+        link="https://deenlink.org/tools/names"
+      />
     </View>
   );
 }

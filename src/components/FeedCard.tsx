@@ -218,11 +218,49 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
           <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="times" size={15} color="#fff" />
           </Pressable>
-          {paused ? (
-            <Pressable onPress={() => setPaused(false)} style={{ position: 'absolute', alignSelf: 'center', top: '50%', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="play" size={21} color="#fff" />
+          <Pressable onPress={() => setPaused((v) => !v)} style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+            {paused ? (
+              <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="play" size={21} color="#fff" />
+              </View>
+            ) : null}
+          </Pressable>
+          {/* pass 23: seek + time INSIDE fullscreen (it used to vanish) */}
+          <View
+            style={{
+              position: 'absolute',
+              left: 14,
+              right: 14,
+              bottom: Math.max(24, 34),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 14,
+              backgroundColor: 'rgba(10,20,14,0.6)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.14)',
+            }}
+          >
+            <Pressable onPress={() => setPaused((v) => !v)} hitSlop={8}>
+              <FontAwesome5 name={paused ? 'play' : 'pause'} size={13} color="#FFFFFF" />
             </Pressable>
-          ) : null}
+            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss((dragging ? dragFrac : frac) * dur)}</T>
+            <View
+              {...seekPan().panHandlers}
+              onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
+              style={{ flex: 1, height: 20, justifyContent: 'center' }}
+            >
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }} />
+              <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+              <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F' }} />
+            </View>
+            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
+            <Pressable onPress={cycleRate} hitSlop={8} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
+            </Pressable>
+          </View>
         </View>
       </Modal>
     

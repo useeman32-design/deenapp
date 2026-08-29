@@ -305,7 +305,7 @@ export default function CommunityScreen() {
               </T>
             </View>
             <Pressable
-              onPress={() => { haptic.selection(); setInboxOpen(true); }}
+              onPress={() => { haptic.selection(); router.push('/tools/notifications'); }}
               style={({ pressed }) => ({
                 position: 'relative',
                 width: 40,
@@ -329,6 +329,37 @@ export default function CommunityScreen() {
                   height: 8,
                   borderRadius: 4,
                   backgroundColor: '#E67E22',
+                  borderWidth: 1.5,
+                  borderColor: d.bg,
+                }}
+              />
+            </Pressable>
+            {/* inbox — shared reels/posts/duas/ayahs (same inbox as videos) */}
+            <Pressable
+              onPress={() => { haptic.selection(); setInboxOpen(true); }}
+              style={({ pressed }) => ({
+                position: 'relative',
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)',
+                backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <FontAwesome5 name="inbox" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 7,
+                  right: 8,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#1F8F5C',
                   borderWidth: 1.5,
                   borderColor: d.bg,
                 }}
@@ -1108,28 +1139,33 @@ function SuggestStrip({ dash }: { dash: any }) {
           <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
         </Pressable>
       </View>
-      {picks.map((a) => (
-        <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-          <Pressable onPress={() => router.push(`/profile/${a.username}`)}>
-            <AvatarImage source={a.photo ?? null} name={a.full_name} size={38} tint={dash.bgSoft} border={dash.cardBorder} />
-          </Pressable>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 12.5, color: dash.text }}>{a.full_name}</T>
-            <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: dash.faint, marginTop: 1 }}>@{a.username}</T>
-          </View>
-          <Pressable
-            onPress={() => {
-              haptic.light();
-              setFollowed((f) => (f.includes(a.username) ? f.filter((x) => x !== a.username) : [...f, a.username]));
-            }}
-            style={{ borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: followed.includes(a.username) ? dash.cardBorder : 'transparent', backgroundColor: followed.includes(a.username) ? 'transparent' : '#1F8F5C' }}
-          >
-            <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: followed.includes(a.username) ? dash.subtext : '#FFFFFF' }}>
-              {followed.includes(a.username) ? 'Following' : 'Follow'}
+      {/* same card design as the home screen's Accounts to Follow */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+        {picks.map((a) => (
+          <View key={a.username} style={{ width: 122, borderRadius: 18, backgroundColor: dash.card, borderWidth: 1, borderColor: dash.cardBorder, padding: 14, alignItems: 'center', gap: 7 }}>
+            <Pressable onPress={() => router.push(`/profile/${a.username}`)}>
+              <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={dash.bgSoft} border={dash.cardBorder} />
+            </Pressable>
+            <T v="caption" numberOfLines={1} style={{ fontWeight: '800', fontSize: 11, color: dash.text, textAlign: 'center' }}>
+              {a.full_name.split(' ').slice(0, 2).join(' ')}
             </T>
-          </Pressable>
-        </View>
-      ))}
+            {a.fields ? (
+              <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, color: dash.faint, marginTop: -3 }}>{a.fields}</T>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                setFollowed((f) => (f.includes(a.username) ? f.filter((x) => x !== a.username) : [...f, a.username]));
+              }}
+              style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: followed.includes(a.username) ? dash.cardBorder : 'transparent', backgroundColor: followed.includes(a.username) ? 'transparent' : '#1F8F5C', marginTop: 2 }}
+            >
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: followed.includes(a.username) ? dash.subtext : '#FFFFFF' }}>
+                {followed.includes(a.username) ? 'Following' : 'Follow'}
+              </T>
+            </Pressable>
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }

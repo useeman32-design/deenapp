@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { QURAN } from '@/data/quran';
+import { probeAdvancing } from '@/lib/mediaProbe';
 
 /**
  * Global Qur'an audio — plays per-ayah files so we always know the exact ayah
@@ -219,15 +220,26 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
     };
   }, [player, surah, ayah]);
 
-  /* loading + playing status */
+  /* loading + playing — read the REAL media element (web truth) so the
+   * spinner clears the moment audio actually starts, and shows again while
+   * the next ayah buffers (slow networks) */
   useEffect(() => {
-    const st = player.addListener('statusChange', () => {
-      setPlaying(player.playing);
-      const s = (player as unknown as { status?: string }).status;
-      setLoading(s === 'loading' || s === 'buffering');
-    });
-    return () => st.remove();
-  }, [player]);
+    const iv = setInterval(() => {
+      const src = activeSrc.current;
+      if (surah == null || !src) {
+        setLoading(false);
+        return;
+      }
+      if (probeAdvancing(src)) {
+        setLoading(false);
+        setPlaying(true);
+      } else if (wantPlay.current) {
+        setLoading(true);
+        setPlaying(false);
+      }
+    }, 350);
+    return () => clearInterval(iv);
+  }, [surah]);
 
   /* advance on end-of-item — flip to the preloaded standby engine */
   useEffect(() => {
