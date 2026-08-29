@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -34,35 +35,46 @@ export default function Seerah() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
         {SEERAH.map((e, i) => (
-          <Pressable
-            key={e.id}
-            onPress={() => haptic.selection()}
-            style={{ flexDirection: 'row', gap: 12 }}
-          >
-            {/* rail */}
-            <View style={{ alignItems: 'center', width: 38 }}>
-              <View style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name={e.icon as never} size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
-              </View>
-              {i < SEERAH.length - 1 ? <View style={{ flex: 1, width: 2, borderRadius: 1, backgroundColor: isDark ? 'rgba(74,227,143,0.2)' : 'rgba(29,111,66,0.15)' }} /> : null}
-            </View>
-
-            <View style={{ flex: 1, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10.5, letterSpacing: 0.5 }}>
-                  {e.year.toUpperCase()}
-                </T>
-              </View>
-              <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5, marginTop: 3 }}>
-                {e.title}
-              </T>
-              <T v="caption" style={{ color: d.subtext, fontSize: 11, lineHeight: 16, marginTop: 3 }}>
-                {e.desc}
-              </T>
-            </View>
-          </Pressable>
+          <EventRow key={e.id} e={e} i={i} last={i >= SEERAH.length - 1} />
         ))}
       </ScrollView>
     </View>
+  );
+}
+
+function EventRow({ e, i, last }: { e: (typeof SEERAH)[number]; i: number; last: boolean }) {
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const [open, setOpen] = useState(false);
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.selection();
+        setOpen((o) => !o);
+      }}
+      style={{ flexDirection: 'row', gap: 12 }}
+    >
+      {/* rail */}
+      <View style={{ alignItems: 'center', width: 38 }}>
+        <View style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name={e.icon as never} size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+        </View>
+        {!last ? <View style={{ flex: 1, width: 2, borderRadius: 1, backgroundColor: isDark ? 'rgba(74,227,143,0.2)' : 'rgba(29,111,66,0.15)' }} /> : null}
+      </View>
+
+      <View style={{ flex: 1, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10.5, letterSpacing: 0.5 }}>
+            {e.year.toUpperCase()}{e.hijri ? ` · ${e.hijri}` : ''}
+          </T>
+        </View>
+        <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5, marginTop: 3 }}>
+          {e.title}
+        </T>
+        <T v="caption" numberOfLines={open ? undefined : 4} style={{ color: d.subtext, fontSize: 11, lineHeight: 16, marginTop: 3 }}>
+          {e.desc}
+        </T>
+      </View>
+    </Pressable>
   );
 }

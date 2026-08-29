@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Dimensions, Image, Pressable, ScrollView, Share, View } from 'react-native';
+import { Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -63,7 +63,7 @@ export default function PublicProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [tab, setTab] = useState<ProfileTab>('posts');
-
+  const [photoPreview, setPhotoPreview] = useState(false);
   // the account's reels — shown in the Videos tab
   const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);
   const [following, setFollowing] = useState(false);
@@ -202,7 +202,16 @@ export default function PublicProfileScreen() {
           >
             <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
               <View style={{ borderWidth: 2, borderColor: d.gold, borderRadius: 40, padding: 2.5 }}>
-                <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" />
+                {/* pass 18: tapping the photo on a PROFILE page opens fullscreen preview (only place it does) */}
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    setPhotoPreview(true);
+                  }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+                >
+                  <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" />
+                </Pressable>
               </View>
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -562,6 +571,40 @@ export default function PublicProfileScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Fullscreen profile-photo preview (pass 18) — @deenlink tag bottom-right, slightly on top of the photo */}
+      <Modal visible={photoPreview} transparent animationType="fade" onRequestClose={() => setPhotoPreview(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.95)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setPhotoPreview(false)}>
+          <View>
+            <AvatarImage source={photo} name={name} size={300} tint={`${theme.primary}26`} border="rgba(212,175,55,0.55)" />
+            {/* DeenLink tag — overlapping the photo's bottom-right corner */}
+            <View
+              style={{
+                position: 'absolute',
+                right: -10,
+                bottom: -12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                paddingHorizontal: 9,
+                paddingVertical: 4,
+                borderRadius: 9,
+                borderWidth: 1,
+                borderColor: 'rgba(212,175,55,0.5)',
+                backgroundColor: 'rgba(4,12,8,0.85)',
+              }}
+            >
+              <FontAwesome5 name="check-circle" size={9} color="#E8C96A" />
+              <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 9.5, letterSpacing: 0.4 }}>
+                @deenlink
+              </T>
+            </View>
+          </View>
+          <T v="caption" style={{ color: 'rgba(242,247,243,0.45)', fontSize: 10.5, marginTop: 34 }}>
+            Tap anywhere to close
+          </T>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

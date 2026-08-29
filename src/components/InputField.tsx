@@ -63,7 +63,7 @@ export function InputField({
           onEndEditing={onEndEditing}
           style={{
             fontFamily: 'Poppins-Medium',
-            fontSize: 14,
+            fontSize: 16 /*14*/,
             fontWeight: '500',
             color: theme.text,
             paddingLeft: icon ? 44 : 15,

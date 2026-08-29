@@ -16,11 +16,13 @@ import { AvatarImage } from '@/components/FeedCard';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
+const deenPointsLogo = require('../../../assets/img/deenpoints.png');
+import { useSaved } from '@/lib/savedPosts';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
-type Tab = 'posts' | 'settings';
+type Tab = 'posts' | 'videos' | 'saved';
 
 /**
  * Personal profile (pass 15) — rebuilt on the public-profile design: pattern
@@ -33,6 +35,7 @@ export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('posts');
+  const saved = useSaved().saved;
   const [posts, setPosts] = useState<Post[]>([]);
   const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
@@ -123,7 +126,7 @@ export default function Profile() {
             hitSlop={8}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.08)', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 6, marginRight: 8, opacity: pressed ? 0.75 : 1 })}
           >
-            <FontAwesome5 name="gift" size={11} color={d.gold} />
+            <Image source={deenPointsLogo} style={{ width: 14, height: 14 }} resizeMode="contain" />
             <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
               {fmt(deenpoints)}
             </T>
@@ -131,7 +134,7 @@ export default function Profile() {
           <Pressable
             onPress={() => {
               haptic.selection();
-              setTab('settings');
+              router.push('/settings');
             }}
             hitSlop={8}
             style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 })}
@@ -241,7 +244,8 @@ export default function Profile() {
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 16 }}>
           {([
             { id: 'posts' as Tab, label: 'My Posts', icon: 'th-large' },
-            { id: 'settings' as Tab, label: 'Settings', icon: 'cog' },
+            { id: 'videos' as Tab, label: 'Videos', icon: 'video' },
+            { id: 'saved' as Tab, label: 'Saved', icon: 'bookmark' },
           ]).map((t) => {
             const on = tab === t.id;
             return (
@@ -249,8 +253,7 @@ export default function Profile() {
                 key={t.id}
                 onPress={() => {
                   haptic.selection();
-                  if (t.id === 'settings') router.push('/settings');
-                  else setTab(t.id);
+                  setTab(t.id);
                 }}
                 style={{
                   flex: 1,
@@ -285,13 +288,31 @@ export default function Profile() {
               </T>
             ) : null}
           </View>
-) : (
-          <View style={{ paddingTop: 14, paddingHorizontal: 16 }}>
-            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 20 }}>
-              Manage your account in Settings.
-            </T>
+        ) : tab === 'videos' ? (
+          <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
+            {posts
+              .filter((p) => p.video_url)
+              .map((p) => (
+                <FeedCard key={p.id} post={p} onLike={like} />
+              ))}
+            {posts.filter((p) => p.video_url).length === 0 ? (
+              <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
+                No videos yet — attach a video to a community post and it shows up here.
+              </T>
+            ) : null}
           </View>
-                )}
+        ) : (
+          <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
+            {saved.map((p) => (
+              <FeedCard key={p.id} post={p} />
+            ))}
+            {saved.length === 0 ? (
+              <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
+                Nothing saved yet — tap the bookmark on any post to keep it here.
+              </T>
+            ) : null}
+          </View>
+        )}
       </ScrollView>
     </View>
   );

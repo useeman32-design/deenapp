@@ -28,6 +28,9 @@ export function globalAyahOf(surah: number, ayah: number) {
 type AudioState = {
   surah: number | null;
   ayah: number;
+  /** 0..1 position within the surah (for the seek bar) */
+  progress: number;
+  seekTo: (fraction: number) => void;
   reciter: string;
   playing: boolean;
   rate: number;
@@ -52,11 +55,25 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
   const [reciter, setReciterState] = useState<string>('ar.alafasy');
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
+  const [progress, setProgress] = useState(0);
 
   const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah)) : 'about:blank';
   const player = useVideoPlayer({ uri }, (p) => {
     p.loop = false;
   });
+
+  /* expo-video does not reliably swap sources via the hook arg — replace() */
+  const lastSrc = useRef<string>(uri);
+  useEffect(() => {
+    if (uri !== lastSrc.current) {
+      lastSrc.current = uri;
+      try {
+        player.replace({ uri });
+        player.playbackRate = rate;
+        player.play();
+      } catch {}
+    }
+  }, [uri, player, rate]);
 
   /* play whenever the ayah/reciter changes and we're active */
   useEffect(() => {
@@ -70,23 +87,28 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
     player.playbackRate = rate;
   }, [rate, player]);
 
-  /* track time → advance to the next ayah on finish */
-  const advancing = useRef(false);
+  /* ayah progress → surah fraction */
   useEffect(() => {
-    const sub = player.addListener('timeUpdate', (state: { currentTime: number; duration?: number }) => {
-      const dur = state.duration ?? 0;
+    const t = player.addListener('timeUpdate', (state: { currentTime: number; duration?: number }) => {
       if (surah == null) return;
-      if (dur > 0 && state.currentTime >= dur - 0.12 && !advancing.current) {
-        advancing.current = true;
-        const meta = QURAN.find((s) => s.number === surah);
-        if (meta && ayah < meta.ayahs) {
-          setAyah((a) => a + 1); // next ayah (auto-plays via effect)
-        } else {
-          player.pause();
-          setPlaying(false);
-          setSurah(null);
-        }
-        setTimeout(() => (advancing.current = false), 400);
+      const meta = QURAN.find((s) => s.number === surah);
+      if (!meta) return;
+      const dur = state.duration && state.duration > 0 ? state.duration : 1;
+      setProgress(Math.min(1, (ayah - 1 + Math.min(1, state.currentTime / dur)) / meta.ayahs));
+    });
+    return () => t.remove();
+  }, [player, surah, ayah]);
+
+  /* advance on the engine's own end-of-item event (reliable) */
+  useEffect(() => {
+    const sub = player.addListener('playToEnd', () => {
+      if (surah == null) return;
+      const meta = QURAN.find((s) => s.number === surah);
+      if (meta && ayah < meta.ayahs) setAyah((a) => a + 1); // next ayah auto-plays via replace()
+      else {
+        player.pause();
+        setPlaying(false);
+        setSurah(null);
       }
     });
     const statusSub = player.addListener('statusChange', () => setPlaying(player.playing));
@@ -103,6 +125,14 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       reciter,
       playing,
       rate,
+      progress,
+      seekTo: (fraction: number) => {
+        if (surah == null) return;
+        const meta = QURAN.find((s) => s.number === surah);
+        if (!meta) return;
+        const target = Math.min(meta.ayahs, Math.max(1, Math.ceil(fraction * meta.ayahs)));
+        setAyah(target);
+      },
       playSurah: (s: number, a = 1) => {
         setSurah(s);
         setAyah(a);

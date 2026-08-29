@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { HADITH_BOOKS, chapterHadiths } from '@/data/hadithBooks';
+import { HADITH_BOOKS } from '@/data/hadithBooks';
+import { loadBook, loadBookMeta, type ContentHadith, type MetaChapter } from '@/lib/content';
+import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { storage } from '@/lib/storage';
 
 /**
- * A hadith collection (pass 15): chapters list → tap a chapter → reader view
- * (same screen, swaps content — no extra route needed for static export).
- * Remembers the last chapter per book (Continue where you left off).
+ * A hadith book (pass 18): REAL chapters from the user's dataset, and the
+ * reader streams the book's full text file (filtered by chapter).
  */
 export default function HadithBookScreen() {
   const { book: bookId } = useLocalSearchParams<{ book: string }>();
@@ -23,10 +22,17 @@ export default function HadithBookScreen() {
   const insets = useSafeAreaInsets();
   const book = HADITH_BOOKS.find((b) => b.id === bookId) ?? HADITH_BOOKS[0];
 
-  const [chapter, setChapter] = useState<string | null>(null);
+  const [chapter, setChapter] = useState<string | null>(null); // 'c3'
+  const [meta, setMeta] = useState<MetaChapter[] | null>(null);
+  const [hadiths, setHadiths] = useState<ContentHadith[] | null>(null);
+  const [loading, setLoading] = useState(false);
   const [marks, setMarks] = useState<Set<string>>(new Set());
+  const [limit, setLimit] = useState(25);
 
   useEffect(() => {
+    loadBookMeta(book.id)
+      .then((m) => setMeta(m.chapters))
+      .catch(() => setMeta([]));
     storage.getItem(`dl.hadith.last.${book.id}`).then((r) => {
       if (r) setChapter(r);
     });
@@ -41,11 +47,26 @@ export default function HadithBookScreen() {
   const openChapter = (id: string) => {
     haptic.light();
     setChapter(id);
+    setLimit(25);
     storage.setItem(`dl.hadith.last.${book.id}`, id);
   };
 
-  const hadiths = useMemo(() => (chapter ? chapterHadiths(book, chapter) : []), [book, chapter]);
-  const chapterMeta = book.chapters.find((c) => c.id === chapter);
+  /* stream the full book file on first reader open */
+  useEffect(() => {
+    if (!chapter) return;
+    if (hadiths) return;
+    setLoading(true);
+    loadBook(book.id)
+      .then((all) => {
+        setHadiths(all);
+      })
+      .catch(() => setHadiths([]))
+      .finally(() => setLoading(false));
+  }, [chapter, hadiths, book.id]);
+
+  const chNum = chapter ? Number(chapter.slice(1)) : null;
+  const chapterMeta = meta?.find((c) => c.chapter_number === chNum) ?? null;
+  const list = useMemo(() => (chapter && hadiths ? hadiths.filter((h) => h.chapter_number === chNum) : []), [chapter, hadiths, chNum]);
 
   const toggleMark = (id: string) => {
     haptic.light();
@@ -61,140 +82,117 @@ export default function HadithBookScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       {/* header */}
-      <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 12, paddingBottom: 10 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable
-            onPress={() => (chapter ? setChapter(null) : router.back())}
-            hitSlop={10}
-            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
-          >
+          <Pressable onPress={() => (chapter ? setChapter(null) : router.back())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name={chapter ? 'chevron-left' : 'arrow-left'} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
           </Pressable>
-          <LinearGradient
-            colors={book.grad as [string, string, ...string[]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <FontAwesome5 name="book" size={14} color="#FFFFFF" />
-          </LinearGradient>
           <View style={{ flex: 1, minWidth: 0 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
-              {chapter ? chapterMeta?.label : book.name}
+              {chapter ? chapterMeta?.english ?? `Chapter ${chNum}` : book.name}
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }} numberOfLines={1}>
-              {chapter ? `${book.name} · ${chapterMeta?.count.toLocaleString()} narrations` : `${book.total.toLocaleString()} narrations · ${book.chapters.length} chapters`}
+              {chapter ? `${chapterMeta?.arabic ?? ''} · ${list.length} hadiths` : `${book.total.toLocaleString()} hadiths · ${book.chapters} chapters`}
             </T>
           </View>
         </View>
       </View>
 
       {!chapter ? (
-        /* ── chapters list ── */
+        /* ── chapters (from chapters_meta — arabic + english + counts) ── */
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
-          {book.chapters.map((c, i) => (
-            <Pressable
-              key={c.id}
-              onPress={() => openChapter(c.id)}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 13,
-                marginBottom: 9,
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: d.card,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                opacity: pressed ? 0.82 : 1,
-              })}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
+          {meta == null ? (
+            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
+          ) : (
+            meta.map((c, i) => (
+              <Pressable
+                key={c.chapter_number}
+                onPress={() => openChapter(`c${c.chapter_number}`)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: 1.5,
-                  borderColor: `${book.tint}55`,
-                  backgroundColor: `${book.tint}14`,
-                }}
+                  gap: 13,
+                  marginBottom: 9,
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: d.card,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  opacity: pressed ? 0.82 : 1,
+                })}
               >
-                <T v="caption" style={{ color: book.tint, fontWeight: '800', fontSize: 12 }}>
-                  {i + 1}
-                </T>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5 }} numberOfLines={1}>
-                  {c.label}
-                </T>
-                <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
-                  {c.count.toLocaleString()} hadiths
-                </T>
-              </View>
-              <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : (
-        /* ── reader ── */
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-          {hadiths.map((h: { id: string; arabic: string; translation: string; source: string; number: string; category: string }) => (
-            <View
-              key={h.id}
-              style={{
-                backgroundColor: d.card,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                borderRadius: 17,
-                padding: 16,
-                marginBottom: 11,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <View
-                  style={{
-                    borderRadius: 8,
-                    backgroundColor: `${book.tint}14`,
-                    borderWidth: 1,
-                    borderColor: `${book.tint}44`,
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                  }}
-                >
-                  <T v="caption" style={{ color: book.tint, fontWeight: '800', fontSize: 9.5 }}>
-                    {h.number}
+                <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)' }}>
+                  <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 12 }}>
+                    {c.chapter_number}
                   </T>
                 </View>
-                <T v="caption" style={{ color: d.faint, fontSize: 10, marginLeft: 8 }}>
-                  {h.category}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5 }} numberOfLines={1}>
+                    {c.english}
+                  </T>
+                  <T v="arabic" style={{ color: d.faint, fontSize: 14, marginTop: 1 }} numberOfLines={1}>
+                    {c.arabic}
+                  </T>
+                </View>
+                <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>
+                  {c.hadith_count}
                 </T>
-                <View style={{ flex: 1 }} />
-                <Pressable onPress={() => toggleMark(h.id)} hitSlop={8} style={{ padding: 4 }}>
-                  <FontAwesome5 name="bookmark" size={14} solid={marks.has(h.id)} color={marks.has(h.id) ? '#E8C96A' : d.faint} />
+                <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        /* ── reader: full texts ── */
+        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          {loading ? (
+            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
+          ) : list.length === 0 ? (
+            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
+              No hadiths in this chapter.
+            </T>
+          ) : (
+            <>
+              {list.slice(0, limit).map((h, i) => {
+                const hid = `${book.id}-${h.chapter_number}-${i}`;
+                return (
+                  <View key={hid} style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 17, padding: 16, marginBottom: 11 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <View style={{ borderRadius: 8, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>
+                          {h.hadith_number ?? i + 1}
+                        </T>
+                      </View>
+                      <View style={{ flex: 1 }} />
+                      <Pressable onPress={() => toggleMark(hid)} hitSlop={8} style={{ padding: 4 }}>
+                        <FontAwesome5 name="bookmark" size={14} solid={marks.has(hid)} color={marks.has(hid) ? '#E8C96A' : d.faint} />
+                      </Pressable>
+                    </View>
+                    <T v="arabic" style={{ color: d.text, fontSize: 19, textAlign: 'right', lineHeight: 34 }}>
+                      {h.arabic}
+                    </T>
+                    {h.english ? (
+                      <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 10, lineHeight: 19 }}>
+                        {h.english}
+                      </T>
+                    ) : null}
+                    {h.grade ? (
+                      <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontSize: 10, marginTop: 8, fontWeight: '700' }}>
+                        {h.grade}
+                      </T>
+                    ) : null}
+                  </View>
+                );
+              })}
+              {limit < list.length ? (
+                <Pressable onPress={() => setLimit((l) => l + 25)} style={{ alignItems: 'center', paddingVertical: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, marginTop: 4 }}>
+                  <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 12 }}>
+                    Load more ({list.length - limit} left)
+                  </T>
                 </Pressable>
-              </View>
-              <T v="arabic" style={{ color: d.text, fontSize: 20, textAlign: 'right', lineHeight: 36 }}>
-                {h.arabic}
-              </T>
-              <T v="bodyS" style={{ color: d.subtext, fontSize: 13, marginTop: 10, lineHeight: 20 }}>
-                "{h.translation}"
-              </T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
-                <FontAwesome5 name="bookmark" size={9} color={d.faint} />
-                <T v="caption" style={{ color: d.faint, fontSize: 10, marginLeft: 6, flex: 1 }}>
-                  {h.source}
-                </T>
-                <Pressable hitSlop={6} onPress={() => haptic.selection()}>
-                  <FontAwesome5 name="share-alt" size={12} color={d.faint} />
-                </Pressable>
-              </View>
-            </View>
-          ))}
-          <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 10.5, marginTop: 6 }}>
-            Showing the demo selection from {chapterMeta?.label} · {book.name}
-          </T>
+              ) : null}
+            </>
+          )}
         </ScrollView>
       )}
     </View>

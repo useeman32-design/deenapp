@@ -92,7 +92,7 @@ export default function Scholars() {
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     fontFamily: 'Poppins-Medium',
-                    fontSize: 13.5,
+                    fontSize: 16 /*13.5*/,
                     color: theme.text,
                   }}
                 />
@@ -111,7 +111,7 @@ export default function Scholars() {
                     paddingHorizontal: 12,
                     paddingTop: 10,
                     fontFamily: 'Poppins',
-                    fontSize: 13.5,
+                    fontSize: 16 /*13.5*/,
                     color: theme.text,
                     minHeight: 80,
                     textAlignVertical: 'top',

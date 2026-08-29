@@ -498,7 +498,6 @@ export default function VideosFeed() {
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
   const [shareReel, setShareReel] = useState<MockReel | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const [inboxLikes, setInboxLikes] = useState<Set<number>>(new Set());
   const [avatarPreview, setAvatarPreview] = useState<{ img: number | null; name: string } | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -810,7 +809,7 @@ export default function VideosFeed() {
         extraData={storeTick}
       />
 
-      {/* bottom menu — labels pill + plus breaking out of the edge */}
+      {/* bottom menu — labels pill + plus fully outside, level */}
       <View style={{ position: 'absolute', alignSelf: 'center', bottom: 16 + insets.bottom * 0.4, flexDirection: 'row', alignItems: 'center' }}>
         <View
           style={{
@@ -862,18 +861,15 @@ export default function VideosFeed() {
                 </T>
               </Pressable>
             ))}
-            {/* spacer so the plus can overlap the pill edge */}
-            <View style={{ width: 26 }} />
           </View>
         </View>
 
-        {/* plus — half outside the pill */}
+        {/* plus — fully OUTSIDE the pill, level with it (pass 18) */}
         <Pressable
           onPress={() => { haptic.light(); setCreateOpen(true); }}
           style={({ pressed }) => ({
-            position: 'absolute',
-            right: -18,
-            top: -7,
+            marginLeft: 14,
+            alignSelf: 'center',
             width: 50,
             height: 50,
             borderRadius: 25,
@@ -896,108 +892,19 @@ export default function VideosFeed() {
 
       {/* inbox — friends' video shares, react but no chat */}
       {inboxOpen ? (
-        <View style={{ position: 'absolute', inset: 0, zIndex: 120, backgroundColor: '#07100C' }}>
-          <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable onPress={() => setInboxOpen(false)} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="chevron-left" size={14} color="#FFFFFF" />
-            </Pressable>
-            <View style={{ flex: 1 }}>
-              <T v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 18 }}>
-                Inbox
-              </T>
-              <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5, marginTop: 1 }}>
-                Friends share videos — react, no chat
-              </T>
-            </View>
-            <FontAwesome5 name="comment-dots" size={16} color="rgba(242,247,243,0.4)" />
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-            {[
-              { friend: 'aisha_yusuf', reelId: 201, ago: '2h' },
-              { friend: 'alameen', reelId: 204, ago: '5h' },
-              { friend: 'usman_ahmad', reelId: 203, ago: '9h' },
-              { friend: 'Gimba', reelId: 205, ago: '1d' },
-              { friend: 'mayanchie12', reelId: 202, ago: '2d' },
-            ].map((sh) => {
-              const r = MOCK_REELS.find((x) => x.id === sh.reelId);
-              const acc = MOCK_ACCOUNTS.find((a) => a.username === sh.friend);
-              if (!r || !acc) return null;
-              const likedShare = inboxLikes.has(sh.reelId);
-              return (
-                <View key={`${sh.friend}-${sh.reelId}`} style={{ borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', padding: 12, marginBottom: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <AvatarImage source={acc.photo ?? null} name={acc.full_name} size={34} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
-                    <View style={{ flex: 1 }}>
-                      <T v="bodyS" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 12.5 }}>
-                        {acc.full_name}
-                      </T>
-                      <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10, marginTop: 1 }}>
-                        shared a video with you · {sh.ago}
-                      </T>
-                    </View>
-                    <FontAwesome5 name="share-square" size={12} color="rgba(242,247,243,0.35)" />
-                  </View>
-
-                  <Pressable
-                    onPress={() => {
-                      haptic.light();
-                      setInboxOpen(false);
-                      const idx = reels.findIndex((x) => x.id === sh.reelId);
-                      if (idx >= 0) {
-                        setFeedTab('foryou');
-                        setIndex(idx);
-                        Animated.spring(thumbX, { toValue: SEG_W, useNativeDriver: true, friction: 7, tension: 90 }).start();
-                        setTimeout(() => listRef.current?.scrollToOffset({ offset: idx * VH, animated: false }), 60);
-                      }
-                    }}
-                    style={({ pressed }) => ({ marginTop: 10, borderRadius: 12, overflow: 'hidden', opacity: pressed ? 0.8 : 1 })}
-                  >
-                    <Image source={r.poster as never} style={{ width: '100%', height: 200 }} resizeMode="cover" />
-                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(4,12,8,0.65)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                        <FontAwesome5 name="play" size={16} color="#FFFFFF" />
-                      </View>
-                    </View>
-                  </Pressable>
-                  <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.75)', fontSize: 11, marginTop: 8 }}>
-                    {r.caption}
-                  </T>
-
-                  {/* react only — no chat */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
-                    <Pressable
-                      onPress={() => {
-                        haptic.light();
-                        setInboxLikes((s) => {
-                          const n = new Set(s);
-                          if (n.has(sh.reelId)) n.delete(sh.reelId);
-                          else n.add(sh.reelId);
-                          return n;
-                        });
-                      }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-                    >
-                      <FontAwesome5 name="heart" size={13} solid={likedShare} color={likedShare ? '#FF5A5A' : 'rgba(242,247,243,0.55)'} />
-                      <T v="caption" style={{ color: likedShare ? '#FF5A5A' : 'rgba(242,247,243,0.55)', fontWeight: '700', fontSize: 10.5 }}>
-                        {(r.likes + (likedShare ? 1 : 0)).toLocaleString()}
-                      </T>
-                    </Pressable>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <FontAwesome5 name="comment" size={12} color="rgba(242,247,243,0.55)" />
-                      <T v="caption" style={{ color: 'rgba(242,247,243,0.55)', fontWeight: '700', fontSize: 10.5 }}>
-                        {r.comments}
-                      </T>
-                    </View>
-                    <View style={{ flex: 1 }} />
-                    <T v="caption" style={{ color: 'rgba(242,247,243,0.3)', fontSize: 9.5, fontStyle: 'italic' }}>
-                      Chat is off for shares
-                    </T>
-                  </View>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
+        <InboxOverlay
+          onClose={() => setInboxOpen(false)}
+          openReel={(reelId) => {
+            setInboxOpen(false);
+            const idx = reels.findIndex((x) => x.id === reelId);
+            if (idx >= 0) {
+              setFeedTab('foryou');
+              setIndex(idx);
+              Animated.spring(thumbX, { toValue: SEG_W, useNativeDriver: true, friction: 7, tension: 90 }).start();
+              setTimeout(() => listRef.current?.scrollToOffset({ offset: idx * VH, animated: false }), 60);
+            }
+          }}
+        />
       ) : null}
 
       {/* friends sheet */}
@@ -1651,5 +1558,249 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         </View>
       </View>
     </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* TikTok-style inbox (pass 18):                                       */
+/*   level 1 — list of friends who shared reels with you              */
+/*   level 2 — conversation-like thread of the reels you two shared   */
+/*   NO chat anywhere: only reel bubbles + emoji reactions.           */
+/*   Double-tap a reel bubble → emoji panel → react.                   */
+/* ------------------------------------------------------------------ */
+
+const INBOX_EMOJIS = ['❤️', '😂', '😮', '🤲', '🔥', '🤍'] as const;
+
+type ShareEntry = { reelId: number; ago: string; dir: 'them' | 'me' };
+type FriendThread = { friend: string; items: ShareEntry[] };
+
+const INBOX_THREADS: FriendThread[] = [
+  { friend: 'aisha_yusuf', items: [
+    { reelId: 204, ago: '2h', dir: 'them' },
+    { reelId: 201, ago: '1d', dir: 'me' },
+    { reelId: 205, ago: '3d', dir: 'them' },
+  ] },
+  { friend: 'alameen', items: [
+    { reelId: 201, ago: '5h', dir: 'them' },
+    { reelId: 203, ago: '2d', dir: 'them' },
+  ] },
+  { friend: 'usman_ahmad', items: [
+    { reelId: 203, ago: '9h', dir: 'them' },
+    { reelId: 202, ago: '4d', dir: 'me' },
+  ] },
+  { friend: 'Gimba', items: [
+    { reelId: 205, ago: '1d', dir: 'them' },
+  ] },
+  { friend: 'mayanchie12', items: [
+    { reelId: 202, ago: '2d', dir: 'them' },
+    { reelId: 204, ago: '5d', dir: 'me' },
+  ] },
+];
+
+function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (reelId: number) => void }) {
+  const insets = useSafeAreaInsets();
+  const [thread, setThread] = useState<FriendThread | null>(null);
+  const [reactions, setReactions] = useState<Record<string, string>>({});
+  const [emojiFor, setEmojiFor] = useState<string | null>(null);
+  const lastTap = useRef<{ key: string; t: number }>({ key: '', t: 0 });
+  const pop = useRef(new Animated.Value(0)).current;
+
+  const popIn = () => {
+    pop.setValue(0);
+    Animated.spring(pop, { toValue: 1, useNativeDriver: true, friction: 4, tension: 70 }).start();
+  };
+
+  const onTapBubble = (key: string) => {
+    const now = Date.now();
+    const isDouble = lastTap.current.key === key && now - lastTap.current.t < 320;
+    lastTap.current = { key, t: now };
+    if (isDouble) {
+      haptic.light();
+      setEmojiFor(key);
+    }
+  };
+
+  const react = (key: string, emoji: string) => {
+    haptic.success();
+    setReactions((r) => ({ ...r, [key]: r[key] === emoji ? '' : emoji }));
+    setEmojiFor(null);
+    popIn();
+  };
+
+  const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u) ?? MOCK_ACCOUNTS[0];
+  const reel = (id: number) => MOCK_REELS.find((x) => x.id === id);
+
+  /* ---------- level 2 — the reel thread with one friend ---------- */
+  if (thread) {
+    const a = acc(thread.friend);
+    return (
+      <View style={{ position: 'absolute', inset: 0, zIndex: 120, backgroundColor: '#07100C' }}>
+        {/* header */}
+        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Pressable onPress={() => { haptic.selection(); setThread(null); }} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="chevron-left" size={14} color="#FFFFFF" />
+          </Pressable>
+          <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(212,175,55,0.5)" />
+          <View style={{ flex: 1 }}>
+            <T v="bodyS" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 13.5 }}>
+              {a.full_name}
+            </T>
+            <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10, marginTop: 1 }}>
+              @{a.username} · reels you share with each other
+            </T>
+          </View>
+          <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(212,175,55,0.1)', paddingHorizontal: 8, paddingVertical: 4 }}>
+            <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 9 }}>NO CHAT</T>
+          </View>
+        </View>
+
+        {/* the shared-reel history */}
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 110, gap: 14 }} showsVerticalScrollIndicator={false}>
+          {thread.items.map((it) => {
+            const r = reel(it.reelId);
+            if (!r) return null;
+            const key = `${thread.friend}-${it.reelId}-${it.ago}`;
+            const mine = it.dir === 'me';
+            const reaction = reactions[key];
+            return (
+              <View key={key} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
+                {!mine ? <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" /> : null}
+                <Pressable
+                  onPress={() => onTapBubble(key)}
+                  onLongPress={() => openReel(it.reelId)}
+                  style={({ pressed }) => ({
+                    maxWidth: '72%',
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: mine ? 'rgba(74,227,143,0.45)' : 'rgba(255,255,255,0.12)',
+                    backgroundColor: mine ? 'rgba(31,143,92,0.14)' : 'rgba(255,255,255,0.05)',
+                    padding: 6,
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                    <Image source={r.poster as never} style={{ width: 168, height: 224 }} resizeMode="cover" />
+                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name="play" size={13} color="#FFFFFF" />
+                      </View>
+                    </View>
+                    {/* reaction badge pinned to the bubble corner */}
+                    {reaction ? (
+                      <Animated.Text
+                        key={reaction}
+                        style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 17, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }] }}
+                      >
+                        {reaction}
+                      </Animated.Text>
+                    ) : null}
+                  </View>
+                  <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 10.5, marginTop: 6, marginHorizontal: 2, width: 160 }}>
+                    {r.caption}
+                  </T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3, marginHorizontal: 2, marginBottom: 2 }}>
+                    <FontAwesome5 name={mine ? 'share' : 'share-square'} size={8} color="rgba(242,247,243,0.4)" />
+                    <T v="caption" style={{ color: 'rgba(242,247,243,0.4)', fontSize: 9 }}>{mine ? `you shared · ${it.ago}` : `shared with you · ${it.ago}`}</T>
+                  </View>
+                </Pressable>
+                {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
+              </View>
+            );
+          })}
+          <T v="caption" style={{ color: 'rgba(242,247,243,0.3)', textAlign: 'center', fontSize: 9.5, fontStyle: 'italic' }}>
+            Long-press a reel to watch it · double-tap to react
+          </T>
+        </ScrollView>
+
+        {/* where a chat bar would be — emoji-only instead */}
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 14 + insets.bottom, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(10,20,14,0.9)', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 }}>
+          <FontAwesome5 name="video" size={12} color="rgba(242,247,243,0.5)" />
+          <T v="caption" style={{ flex: 1, color: 'rgba(242,247,243,0.5)', fontSize: 10.5 }}>
+            Chat is off — reactions only. Double-tap any reel to react.
+          </T>
+          {INBOX_EMOJIS.slice(0, 3).map((e) => (
+            <Pressable key={e} onPress={() => { haptic.selection(); setEmojiFor(lastTap.current.key || `${thread.friend}-${thread.items[0].reelId}-${thread.items[0].ago}`); }} style={{ padding: 2 }}>
+              <T v="bodyS" style={{ fontSize: 15 }}>{e}</T>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* double-tap emoji panel */}
+        {emojiFor ? (
+          <Pressable style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,8,6,0.55)', justifyContent: 'flex-end' }} onPress={() => setEmojiFor(null)}>
+            <Pressable style={{ paddingBottom: 24 + insets.bottom, paddingHorizontal: 14 }}>
+              <View style={{ borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(12,23,18,0.97)', paddingVertical: 14, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+                {INBOX_EMOJIS.map((e, i) => (
+                  <Pressable
+                    key={e}
+                    onPress={() => react(emojiFor, e)}
+                    style={({ pressed }) => ({ transform: [{ scale: pressed ? 1.35 : 1 }] })}
+                  >
+                    <Animated.Text style={{ fontSize: 30, opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }), marginTop: i % 2 === 0 ? 0 : 10 }}>
+                      {e}
+                    </Animated.Text>
+                  </Pressable>
+                ))}
+              </View>
+              <T v="caption" style={{ color: 'rgba(242,247,243,0.45)', textAlign: 'center', fontSize: 10, marginTop: 10 }}>
+                Tap an emoji to react to this reel
+              </T>
+            </Pressable>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
+  /* ---------- level 1 — friends who shared with you ---------- */
+  return (
+    <View style={{ position: 'absolute', inset: 0, zIndex: 120, backgroundColor: '#07100C' }}>
+      <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable onPress={onClose} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name="chevron-left" size={14} color="#FFFFFF" />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <T v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 18 }}>
+            Inbox
+          </T>
+          <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5, marginTop: 1 }}>
+            Shared reels · react with emojis · no chat
+          </T>
+        </View>
+        <FontAwesome5 name="video" size={16} color="rgba(242,247,243,0.4)" />
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {INBOX_THREADS.map((t) => {
+          const a = acc(t.friend);
+          const first = reel(t.items[0].reelId);
+          if (!first) return null;
+          const newCount = t.items.filter((x) => x.dir === 'them').length;
+          return (
+            <Pressable
+              key={t.friend}
+              onPress={() => { haptic.selection(); setThread(t); }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1 })}
+            >
+              <View>
+                <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
+                <View style={{ position: 'absolute', right: -1, top: -1, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#1F8F5C', borderWidth: 1.5, borderColor: '#07100C', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                  <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{newCount}</T>
+                </View>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T v="bodyS" numberOfLines={1} style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 13 }}>
+                  {a.full_name}
+                </T>
+                <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5, marginTop: 2 }}>
+                  shared {t.items.length} reel{t.items.length > 1 ? 's' : ''} with you · {t.items[0].ago}
+                </T>
+              </View>
+              <Image source={first.poster as never} style={{ width: 44, height: 58, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} resizeMode="cover" />
+              <FontAwesome5 name="chevron-right" size={12} color="rgba(242,247,243,0.35)" />
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }

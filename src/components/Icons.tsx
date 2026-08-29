@@ -104,9 +104,17 @@ export function ShareIcon(p: IconProps) {
 }
 
 export function BookmarkIcon(p: IconProps) {
+  const s = sp(p);
   return (
     <Svg viewBox="0 0 24 24" width={p.size ?? 22} height={p.size ?? 22}>
-      <Path d="M7 4.6 H17 V20.2 L12 16.4 L7 20.2 Z" {...sp(p)} />
+      <Path
+        d="M7 4.6 H17 V20.2 L12 16.4 L7 20.2 Z"
+        stroke={s.stroke}
+        strokeWidth={s.strokeWidth}
+        fill={p.filled ? s.stroke : 'none'}
+        strokeLinecap={s.strokeLinecap}
+        strokeLinejoin={s.strokeLinejoin}
+      />
     </Svg>
   );
 }

@@ -6,7 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { Alert } from 'react-native';
+const deenPointsLogo = require('../../../assets/img/deenpoints.png');
+import { Alert, Image } from 'react-native';
 
 /**
  * Settings screen (pass 17) — opened from the profile's Settings tab.
@@ -20,7 +21,7 @@ export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const deenpoints = (user?.deenpoints_balance as number) ?? 0;
 
-  const Row = ({ icon, label, desc, tint, onPress }: { icon: string; label: string; desc: string; tint: string; onPress: () => void }) => (
+  const Row = ({ icon, label, desc, tint, onPress, image }: { icon: string; label: string; desc: string; tint: string; onPress: () => void; image?: number }) => (
     <Pressable
       onPress={() => {
         haptic.selection();
@@ -29,7 +30,7 @@ export default function SettingsScreen() {
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, opacity: pressed ? 0.7 : 1 })}
     >
       <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${tint}18`, borderWidth: 1, borderColor: `${tint}44`, alignItems: 'center', justifyContent: 'center' }}>
-        <FontAwesome5 name={icon as never} size={13} color={tint} />
+        {image ? <Image source={image} style={{ width: 20, height: 20 }} resizeMode="contain" /> : <FontAwesome5 name={icon as never} size={13} color={tint} />}
       </View>
       <View style={{ flex: 1 }}>
         <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13 }}>
@@ -77,7 +78,7 @@ export default function SettingsScreen() {
             </T>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)', borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 }}>
-            <FontAwesome5 name="gift" size={10} color={d.gold} />
+            <Image source={deenPointsLogo} style={{ width: 13, height: 13 }} resizeMode="contain" />
             <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
               {deenpoints.toLocaleString()}
             </T>
@@ -90,7 +91,7 @@ export default function SettingsScreen() {
           <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
           <Row icon="user-edit" label="Edit Profile" desc="Name, bio, aqeedah & photo" tint="#5BC8F5" onPress={() => router.push('/settings/edit-profile')} />
           <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
-          <Row icon="gift" label="DeenPoints" desc="How to earn & spend your points" tint={d.gold} onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')} />
+          <Row icon="gift" image={deenPointsLogo} label="DeenPoints" desc="How to earn & spend your points" tint={d.gold} onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')} />
           <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
           <Row icon="bell" label="Notifications" desc="Prayer times & community alerts" tint="#E8C96A" onPress={() => Alert.alert('Notifications', 'Prayer reminders are managed in the Prayer Times tool.')} />
           <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />

@@ -39,7 +39,7 @@ export default function Names() {
             paddingHorizontal: 14,
             paddingVertical: 10,
             color: theme.text,
-            fontSize: 14.5,
+            fontSize: 16 /*14.5*/,
           }}
         />
       </View>
@@ -48,7 +48,7 @@ export default function Names() {
           <Card key={n.transliteration} style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14.5 }}>{n.transliteration}</Text>
-              <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 2 }}>{n.meaning}</Text>
+              <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 2 }}>{n.translation}</Text>
             </View>
             <Text style={{ fontFamily: 'Amiri', color: theme.primary, fontSize: 23, marginLeft: 10 }}>{n.arabic}</Text>
           </Card>

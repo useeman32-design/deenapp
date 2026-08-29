@@ -201,6 +201,17 @@ export default function Quiz() {
               })}
             </View>
 
+            {selected != null && q.explanation ? (
+              <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12 }}>
+                <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10, letterSpacing: 0.5 }}>
+                  WHY
+                </T>
+                <T v="caption" style={{ color: d.subtext, fontSize: 11.5, lineHeight: 16, marginTop: 4 }}>
+                  {q.explanation}
+                </T>
+              </View>
+            ) : null}
+
             {selected != null ? (
               <Pressable onPress={next} style={{ marginTop: 14, alignItems: 'center', paddingVertical: 13, borderRadius: 13, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
                 <T v="body" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>

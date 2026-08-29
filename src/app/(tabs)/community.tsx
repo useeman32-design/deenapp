@@ -244,7 +244,7 @@ export default function CommunityScreen() {
                   opacity: pressed ? 0.75 : 1,
                 })}
               >
-                <T v="bodyS" style={{ color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 12.5 }}>
+                <T v="bodyS" style={{ color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 16 /*12.5*/ }}>
                   {t.label}
                 </T>
               </Pressable>

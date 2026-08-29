@@ -1,21 +1,41 @@
-import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import React from 'react';
+import { View } from 'react-native';
+import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
 
 /**
- * Qibla compass dial: degree ring, cardinal labels, rotating needle
- * and the Kaaba at the centre. When `aligned` the needle is drawn
- * pointing north with a glow ring.
+ * LIVE qibla compass (pass 18).
+ *
+ * The rose rotates by −heading (so it mirrors the real world: the top of
+ * the phone is where you're pointing). The Qibla marker sits at `bearing`
+ * on the rose; when it reaches the fixed top pointer you face the Kaaba.
+ *
+ *  · heading == null → static rose + qibla marker (manual mode)
+ *  · |delta| <= tolerance → glow + "aligned"
  */
-export function Compass({ bearing, aligned, size = 250 }: { bearing: number; aligned: boolean; size?: number }) {
-  const { theme } = useTheme();
+export function Compass({
+  bearing,
+  heading,
+  size = 260,
+  delta,
+}: {
+  bearing: number;
+  /** live compass heading in degrees, null = no sensor */
+  heading: number | null;
+  size?: number;
+  /** signed qibla−heading difference; used for the glow */
+  delta: number | null;
+}) {
+  const { theme, isDark } = useTheme();
   const c = size / 2;
-  const R = size / 2 - 8;
+  const R = size / 2 - 10;
+  const aligned = delta != null && Math.abs(delta) <= 3;
 
-  const ticks = [];
+  const ticks: React.ReactNode[] = [];
   for (let d = 0; d < 360; d += 5) {
     const major = d % 30 === 0;
     const rad = ((d - 90) * Math.PI) / 180;
-    const len = major ? 15 : 7;
+    const len = major ? 14 : 7;
     ticks.push(
       <Line
         key={d}
@@ -23,61 +43,58 @@ export function Compass({ bearing, aligned, size = 250 }: { bearing: number; ali
         y1={c + (R - 3) * Math.sin(rad)}
         x2={c + (R - 3 - len) * Math.cos(rad)}
         y2={c + (R - 3 - len) * Math.sin(rad)}
-        stroke={major ? theme.subtext : theme.border}
-        strokeWidth={major ? 1.5 : 1}
+        stroke={d === 0 ? '#E05B5B' : major ? theme.subtext : theme.border}
+        strokeWidth={major ? 1.6 : 1}
       />,
     );
   }
 
   const labels = [
     { d: 0, t: 'N' },
-    { d: 45, t: '45' },
     { d: 90, t: 'E' },
-    { d: 135, t: '135' },
     { d: 180, t: 'S' },
-    { d: 225, t: '225' },
     { d: 270, t: 'W' },
-    { d: 315, t: '315' },
   ];
 
   return (
-    <Svg width={size} height={size}>
-      <Circle cx={c} cy={c} r={R} fill="none" stroke={theme.border} strokeWidth={1.5} />
-      {ticks}
-      {labels.map((l) => {
-        const rad = ((l.d - 90) * Math.PI) / 180;
-        const x = c + (R - 32) * Math.cos(rad);
-        const y = c + (R - 32) * Math.sin(rad);
-        const cardinal = l.d % 90 === 0;
-        return (
-          <SvgText
-            key={l.d}
-            x={x}
-            y={y + 4}
-            fontSize={cardinal ? 14 : 9.5}
-            fontWeight={cardinal ? '800' : '500'}
-            fill={cardinal ? theme.text : theme.subtext}
-            textAnchor="middle"
-          >
-            {l.t}
-          </SvgText>
-        );
-      })}
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size}>
+        <Circle cx={c} cy={c} r={R} fill={isDark ? '#0B120E' : '#FFFFFF'} stroke={theme.border} strokeWidth={1.5} />
 
-      {/* needle */}
-      <G transform={`rotate(${aligned ? 0 : bearing} ${c} ${c})`}>
-        <Path d={`M ${c} ${c - 94} L ${c + 15} ${c - 24} L ${c} ${c - 40} L ${c - 15} ${c - 24} Z`} fill={theme.primary} />
-        <Path d={`M ${c} ${c + 94} L ${c + 15} ${c + 24} L ${c} ${c + 40} L ${c - 15} ${c + 24} Z`} fill={theme.border} />
-      </G>
+        {/* rotating rose */}
+        <G transform={`rotate(${heading == null ? 0 : -heading} ${c} ${c})`}>
+          {ticks}
+          {labels.map((l) => {
+            const rad = ((l.d - 90) * Math.PI) / 180;
+            const x = c + (R - 26) * Math.cos(rad);
+            const y = c + (R - 26) * Math.sin(rad);
+            return (
+              <SvgText key={l.d} x={x} y={y + 5} fontSize={14} fontWeight="800" fill={l.d === 0 ? '#E05B5B' : theme.text} textAnchor="middle">
+                {l.t}
+              </SvgText>
+            );
+          })}
 
-      {/* Kaaba */}
-      <G>
-        <Rect x={c - 27} y={c - 21} width={54} height={42} rx={5} fill="#0D120F" stroke="#2A2F2A" strokeWidth={1.5} />
-        <Rect x={c - 27} y={c - 13} width={54} height={7} fill={theme.accent} />
-      </G>
-      <Circle cx={c} cy={c} r={3.5} fill={theme.primary} />
+          {/* Qibla marker at its true bearing on the rose */}
+          <G transform={`rotate(${bearing} ${c} ${c})`}>
+            <Line x1={c} y1={c - (R - 6)} x2={c} y2={c - (R - 40)} stroke="#D4AF37" strokeWidth={3} strokeLinecap="round" />
+            <G transform={`translate(${c} ${c - (R - 55)})`}>
+              <Rect x={-15} y={-12} width={30} height={24} rx={3.5} fill="#0D120F" stroke={aligned ? '#4AE38F' : '#D4AF37'} strokeWidth={1.8} />
+              <Rect x={-15} y={-4} width={30} height={5} fill={aligned ? '#4AE38F' : '#D4AF37'} />
+            </G>
+          </G>
+        </G>
 
-      {aligned ? <Circle cx={c} cy={c} r={R - 9} fill="none" stroke={theme.primary} strokeWidth={2} opacity={0.5} /> : null}
-    </Svg>
+        {/* centre hub + Kaaba glyph */}
+        <Rect x={c - 17} y={c - 14} width={34} height={28} rx={4} fill="#0D120F" stroke="#2A2F2A" strokeWidth={1.5} />
+        <Rect x={c - 17} y={c - 6} width={34} height={5} fill="#D4AF37" />
+        <Circle cx={c} cy={c} r={2.6} fill={theme.primary} />
+
+        {/* fixed pointer: the direction the top of the phone points */}
+        <Polygon points={`${c},${c - R + 2} ${c - 8},${c - R - 10} ${c + 8},${c - R - 10}`} fill={aligned ? '#4AE38F' : theme.text} />
+
+        {aligned ? <Circle cx={c} cy={c} r={R - 2} fill="none" stroke="#4AE38F" strokeWidth={2.5} opacity={0.65} /> : null}
+      </Svg>
+    </View>
   );
 }

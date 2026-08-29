@@ -239,7 +239,7 @@ export default function SurahList() {
                 onChangeText={setQ}
                 placeholder="Search surah by name or number…"
                 placeholderTextColor={d.faint}
-                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 13, color: d.text, paddingVertical: 11, paddingLeft: 9 }}
+                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13*/, color: d.text, paddingVertical: 11, paddingLeft: 9 }}
               />
               {q ? (
                 <Pressable onPress={() => setQ('')} hitSlop={8}>

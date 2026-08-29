@@ -153,7 +153,37 @@ function FloatingTabBar({
               }}
             >
               <>
-                {/* stacked icons: faint base + lit green, cross-faded */}
+                {/* Worship Tools — raised emerald button, but LEVEL with the other tabs (pass 18) */}
+                {isCenter ? (
+                  <View style={{ height: PILL_H, alignItems: 'center', justifyContent: 'center' }}>
+                    <Animated.View
+                      style={{
+                        width: 44,
+                        height: 30,
+                        borderRadius: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isDark ? '#1F8F5C' : '#1D6F42',
+                        borderWidth: 1,
+                        borderColor: 'rgba(212,175,55,0.65)',
+                        shadowColor: '#000',
+                        shadowOpacity: 0.35,
+                        shadowRadius: 7,
+                        shadowOffset: { width: 0, height: 3 },
+                        elevation: 8,
+                        opacity: lit.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0.62, 1, 1] }),
+                        transform: [
+                          {
+                            scale: lit.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }),
+                          },
+                        ],
+                      }}
+                    >
+                      <FontAwesome5 name={tab.icon} size={17} color="#FFFFFF" />
+                    </Animated.View>
+                  </View>
+                ) : (
+                  /* stacked icons: faint base + lit green, cross-faded */
                   <View style={{ height: PILL_H, alignItems: 'center', justifyContent: 'center' }}>
                     <Animated.View style={{ position: 'absolute', opacity: dim }}>
                       <FontAwesome5 name={tab.icon} size={19} color={d.faint} />
@@ -162,6 +192,7 @@ function FloatingTabBar({
                       <FontAwesome5 name={tab.icon} size={19} color={d.emerald} />
                     </Animated.View>
                   </View>
+                )}
                   {/* stacked labels: faint base + lit, cross-faded */}
                   <View style={{ height: 24, marginTop: 4, width: itemW }}>
                     <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: itemW, opacity: dim }}>

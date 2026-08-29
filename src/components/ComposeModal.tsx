@@ -50,7 +50,7 @@ export function ComposeModal({
               paddingVertical: 12,
               minHeight: 100,
               color: theme.text,
-              fontSize: 15,
+              fontSize: 16 /*15*/,
               textAlignVertical: 'top',
             }}
           />

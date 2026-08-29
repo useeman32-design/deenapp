@@ -8,7 +8,8 @@ import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
-import { ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
+import { BookmarkIcon, ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
+import { savedStore } from '@/lib/savedPosts';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
@@ -213,13 +214,13 @@ export function FeedCard({
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(false);
   const [pollState, setPollState] = useState<{ voted: number | null; options: Array<{ id: number; text: string; votes: number }> }>(() => ({
     voted: null,
     options: post.poll?.options ?? [],
   }));
   const [reportType, setReportType] = useState<string | null>(null);
   const [reportDesc, setReportDesc] = useState('');
+  const [savedNow, setSavedNow] = useState(() => savedStore.has(post.id));
   const lastTap = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burst = useRef(new Animated.Value(0)).current;
@@ -312,13 +313,13 @@ export function FeedCard({
         elevation: 2,
       }}
     >
-      {/* Header (avatar + name open the public profile) */}
+      {/* Header (avatar + name open the public profile — pass 18: no avatar preview on posts) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 11 }}>
         <Pressable
           hitSlop={8}
           onPress={() => {
             haptic.selection();
-            setAvatarPreview(true);
+            router.push(`/profile/${user.username}`);
           }}
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
@@ -457,7 +458,7 @@ export function FeedCard({
 
       {/* Poll — pro redesign: pick / change / retract your vote */}
       {post.poll ? (
-        <View style={{ marginTop: 10 }}>
+        <View style={{ marginTop: 10, marginBottom: 12 }}>
           <View
             style={{
               borderWidth: 1,
@@ -704,6 +705,17 @@ export function FeedCard({
               Share
             </T>
           </Pressable>
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              savedStore.toggle(post);
+              setSavedNow(savedStore.has(post.id));
+            }}
+            hitSlop={8}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 'auto', opacity: pressed ? 0.6 : 1 })}
+          >
+            <BookmarkIcon size={20} filled={savedNow} color={savedNow ? (dash ? '#E8C96A' : '#B8860B') : sub} />
+          </Pressable>
         </View>
       ) : null}
 
@@ -726,39 +738,6 @@ export function FeedCard({
       </Animated.View>
 
       {/* Image preview */}
-      {/* avatar fullscreen preview — with the DeenLink tag */}
-      <Modal visible={avatarPreview} transparent animationType="fade" onRequestClose={() => setAvatarPreview(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.95)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setAvatarPreview(false)}>
-          <View style={{ alignItems: 'center' }}>
-            <AvatarImage source={img} name={name} size={Math.min(300, 300)} tint={`${accent}26`} border="rgba(212,175,55,0.55)" />
-            <T v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 17, marginTop: 16 }}>
-              {name}
-            </T>
-            <T v="caption" style={{ color: 'rgba(242,247,243,0.55)', fontSize: 11.5, marginTop: 3 }}>
-              @{user.username}
-            </T>
-            <Pressable
-              onPress={() => {
-                setAvatarPreview(false);
-                router.push(`/profile/${user.username}`);
-              }}
-              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: 'rgba(46,204,113,0.18)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.5)' }}
-            >
-              <T v="caption" style={{ color: '#4AE38F', fontWeight: '800', fontSize: 11.5 }}>
-                View profile
-              </T>
-            </Pressable>
-            {/* DeenLink tag */}
-            <View style={{ position: 'absolute', bottom: -46, right: -8, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(4,8,6,0.7)' }}>
-              <FontAwesome5 name="check-circle" size={9} color="#E8C96A" />
-              <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 9.5, letterSpacing: 0.4 }}>
-                @deenlink
-              </T>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-
       <Modal visible={imgPreview} transparent animationType="fade" onRequestClose={() => setImgPreview(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center' }}>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }} onPress={() => setImgPreview(false)} />
@@ -869,7 +848,7 @@ export function FeedCard({
                 paddingHorizontal: 12,
                 paddingTop: 10,
                 fontFamily: 'Poppins-Regular',
-                fontSize: 12.5,
+                fontSize: 16 /*12.5*/,
                 color: txt,
               }}
             />

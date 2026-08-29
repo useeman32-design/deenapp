@@ -64,7 +64,7 @@ export default function Charity() {
             paddingHorizontal: 14,
             paddingVertical: 12,
             color: theme.text,
-            fontSize: 14,
+            fontSize: 16 /*14*/,
             marginTop: 18,
           }}
         />

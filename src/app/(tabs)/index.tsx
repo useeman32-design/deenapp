@@ -17,6 +17,9 @@ import type { Post, Scholar, Video } from '@/api/types';
 import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
+import { DAILY_HADITH_POOL } from '@/data/hadithDaily';
+import { QURAN } from '@/data/quran';
+import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
@@ -110,16 +113,23 @@ const CAMPAIGNS = [
 const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh', 107: 'Sunni · Mufti', 108: 'Sufi', 109: 'Sunni' };
 const SCHOLAR_AVATARS: Record<number, number> = { 1: scholarAvatar1, 2: scholarAvatar2, 3: scholarAvatar3 };
 
-const DAILY_AYAH = {
+/* Daily ayah & hadith — from OUR datasets (pass 18):
+ * quran ayah from assets/content/quran, hadith from the user's Arabic
+ * corpus (src/data/hadithDaily.ts). Day-of-year picks; static fallbacks
+ * only until the surah file loads. */
+const DAY_OF_YEAR = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 864e5);
+
+const DAILY_AYAH_FALLBACK = {
   arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا',
   meaning: 'For indeed, with hardship [will be] ease.',
   ref: 'Ash-Sharh 94:6',
 };
 
+const hadithToday = DAILY_HADITH_POOL[DAY_OF_YEAR % DAILY_HADITH_POOL.length];
 const DAILY_HADITH = {
-  arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ',
-  meaning: 'Actions are only by intentions.',
-  ref: 'Sahih al-Bukhari 1',
+  arabic: hadithToday.arabic,
+  meaning: hadithToday.chapter || '—',
+  ref: hadithToday.ref,
 };
 
 function initialsOf(name?: string | null) {
@@ -152,6 +162,16 @@ export default function Home() {
   const [followed, setFollowed] = useState<number[]>([]);
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
   const [dhOpen, setDhOpen] = useState<'ayah' | 'hadith' | null>(null);
+  const [dailyAyah, setDailyAyah] = useState(DAILY_AYAH_FALLBACK);
+  useEffect(() => {
+    const meta = QURAN[DAY_OF_YEAR % QURAN.length];
+    loadSurah(meta.number)
+      .then((surah) => {
+        const v = surah.verses[DAY_OF_YEAR % surah.verses.length];
+        if (v?.arabic) setDailyAyah({ arabic: v.arabic, meaning: v.english || '—', ref: `${meta.english} ${meta.number}:${v.ayah}` });
+      })
+      .catch(() => {});
+  }, []);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
@@ -850,7 +870,7 @@ export default function Home() {
         <View style={{ marginHorizontal: 16, marginTop: 26, gap: 14 }}>
           {(['ayah', 'hadith'] as const).map((kind) => {
             const isH = kind === 'hadith';
-            const dh = isH ? DAILY_HADITH : DAILY_AYAH;
+            const dh = isH ? DAILY_HADITH : dailyAyah;
             return (
               <Pressable
                 key={kind}
@@ -1052,7 +1072,7 @@ export default function Home() {
               placeholder="Search accounts by name or username..."
               placeholderTextColor={d.faint}
               autoFocus
-              style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 13.5, color: d.text, paddingVertical: 12, paddingLeft: 9 }}
+              style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13.5*/, color: d.text, paddingVertical: 12, paddingLeft: 9 }}
             />
             <Pressable onPress={() => setSearchOpen(false)} style={{ padding: 5 }}>
               <FontAwesome5 name="times" size={12} color={d.faint} />
@@ -1077,7 +1097,7 @@ export default function Home() {
         >
           {(() => {
             const isHadith = dhOpen === 'hadith';
-            const dh = isHadith ? DAILY_HADITH : DAILY_AYAH;
+            const dh = isHadith ? DAILY_HADITH : dailyAyah;
             return (
               <View
                 onStartShouldSetResponder={() => true}
