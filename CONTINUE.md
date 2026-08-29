@@ -1,4 +1,7 @@
-# PASS 16 SHIPPED (read first)
+# PASS 17 SHIPPED (read first)
+Pass 17 live (master dd7236b, gh-pages f796fec): quran /v1 API fix, cassette cancel, inbox/friends/videos upgrades, avatar previews, settings screen, quiz + daily cards redesign, learning shortcut, audio in samples. Details in SESSION-MEMORY pass-17 section. Token: .token. Re-add remote each turn.
+
+# PASS 16 SHIPPED (historical)
 Pass 16 live (master b7cf9cc, gh-pages 5a4797b): videos menu/hearts/share/repost/comments, YouTube webview fix, community photos+key fix, /read reader + global audio (reciters, cassette, tracking, mushaf), quiz/seerah datasets, sticky headers, cleanup. Token: .token (never commit). Re-add remote each turn.
 
 # PASS 15 SHIPPED (historical)

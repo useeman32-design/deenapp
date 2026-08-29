@@ -1,3 +1,13 @@
+# Pass 17 (2026-08-29) — SHIPPED & LIVE
+- DEPLOYED: master dd7236b, gh-pages f796fec. smoke17 = 93/93 PASS stable.
+- ROOT CAUSE FIX: api.alquran.cloud dropped non-v1 paths (404) → surah text, mushaf, ayah-lookup all fail; ALL reader fetches now use /v1/... Duas + hadith data were ALWAYS local+fine (hadith: also swapped require()→static import for native ESM safety).
+- Videos: segmented now Following/For-you/Friends (SEG_W 72; thumbX initialized to the ACTIVE tab — that was the 'looks right after two taps' bug); bottom Friends jumps to Friends tab; plus button half-outside the pill edge (absolute right:-18, breakout); rapid-tap guard (no pause timer within 800ms of a burst); Inbox = FULL-SCREEN shares feed (friend shares w/ poster + watch-jumps-to-reel + like, 'Chat is off for shares', NO chat input); avatar tap → fullscreen preview w/ gold @deenlink tag (videos + FeedCard; View profile button inside).
+- Quran: reader audio bar collapses via chevron (barOpen state); cassette mini-player has a cancel ✕ when expanded (stops + dismisses).
+- Profile: Settings is now a SCREEN (/settings — root stack, no tab bar; account summary + rows incl Notifications/Privacy/About/Sign out); profile Settings tab navigates there. Worship-tools tab is a NORMAL slot again (circle removed entirely, pill glides all 5 slots).
+- YouTube: embeds switched to youtube-nocookie.com (helps some 'unusual traffic' embed blocks; if Google still blocks the IP, only opening in the YT app will play — network-side, not code).
+- Quran hub: daily ayah/hadith now the ornate HOME-style cards, placed BELOW the two big cards, no bookmark; shortcuts = Seerah/Quiz/Courses. Home quick access gained Learning (6 items, storage key v3).
+- Quiz redesigned sober (%, no trophy). Sample reels f1..f5 got synthesized soft pad audio (aevalsrc chords + tremolo) and watermarked copies re-rendered WITH audio (same ffmpeg recipe).
+- smoke17 gotchas: avatar center ≈ (33, videoBottom−192); /read/N deep link on local serve 404s (dynamic param) — navigate via hub; community checks need goto('/')+tab click after long flows.
 # Pass 16 (2026-08-29) — SHIPPED & LIVE
 - DEPLOYED: master b7cf9cc, gh-pages 5a4797b, live bundle entry-9350dd1b64bb6fd899f4aa4f54f9dc34.js (all markers verified; /read/N serves SPA body w/ Pages' 404 status like all deep links). smoke16 = 86 executed / 86 PASS stable x2.
 - Videos: bottom menu Inbox·Friends·Saved + gold-ring plus circle (opens Create); heart bursts AT TAP POSITION incl. rapid taps (bursts array + HeartBurst comp); rail Share → share sheet (send-to grid + Copy line via expo-clipboard + More→system share); repost pill "Reposted by @x" above username (reels 202/204); comments sheet reseed via useEffect + minHeight 430 (stay-expanded fix).
