@@ -1,4 +1,7 @@
-# PASS 14 STATUS (read first)
+# PASS 15 SHIPPED (read first)
+Pass 15 live (master e74b031, gh-pages da2628e): logos, splash gate, circle tab, videos polish, quran/hadith/profile/tools redesigns, smoke15 83/83. Deploy recipe + gotchas in SESSION-MEMORY (pass-15 section). Token: repo-root .token (never commit). Re-add git remote each turn.
+
+# PASS 14 STATUS (obsoleted)
 Pass 14 is SHIPPED + LIVE (master f5f1a3e, gh-pages 6389dd1, live verified incl. /videos pass-14 UI). GitHub token for ALL pushes (user directive): ghp_E3Oy…9ix4Uh (full token in repo-root .token file — git-ignored, NEVER commit it; GitHub secret-scanning rejects any push containing the literal) — re-add remote each turn (git remote add origin https://github.com/useeman32-design/deenapp.git; .git/config is snapshot-stripped). Deploy: /tmp/deploy force-push to gh-pages; verify with scripts/livecheck14.mjs. Chromium env: bash scripts/browser-env.sh.
 
 # DeenLink — Agent Handoff / Continue Instructions
