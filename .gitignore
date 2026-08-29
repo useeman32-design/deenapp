@@ -44,3 +44,8 @@ example
 /dist
 content/
 .token
+
+# NOTE: assets/content (the user's own dataset pack) is tracked —
+# the ignore above is for stray /content dirs at repo root only.
+!assets/content/
+!assets/content/**
