@@ -23,7 +23,7 @@ export function YouTubePlayer({ embedUrl, height = 210, borderRadius = 12 }: { e
 
   const id = (embedUrl.split('/embed/')[1] ?? '').split(/[?&]/)[0];
   const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>body{margin:0;background:#000;overflow:hidden}iframe{width:100%;height:100%;border:0}</style></head><body>
-  <iframe src="https://www.youtube.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&autoplay=0" title="DeenLink video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+  <iframe src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&autoplay=0" title="DeenLink video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
   </body></html>`;
 
   const { WebView } = require('react-native-webview');

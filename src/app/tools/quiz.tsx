@@ -70,13 +70,12 @@ export default function Quiz() {
               Islamic Quiz
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
-              {pool.length} questions · test your knowledge
+              {pool.length} questions across the deen
             </T>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)', borderRadius: 13, paddingHorizontal: 9, paddingVertical: 6 }}>
-            <FontAwesome5 name="fire" size={10} color={d.gold} />
-            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
-              {streak}
+          <View style={{ borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, borderRadius: 13, paddingHorizontal: 10, paddingVertical: 6 }}>
+            <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6 }}>
+              STREAK {streak}
             </T>
           </View>
         </View>
@@ -111,14 +110,19 @@ export default function Quiz() {
         {done || !q ? (
           /* results */
           <View style={{ borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 22, alignItems: 'center' }}>
-            <View style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)', backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="trophy" size={26} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <View style={{ width: 84, height: 84, borderRadius: 42, borderWidth: 1.5, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <T v="stat" style={{ fontSize: 24, fontWeight: '800', color: d.text }}>
+                {pool.length ? Math.round((score / pool.length) * 100) : 0}%
+              </T>
+              <T v="caption" style={{ fontSize: 8.5, color: d.faint, fontWeight: '700', letterSpacing: 0.8, marginTop: 1 }}>
+                SCORE
+              </T>
             </View>
             <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20, marginTop: 14 }}>
               {score} / {pool.length}
             </T>
             <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 4, textAlign: 'center' }}>
-              {score === pool.length ? 'Perfect score — MashaAllah!' : score >= pool.length * 0.7 ? 'Well done — keep it up!' : 'Keep learning — every try counts.'}
+              {score === pool.length ? 'Perfect — MashaAllah.' : score >= pool.length * 0.7 ? 'Well done. Review the misses and go again.' : 'Review the material and try again.'}
             </T>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, alignSelf: 'stretch' }}>
               <View style={{ flex: 1, borderRadius: 13, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 10, alignItems: 'center' }}>
@@ -160,7 +164,7 @@ export default function Quiz() {
             </View>
 
             <View style={{ borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16 }}>
-              <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 15, lineHeight: 22 }}>
+              <T v="body" style={{ color: d.text, fontWeight: '600', fontSize: 16, lineHeight: 24 }}>
                 {q.question}
               </T>
               {q.options.map((opt, idx) => {

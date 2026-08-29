@@ -20,7 +20,7 @@ export function QuranMiniPlayer() {
   const d = theme.dash;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { surah, ayah, playing, rate, toggle, cycleRate } = useQuranAudio();
+  const { surah, ayah, playing, rate, toggle, cycleRate, stop } = useQuranAudio();
   const [expanded, setExpanded] = useState(false);
   const spin = useRef(new Animated.Value(0)).current;
   const width = useRef(new Animated.Value(46)).current;
@@ -85,7 +85,7 @@ export function QuranMiniPlayer() {
       </Pressable>
 
       {expanded ? (
-        <View style={{ flex: 1, paddingRight: 8, opacity: expanded ? 1 : 0 }}>
+        <View style={{ flex: 1, paddingRight: 4, opacity: expanded ? 1 : 0 }}>
           <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>
             {meta?.english ?? 'Qur’an'} · Ayah {ayah}
           </T>
@@ -101,6 +101,19 @@ export function QuranMiniPlayer() {
             <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: playing ? '#2ECC71' : 'rgba(150,150,150,0.6)' }} />
           </View>
         </View>
+      ) : null}
+
+      {/* cancel — stop audio + dismiss the cassette */}
+      {expanded ? (
+        <Pressable
+          onPress={() => { haptic.light(); stop(); }}
+          hitSlop={6}
+          style={{ width: 34, height: 46, alignItems: 'center', justifyContent: 'center', paddingRight: 4 }}
+        >
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,123,123,0.16)', borderWidth: 1, borderColor: 'rgba(255,123,123,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="times" size={10} color="#FF7B7B" />
+          </View>
+        </Pressable>
       ) : null}
     </Animated.View>
   );

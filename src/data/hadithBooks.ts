@@ -17,6 +17,9 @@ export type HadithBook = {
 
 const CH = (labels: Array<[string, number]>) => labels.map(([label, count], i) => ({ id: `c${i + 1}`, label, count }));
 
+/** static import (require() inside the helper broke on native ESM) */
+import { HADITHS } from './hadith';
+
 export const HADITH_BOOKS: HadithBook[] = [
   {
     id: 'bukhari',
@@ -178,7 +181,6 @@ export const HADITH_BOOKS: HadithBook[] = [
 export function chapterHadiths(book: HadithBook, chapterId: string) {
   // deterministic rotation of the shared demo pool
   const seed = book.id.length + chapterId.charCodeAt(chapterId.length - 1);
-  const { HADITHS } = require('./hadith');
   return HADITHS.map((h: { arabic: string; translation: string; category: string }, i: number) => ({
     id: `${book.id}-${chapterId}-${i}`,
     arabic: h.arabic,

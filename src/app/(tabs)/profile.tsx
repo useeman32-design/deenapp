@@ -249,7 +249,8 @@ export default function Profile() {
                 key={t.id}
                 onPress={() => {
                   haptic.selection();
-                  setTab(t.id);
+                  if (t.id === 'settings') router.push('/settings');
+                  else setTab(t.id);
                 }}
                 style={{
                   flex: 1,
@@ -284,21 +285,13 @@ export default function Profile() {
               </T>
             ) : null}
           </View>
-        ) : (
+) : (
           <View style={{ paddingTop: 14, paddingHorizontal: 16 }}>
-            <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 18, overflow: 'hidden' }}>
-              <Setting icon="moon" label="Appearance" desc={mode === 'dark' ? 'Dark mode on' : 'Light mode on'} tint={d.emerald} onPress={() => setMode((mode === 'dark' ? 'light' : 'dark') as ThemeMode)} />
-              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
-              <Setting icon="user-edit" label="Edit Profile" desc="Name, bio, aqeedah & photo" tint="#5BC8F5" onPress={() => router.push('/settings/edit-profile')} />
-              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
-              <Setting icon="gift" label="DeenPoints" desc="How to earn & spend your points" tint={d.gold} onPress={() => Alert.alert('DeenPoints', 'Earn daily via check-ins, posts, and learning activities.')} />
-              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
-              <Setting icon="share-alt" label="Share DeenLink" desc="Invite friends to the community" tint={d.emerald} onPress={() => Alert.alert('Share', 'DeenLink — your deen, connected.')} />
-              <View style={{ height: 1, backgroundColor: d.cardBorder, marginLeft: 60 }} />
-              <Setting icon="sign-out-alt" label="Sign out" desc="End session on this device" tint="#FF7B7B" onPress={signOut} />
-            </View>
+            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 20 }}>
+              Manage your account in Settings.
+            </T>
           </View>
-        )}
+                )}
       </ScrollView>
     </View>
   );

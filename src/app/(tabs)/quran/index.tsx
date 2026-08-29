@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,62 +122,6 @@ export default function QuranHub() {
         </View>
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 14 }}>
-          {/* Daily Ayah */}
-          <View
-            style={{
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.22)',
-              backgroundColor: isDark ? 'rgba(21,92,53,0.22)' : 'rgba(29,111,66,0.06)',
-              padding: 16,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <FontAwesome5 name="quote-right" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
-              <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5, letterSpacing: 1.2 }}>
-                DAILY AYAH
-              </T>
-              <View style={{ flex: 1 }} />
-              <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
-                Ash-Sharh 94:6
-              </T>
-            </View>
-            <T v="arabic" style={{ color: d.text, fontSize: 21, textAlign: 'right', lineHeight: 38, marginTop: 10 }}>
-              فَإِنَّ مَعَ الْعُسْرِ يُسْرًا
-            </T>
-            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 8, fontStyle: 'italic' }}>
-              "For indeed, with hardship [will be] ease."
-            </T>
-          </View>
-
-          {/* Daily Hadith */}
-          <View
-            style={{
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(212,175,55,0.28)' : 'rgba(184,134,11,0.25)',
-              backgroundColor: isDark ? 'rgba(140,109,31,0.14)' : 'rgba(184,134,11,0.05)',
-              padding: 16,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <FontAwesome5 name="book-reader" size={10} color={isDark ? '#E8C96A' : '#B8860B'} />
-              <T v="caption" style={{ color: isDark ? '#E8C96A' : '#B8860B', fontWeight: '800', fontSize: 9.5, letterSpacing: 1.2 }}>
-                DAILY HADITH
-              </T>
-              <View style={{ flex: 1 }} />
-              <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>
-                Sahih al-Bukhari 1
-              </T>
-            </View>
-            <T v="arabic" style={{ color: d.text, fontSize: 21, textAlign: 'right', lineHeight: 38, marginTop: 10 }}>
-              إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ
-            </T>
-            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 8, fontStyle: 'italic' }}>
-              "Actions are only by intentions."
-            </T>
-          </View>
-
           <BigCard
             eyebrow="READ · LISTEN · REFLECT"
             title="The Holy Qur'an"
@@ -203,10 +147,60 @@ export default function QuranHub() {
             onPress={() => router.push('/tools/hadith')}
           />
 
+          {/* daily ayah + hadith — home-style ornate cards */}
+          {([
+            { kind: 'ayah', eyebrow: 'DAILY AYAH', icon: 'star-and-crescent', arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا', text: '"For indeed, with hardship [will be] ease."', ref: 'Ash-Sharh 94:6', href: '/read/94' },
+            { kind: 'hadith', eyebrow: 'DAILY HADITH', icon: 'scroll', arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ', text: '"Actions are only by intentions."', ref: 'Sahih al-Bukhari 1', href: '/tools/hadith' },
+          ] as const).map((c) => (
+            <Pressable
+              key={c.kind}
+              onPress={() => {
+                haptic.light();
+                router.push(c.href as never);
+              }}
+              style={({ pressed }) => ({
+                borderRadius: 24,
+                overflow: 'hidden',
+                backgroundColor: d.card,
+                borderWidth: 1,
+                borderColor: d.cardBorder,
+                padding: 20,
+                alignItems: 'center',
+                opacity: pressed ? 0.96 : 1,
+              })}
+            >
+              <View pointerEvents="none" style={{ position: 'absolute', inset: 7, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(212,175,55,0.32)' }} />
+              {[
+                { top: 7, left: 7, borderTopWidth: 2, borderLeftWidth: 2, borderTopLeftRadius: 18 },
+                { top: 7, right: 7, borderTopWidth: 2, borderRightWidth: 2, borderTopRightRadius: 18 },
+                { bottom: 7, left: 7, borderBottomWidth: 2, borderLeftWidth: 2, borderBottomLeftRadius: 18 },
+                { bottom: 7, right: 7, borderBottomWidth: 2, borderRightWidth: 2, borderBottomRightRadius: 18 },
+              ].map((cst, k) => (
+                <View key={k} pointerEvents="none" style={{ position: 'absolute', width: 22, height: 22, ...cst, borderColor: 'rgba(212,175,55,0.8)' }} />
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 22, height: 1, backgroundColor: 'rgba(212,175,55,0.55)' }} />
+                <FontAwesome5 name={c.icon as never} size={11} color={d.gold} />
+                <T v="caption" style={{ color: d.gold, fontSize: 10, fontWeight: '700', letterSpacing: 1.6 }}>
+                  {c.eyebrow}
+                </T>
+                <FontAwesome5 name={c.icon as never} size={11} color={d.gold} style={{ transform: [{ scaleX: -1 }] }} />
+                <View style={{ width: 22, height: 1, backgroundColor: 'rgba(212,175,55,0.55)' }} />
+              </View>
+              <Text style={{ fontFamily: 'Amiri-Bold', fontSize: 26, color: d.text, textAlign: 'center', lineHeight: 48, marginTop: 12 }}>{c.arabic}</Text>
+              <T v="bodyS" style={{ color: d.subtext, fontSize: 12, marginTop: 8, textAlign: 'center', fontStyle: 'italic' }}>
+                {c.text}
+              </T>
+              <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 8, fontWeight: '700', letterSpacing: 0.5 }}>
+                {c.ref}
+              </T>
+            </Pressable>
+          ))}
+
           {/* shortcuts */}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
             {[
-              { icon: 'bookmark', label: 'Bookmarks', href: '/tools/hadith' },
+              { icon: 'route', label: 'Seerah', href: '/tools/seerah' },
               { icon: 'graduation-cap', label: 'Courses', href: '/tools/courses' },
               { icon: 'quote-right', label: 'Quiz', href: '/tools/quiz' },
             ].map((s) => (

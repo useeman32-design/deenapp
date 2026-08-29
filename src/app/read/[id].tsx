@@ -29,6 +29,7 @@ export default function Reader() {
   const [marks, setMarks] = useState<Set<number>>(new Set());
   const [mode, setMode] = useState<Mode>('reading');
   const [reciterOpen, setReciterOpen] = useState(false);
+  const [barOpen, setBarOpen] = useState(true);
 
   /* mushaf page state */
   const [page, setPage] = useState<number | null>(null);
@@ -44,7 +45,7 @@ export default function Reader() {
     setAyahs(OFFLINE_TEXT[n] ?? null);
     setOnline(false);
     storage.setItem('dl.quran.last', JSON.stringify({ surah: n, ayah: startAyah, at: new Date().toISOString() })).catch(() => {});
-    fetch(`https://api.alquran.cloud/surah/${n}/editions/quran-simple,en.asad`)
+    fetch(`https://api.alquran.cloud/v1/surah/${n}/editions/quran-simple,en.asad`)
       .then((r) => r.json())
       .then((dd: { data?: { ayahs?: { numberInSurah: number; text: string }[] }[] }) => {
         const editions = Array.isArray(dd?.data) ? dd.data : [];
@@ -76,7 +77,7 @@ export default function Reader() {
   const loadPage = async (p: number) => {
     setPageLoading(true);
     try {
-      const r = await fetch(`https://api.alquran.cloud/page/${p}/quran-uthmani`);
+      const r = await fetch(`https://api.alquran.cloud/v1/page/${p}/quran-uthmani`);
       const dd = await r.json();
       const list = (dd?.data?.ayahs ?? []) as Array<{ numberInSurah: number; text: string; number: number; surah?: { number: number; englishName?: string; name?: string } }>;
       setPageAyahs(list.map((a) => ({ numberInSurah: a.numberInSurah, text: a.text, surahNumber: a.surah?.number ?? n, surahName: a.surah?.englishName ?? a.surah?.name ?? '' })));
@@ -90,7 +91,7 @@ export default function Reader() {
     setMode('mushaf');
     if (page == null) {
       try {
-        const r = await fetch(`https://api.alquran.cloud/ayah/${n}:${activeAyah ?? startAyah ?? 1}/quran-uthmani`);
+        const r = await fetch(`https://api.alquran.cloud/v1/ayah/${n}:${activeAyah ?? startAyah ?? 1}/quran-uthmani`);
         const dd = await r.json();
         const p = dd?.data?.page;
         if (p) await loadPage(p);
@@ -295,23 +296,39 @@ export default function Reader() {
           >
             <FontAwesome5 name={audio.surah === n && audio.playing ? 'pause' : 'play'} size={15} color="#FFFFFF" />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '700', fontSize: 11 }}>
-              {meta.english} · Ayah {activeAyah ?? startAyah} · {reciterName}
-            </T>
-            <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 2 }}>
-              Tap any ayah to recite from it — plays app-wide
-            </T>
-          </View>
-          {/* speed */}
-          <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
-            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
-              {audio.rate}x
-            </T>
-          </Pressable>
-          {/* reciter */}
-          <Pressable onPress={() => { haptic.selection(); setReciterOpen(true); }} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="user-headphones" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          {barOpen ? (
+            <View style={{ flex: 1 }}>
+              <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '700', fontSize: 11 }}>
+                {meta.english} · Ayah {activeAyah ?? startAyah} · {reciterName}
+              </T>
+              <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 2 }}>
+                Tap any ayah to recite from it — plays app-wide
+              </T>
+            </View>
+          ) : (
+            <Pressable onPress={() => { haptic.selection(); setBarOpen(true); }} style={{ flex: 1 }}>
+              <T v="caption" numberOfLines={1} style={{ color: d.faint, fontWeight: '700', fontSize: 11 }}>
+                {meta.english} · Ayah {activeAyah ?? startAyah}
+              </T>
+            </Pressable>
+          )}
+          {barOpen ? (
+            <>
+              {/* speed */}
+              <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
+                <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>
+                  {audio.rate}x
+                </T>
+              </Pressable>
+              {/* reciter */}
+              <Pressable onPress={() => { haptic.selection(); setReciterOpen(true); }} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="user-headphones" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              </Pressable>
+            </>
+          ) : null}
+          {/* expand / collapse */}
+          <Pressable onPress={() => { haptic.selection(); setBarOpen((v) => !v); }} hitSlop={8} style={{ width: 30, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name={barOpen ? 'chevron-down' : 'chevron-up'} size={12} color={d.faint} />
           </Pressable>
         </View>
       </View>

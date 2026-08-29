@@ -20,15 +20,16 @@ export const QUICK_CATALOG: QuickItem[] = [
   { key: 'zakat', label: 'Zakat', icon: { fa: 'hand-holding-heart' }, accent: 'gold', href: '/tools/charity' },
   { key: 'wallpapers', label: 'Wallpapers', icon: { fa: 'image' }, accent: 'emerald', href: '/tools/wallpapers' },
   { key: 'courses', label: 'Courses', icon: { fa: 'graduation-cap' }, accent: 'emerald', href: '/(tabs)/learning' },
+  { key: 'learning', label: 'Learning', icon: { fa: 'book-open' }, accent: 'gold', href: '/(tabs)/learning' },
   { key: 'videos', label: 'Videos', icon: { fa: 'play-circle' }, accent: 'gold', href: '/videos' },
   { key: 'quiz', label: 'Quiz', icon: { fa: 'question-circle' }, accent: 'emerald', href: '/tools/quiz' },
   { key: 'scholars', label: 'Scholars', icon: { fa: 'user-graduate' }, accent: 'gold', href: '/tools/scholars' },
 ];
 
-export const DEFAULT_QUICK: string[] = ['videos', 'quran', 'hadith', 'dua', 'prayer'];
-export const QUICK_MAX = 5;
+export const DEFAULT_QUICK: string[] = ['videos', 'quran', 'hadith', 'dua', 'prayer', 'learning'];
+export const QUICK_MAX = 6;
 // v2: bumped so existing installs pick up the new defaults (Videos first)
-export const QUICK_STORAGE_KEY = 'dl.quickaccess.v2';
+export const QUICK_STORAGE_KEY = 'dl.quickaccess.v3';
 
 /** Resolve stored keys to catalog items (drops unknown keys, keeps order). */
 export function quickItems(keys: string[]): QuickItem[] {
