@@ -8,7 +8,6 @@ import { storage } from '@/lib/storage';
 import { QURAN } from '@/data/quran';
 import { useQuranAudio, globalAyahOf, surahOfGlobal } from '@/context/QuranAudioContext';
 import { loadSurah, type SurahContent } from '@/lib/content';
-import { WordChip } from '@/components/ReciteMode';
 import { speakWord, useReciteTracker, type ReciteItem } from '@/lib/reciteEngine';
 
 /**
@@ -352,7 +351,7 @@ export function MushafPage({
 
           {/* inline recitation controls (pass 27) */}
           {recitePage ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 2, marginBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 2, marginBottom: 6, paddingLeft: 40 }}>
               <Pressable
                 onPress={() => { haptic.light(); if (tr.listening) tr.stop(); else tr.start(); }}
                 accessibilityLabel="page recite mic"
@@ -392,7 +391,7 @@ export function MushafPage({
             </T>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 34, paddingTop: 2 }}>
+          <ScrollView accessibilityLabel="mushaf page content" showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 34, paddingTop: 2 }}>
             {renderContent()}
           </ScrollView>
 
@@ -429,7 +428,7 @@ export function MushafPage({
                   {/* surah name in a fresh ornamented pill (NEW border: double-line gold frame) */}
                   <View style={{ paddingVertical: 2, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: `${skin.accent}BB`, backgroundColor: `${skin.accent}0D` }}>
                     <View style={{ borderRadius: 9, borderWidth: 0.75, borderColor: `${skin.accent}55`, paddingVertical: 1, paddingHorizontal: 8 }}>
-                      <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(12, fs * 0.62), color: skin.accent, lineHeight: Math.max(18, fs * 0.62 * 1.5) }}>
+                      <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(12, fs * 0.62), color: recitePage && reciteBlind ? 'transparent' : skin.accent, lineHeight: Math.max(18, fs * 0.62 * 1.5) }}>
                         {seg.start.surahNameAr ? (seg.start.surahNameAr.startsWith('سُورَةُ') || seg.start.surahNameAr.startsWith('سورة') ? seg.start.surahNameAr : `سُورَةُ ${seg.start.surahNameAr}`) : `سُورَةُ ${englishName}`}
                       </Text>
                     </View>
@@ -438,7 +437,7 @@ export function MushafPage({
                 </View>
                 {/* bold basmallah — ONLY at a true surah start (never 1: it IS ayah 1, never 9) */}
                 {seg.start.surahNo !== 1 ? (
-                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(15, fs * 0.78), color: skin.basm, lineHeight: Math.max(24, fs * 0.78 * 1.7), marginTop: 2 }}>
+                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(15, fs * 0.78), color: recitePage && reciteBlind ? 'transparent' : skin.basm, lineHeight: Math.max(24, fs * 0.78 * 1.7), marginTop: 2 }}>
                     {BASMALLAH}
                   </Text>
                 ) : null}
@@ -447,59 +446,56 @@ export function MushafPage({
               /* surah 9 starts with no basmallah — just the name pill */
               <View style={{ alignItems: 'center', marginTop: si === 0 ? 2 : 10, marginBottom: 4 }}>
                 <View style={{ paddingVertical: 2, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: `${skin.accent}BB`, backgroundColor: `${skin.accent}0D` }}>
-                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(12, fs * 0.62), color: skin.accent }}>{seg.start.surahNameAr ? (seg.start.surahNameAr.startsWith('سُورَةُ') || seg.start.surahNameAr.startsWith('سورة') ? seg.start.surahNameAr : `سُورَةُ ${seg.start.surahNameAr}`) : 'سُورَةُ التَّوْبَة'}</Text>
+                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: Math.max(12, fs * 0.62), color: recitePage && reciteBlind ? 'transparent' : skin.accent }}>{seg.start.surahNameAr ? (seg.start.surahNameAr.startsWith('سُورَةُ') || seg.start.surahNameAr.startsWith('سورة') ? seg.start.surahNameAr : `سُورَةُ ${seg.start.surahNameAr}`) : 'سُورَةُ التَّوْبَة'}</Text>
                 </View>
               </View>
             ) : null}
 
-            {recitePage ? (
-              <View style={{ paddingBottom: 6 }}>
-                {seg.ayahs.map((a) => {
-                  const isCurrent = `${a.surahNo}:${a.numberInSurah}` === curKey;
-                  if (isCurrent) {
-                    return (
-                      <View key={a.key} style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'flex-start', gap: 4 }}>
-                        {tr.shown.map((w, wi) => {
-                          const st = tr.states[wi] ?? 'hidden';
-                          return (
-                            <WordChip
-                              key={wi}
-                              word={w}
-                              state={st}
-                              listening={tr.listening}
-                              isNext={wi === tr.reached}
-                              masked={reciteBlind && st === 'hidden'}
-                              colorBase={skin.text}
-                              faint={`${skin.accent}55`}
-                              onPress={() => { if (st !== 'hidden') { haptic.selection(); speakWord(a.surahNo, a.numberInSurah, wi, w, () => audio.playAyah(a.surahNo, a.numberInSurah)); } }}
-                            />
-                          );
-                        })}
-                        <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold', fontSize: fs * 0.8, lineHeight: lh }}>﴿{arNum(a.numberInSurah)}﴾</Text>
-                      </View>
-                    );
-                  }
-                  /* other ayahs stay in place, shaded */
-                  return (
-                    <Text key={a.key} style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: `${skin.accent}99`, textAlign: 'justify', writingDirection: 'rtl', opacity: 0.35 }}>
-                      {a.text} <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold', opacity: 1 }}>﴿{arNum(a.numberInSurah)}﴾ </Text>
-                    </Text>
-                  );
-                })}
-              </View>
-            ) : (
             <Text style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: skin.text, textAlign: 'justify', writingDirection: 'rtl', paddingBottom: 6 }}>
               {seg.ayahs.map((a) => {
                 const active = a.global === activeGlobal && audio.surah != null;
+                if (!recitePage) {
+                  /* normal mode — byte-identical to the classic rendering */
+                  return (
+                    <React.Fragment key={a.key}>
+                      <Text style={active ? { backgroundColor: 'rgba(46,204,113,0.30)', color: skin.id === 'night' ? '#B9F6D3' : '#0E7A46' } : undefined}>{a.text} </Text>
+                      <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold' }}>﴿{arNum(a.numberInSurah)}﴾ </Text>
+                    </React.Fragment>
+                  );
+                }
+                /* recite mode — the SAME inline flow, one colour span per word:
+                 * layout never re-wraps; blind makes unrecited words transparent
+                 * (they keep their exact width, so ayah numbers stay in place) */
+                const isCur = `${a.surahNo}:${a.numberInSurah}` === curKey;
+                const toks = a.text.split(/\s+/).filter(Boolean);
+                const FAINT = `${skin.accent}99`;
                 return (
                   <React.Fragment key={a.key}>
-                    <Text style={active ? { backgroundColor: 'rgba(46,204,113,0.30)', color: skin.id === 'night' ? '#B9F6D3' : '#0E7A46' } : undefined}>{a.text} </Text>
+                    {toks.map((w, wi) => {
+                      let color = FAINT;
+                      let tap = false;
+                      if (isCur) {
+                        const st = tr.states[wi] ?? 'hidden';
+                        if (st === 'ok') { color = skin.text; tap = true; }
+                        else if (st === 'wrong') { color = '#E05252'; tap = true; }
+                        else if (reciteBlind) { color = 'transparent'; }
+                        else if (wi === tr.reached) { color = '#C9A227'; } /* next-word cursor */
+                      } else if (reciteBlind) {
+                        color = 'transparent';
+                      }
+                      return (
+                        <Text
+                          key={wi}
+                          onPress={tap ? () => { haptic.selection(); speakWord(a.surahNo, a.numberInSurah, wi, w, () => audio.playAyah(a.surahNo, a.numberInSurah)); } : undefined}
+                          style={{ color }}
+                        >{w} </Text>
+                      );
+                    })}
                     <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold' }}>﴿{arNum(a.numberInSurah)}﴾ </Text>
                   </React.Fragment>
                 );
               })}
             </Text>
-            )}
           </View>
         ))}
       </View>

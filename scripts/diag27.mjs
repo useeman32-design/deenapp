@@ -60,6 +60,10 @@ ok('tabs: order intact', tabs.labels.length === 5 && ['Home', 'Quran &', 'Worshi
 ok('tabs: 5 real glyphs render (incl quran + mosque icons)', tabs.glyphs.length >= 5, tabs.glyphs.join(','));
 
 /* ── 2. mushaf borderless + INLINE recite ── */
+const contentText = () => page.evaluate(() => {
+  const el = [...document.querySelectorAll('[aria-label="mushaf page content"]')].pop();
+  return el ? el.innerText.replace(/\s+/g, ' ').trim() : null;
+});
 await page.goto('http://localhost:3996/deenapp/read/112', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(4500);
 const mush = await page.evaluate(() => {
@@ -72,7 +76,6 @@ const mush = await page.evaluate(() => {
 if (mush) { await page.touchscreen.tap(mush.x, mush.y); await page.waitForTimeout(6500); }
 t = await bodyText();
 const borderInfo = await page.evaluate(() => {
-  /* the page card = the big container with the cream/night bg */
   const el = [...document.querySelectorAll('div')].filter((e) => { const cs = getComputedStyle(e); return (cs.backgroundColor || '').startsWith('rgb(255, 252') || (cs.backgroundColor || '').startsWith('rgb(10, 19'); }).pop();
   if (!el) return null;
   const cs = getComputedStyle(el);
@@ -81,29 +84,54 @@ const borderInfo = await page.evaluate(() => {
 ok('mushaf: page card has NO border/radius (full bleed)', borderInfo && (borderInfo.bw === '0px' || borderInfo.bw.includes('0px')), JSON.stringify(borderInfo));
 ok('mushaf: no modal — page text visible with RECITE pill', !t.includes('Recite Mode') && t.includes('RECITE'));
 const pill = await page.evaluate(() => { const els = [...document.querySelectorAll('div,span')].filter((e) => (e.textContent || '').trim().startsWith('RECITE')); const el = els[els.length - 1]; if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
-let inlineOk = false, blindOk = false;
 if (pill) {
+  const beforeText = await contentText();
   await page.touchscreen.tap(pill.x, pill.y);
   await page.waitForTimeout(1000);
-  const mic = await page.locator('[aria-label="page recite mic"]').count();
-  const blind = await page.locator('[aria-label="page blind mode"]').count();
-  inlineOk = mic >= 1 && (await bodyText()).includes('سُورَةُ');
-  ok('mushaf: inline recite banner ON PAGE (mic + progress)', inlineOk, `mic=${mic}`);
-  blindOk = blind >= 1;
-  ok('mushaf: blind toggle inline', blindOk);
+  const micCnt = await page.locator('[aria-label="page recite mic"]').count();
+  const blindCnt = await page.locator('[aria-label="page blind mode"]').count();
+  ok('mushaf: inline recite banner ON PAGE (mic + progress)', micCnt >= 1, `mic=${micCnt}`);
+  ok('mushaf: blind toggle inline', blindCnt >= 1);
+  /* banner RECITE chip must clear the settings gear (top-left, x≈7-37) */
+  const chipBox = await page.evaluate(() => { const el = [...document.querySelectorAll('[aria-label="page recite mic"]')].pop(); if (!el) return null; const r = el.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top) }; });
+  ok('mushaf: recite chip does NOT collide with settings gear', chipBox && chipBox.left >= 39, JSON.stringify(chipBox));
+  /* arrangement: page text identical after opening recite */
+  const reciteText = await contentText();
+  ok('mushaf: arrangement UNCHANGED in recite mode (same text flow)', beforeText && reciteText && beforeText === reciteText, `${beforeText ? beforeText.length : 0}→${reciteText ? reciteText.length : 0} chars`);
+  /* blind: every word transparent, numbers stay visible in place */
   const blindBtn = await page.evaluate(() => { const el = [...document.querySelectorAll('[aria-label="page blind mode"]')].pop(); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
-  if (blindBtn) { await page.touchscreen.tap(blindBtn.x, blindBtn.y); await page.waitForTimeout(500); }
-  /* masked words should render as ҉ glyphs while blind */
-  const masked = await page.evaluate(() => (document.body.innerText.match(/҉/g) || []).length);
-  ok('mushaf: blind mode masks words (ayah numbers stay)', masked > 10, `${masked} masked glyphs`);
+  if (blindBtn) { await page.touchscreen.tap(blindBtn.x, blindBtn.y); await page.waitForTimeout(700); }
+  const blind = await page.evaluate(() => {
+    const root = [...document.querySelectorAll('[aria-label="mushaf page content"]')].pop();
+    if (!root) return null;
+    let transparent = 0, visibleNums = 0, visibleWords = 0;
+    for (const el of root.querySelectorAll('div,span')) {
+      const txt = (el.textContent || '').trim();
+      if (!txt || !/[\u0600-\u06FF]/.test(txt)) continue;
+      if (el.children.length > 0) continue; /* leaf text nodes only */
+      const cs = getComputedStyle(el);
+      const isTransp = cs.color === 'rgba(0, 0, 0, 0)';
+      if (/\uFDEB|\uFDFB/.test(txt) || /﴿|﴾/.test(txt)) { if (!isTransp) visibleNums++; continue; }
+      if (isTransp) transparent++; else visibleWords++;
+    }
+    return { transparent, visibleNums, visibleWords };
+  });
+  ok('mushaf: blind hides ALL page words (transparent, in place)', blind && blind.transparent > 20 && blind.visibleWords === 0, JSON.stringify(blind));
+  ok('mushaf: ayah numbers stay visible in position (blind)', blind && blind.visibleNums >= 3, `${blind ? blind.visibleNums : 0} numbers`);
+  const blindText = await contentText();
+  ok('mushaf: blind keeps arrangement (text still in flow)', beforeText && blindText && beforeText === blindText, `${blindText ? blindText.length : 0} chars`);
   const closeB = await page.evaluate(() => { const el = [...document.querySelectorAll('[aria-label="close page recite"]')].pop(); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   if (closeB) { await page.touchscreen.tap(closeB.x, closeB.y); await page.waitForTimeout(600); }
-  const masked2 = await page.evaluate(() => (document.body.innerText.match(/҉/g) || []).length);
-  ok('mushaf: closing recite restores the page', masked2 === 0 && !(await page.locator('[aria-label="page recite mic"]').count()));
+  const afterClose = await contentText();
+  ok('mushaf: closing recite restores the page', afterClose && beforeText && afterClose === beforeText && !(await page.locator('[aria-label="page recite mic"]').count()));
 } else {
   ok('mushaf: inline recite banner ON PAGE (mic + progress)', false, 'no pill');
   ok('mushaf: blind toggle inline', false);
-  ok('mushaf: blind mode masks words (ayah numbers stay)', false);
+  ok('mushaf: recite chip does NOT collide with settings gear', false);
+  ok('mushaf: arrangement UNCHANGED in recite mode (same text flow)', false);
+  ok('mushaf: blind hides ALL page words (transparent, in place)', false);
+  ok('mushaf: ayah numbers stay visible in position (blind)', false);
+  ok('mushaf: blind keeps arrangement (text still in flow)', false);
   ok('mushaf: closing recite restores the page', false);
 }
 
