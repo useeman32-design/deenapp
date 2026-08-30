@@ -177,6 +177,35 @@ export default function HadithCollections() {
         }}
       />
 
+      {/* prominent search — type OR recite (pass 25) */}
+      <Pressable
+        onPress={() => { haptic.selection(); setSearchOpen(true); }}
+        accessibilityLabel="search or recite hadith"
+        style={({ pressed }) => [{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 11,
+          borderRadius: 16,
+          borderWidth: 1.5,
+          borderColor: 'rgba(212,175,55,0.5)',
+          backgroundColor: pressed ? 'rgba(212,175,55,0.14)' : 'rgba(212,175,55,0.08)',
+          marginHorizontal: 16,
+          marginBottom: 12,
+          paddingHorizontal: 14,
+          paddingVertical: 13,
+          opacity: pressed ? 0.85 : 1,
+        }]}
+      >
+        <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: '#B8870B', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name="search" size={13} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: d.text }}>Search or recite a hadith</T>
+          <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Books · chapters · full text · tap 🎤 to recite</T>
+        </View>
+        <FontAwesome5 name="microphone-alt" size={15} color="#B8870B" />
+      </Pressable>
+
       {/* search: books & chapters instantly; hadith texts scanned on demand */}
       <ContentSearchOverlay
         visible={searchOpen}

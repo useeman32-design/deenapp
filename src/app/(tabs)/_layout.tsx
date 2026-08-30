@@ -257,7 +257,7 @@ export default function TabsLayout() {
     <View style={{ flex: 1 }}>
       <Tabs tabBar={(props) => <FloatingTabBar {...props} />} screenOptions={{ headerShown: false }}>
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="quran" options={{ title: 'Quran & Hadith' }} />
+        <Tabs.Screen name="book-open" options={{ title: 'Quran & Hadith' }} />
         <Tabs.Screen name="tools" options={{ title: 'Worship Tools' }} />
         <Tabs.Screen name="community" options={{ title: 'Community' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />

@@ -230,33 +230,34 @@ export default function SurahList() {
               </Pressable>
             </View>
 
-            {/* search */}
-            <View
-              style={{
+            {/* search — prominent: type OR recite the verse (pass 25) */}
+            <Pressable
+              onPress={() => { haptic.selection(); setDeepSearch(true); }}
+              accessibilityLabel="search or recite"
+              style={({ pressed }) => [{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: d.card,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
+                gap: 11,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.4)',
+                backgroundColor: pressed ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(29,111,66,0.10)') : isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)',
                 marginTop: 14,
                 marginHorizontal: 16,
-                paddingHorizontal: 13,
-              }}
+                paddingHorizontal: 14,
+                paddingVertical: 13,
+                opacity: pressed ? 0.85 : 1,
+              }]}
             >
-              <FontAwesome5 name="search" size={13} color={d.faint} />
-              <Pressable
-                onPress={() => { haptic.selection(); setDeepSearch(true); }}
-                style={{ flex: 1, paddingVertical: 11, paddingLeft: 9 }}
-              >
-                <T v="caption" style={{ color: d.faint, fontSize: 13.5 }}>Search surah or ayah…</T>
-              </Pressable>
-              {q ? (
-                <Pressable onPress={() => setQ('')} hitSlop={8}>
-                  <FontAwesome5 name="times-circle" size={14} color={d.faint} />
-                </Pressable>
-              ) : null}
-            </View>
+              <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="search" size={13} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: d.text }}>Search or recite a verse</T>
+                <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>114 surahs · full text · tap 🎤 and recite to find an ayah</T>
+              </View>
+              <FontAwesome5 name="microphone-alt" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            </Pressable>
 
             {/* recent */}
             {recent.length > 0 ? (

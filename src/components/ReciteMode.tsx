@@ -8,21 +8,27 @@ import { haptic } from '@/lib/haptics';
 import { normalizeArabic } from '@/lib/quranSearch';
 import { getRecognition, speechSupported } from '@/lib/speech';
 import { useQuranAudio } from '@/context/QuranAudioContext';
-import type { SurahContent } from '@/lib/content';
 
 /**
- * Recite Mode (pass 24) — the app listens while you recite:
- * · words of the ayah reveal smoothly, one by one, as you say them
- * · a word the app can't match lights up RED — recite it again or tap 🔊
- * · tap any word to hear it highlighted; end-of-ayah score + next ayah
- * · browsers without speech recognition (in-app browsers etc.) get
- *   tap-to-reveal practice mode instead.
+ * Recite Mode v2 (pass 25):
+ * · WASL tolerance — reciting words joined (or slightly changed) still matches;
+ *   a mismatch only turns red when the word truly isn't what was heard.
+ * · REALTIME — interim speech results move a gold cursor to where you are now.
+ * · BLIND mode — hide the text entirely and recite from memory; revealed (with
+ *   mistakes) when the ayah completes.
+ * · SURAH / PAGE mode — keep following across every ayah in `data.verses`,
+ *   auto-advancing as you recite; mistakes stay tappable.
+ * · tap a red word → the app pronounces just that word (Arabic TTS, falls back
+ *   to the ayah's recitation).
  */
 
-/* word-level tolerance for recognition slips */
+const DIA = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
+const bare = (t: string) => normalizeArabic(t).replace(DIA, '').replace(/\s+/g, '');
+
+/** tolerant word equality (recognition slips of ≤2 edits) */
 function close(a: string, b: string): boolean {
-  if (a === b) return true;
   if (!a || !b) return false;
+  if (a === b) return true;
   if (Math.abs(a.length - b.length) > 2) return false;
   let i = 0, j = 0, edits = 0;
   while (i < a.length && j < b.length && edits <= 2) {
@@ -32,19 +38,42 @@ function close(a: string, b: string): boolean {
   return edits + (a.length - i) + (b.length - j) <= 2;
 }
 
-type WordState = 'hidden' | 'ok' | 'wrong';
+/** speak a single arabic word (TTS → fallback: play the whole ayah) */
+function speakWord(word: string, fallback: () => void) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) return fallback();
+    const u = new SpeechSynthesisUtterance(word);
+    u.lang = 'ar-SA';
+    u.rate = 0.75;
+    const arabicVoice = synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith('ar'));
+    if (arabicVoice) u.voice = arabicVoice;
+    u.onerror = () => fallback();
+    synth.cancel();
+    synth.speak(u);
+    /* if no arabic voice exists many engines stay silent — schedule the fallback */
+    setTimeout(() => { if (!synth.speaking) fallback(); }, 700);
+  } catch {
+    fallback();
+  }
+}
+
+type WordState = 'hidden' | 'ok' | 'wrong' | 'current';
+
+export type ReciteItem = { surah: number; ayah: number; arabic: string; label?: string };
 
 export function ReciteMode({
-  surah,
-  surahName,
-  data,
-  startAyah,
+  title,
+  items,
+  startAt = 0,
+  mode = 'ayah',
   onClose,
 }: {
-  surah: number;
-  surahName: string;
-  data: SurahContent;
-  startAyah: number;
+  title: string;
+  items: ReciteItem[];
+  startAt?: number;
+  /** ayah = one at a time · surah/page = follow the whole list continuously */
+  mode?: 'ayah' | 'surah';
   onClose: () => void;
 }) {
   const { theme, isDark } = useTheme();
@@ -52,66 +81,110 @@ export function ReciteMode({
   const insets = useSafeAreaInsets();
   const audio = useQuranAudio();
 
-  const [ayah, setAyah] = useState(Math.min(Math.max(1, startAyah), data.verses.length));
-  const verse = data.verses[ayah - 1];
   const supported = useMemo(() => speechSupported(), []);
+  const [verseIdx, setVerseIdx] = useState(Math.min(Math.max(0, startAt), Math.max(0, items.length - 1)));
+  const verse = items[verseIdx];
   const [listening, setListening] = useState(false);
-  const [wordStates, setWordStates] = useState<WordState[]>([]);
+  const [blind, setBlind] = useState(false);
+  const [revealed, setRevealed] = useState(false); // blind → revealed after finishing
   const [heard, setHeard] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [score, setScore] = useState<{ ok: number; wrong: number; words: number } | null>(null);
   const recRef = useRef<ReturnType<typeof getRecognition>>(null);
-  const ptr = useRef(0);
 
-  const words = useMemo(
-    () => (verse?.arabic ?? '').split(/\s+/).filter(Boolean).map((w) => normalizeArabic(w)).filter((w) => w.length > 0),
-    [verse?.arabic],
-  );
   const shown = useMemo(() => (verse?.arabic ?? '').split(/\s+/).filter(Boolean), [verse?.arabic]);
-  const done = ptr.current >= words.length && words.length > 0;
-  const okCount = wordStates.filter((s) => s === 'ok').length;
-  const wrongCount = wordStates.filter((s) => s === 'wrong').length;
+  const words = useMemo(() => shown.map((w) => bare(w)).filter((w) => w.length > 0), [shown]);
+  const [states, setStates] = useState<WordState[]>([]);
+  const ptr = useRef(0);
+  const carry = useRef(''); // wasl buffer — half-heard word waiting for its other half
 
-  const resetAyah = (a: number) => {
-    ptr.current = 0;
-    setWordStates(new Array(words.length).fill('hidden'));
-    setHeard('');
-    setAyah(a);
-  };
-
-  /* re-seed when the ayah changes */
   useEffect(() => {
     ptr.current = 0;
-    setWordStates(new Array(words.length).fill('hidden'));
-  }, [words.length, ayah]);
+    carry.current = '';
+    setStates(new Array(shown.length).fill('hidden'));
+    setScore(null);
+    setRevealed(false);
+    setHeard('');
+  }, [verseIdx, shown.length]);
 
-  const mark = (idx: number, state: WordState) => {
-    setWordStates((prev) => {
-      const next = prev.length === words.length ? [...prev] : new Array(words.length).fill('hidden');
-      next[idx] = state;
+  const setW = (idx: number, st: WordState) =>
+    setStates((prev) => {
+      const next = prev.length === shown.length ? [...prev] : new Array(shown.length).fill('hidden');
+      next[idx] = st;
       return next;
     });
+
+  const finishAyah = (ok: number, wrong: number) => {
+    setScore({ ok, wrong, words: shown.length });
+    setRevealed(true);
+    haptic.light();
   };
 
-  /* feed one recognized token into the alignment */
-  const step = (tokRaw: string) => {
-    const tok = normalizeArabic(tokRaw);
-    if (tok.length < 2) return;
+  /** core aligner — one heard token (raw) against the ayah, wasl-tolerant */
+  const step = (tokRaw: string, isFinal: boolean) => {
+    const tok = bare(tokRaw);
+    if (tok.length < 1) return;
     setHeard((h) => (h ? h + ' ' + tokRaw : tokRaw));
-    if (ptr.current >= words.length) return;
-    const target = words[ptr.current];
-    if (close(target, tok)) {
-      mark(ptr.current, 'ok');
+    if (ptr.current >= shown.length) return;
+
+    /* candidate = carried half + new token (handles a word split across results) */
+    const joined = carry.current ? carry.current + tok : tok;
+    const joinedN = bare(joined);
+
+    /* 1) plain match on the current word */
+    if (close(words[ptr.current], tok)) {
+      setW(ptr.current, 'ok');
       ptr.current++;
-      haptic.selection();
-    } else if (ptr.current + 1 < words.length && close(words[ptr.current + 1], tok)) {
-      /* skipped a word → that word is the mistake */
-      mark(ptr.current, 'wrong');
-      ptr.current += 1;
-      mark(ptr.current, 'ok');
-      ptr.current++;
-    } else {
-      mark(ptr.current, 'wrong');
-      ptr.current++;
+      carry.current = '';
+    }
+    /* 2) WASL — this token is TWO+ expected words said joined */
+    else {
+      let matchedN = 0;
+      for (let n = 2; n <= 4 && ptr.current + n <= words.length; n++) {
+        const run = words.slice(ptr.current, ptr.current + n).join('');
+        if (close(run, joinedN) || close(run, tok)) { matchedN = n; break; }
+      }
+      if (matchedN > 0) {
+        for (let k = 0; k < matchedN; k++) setW(ptr.current + k, 'ok');
+        ptr.current += matchedN;
+        carry.current = '';
+      }
+      /* 3) split — carried + token joins into the current word */
+      else if (carry.current && close(words[ptr.current], joinedN)) {
+        setW(ptr.current, 'ok');
+        ptr.current++;
+        carry.current = '';
+      }
+      /* 4) skip-ahead — the NEXT word was said (current one is the mistake) */
+      else if (ptr.current + 1 < words.length && close(words[ptr.current + 1], tok)) {
+        if (isFinal) {
+          setW(ptr.current, 'wrong');
+          setW(ptr.current + 1, 'ok');
+          ptr.current += 2;
+        } else {
+          setW(ptr.current + 1, 'current');
+        }
+        carry.current = '';
+      }
+      /* 5) genuinely different — only Finals may mark red (interim is too noisy) */
+      else {
+        if (isFinal) {
+          setW(ptr.current, 'wrong');
+          ptr.current++;
+          carry.current = '';
+        } else if (tok.length > 2) {
+          carry.current = tok; // might be the first half of a joined/split word
+        }
+      }
+    }
+
+    /* cursor on the upcoming word (realtime position, no commitment) */
+    if (ptr.current < shown.length) setW(ptr.current, states[ptr.current] === 'ok' || states[ptr.current] === 'wrong' ? states[ptr.current] : 'current');
+
+    if (ptr.current >= shown.length) {
+      const ok = states.filter((s) => s === 'ok').length + 1;
+      const wrong = states.filter((s) => s === 'wrong').length;
+      finishAyah(ok, wrong);
     }
   };
 
@@ -124,15 +197,9 @@ export function ReciteMode({
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
         const txt: string = res[0]?.transcript ?? '';
-        if (res.isFinal) {
-          const toks = txt.split(/\s+/).filter(Boolean);
-          toks.forEach(step);
-        } else {
-          /* interim: only chase the newest token */
-          const toks = txt.split(/\s+/).filter(Boolean);
-          const last = toks[toks.length - 1];
-          if (last) setHeard((h) => (h ? h + ' ' + last : last));
-        }
+        const toks = txt.split(/\s+/).filter(Boolean);
+        if (res.isFinal) toks.forEach((t) => step(t, true));
+        else if (toks.length) step(toks[toks.length - 1], false); // realtime: chase the newest word
       }
     };
     r.onerror = (e: any) => {
@@ -143,18 +210,25 @@ export function ReciteMode({
     r.onend = () => setListening(false);
     try { r.start(); setListening(true); haptic.light(); } catch { setError('Could not start the mic.'); }
   };
-
   const stopListening = () => {
     try { recRef.current?.stop(); } catch {}
     setListening(false);
   };
-
   useEffect(() => () => { try { recRef.current?.abort(); } catch {} }, []);
 
-  const listenVerse = () => {
-    haptic.light();
-    audio.playAyah(surah, ayah);
+  const nextAyah = () => {
+    if (verseIdx < items.length - 1) setVerseIdx(verseIdx + 1);
   };
+  const listenAyah = () => {
+    haptic.light();
+    if (verse) audio.playAyah(verse.surah, verse.ayah);
+  };
+
+  const hideText = blind && !revealed;
+  const okCount = states.filter((s) => s === 'ok').length;
+  const wrongCount = states.filter((s) => s === 'wrong').length;
+  const done = ptr.current >= shown.length && shown.length > 0;
+  const totalProgress = mode === 'surah' ? `${verseIdx + 1}/${items.length} · ` : '';
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -166,32 +240,69 @@ export function ReciteMode({
           </View>
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 16, color: d.text }}>Recite Mode</T>
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{surahName} · Ayah {ayah} of {data.verses.length}{supported ? '' : ' · practice mode'}</T>
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>
+              {mode === 'surah' ? `${title} · following ${items.length} ayahs` : `${title}${verse?.label ? ' · ' + verse.label : ''}`}{supported ? '' : ' · practice mode'}
+            </T>
           </View>
+          {/* blind toggle */}
+          <Pressable
+            accessibilityLabel="toggle blind mode"
+            onPress={() => { haptic.selection(); setBlind((b) => !b); }}
+            style={{ width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: blind ? 'rgba(44,110,143,0.55)' : d.cardBorder, backgroundColor: blind ? 'rgba(44,110,143,0.12)' : d.card, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <FontAwesome5 name={blind ? 'eye-slash' : 'eye'} size={13} color={blind ? '#5EA7C9' : d.subtext} />
+          </Pressable>
           <Pressable accessibilityLabel="close recite mode" onPress={() => { stopListening(); onClose(); }} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="times" size={13} color={d.subtext} />
           </Pressable>
         </View>
 
+        {/* blind banner */}
+        {hideText ? (
+          <View style={{ marginHorizontal: 16, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(44,110,143,0.4)', backgroundColor: 'rgba(44,110,143,0.07)', paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <FontAwesome5 name="eye-slash" size={11} color="#5EA7C9" />
+            <T v="caption" style={{ flex: 1, fontSize: 10, color: '#5EA7C9' }}>BLIND MODE — recite from memory. The text reveals (with mistakes marked) when the ayah completes.</T>
+          </View>
+        ) : null}
+
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-          {/* the ayah, word by word (RTL) */}
-          <View style={{ marginTop: 10, borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 18 }}>
+          <View style={{ marginTop: 6, borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 18 }}>
             <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
               {shown.map((w, i) => {
-                const st = wordStates[i] ?? 'hidden';
+                const st = states[i] ?? 'hidden';
+                const showWord = !hideText || st === 'ok' || st === 'wrong';
                 return (
-                  <Pressable key={i} onPress={() => (supported && st === 'hidden' ? mark(i, 'ok') : undefined)} style={{ borderRadius: 8, paddingHorizontal: 4, paddingVertical: 2, backgroundColor: st === 'wrong' ? 'rgba(220,60,60,0.16)' : 'transparent', borderWidth: st === 'wrong' ? 1 : 0, borderColor: 'rgba(220,60,60,0.45)' }}>
+                  <Pressable
+                    key={i}
+                    onPress={() => {
+                      if (st === 'wrong' || st === 'ok') {
+                        haptic.selection();
+                        speakWord(w, () => audio.playAyah(verse.surah, verse.ayah));
+                      } else if (!supported && st === 'hidden') {
+                        markPractice(i);
+                      }
+                    }}
+                    style={{
+                      borderRadius: 8,
+                      paddingHorizontal: 4,
+                      paddingVertical: 2,
+                      backgroundColor: st === 'wrong' ? 'rgba(220,60,60,0.16)' : st === 'current' && listening ? 'rgba(212,175,55,0.15)' : 'transparent',
+                      borderWidth: st === 'wrong' ? 1 : 0,
+                      borderColor: 'rgba(220,60,60,0.45)',
+                    }}
+                  >
                     <Text
                       style={{
                         fontFamily: 'Amiri',
                         fontSize: 30,
                         lineHeight: 56,
                         textAlign: 'center',
-                        color: st === 'wrong' ? '#E05252' : st === 'ok' ? d.text : isDark ? 'rgba(242,247,243,0.13)' : 'rgba(20,36,28,0.13)',
+                        color: st === 'wrong' ? '#E05252' : st === 'ok' ? d.text : hideText ? 'transparent' : st === 'current' && listening ? '#E8C96A' : isDark ? 'rgba(242,247,243,0.13)' : 'rgba(20,36,28,0.13)',
                         textDecorationLine: st === 'wrong' ? 'underline' : 'none',
+                        minWidth: hideText ? 34 : undefined,
                       }}
                     >
-                      {w}
+                      {hideText ? '҉҉҉' : w}
                     </Text>
                   </Pressable>
                 );
@@ -200,39 +311,37 @@ export function ReciteMode({
 
             {/* progress */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 }}>
-              <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', overflow: 'hidden', flexDirection: 'row' }}>
-                <View style={{ width: `${words.length ? (100 * (okCount + wrongCount)) / words.length : 0}%`, backgroundColor: wrongCount > 0 && wrongCount >= okCount ? '#E05252' : isDark ? '#4AE38F' : '#1D6F42' }} />
+              <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', overflow: 'hidden' }}>
+                <View style={{ width: `${shown.length ? (100 * (okCount + wrongCount)) / shown.length : 0}%`, backgroundColor: wrongCount > 0 && wrongCount >= okCount ? '#E05252' : isDark ? '#4AE38F' : '#1D6F42', height: 5 }} />
               </View>
-              <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: d.faint }}>{okCount + wrongCount}/{words.length}</T>
+              <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: d.faint }}>{totalProgress}{okCount + wrongCount}/{shown.length}</T>
             </View>
-            {heard ? (
-              <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 8 }} numberOfLines={2}>
-                heard: {heard.slice(-120)}
-              </T>
+            {heard && !hideText ? (
+              <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 8 }} numberOfLines={2}>heard: {heard.slice(-120)}</T>
             ) : null}
           </View>
 
-          {/* done card */}
-          {done ? (
-            <View style={{ marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: wrongCount === 0 ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: wrongCount === 0 ? 'rgba(212,175,55,0.08)' : d.card, padding: 16, alignItems: 'center' }}>
-              <FontAwesome5 name={wrongCount === 0 ? 'trophy' : 'redo'} size={20} color={wrongCount === 0 ? '#E8C96A' : d.subtext} />
+          {/* completion card */}
+          {score ? (
+            <View style={{ marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: score.wrong === 0 ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: score.wrong === 0 ? 'rgba(212,175,55,0.08)' : d.card, padding: 16, alignItems: 'center' }}>
+              <FontAwesome5 name={score.wrong === 0 ? 'trophy' : 'redo'} size={20} color={score.wrong === 0 ? '#E8C96A' : d.subtext} />
               <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text, marginTop: 8 }}>
-                {wrongCount === 0 ? 'Masha’Allah — perfect!' : `${okCount}/${words.length} correct`}
+                {score.wrong === 0 ? 'Masha’Allah — perfect!' : `${score.ok}/${score.words} correct`}
               </T>
               <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 3, textAlign: 'center' }}>
-                {wrongCount === 0 ? 'Ayah recited flawlessly.' : `${wrongCount} word${wrongCount > 1 ? 's' : ''} lit red — listen again and repeat them.`}
+                {score.wrong === 0 ? 'Ayah recited flawlessly.' : `${score.wrong} word${score.wrong > 1 ? 's' : ''} in red — tap a red word to hear it pronounced.`}
               </T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                <Pressable onPress={listenVerse} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Pressable onPress={listenAyah} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
                   <FontAwesome5 name="volume-up" size={11} color="#E8C96A" />
                   <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#E8C96A' }}>Listen</T>
                 </Pressable>
-                <Pressable onPress={() => resetAyah(ayah)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft }}>
+                <Pressable onPress={() => { setVerseIdx(verseIdx); ptr.current = 0; carry.current = ''; setStates(new Array(shown.length).fill('hidden')); setScore(null); setRevealed(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft }}>
                   <FontAwesome5 name="undo" size={11} color={d.subtext} />
                   <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.subtext }}>Retry</T>
                 </Pressable>
-                {ayah < data.verses.length ? (
-                  <Pressable onPress={() => resetAyah(ayah + 1)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42' }}>
+                {verseIdx < items.length - 1 ? (
+                  <Pressable onPress={nextAyah} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42' }}>
                     <FontAwesome5 name="arrow-right" size={11} color="#fff" />
                     <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#fff' }}>Next ayah</T>
                   </Pressable>
@@ -248,18 +357,12 @@ export function ReciteMode({
             </View>
           ) : null}
 
-          {!supported ? (
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 14, lineHeight: 15 }}>
-              Speech recognition isn’t available here — practice mode: recite out loud and tap each word as you say it to reveal it.
-            </T>
-          ) : (
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 14, lineHeight: 15 }}>
-              Recite slowly and clearly. Words appear as you say them — a red word means the app heard something different: say it again or tap 🔊 to listen.
-            </T>
-          )}
+          <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 14, lineHeight: 15 }}>
+            {supported ? 'Recite at a steady pace — joined words (wasl) are fine. The gold word is where I’m listening; red words need another look — tap them to hear each word alone.' : 'Speech recognition isn’t available here — practice mode: recite out loud and tap each word as you say it.'}
+          </T>
         </ScrollView>
 
-        {/* footer controls */}
+        {/* footer */}
         <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: d.cardBorder, backgroundColor: d.card, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {supported ? (
             <Pressable
@@ -267,19 +370,29 @@ export function ReciteMode({
               accessibilityLabel="toggle recitation listening"
               style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: listening ? 'rgba(220,80,80,0.1)' : isDark ? '#1F8F5C' : '#1D6F42', borderWidth: 1, borderColor: listening ? 'rgba(220,80,80,0.4)' : 'transparent' }}
             >
-              {listening ? <ActivityIndicator size="small" color="#DC5050" /> : <FontAwesome5 name="microphone-alt" size={13} color={listening ? '#DC5050' : '#fff'} />}
-              <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: listening ? '#DC5050' : '#fff' }}>{listening ? 'Listening… tap to stop' : 'Start reciting'}</T>
+              {listening ? <ActivityIndicator size="small" color="#DC5050" /> : <FontAwesome5 name="microphone-alt" size={13} color="#fff" />}
+              <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: listening ? '#DC5050' : '#fff' }}>{listening ? 'Listening… tap to stop' : done ? 'Recite next ayah' : 'Start reciting'}</T>
             </Pressable>
           ) : null}
-          <Pressable onPress={listenVerse} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
+          <Pressable onPress={listenAyah} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
             <FontAwesome5 name="volume-up" size={13} color="#E8C96A" />
             <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: '#E8C96A' }}>Listen</T>
           </Pressable>
-          <Pressable onPress={() => resetAyah(ayah)} style={{ width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={() => { ptr.current = 0; carry.current = ''; setStates(new Array(shown.length).fill('hidden')); setScore(null); setRevealed(false); }} accessibilityLabel="reset ayah" style={{ width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="undo" size={13} color={d.subtext} />
           </Pressable>
         </View>
       </View>
     </Modal>
   );
+
+  /* practice fallback: tap reveals */
+  function markPractice(i: number) {
+    setW(i, 'ok');
+    ptr.current = Math.max(ptr.current, i + 1);
+    if (ptr.current >= shown.length) {
+      const ok = states.filter((s) => s === 'ok').length + 1;
+      finishAyah(ok, 0);
+    }
+  }
 }

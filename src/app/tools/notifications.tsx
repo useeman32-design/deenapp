@@ -100,7 +100,7 @@ export default function Notifications() {
               <View>
                 {a ? <AvatarImage source={a.photo ?? null} name={a.full_name} size={42} tint={d.bgSoft} border={d.cardBorder} /> : (
                   <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: `${meta.tint}18`, borderWidth: 1, borderColor: `${meta.tint}55`, alignItems: 'center', justifyContent: 'center' }}>
-                    <FontAwesome5 name="mosque" size={15} color={meta.tint} />
+                    <FontAwesome5 name="star-and-crescent" size={15} color={meta.tint} />
                   </View>
                 )}
                 <View style={{ position: 'absolute', right: -3, bottom: -3, width: 19, height: 19, borderRadius: 10, backgroundColor: meta.tint, borderWidth: 2, borderColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>

@@ -406,7 +406,7 @@ export default function Home() {
                       justifyContent: 'center',
                     }}
                   >
-                    <FontAwesome5 name="mosque" size={19} color={isDark ? d.emerald : '#5BE59B'} />
+                    <FontAwesome5 name="star-and-crescent" size={19} color={isDark ? d.emerald : '#5BE59B'} />
                   </View>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -468,7 +468,7 @@ export default function Home() {
                     opacity: pressed ? 0.8 : 1,
                   })}
                 >
-                  <FontAwesome5 name="kaaba" size={12} color={d.goldBright} />
+                  <FontAwesome5 name="star-and-crescent" size={12} color={d.goldBright} />
                   <T v="button" style={{ color: d.goldBright, fontSize: 12, fontWeight: '600' }}>
                     Qibla Finder
                   </T>
@@ -536,7 +536,7 @@ export default function Home() {
                   size={52}
                   progress={streak.days === 0 ? 0 : (streak.days % 7) / 7 || 1}
                   color={d.emerald}
-                  icon={<FontAwesome5 name="quran" size={15} color={d.emerald} />}
+                  icon={<FontAwesome5 name="book-open" size={15} color={d.emerald} />}
                 />
               </View>
             </View>

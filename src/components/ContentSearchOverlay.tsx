@@ -149,9 +149,16 @@ export function ContentSearchOverlay({
             ) : null}
           </View>
           {micBusy ? (
-            <T v="caption" style={{ fontSize: 10, color: theme.subtext, marginTop: 6, marginLeft: 4 }}>
-              {micHeard ? `heard: ${micHeard.slice(-60)}` : 'listening… recite the verse'}
-            </T>
+            <View style={{ marginTop: 8, marginHorizontal: 2, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.07)', padding: 12, gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <FontAwesome5 name="microphone-alt" size={12} color="#B8870B" />
+                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B', letterSpacing: 0.4 }}>LISTENING — RECITE THE VERSE</T>
+              </View>
+              <T v="arabic" style={{ fontSize: 19, lineHeight: 34, color: theme.text, textAlign: 'right' }}>
+                {micHeard ? micHeard : '…'}
+              </T>
+              <T v="caption" style={{ fontSize: 9, color: theme.subtext }}>Matching your recitation against the app library…</T>
+            </View>
           ) : null}
         </View>
 

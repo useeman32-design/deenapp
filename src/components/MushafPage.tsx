@@ -8,6 +8,7 @@ import { storage } from '@/lib/storage';
 import { QURAN } from '@/data/quran';
 import { useQuranAudio, globalAyahOf, surahOfGlobal } from '@/context/QuranAudioContext';
 import { loadSurah, type SurahContent } from '@/lib/content';
+import { ReciteMode } from '@/components/ReciteMode';
 
 /**
  * Mushaf page (pass 22 rewrite):
@@ -60,11 +61,11 @@ export function MushafPage({
 
   const [pg, setPg] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [scrollable, setScrollable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeId, setThemeId] = useState<string | null>(null);
   const [fs, setFs] = useState(DEFAULT_FS);
   const [followingAudio, setFollowingAudio] = useState(false);
+  const [recitePage, setRecitePage] = useState(false);
   const boxH = useRef(0);
   const slide = useRef(new Animated.Value(0)).current;
   const loadingPage = useRef<number | null>(null);
@@ -85,8 +86,26 @@ export function MushafPage({
   const skin = THEMES.find((t) => t.id === (themeId ?? (isDark ? 'night' : 'cream'))) ?? THEMES[0];
   const lh = Math.round(fs * 1.9);
 
-  const stripBasmallah = (text: string, surahNo: number, numberInSurah: number) =>
-    numberInSurah === 1 && surahNo !== 1 && text.startsWith('بِسْمِ') ? text.slice(BASMALLAH.length).trim() : text;
+  /* strip the inline basmallah from ayah 1 (diacritic-insensitive — the API's
+   * basmallah uses different harakat than our display constant) */
+  const stripBasmallah = (text: string, surahNo: number, numberInSurah: number) => {
+    if (numberInSurah !== 1 || surahNo === 1) return text;
+    const bare = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '');
+    const bareText = bare(text);
+    const bareBasm = bare(BASMALLAH);
+    if (bareText.startsWith(bareBasm)) {
+      /* find the true cut index in the ORIGINAL string (count stripped chars) */
+      let kept = 0, bi = 0;
+      for (let i = 0; i < text.length && bi < bareBasm.length; i++) {
+        const ch = text[i];
+        const isDia = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/.test(ch);
+        if (!isDia) { if (bareBasm[bi] !== ch) break; bi++; }
+        kept = i + 1;
+      }
+      return text.slice(kept).replace(/^[\s\u0640]+/, '');
+    }
+    return text;
+  };
 
   const pageFromApi = useCallback(async (p: number): Promise<PageInfo> => {
     const r = await fetch(`https://api.alquran.cloud/v1/page/${p}/quran-uthmani`);
@@ -135,7 +154,6 @@ export function MushafPage({
       try {
         const info = await pageFromApi(p);
         setPg(info);
-        setScrollable(false);
         if (userNav) {
           haptic.selection();
           const first = info.ayahs[0];
@@ -240,12 +258,9 @@ export function MushafPage({
     return segs;
   }, [pg]);
 
-  /* overflow → scroll INSIDE the page (no shrinking) */
-  const onContentLayout = (h: number) => {
-    const avail = boxH.current - 58; /* header strip + page-number vignette */
-    if (h > avail + 4 && !scrollable) setScrollable(true);
-    else if (h <= avail - 20 && scrollable) setScrollable(false);
-  };
+  /* pass 25: content ALWAYS scrolls inside the page — the old measured
+   * flex:0 segment hack made multi-surah pages (602-604) render all segments
+   * stacked on top of each other (zero-height children overlapping). */
 
   const settingsSheet = (
     <Modal visible={settingsOpen} transparent animationType="slide" onRequestClose={() => setSettingsOpen(false)}>
@@ -301,6 +316,16 @@ export function MushafPage({
           }}
           style={{ flex: 1, borderRadius: 12, borderWidth: 2, borderColor: skin.border, backgroundColor: skin.bg, paddingHorizontal: 14, paddingTop: 4, overflow: 'hidden' }}
         >
+          {/* recite-this-page mic — top-right */}
+          <Pressable
+            onPress={() => { haptic.light(); setRecitePage(true); }}
+            accessibilityLabel="recite this page"
+            style={{ position: 'absolute', top: 7, right: 7, zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(44,110,143,0.55)', backgroundColor: 'rgba(44,110,143,0.12)', paddingHorizontal: 8 }}
+          >
+            <FontAwesome5 name="microphone-alt" size={10} color="#2C6E8F" />
+            <Text style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: '#2C6E8F', letterSpacing: 0.4 }}>RECITE</Text>
+          </Pressable>
+
           {/* settings gear — inside the page, top-left */}
           <Pressable
             onPress={() => {
@@ -319,13 +344,9 @@ export function MushafPage({
             </T>
           </View>
 
-          {scrollable ? (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 30 }}>
-              {renderContent()}
-            </ScrollView>
-          ) : (
-            <View style={{ flex: 1 }}>{renderContent()}</View>
-          )}
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 34, paddingTop: 2 }}>
+            {renderContent()}
+          </ScrollView>
 
           {/* page number — bottom-centre vignette (content keeps clear of it) */}
           <View style={{ position: 'absolute', bottom: 2, left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
@@ -343,15 +364,25 @@ export function MushafPage({
         </View>
       </Animated.View>
 
+      {/* pass 25: recite the whole page — follows across surahs on it */}
+      {pg && !pg.offline && pg.ayahs.length ? (
+        <ReciteMode
+          title={`Page ${pg.pageNo ?? ''}`}
+          mode="surah"
+          startAt={0}
+          items={pg.ayahs.map((a) => ({ surah: a.surahNo, ayah: a.numberInSurah, arabic: a.text, label: `${a.surahNo}:${a.numberInSurah}` }))}
+          onClose={() => setRecitePage(false)}
+        />
+      ) : null}
       {settingsSheet}
     </View>
   );
 
   function renderContent() {
     return (
-      <View onLayout={(e) => onContentLayout(e.nativeEvent.layout.height)} style={{ flex: scrollable ? undefined : 1 }}>
+      <View>
         {segments.map((seg, si) => (
-          <View key={seg.start?.key ?? `${pg?.pageNo}-${si}`} style={{ flex: 0 }}>
+          <View key={seg.start?.key ?? `${pg?.pageNo}-${si}`} style={{ marginTop: si === 0 ? 0 : 14 }}>
             {/* compact surah header — centred, raised, minimal space */}
             {seg.start && seg.start.surahNo !== 9 ? (
               <View style={{ alignItems: 'center', marginTop: si === 0 ? 2 : 10, marginBottom: 4 }}>

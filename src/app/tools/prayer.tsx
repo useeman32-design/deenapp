@@ -97,7 +97,7 @@ export default function PrayerTimes() {
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18 }}>
           <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="mosque" size={16} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <FontAwesome5 name="star-and-crescent" size={16} color={isDark ? '#4AE38F' : '#1D6F42'} />
           </View>
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Prayer Times</T>

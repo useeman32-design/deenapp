@@ -51,7 +51,7 @@ export function detectProvider(key: string): ProviderId | null {
 }
 
 export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'web'; label: string; href?: string; excerpt: string };
-export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number };
+export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string };
 export type AiChat = { id: string; title: string; at: number; msgs: AiMsg[] };
 
 const K_CHATS = 'dl.ai.chats.v2';
@@ -208,7 +208,49 @@ export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the Deen
 - When the context includes excerpts from the app library, prefer them and cite inline like [Quran 2:255] or [Bukhari · Faith #8]. Never fabricate ayah/hadith numbers.
 - If web search results are available, use them for current facts and cite [web].
 - Be honest when unsure; encourage asking a qualified scholar for rulings.
-- Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.`;
+- Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.
+- NAVIGATION MAP: you know the app's screens. When the user asks WHERE to find something (a surah reader, mushaf, prayer times, qibla compass, zakat calculator, tasbeeh, hijri calendar, duas, athkar, 99 names, hadith collections, quizzes, videos/community, AI chat, settings), answer briefly and end your reply with ONE final line of the exact form:
+NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/quiz | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
+The app turns that line into a button that opens the screen. Only add it when it genuinely helps.`;
+
+/** pretty names for NAV: routes (used for the "Open …" button) */
+export const NAV_LABELS: Record<string, string> = {
+  '/tools/prayer': 'Prayer times', '/tools/qibla': 'Qibla compass', '/tools/zakat': 'Zakat calculator',
+  '/tools/tasbeeh': 'Digital tasbeeh', '/tools/calendar': 'Hijri calendar', '/tools/dua': 'Dua collection',
+  '/tools/athkar': 'Athkar', '/tools/names': '99 Names of Allah', '/tools/hadith': 'Hadith library',
+  '/tools/quiz': 'Quiz', '/tools/ai': 'DeenLink AI', '/videos': 'Videos & reels',
+  '/(tabs)/community': 'Community', '(tabs)/community': 'Community', '/(tabs)/quran/surah': 'Quran · surah list',
+  '/tools/charity': 'Sadaqah', '/tools/seerah': 'Seerah timeline', '/tools/courses': 'Courses',
+};
+
+/** on-device "where is…" router — answers navigation questions without a key */
+export function navAnswer(q: string): { text: string; route?: string } | null {
+  const s = q.toLowerCase();
+  const asksWhere = ['where', 'how do i open', 'find the', 'go to', 'navigate', 'locate'].some((x) => s.includes(x));
+  if (!asksWhere) return null;
+  const map: Array<[string[], string, string]> = [
+    [['prayer time', 'salah time', 'prayer schedule', 'adhan'], '/tools/prayer', 'Prayer times'],
+    [['qibla', 'compass', 'kaaba direction', 'makkah direction'], '/tools/qibla', 'Qibla compass'],
+    [['zakat', 'nisab'], '/tools/zakat', 'Zakat calculator'],
+    [['tasbeeh', 'tasbih', 'counter'], '/tools/tasbeeh', 'Digital tasbeeh'],
+    [['calendar', 'hijri', 'islamic month'], '/tools/calendar', 'Hijri calendar'],
+    [['athkar', 'adhkar', 'morning and evening'], '/tools/athkar', 'Athkar'],
+    [['dua', 'supplication'], '/tools/dua', 'Dua collection'],
+    [['99 names', 'names of allah'], '/tools/names', '99 Names of Allah'],
+    [['hadith', 'bukhari', 'muslim', 'narration'], '/tools/hadith', 'Hadith library'],
+    [['quiz'], '/tools/quiz', 'Quiz'],
+    [['mushaf', 'read quran', 'quran page', 'surah list'], '/(tabs)/quran/surah', 'Quran · surah list'],
+    [['video', 'reel', 'watch'], '/videos', 'Videos & reels'],
+    [['community', 'feed', 'followers'], '/(tabs)/community', 'Community'],
+    [['recite', 'memoriz', 'hifz'], '/read/1', 'the Quran reader'],
+  ];
+  for (const [keys, route, label] of map) {
+    if (keys.some((k) => s.includes(k))) {
+      return { text: `You can find that under ${label} — tap the button below and I'll take you straight there.`, route };
+    }
+  }
+  return null;
+}
 
 export type StreamEvent = { delta?: string; reason?: string; done?: boolean; error?: string; citations?: string[] };
 
@@ -289,5 +331,9 @@ export function composeLocalAnswer(q: string, sources: AiSource[]): string {
   if (!sources.length)
     return `I could not find that in the offline library. Try rephrasing (e.g. name a surah, a dua topic, or a hadith theme) — or add a Grok API key in Settings for full AI answers with reasoning and web search.`;
   const byKind = sources.slice(0, 4);
-  return `Here is what I found in your DeenLink library for “${q.trim()}”:\n\n` + byKind.map((s) => `• ${s.label}\n${s.excerpt.split('\n')[s.excerpt.includes('\n') ? 1 : 0] || s.excerpt}`).join('\n\n') + `\n\nOpen any source below to read in full context.`;
+  return (
+    `Here is what I found in your DeenLink library for “${q.trim()}”:\n\n` +
+    byKind.map((s) => `[${s.label}]\n${s.excerpt.split('\n')[s.excerpt.includes('\n') ? 1 : 0] || s.excerpt}`).join('\n\n') +
+    `\n\nTap any reference to open it in context.`
+  );
 }

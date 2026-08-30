@@ -8,9 +8,9 @@ import { QURAN } from '@/data/quran';
 import { loadSurah, type SurahContent } from '@/lib/content';
 import { MushafPage } from '@/components/MushafPage';
 import { GlassPlayerBar } from '@/components/GlassPlayerBar';
-import { ReciteMode } from '@/components/ReciteMode';
+import { ReciteMode, type ReciteItem } from '@/components/ReciteMode';
 import type { LoopCfg } from '@/context/QuranAudioContext';
-import { ActivityIndicator, Modal } from 'react-native';
+import { ActivityIndicator, Modal, TextInput } from 'react-native';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { Image } from 'expo-image';
 import { storage } from '@/lib/storage';
@@ -49,10 +49,12 @@ export default function Reader() {
   /* another surah is playing and the user opened a different one → ask */
   const [switchAsk, setSwitchAsk] = useState<number | null>(null);
   const [reciteAt, setReciteAt] = useState<number | null>(null);
+  const [reciteAll, setReciteAll] = useState(false);
   const [loopOpen, setLoopOpen] = useState(false);
   const [loopFrom, setLoopFrom] = useState(startAyah || 1);
   const [loopTo, setLoopTo] = useState(Math.min((startAyah || 1) + 4, meta?.ayahs ?? 7));
   const [perAyah, setPerAyah] = useState(1);
+  const [customPer, setCustomPer] = useState('');
   const [loopCycles, setLoopCycles] = useState(0);
 
   const scrollRef = useRef<ScrollView>(null);
@@ -273,7 +275,7 @@ export default function Reader() {
                     <FontAwesome5 name="bookmark" size={11} solid={marks.has(a.ayah)} color={marks.has(a.ayah) ? '#E8C96A' : d.faint} />
                     <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: marks.has(a.ayah) ? '#E8C96A' : d.subtext }}>Save</T>
                   </Pressable>
-                  <Pressable onPress={() => { haptic.selection(); setReciteAt(a.ayah); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Pressable onPress={() => { haptic.selection(); setReciteAt(a.ayah); setReciteAll(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <FontAwesome5 name="microphone-alt" size={11} color="#5EA7C9" />
                     <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#5EA7C9' }}>Recite</T>
                   </Pressable>
@@ -315,7 +317,7 @@ export default function Reader() {
           <Pressable onPress={(e) => e.stopPropagation()} style={{ borderRadius: 22, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingBottom: insets.bottom + 14, paddingHorizontal: 16, paddingTop: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 }}>
               <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="repeat" size={12} color="#E8C96A" />
+                <FontAwesome5 name="sync-alt" size={12} color="#E8C96A" />
               </View>
               <View style={{ flex: 1 }}>
                 <T v="h3" style={{ fontWeight: '800', fontSize: 14.5, color: d.text }}>Repeat for memorization</T>
@@ -347,12 +349,24 @@ export default function Reader() {
             </View>
 
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>REPEAT EACH AYAH</T>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
-              {[1, 2, 3, 5, 10, 0].map((c) => (
-                <Pressable key={c} onPress={() => { haptic.selection(); setPerAyah(c); }} style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: perAyah === c ? 'rgba(212,175,55,0.55)' : d.cardBorder, backgroundColor: perAyah === c ? 'rgba(212,175,55,0.12)' : d.bgSoft }}>
-                  <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: perAyah === c ? '#E8C96A' : d.subtext }}>{c === 0 ? '∞' : `${c}×`}</T>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+              {[1, 2, 3, 5, 10].map((c) => (
+                <Pressable key={c} onPress={() => { haptic.selection(); setPerAyah(c); setCustomPer(''); }} style={{ width: 40, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: perAyah === c && !customPer ? 'rgba(212,175,55,0.55)' : d.cardBorder, backgroundColor: perAyah === c && !customPer ? 'rgba(212,175,55,0.12)' : d.bgSoft }}>
+                  <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: perAyah === c && !customPer ? '#E8C96A' : d.subtext }}>{c}×</T>
                 </Pressable>
               ))}
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 11, borderWidth: 1, borderColor: customPer ? 'rgba(212,175,55,0.55)' : d.cardBorder, backgroundColor: customPer ? 'rgba(212,175,55,0.12)' : d.bgSoft, paddingHorizontal: 8, gap: 4 }}>
+                <TextInput
+                  value={customPer}
+                  onChangeText={(tx) => { const nn = parseInt(tx.replace(/\D/g, ''), 10); setCustomPer(tx.replace(/\D/g, '')); if (nn && nn > 0 && nn <= 100) setPerAyah(nn); }}
+                  keyboardType="numeric"
+                  placeholder="custom"
+                  placeholderTextColor={d.faint}
+                  maxLength={3}
+                  style={{ width: 44, paddingVertical: 8, fontSize: 13, fontWeight: '800', color: customPer ? '#E8C96A' : d.subtext, textAlign: 'center' }}
+                />
+                <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: customPer ? '#E8C96A' : d.faint }}>×</T>
+              </View>
             </View>
 
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>TIMES THROUGH THE RANGE</T>
@@ -370,7 +384,7 @@ export default function Reader() {
                 const from = Math.min(loopFrom, loopTo);
                 const to = Math.max(loopFrom, loopTo);
                 audio.playSurah(n, from);
-                audio.setLoop({ surah: n, from, to, perAyah, cycles: loopCycles } as LoopCfg);
+                audio.setLoop({ surah: n, from, to, perAyah: customPer ? Math.max(1, Math.min(100, parseInt(customPer, 10) || 1)) : perAyah, cycles: loopCycles } as LoopCfg);
                 setLoopOpen(false);
               }}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 15, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42' }}
@@ -384,7 +398,13 @@ export default function Reader() {
 
       {/* ── pass-24: recite mode ── */}
       {data && reciteAt != null ? (
-        <ReciteMode surah={n} surahName={meta.english} data={data} startAyah={reciteAt} onClose={() => setReciteAt(null)} />
+        <ReciteMode
+          title={reciteAll ? meta.english : `${meta.english} ${n}:${reciteAt}`}
+          mode={reciteAll ? 'surah' : 'ayah'}
+          startAt={reciteAll ? Math.max(0, (activeAyah ?? startAyah ?? 1) - 1) : 0}
+          items={(reciteAll ? data.verses : data.verses.filter((v) => v.ayah === reciteAt)).map((v) => ({ surah: n, ayah: v.ayah, arabic: v.arabic, label: `Ayah ${v.ayah}` }))}
+          onClose={() => setReciteAt(null)}
+        />
       ) : null}
 
       {/* ── player: glassy bar ⇄ cassette-only ── */}
@@ -408,11 +428,14 @@ export default function Reader() {
             compact
             right={
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Pressable onPress={() => { haptic.selection(); setReciteAt(activeAyah ?? startAyah ?? 1); }} hitSlop={6} accessibilityLabel="recite mode" style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(44,110,143,0.5)', backgroundColor: 'rgba(44,110,143,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                <Pressable onPress={() => { haptic.selection(); setReciteAt(activeAyah ?? startAyah ?? 1); setReciteAll(true); }} hitSlop={6} accessibilityLabel="recite whole surah" style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(44,110,143,0.5)', backgroundColor: 'rgba(44,110,143,0.1)', alignItems: 'center', justifyContent: 'center' }}>
                   <FontAwesome5 name="microphone-alt" size={11} color="#5EA7C9" />
                 </Pressable>
-                <Pressable onPress={() => { haptic.selection(); setLoopOpen(true); }} hitSlop={6} accessibilityLabel="repeat loop" style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: audio.loop && audio.loop.surah === n ? 'rgba(212,175,55,0.65)' : d.cardBorder, backgroundColor: audio.loop && audio.loop.surah === n ? 'rgba(212,175,55,0.14)' : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name="repeat" size={11} color={audio.loop && audio.loop.surah === n ? '#E8C96A' : d.faint} />
+                <Pressable onPress={() => { haptic.selection(); setLoopOpen(true); }} hitSlop={6} accessibilityLabel="repeat loop" style={{ width: audio.loop && audio.loop.surah === n ? 38 : 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: audio.loop && audio.loop.surah === n ? 'rgba(212,175,55,0.75)' : d.cardBorder, backgroundColor: audio.loop && audio.loop.surah === n ? 'rgba(212,175,55,0.16)' : d.bgSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: audio.loop && audio.loop.surah === n ? 5 : 0 }}>
+                  <FontAwesome5 name="sync-alt" size={11} color={audio.loop && audio.loop.surah === n ? '#E8C96A' : d.faint} />
+                  {audio.loop && audio.loop.surah === n ? (
+                    <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: '#E8C96A' }}>{audio.loop.perAyah === 0 ? '∞' : `${audio.loop.perAyah}×`}</T>
+                  ) : null}
                 </Pressable>
                 <Pressable onPress={() => { haptic.selection(); audio.cycleRate(); }} hitSlop={6} style={{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}>
                   <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10.5 }}>{audio.rate}x</T>
