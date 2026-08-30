@@ -31,3 +31,20 @@ master @ d7313ce · diag24 **14/14 green** (scripts/diag24.mjs)
 - Recite Mode on native needs a native speech module (expo-speech-recognition) if we ship apps.
 - User's local iOS bundling: tell them `git pull && npm install` (or `node scripts/unpack-content.mjs`).
 - Loop counter badge on the mini bar (shows armed state only via gold icon for now).
+
+
+# Pass-25 handoff (deployed) — diag25 19/19
+Live entry-d0b3e869f6d93aeb7208c25faa0c7979.js · master @ scratch-cleanup after 1f5d0a1
+
+## Shipped
+- **Mushaf multi-surah fix**: the old `flex:0` segments rendered ZERO-height → all surah blocks overlapped at the page top (the "merging/unreadable" on pages 602-604). Now: content ALWAYS in a ScrollView, segments auto-height with marginTop 14 separation; basmallah strip is diacritic-insensitive (API harakat differ from our constant). Every surah on a page keeps its name pill + basmallah (never surah 1/9).
+- **Loop v2**: per-ayah ∞ replaced by CUSTOM numeric input (placeholder 'custom', 1-100); range cycles keep ∞. Icon repeat→sync-alt (FA5 Pro icons render as '?' — also swapped kaaba/quran/mosque → star-and-crescent/book-open globally). Active loop = gold icon + width-badge "7×" in the player bar.
+- **Recite v2** (components/ReciteMode.tsx): items-based `ReciteItem[] {surah, ayah, arabic, label}` — reader per-ayah (mode ayah), player-bar mic = whole surah following (mode surah), mushaf page has top-right RECITE pill = follow the whole PAGE across surahs. WASL tolerance (joined words match 2-4 word runs; carry-buffer for split words), realtime interim cursor (gold current word; reds only from finals), BLIND mode (eye toggle — text masked until ayah completes), tap red/ok word → speakWord() Arabic TTS (speechSynthesis ar-SA, rate .75) w/ ayah-audio fallback. word-audio hosts (words.audios.quran.com etc) unreachable — TTS chosen instead.
+- **Recite-search prominence**: surah.tsx + hadith.tsx got big green/gold 'Search or recite' buttons; ContentSearchOverlay mic now shows a large gold live-transcript panel (Arabic, right-aligned) while listening.
+- **AI redesign**: glassy bubbles/header (rgba bg + hairline borders), hamburger top-left → Animated left drawer (history: open/delete/clear + New chat), RichText bolds+links `[Quran 2:255]`/`[Bukhari · …]`/`[Dua · …]`/`[web]` (REF_RE; refRoute maps hadith names→book routes), NAV: prompt asks model to end with `NAV: /route` → big 'Open X' button (NAV_LABELS); on-device navAnswer() answers "where is…" without a key; on-device composeLocalAnswer now emits bracketed refs (tappable). Suggestions trimmed to 3 chips.
+
+## Gotchas
+- diag25 needs auth BEFORE checking text pages (ensureAuth after goto when session drops) — quran/surah needs corpus load time, poll ~8s.
+- FA5 FREE only: repeat/kaaba/quran/mosque/hands/hadith/clock-rotate-left are Pro → '?' glyph. Use sync-alt, star-and-crescent, book-open, hands-helping, history.
+- MushafPage always-ScrollView killed the onContentLayout/scrollable machinery (deleted).
+- ReciteMode finishAyah ok-count uses states+1 (last word counted optimistically) — fine for UX.
