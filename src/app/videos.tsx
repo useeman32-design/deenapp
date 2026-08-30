@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
@@ -296,6 +297,7 @@ function ReelItem({
             playsInline
             style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
           />
+          <VideoLoader player={player} />
         </View>
       ) : (
         <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />

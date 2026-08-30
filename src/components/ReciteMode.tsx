@@ -37,7 +37,16 @@ export function ReciteMode({
   useEffect(() => { tr.setAutoNext(autoNext); }, [autoNext, tr]);
   useEffect(() => { tr.setIdx(Math.min(Math.max(0, startAt), Math.max(0, items.length - 1))); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const listenAyah = () => { haptic.light(); if (tr.item) audio.playAyah(tr.item.surah, tr.item.ayah); };
+  /* pass 28: Listen = exactly THIS ayah (STOPPABLE). With AUTO-NEXT on it
+   * rolls on — matching the auto-advance spirit of the mode. */
+  const listenOn = tr.item != null && audio.surah === tr.item.surah && audio.ayah === tr.item.ayah && (audio.playing || audio.loading);
+  const listenAyah = () => {
+    haptic.light();
+    if (!tr.item) return;
+    if (listenOn) { audio.stop(); return; }
+    if (autoNext) audio.playSurah(tr.item.surah, tr.item.ayah);
+    else audio.playAyah(tr.item.surah, tr.item.ayah);
+  };
   const pronounce = (i: number) => { haptic.selection(); if (tr.item) speakWord(tr.item.surah, tr.item.ayah, i, tr.shown[i] ?? '', listenAyah); };
 
   return (
@@ -154,9 +163,9 @@ export function ReciteMode({
               <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: tr.listening ? '#DC5050' : '#fff' }}>{tr.listening ? 'Listening… tap to stop' : tr.score ? 'Recite again' : 'Start reciting'}</T>
             </Pressable>
           ) : null}
-          <Pressable onPress={listenAyah} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
-            <FontAwesome5 name="volume-up" size={13} color="#E8C96A" />
-            <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: '#E8C96A' }}>Listen</T>
+          <Pressable onPress={listenAyah} accessibilityLabel={listenOn ? 'stop listening' : 'listen to ayah'} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: listenOn ? 'rgba(220,80,80,0.5)' : 'rgba(212,175,55,0.45)', backgroundColor: listenOn ? 'rgba(220,80,80,0.1)' : 'rgba(212,175,55,0.08)' }}>
+            {listenOn && audio.loading ? <ActivityIndicator size="small" color="#DC5050" /> : <FontAwesome5 name={listenOn ? 'stop' : 'volume-up'} size={13} color={listenOn ? '#DC5050' : '#E8C96A'} />}
+            <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: listenOn ? '#DC5050' : '#E8C96A' }}>{listenOn ? 'Stop' : 'Listen'}</T>
           </Pressable>
           <Pressable onPress={() => { haptic.selection(); tr.clearAyah(); }} accessibilityLabel="reset ayah" style={{ width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="undo" size={13} color={d.subtext} />

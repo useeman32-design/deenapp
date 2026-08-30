@@ -279,11 +279,15 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
   const realignRef = useRef(realign);
   realignRef.current = realign;
 
+  const keepAlive = useRef(false);
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const start = useCallback(() => {
     setError(null);
     const r = getRecognition({ continuous: true });
     if (!r) { setError('Speech recognition is not available in this browser.'); return; }
     recRef.current = r;
+    keepAlive.current = true;
     r.onresult = (e: any) => {
       let inter = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -297,15 +301,52 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
       realignRef.current();
     };
     r.onerror = (e: any) => {
-      setListening(false);
       const code = e?.error ?? 'error';
-      setError(code === 'not-allowed' ? 'Microphone permission denied — enable it in browser settings.' : code === 'no-speech' ? 'No speech heard — tap the mic and recite again.' : `Mic error: ${code}`);
+      if (code === 'not-allowed') {
+        keepAlive.current = false;
+        setListening(false);
+        setError('Microphone permission denied — enable it in browser settings.');
+        return;
+      }
+      /* no-speech / aborted / network — transient: the restart loop rides on */
+      if (code === 'network') setError('Speech recognition needs an internet connection.');
     };
-    r.onend = () => setListening(false);
+    /* pass 28: iOS Safari ignores `continuous` and ENDS the session after each
+     * utterance/pause — if we don't restart, tracking silently dies while the
+     * user keeps reciting. Restart while the user wants to listen. */
+    r.onend = () => {
+      if (!keepAlive.current) { setListening(false); return; }
+      if (restartTimer.current) clearTimeout(restartTimer.current);
+      restartTimer.current = setTimeout(() => {
+        if (!keepAlive.current) return;
+        try { recRef.current?.start(); } catch {
+          /* already started — ignore InvalidStateError */
+        }
+      }, 260);
+    };
     try { r.start(); setListening(true); } catch { setError('Could not start the mic.'); }
   }, [realign]);
 
+  /* pass 28: full reset — first ayah, nothing marked, mic off */
+  const reset = useCallback(() => {
+    keepAlive.current = false;
+    if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
+    try { recRef.current?.stop(); } catch {}
+    finals.current = '';
+    interim.current = '';
+    settled.current = false;
+    setListening(false);
+    setIdx(0);
+    setStates(new Array(words.length).fill('hidden'));
+    setReached(0);
+    setScore(null);
+    setLive('');
+    setError(null);
+  }, [words.length]);
+
   const stop = useCallback(() => {
+    keepAlive.current = false;
+    if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
     /* stopping mid-ayah settles the score: unspoken words count as wrong */
     if (!settled.current && reached > 0 && reached < words.length) {
       const spoken = (finals.current + ' ' + interim.current).split(/\s+/).map(bare).filter((x) => x.length > 0);
@@ -320,7 +361,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
 
   return {
     supported, item, idx, setIdx, shown, words, states, reached, listening, live, error, score,
-    start, stop, clearAyah, setAutoNext,
+    start, stop, reset, clearAyah, setAutoNext,
     okCount: states.filter((s) => s === 'ok').length,
     wrongCount: states.filter((s) => s === 'wrong').length,
     done: reached >= shown.length && shown.length > 0,

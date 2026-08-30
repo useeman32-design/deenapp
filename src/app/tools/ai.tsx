@@ -6,6 +6,9 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { loadSurah } from '@/lib/content';
+import { netBus } from '@/lib/net';
+import { QURAN } from '@/data/quran';
 import {
   AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
@@ -55,42 +58,189 @@ function refRoute(ref: string): string | null {
 }
 
 const NAV_LINE = /^NAV:\s*(\/[^\s]+)\s*$/m;
+/* card mirrors — VerseCards sits outside the component tree */
+let isDarkStatic = false;
+let textColStatic = '#14241C';
+let subColStatic = 'rgba(20,36,28,0.62)';
 
-/** message body with bold, tappable references */
-function RichText({ text, color, onNav }: { text: string; color: string; onNav: (route: string) => void }) {
-  const parts: Array<{ t: 'txt' | 'ref'; s: string }> = [];
+/** inline formatter — **bold**, _italic_, and tappable [refs]; leftover
+ * markdown symbols are consumed, never shown raw */
+function inlineFormat(text: string, color: string, onNav: (r: string) => void, key = 'x') {
+  const out: React.ReactNode[] = [];
+  /* 1. split out [refs] first */
+  const chunks: Array<{ t: 'txt' | 'ref'; s: string }> = [];
   let last = 0;
   for (const m of text.matchAll(REF_RE)) {
     const i = m.index ?? 0;
-    if (i > last) parts.push({ t: 'txt', s: text.slice(last, i) });
-    parts.push({ t: 'ref', s: m[1] });
+    if (i > last) chunks.push({ t: 'txt', s: text.slice(last, i) });
+    chunks.push({ t: 'ref', s: m[1] });
     last = i + m[0].length;
   }
-  if (last < text.length) parts.push({ t: 'txt', s: text.slice(last) });
+  if (last < text.length) chunks.push({ t: 'txt', s: text.slice(last) });
+
+  chunks.forEach((c, ci) => {
+    if (c.t === 'ref') {
+      out.push(
+        <T
+          key={`${key}-${ci}`}
+          v="bodyS"
+          onPress={() => { const rt = refRoute(c.s); if (rt) { haptic.selection(); onNav(rt); } }}
+          style={{ fontSize: 13.5, lineHeight: 20, fontWeight: '900', color: '#E8C96A', textDecorationLine: refRoute(c.s) ? 'underline' : 'none' }}
+        >
+          [{c.s}]
+        </T>
+      );
+      return;
+    }
+    /* 2. within plain text: **bold** then _italic_ */
+    let tk = 0;
+    const boldParts = c.s.split(/\*\*([^*]+)\*\*/g);
+    boldParts.forEach((bp, bi) => {
+      const isBold = bi % 2 === 1;
+      if (isBold) {
+        out.push(
+          <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color, fontWeight: '800' }}>
+            {bp}
+          </T>
+        );
+        return;
+      }
+      const itParts = bp.split(/(?:^|\W)_([^_]+)_(?:$|\W)/g);
+      itParts.forEach((ip, ii) => {
+        if (ii % 2 === 1) {
+          out.push(
+            <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color, fontStyle: 'italic' }}>
+              {ip}
+            </T>
+          );
+        } else if (ip) {
+          out.push(
+            <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color }}>
+              {ip.replace(/\*{1,2}/g, '')}
+            </T>
+          );
+        }
+      });
+    });
+  });
+  return out;
+}
+
+type Block =
+  | { k: 'h'; s: string }
+  | { k: 'p'; s: string }
+  | { k: 'b'; marker: string; s: string }
+  | { k: 'space' };
+
+function parseBlocks(text: string): Block[] {
+  const blocks: Block[] = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    if (!line.trim()) { blocks.push({ k: 'space' }); continue; }
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    if (h) { blocks.push({ k: 'h', s: h[1].replace(/[ *#]+$/, '') }); continue; }
+    const b = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (b) { blocks.push({ k: 'b', marker: '•', s: b[1] }); continue; }
+    const n = line.match(/^\s*(\d{1,2})[.)]\s+(.*)$/);
+    if (n) { blocks.push({ k: 'b', marker: `${n[1]}.`, s: n[2] }); continue; }
+    blocks.push({ k: 'p', s: line });
+  }
+  return blocks;
+}
+
+/** assistant answer renderer — headings as bold colored titles, bullets, bold
+ * text and tappable refs. No raw markdown symbols ever reach the screen. */
+function AnswerText({ text, color, accent, onNav }: { text: string; color: string; accent: string; onNav: (r: string) => void }) {
+  const blocks = parseBlocks(text);
   return (
-    <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20 }}>
-      {parts.map((p, i) =>
-        p.t === 'txt' ? (
-          <T key={i} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color }}>
-            {p.s}
+    <View>
+      {blocks.map((bl, i) => {
+        if (bl.k === 'space') return <View key={i} style={{ height: 7 }} />;
+        if (bl.k === 'h') {
+          return (
+            <T key={i} v="bodyS" style={{ fontSize: 14, lineHeight: 20, fontWeight: '800', color: accent, letterSpacing: 0.2, marginTop: i === 0 ? 0 : 9, marginBottom: 2 }}>
+              {inlineFormat(bl.s, accent, onNav, `h${i}`)}
+            </T>
+          );
+        }
+        if (bl.k === 'b') {
+          return (
+            <View key={i} style={{ flexDirection: 'row', gap: 7, marginTop: 3 }}>
+              <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, fontWeight: '900', color: '#E8C96A' }}>{bl.marker}</T>
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20 }}>
+                  {inlineFormat(bl.s, color, onNav, `b${i}`)}
+                </T>
+              </View>
+            </View>
+          );
+        }
+        return (
+          <T key={i} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, marginTop: i === 0 ? 0 : 2 }}>
+            {inlineFormat(bl.s, color, onNav, `p${i}`)}
           </T>
-        ) : (
-          <T
-            key={i}
-            v="bodyS"
-            onPress={() => { const rt = refRoute(p.s); if (rt) { haptic.selection(); onNav(rt); } }}
-            style={{ fontSize: 13.5, lineHeight: 20, fontWeight: '900', color: '#E8C96A', textDecorationLine: refRoute(p.s) ? 'underline' : 'none' }}
-          >
-            [{p.s}]
-          </T>
-        ),
-      )}
-    </T>
+        );
+      })}
+    </View>
   );
 }
 
+/** ayah / hadith display cards — Arabic + translation pulled from OUR dataset */
+function VerseCards({ text, onOpen }: { text: string; onOpen: (r: string) => void }) {
+  const [cards, setCards] = useState<Array<{ surah: number; ayah: number; arabic: string; english: string; name: string }>>([]);
+  useEffect(() => {
+    let alive = true;
+    const seen = new Set<string>();
+    const refs: Array<{ surah: number; ayah: number }> = [];
+    for (const m of cleanAIStatic(text).matchAll(/\[Quran\s*(\d{1,3}):(\d{1,3})/g)) {
+      const key = `${m[1]}:${m[2]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      refs.push({ surah: Number(m[1]), ayah: Number(m[2]) });
+      if (refs.length >= 3) break;
+    }
+    if (!refs.length) { setCards([]); return; }
+    (async () => {
+      const out: Array<{ surah: number; ayah: number; arabic: string; english: string; name: string }> = [];
+      for (const r of refs) {
+        try {
+          const sc = await loadSurah(r.surah);
+          const v = sc.verses[r.ayah - 1];
+          if (v) out.push({ surah: r.surah, ayah: r.ayah, arabic: v.arabic, english: v.english, name: QURAN.find((q) => q.number === r.surah)?.english ?? `Surah ${r.surah}` });
+        } catch {}
+      }
+      if (alive) setCards(out);
+    })();
+    return () => { alive = false; };
+  }, [text]);
+  if (!cards.length) return null;
+  return (
+    <View>
+      {cards.map((c, i) => (
+        <Pressable
+          key={i}
+          onPress={() => { haptic.selection(); onOpen(`/read/${c.surah}?ayah=${c.ayah}`); }}
+          style={{ marginTop: 9, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(29,111,66,0.28)', backgroundColor: isDarkStatic ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', paddingTop: 9, paddingBottom: 8, paddingHorizontal: 11 }}
+        >
+          <T v="bodyS" style={{ fontFamily: 'Amiri', fontSize: 20, lineHeight: 34, color: textColStatic, textAlign: 'right', writingDirection: 'rtl' }}>{c.arabic}</T>
+          <T v="bodyS" numberOfLines={4} style={{ fontFamily: 'Poppins-Regular', fontSize: 11, lineHeight: 16, color: subColStatic, marginTop: 5, fontStyle: 'italic' }}>{c.english}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
+            <FontAwesome5 name="book-open" size={8} color="#B8870B" />
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#B8870B' }}>{c.name} {c.surah}:{c.ayah} · tap to open</T>
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+const cleanAIStatic = (t: string) => t.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<tool>[\s\S]*?<\/tool>/g, '');
+
 export default function DeenLinkAI() {
   const { theme, isDark } = useTheme();
+  isDarkStatic = isDark;
+  textColStatic = theme.text;
+  subColStatic = theme.subtext;
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -101,6 +251,15 @@ export default function DeenLinkAI() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'retrieving' | 'thinking' | 'streaming'>('idle');
+
+  /* pass 28: warm the library in the background — the FIRST message used to
+   * pay the whole 114-surah + books load before the model was even called */
+  const warmed = useRef(false);
+  useEffect(() => {
+    if (warmed.current) return;
+    warmed.current = true;
+    retrieveLocal(' ').catch(() => {});
+  }, []);
   const [apiKey, setKey] = useState('');
   const [model, setModelState] = useState<string>(PROVIDERS.groq.models[0].id);
   const [webOn, setWebOn] = useState(false);
@@ -178,6 +337,8 @@ export default function DeenLinkAI() {
       let reasoning = '';
       const thinkStart = Date.now();
       let err = '';
+      const netTimer = setTimeout(() => netBus.slow(true), 4000);
+      const netDone = () => { clearTimeout(netTimer); netBus.slow(false); };
       await streamLLM(apiKey, model, [{ role: 'system', content: sys }, ...history], webRef.current, (e) => {
         if (e.reason && !acc) {
           reasoning += e.reason;
@@ -195,6 +356,7 @@ export default function DeenLinkAI() {
           setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...webSrcs] }; return c; });
         }
       });
+      netDone();
       const navRoute = acc.match(NAV_LINE)?.[1];
       if (err) {
         const fallback = composeLocalAnswer(q, sources);
@@ -261,7 +423,10 @@ export default function DeenLinkAI() {
               {m.reasoning ? <T v="caption" numberOfLines={3} style={{ fontSize: 9.5, fontStyle: 'italic', color: isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)', marginTop: 6, lineHeight: 14 }}>{m.reasoning}…</T> : null}
             </View>
           ) : (
-            <RichText text={body} color={mine ? '#FFFFFF' : d.text} onNav={(rt) => router.push(rt as never)} />
+            <>
+              <AnswerText text={body} color={mine ? '#FFFFFF' : d.text} accent={isDark ? '#4AE38F' : '#1D6F42'} onNav={(rt) => router.push(rt as never)} />
+              {!mine ? <VerseCards text={body} onOpen={(rt) => router.push(rt as never)} /> : null}
+            </>
           )}
         </View>
 

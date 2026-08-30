@@ -32,7 +32,11 @@ export function searchQuranCorpus(q: string, limit = 40): QuranHit[] {
   if (!corpus) return [];
   const needle = q.trim().toLowerCase();
   if (!needle) return [];
-  const hits: QuranHit[] = [];
+  const mk = (m: number, ayah: number, arabic: string, translation: string): QuranHit => ({ surah: m, ayah, arabic, translation });
+
+  /* 1. exact substring (verbatim phrase / Arabic) */
+  const exact: QuranHit[] = [];
+  const seenKey = new Set<string>();
   for (const { meta, surah } of corpus) {
     for (const v of surah.verses) {
       if (
@@ -40,12 +44,33 @@ export function searchQuranCorpus(q: string, limit = 40): QuranHit[] {
         (v.hausa && v.hausa.toLowerCase().includes(needle)) ||
         v.arabic.includes(q.trim())
       ) {
-        hits.push({ surah: meta.number, ayah: v.ayah, arabic: v.arabic, translation: v.english || v.hausa || '' });
-        if (hits.length >= limit) return hits;
+        exact.push(mk(meta.number, v.ayah, v.arabic, v.english || v.hausa || ''));
+        seenKey.add(`${meta.number}:${v.ayah}`);
+        if (exact.length >= limit) return exact;
       }
     }
   }
-  return hits;
+
+  /* 2. pass 28: token ranking — natural questions ("a verse about patience")
+   * never appear verbatim in a translation, so substring-only search starved
+   * the AI of ayat. Score every verse by matched query tokens. */
+  const toks = needle.split(/[^a-z\u0621-\u064A]+/).filter((w) => w.length > 3);
+  if (!toks.length) return exact;
+  const scored: Array<{ h: QuranHit; sc: number }> = [];
+  for (const { meta, surah } of corpus) {
+    for (const v of surah.verses) {
+      const en = (v.english || '').toLowerCase();
+      const ha = (v.hausa || '').toLowerCase();
+      let sc = 0;
+      for (const t of toks) {
+        if (en.includes(t)) sc += t.length > 5 ? 2 : 1;
+        if (ha.includes(t)) sc += 1;
+      }
+      if (sc >= 2 && !seenKey.has(`${meta.number}:${v.ayah}`)) scored.push({ h: mk(meta.number, v.ayah, v.arabic, v.english || v.hausa || ''), sc });
+    }
+  }
+  scored.sort((a, b) => b.sc - a.sc);
+  return [...exact, ...scored.map((x) => x.h)].slice(0, limit);
 }
 
 /* ───────── pass 24: recite-to-find (fuzzy arabic matching) ─────────

@@ -371,6 +371,14 @@ export function MushafPage({
               <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: `${skin.accent}22`, overflow: 'hidden' }}>
                 <View style={{ width: `${reciteItems.length ? (100 * (tr.idx + (tr.done ? 1 : tr.reached / Math.max(1, tr.shown.length)))) / reciteItems.length : 0}%`, height: 4, backgroundColor: tr.wrongCount > 0 ? '#E05252' : '#1F8F5C' }} />
               </View>
+              <Pressable
+                onPress={() => { haptic.selection(); tr.reset(); }}
+                accessibilityLabel="reset page recite"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, borderRadius: 10, paddingHorizontal: 9, backgroundColor: `${skin.accent}12`, borderWidth: 1, borderColor: skin.border }}
+              >
+                <FontAwesome5 name="undo" size={9} color={skin.accent} />
+                <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: skin.accent }}>RESET</T>
+              </Pressable>
               <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: skin.accent }}>{tr.idx + 1}/{reciteItems.length}</T>
               {tr.score ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 24, borderRadius: 8, backgroundColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.15)' : 'rgba(220,80,80,0.12)', borderWidth: 1, borderColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.5)' : 'rgba(220,80,80,0.4)' }}>

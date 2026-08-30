@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { netBus } from '@/lib/net';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { QURAN } from '@/data/quran';
 import { probeAdvancing } from '@/lib/mediaProbe';
@@ -232,23 +233,28 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
 
   /* loading + playing — read the REAL media element (web truth) so the
    * spinner clears the moment audio actually starts, and shows again while
-   * the next ayah buffers (slow networks) */
+   * the next ayah buffers (slow networks). pass 28: also feeds the global
+   * net pill so users see slow-network / offline state app-wide. */
   useEffect(() => {
+    let netOn = false;
     const iv = setInterval(() => {
       const src = activeSrc.current;
       if (surah == null || !src) {
         setLoading(false);
+        if (netOn) { netBus.slow(false); netOn = false; }
         return;
       }
       if (probeAdvancing(src)) {
         setLoading(false);
         setPlaying(true);
+        if (netOn) { netBus.slow(false); netOn = false; }
       } else if (wantPlay.current) {
         setLoading(true);
         setPlaying(false);
+        if (!netOn) { netBus.slow(true); netOn = true; }
       }
     }, 350);
-    return () => clearInterval(iv);
+    return () => { clearInterval(iv); if (netOn) netBus.slow(false); };
   }, [surah]);
 
   /* advance on end-of-item — flip to the preloaded standby engine */
@@ -257,6 +263,18 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       if (surah == null) return;
       const meta = QURAN.find((s) => s.number === surah);
       const atEnd = meta && ayah >= meta.ayahs;
+      /* pass 28: a SINGLE-ayah listen stops at the end of ITS ayah —
+       * mid-surah too (it used to roll seamlessly into the next verse) */
+      if (single.current) {
+        single.current = false;
+        wantPlay.current = false;
+        player.pause();
+        standby.pause();
+        setPlaying(false);
+        setSurah(null);
+        activeSrc.current = null;
+        return;
+      }
       if (atEnd && single.current) {
         single.current = false;
         wantPlay.current = false;

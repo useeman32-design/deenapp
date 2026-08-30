@@ -13,6 +13,7 @@ import { savedStore } from '@/lib/savedPosts';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoLoader } from '@/components/VideoLoader';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -177,6 +178,7 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         {started && !expanded ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
+            {started && !expanded ? <VideoLoader player={player} /> : null}
           </View>
         ) : started && expanded ? (
           <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000' }} />
@@ -213,6 +215,7 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
           <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
             <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
               {expanded ? <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} /> : null}
+              {expanded ? <VideoLoader player={player} /> : null}
             </View>
           </Pressable>
           <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
@@ -828,7 +831,7 @@ export function FeedCard({
               {post.like_count ?? 0}
             </T>
           </Pressable>
-          <Pressable onPress={() => onComments?.(post)} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={() => onComments?.(post)} accessibilityLabel="open comments" hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
             <ChatIcon size={21} color={sub} />
             <T v="caption" style={{ fontWeight: '600', fontSize: 14, color: sub }}>
               {post.comment_count ?? 0}
