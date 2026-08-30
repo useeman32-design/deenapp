@@ -1,3 +1,21 @@
+## Pass 27 — SHIPPED (2026-08-30)
+Commit `dbf1c10` on master; gh-pages live entry `_expo/static/js/web/entry-9250677358fe5e021c0da0a99b6053d7.js` (curl 200). diag27 **16/16**, engine unit tests **8/8** (`node scripts/engtest.mjs` after rebuilding `scripts/eng.mjs` via the esbuild alias line inside it).
+
+**Shipped this pass**
+- **src/lib/reciteEngine.ts (NEW)** — shared engine. `bare()` normalize+strip harakat; `keepMarks()` light normalize that PRESERVES harakat; `strictEq` (exact or 1 sub at equal length); `align(E,S,EM?,SM?)` → `{states,reached}` with wasl joins k=2..4, skip-ahead wrong-marking, split glue, corrections pass, and a **harakat post-pass**: `marksConflict` flags vowel slips (aamanu→aaminu, kafaru→kufiru) when the transcript carries ≥2 marks/word; final-letter marks ignored (i'rab tolerance); unmarked transcripts stay lenient. `itemWords()` strips basmallah from ayah 1 (surah≠1). `speakWord()` → audio.qurancdn.com/wbw/{sss}_{aaa}_{www}.mp3 (1-based, pad3) → ar-SA TTS → ayah-audio fallback. `useReciteTracker(items,{autoNext})`: realign on EVERY onresult **via `realignRef.current()`** (fixes the stale-closure bug — autoNext-advanced ayahs align against their own words), bare+marked arrays built LOCKSTEP (filter both or neither), settle() marks unspoken wrong, mic auto-stops 250ms after completion, autoNext advances 900ms after PERFECT only.
+- **ReciteMode.tsx rebuilt on the engine** — AUTO-NEXT toggle chip (default on for mode='surah'), WordChip (320ms Animated; `masked`, `colorBase`, `faint`, `onPress` props) exported for reuse, verdict card, single-ayah Listen, reset.
+- **MushafPage.tsx** — page card borderless full-bleed; RECITE opens **inline** banner (mic/STOP, BLIND toggle, progress bar, idx/total, PERFECT/n-WRONG chip, ×) — the mushaf text itself becomes chips for the current ayah while other ayahs stay shaded in place; blind mode masks unreached words (ayah numbers remain); word-tap → speakWord (wbw CDN). The RECITE pill HIDES while the banner is open (its oversized hit area covered the × — found via elementFromPoint).
+- **ReciteSearchModal** — mic static GOLD + 'Tap the mic…' until tapped → GREEN + pulse rings + 'Listening…'. (diag27 injects a FakeSR stub via ctx.addInitScript because headless lacks SpeechRecognition — the chip itself is gated on speechOk.)
+- **quranSearch.ts findAyahFuzzy rewritten** — hybrid score 0.34 token-coverage + 0.33 ordered-LCS + 0.33 char-trigram jaccard, `stripBasm` on BOTH query and ayah-1 candidates (kills the basmallah flood that drowned Ikhlas). Battery 5/5 incl. basmallah-prefixed queries.
+- **ai.tsx** — `ThinkingDots` (3 staggered bouncing dots, 160ms offsets) replaces the ActivityIndicator; suggestions/inbox icons back to book-open.
+- **Icons** — bottom tabs keep ORIGINAL `quran` + `mosque` (FA5Free glyphmap-verified). Icon archaeology: 38545d7 = pass-25 handoff, **cae485d = pass-26a deliberate icon sweep** (the live pre-pass-27 state), so HEAD — not 38545d7 — is the correct restore baseline; hadith.ts/seerah.ts/duaSections.ts/surah.tsx/calendar.tsx/index.tsx restored from HEAD after the greedy pass-27 sweep.
+
+**Gotchas**
+- Sandbox resets wipe `.git/config` (identity + remote): re-set `git config user.name/email` (deenapp-bot <bot@deenlink.org>) and re-add origin from `.token` at repo root (token never committed).
+- NEVER blanket-replace icon names; enumerate sites + assert anchors.
+- gh-pages entry JS lives at `_expo/static/js/web/entry-*.js` — verify with the full path, not just the filename.
+- engtest: rebuild `scripts/eng.mjs` with `npx esbuild src/lib/reciteEngine.ts --bundle --format=esm --platform=browser --alias:react-native=./scripts/rnStub.js --alias:@/lib/quranSearch=./scripts/engDepsStub.ts --alias:@/lib/speech=./scripts/engDepsStub.ts --outfile=scripts/eng.mjs` (rnStub/engDepsStub are in scripts/).
+
 # DeenLink — Pass-24 handoff (deployed)
 
 Live: https://useeman32-design.github.io/deenapp — entry-0aa1fb4404cd085f06cc3fce84613a9c.js
