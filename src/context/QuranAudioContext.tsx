@@ -24,6 +24,8 @@ export const RECITERS = [
   { id: 'ar.shaatree', name: 'Abu Bakr Ash-Shaatree', photo: require('../../assets/img/reciters/shaatree.jpg') },
 ] as const;
 
+export type LoopCfg = { surah: number; from: number; to: number; perAyah: number; cycles: number };
+
 const ayahAudio = (reciter: string, globalAyah: number) => `https://cdn.islamic.network/quran/audio/128/${reciter}/${globalAyah}.mp3`;
 
 /* expo-video web: replace() does load()+play() and the play promise silently
@@ -75,6 +77,9 @@ type AudioState = {
   /** play ONE ayah (stops after it) — the per-ayah play button */
   playAyah: (surah: number, ayah: number) => void;
   playSurah: (surah: number, ayah?: number) => void;
+  /** pass-24 memorization loop: repeat one ayah or a range (perAyah/cycles 0 = ∞) */
+  loop: LoopCfg | null;
+  setLoop: (c: LoopCfg | null) => void;
   stop: () => void;
   toggle: () => void;
   setReciter: (id: string) => void;
@@ -99,6 +104,11 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
   const [progress, setProgress] = useState(0);
   /** single-ayah mode: play one ayah then stop (ayah action row) */
   const single = useRef(false);
+  /* pass-24 loop state (ref mirrors for the playToEnd handler) */
+  const [loop, setLoopState] = useState<LoopCfg | null>(null);
+  const loopRef = useRef<LoopCfg | null>(null);
+  const ayahPlays = useRef(1);
+  const cycleCount = useRef(1);
   /** when the surah ends we announce the next one for 5s, then continue */
   const [announcement, setAnnouncement] = useState<{ surah: number; at: number } | null>(null);
 
@@ -276,6 +286,29 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         }, 5000);
         return;
       }
+      /* pass-24: memorization loop — repeat this ayah / walk the range */
+      const L = loopRef.current;
+      if (L && L.surah === surah && !single.current) {
+        const wantMore = L.perAyah === 0 || ayahPlays.current < L.perAyah;
+        if (wantMore) {
+          ayahPlays.current++;
+          try { player.replay(); } catch {}
+          domEnsurePlay(uri, 0);
+          return;
+        }
+        ayahPlays.current = 1;
+        if (ayah >= L.to) {
+          const moreCycles = L.cycles === 0 || cycleCount.current < L.cycles;
+          if (moreCycles) {
+            cycleCount.current++;
+            setAyah(L.from);
+            setPlaying(true);
+            return; /* uri changes -> the load effect reloads + plays */
+          }
+          loopRef.current = null;
+          setLoopState(null); /* finished the whole loop -> continue normally */
+        }
+      }
       /* mid-surah: seamless swap into the standby engine (already loaded) */
       activeSrc.current = standbySrc.current;
       standbySrc.current = null;
@@ -310,7 +343,20 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         const target = Math.min(meta.ayahs, Math.max(1, Math.ceil(fraction * meta.ayahs)));
         setAyah(target);
       },
+      loop,
+      setLoop: (c) => {
+        loopRef.current = c;
+        ayahPlays.current = 1;
+        cycleCount.current = 1;
+        setLoopState(c);
+      },
       playSurah: (s: number, a = 1) => {
+        if (loopRef.current && loopRef.current.surah !== s) {
+          loopRef.current = null;
+          setLoopState(null);
+        }
+        ayahPlays.current = 1;
+        cycleCount.current = 1;
         single.current = false;
         wantPlay.current = true;
         setAnnouncement(null);

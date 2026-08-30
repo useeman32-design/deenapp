@@ -7,7 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { QURAN, JUZ_START } from '@/data/quran';
 import { storage } from '@/lib/storage';
 import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
-import { ensureQuranCorpus, searchQuranCorpus } from '@/lib/quranSearch';
+import { ensureQuranCorpus, findAyahFuzzy, searchQuranCorpus } from '@/lib/quranSearch';
 import { markActive, markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -437,13 +437,25 @@ export default function SurahList() {
         }}
         contentSearch={async (qq) => {
           await ensureQuranCorpus();
-          return searchQuranCorpus(qq).map((h) => ({
+          const direct = searchQuranCorpus(qq).map((h) => ({
             key: `a${h.surah}:${h.ayah}`,
             title: `${QURAN[h.surah - 1]?.english ?? h.surah} ${h.surah}:${h.ayah}`,
             subtitle: h.translation.slice(0, 90),
             arabic: h.arabic.slice(0, 46),
             onPress: () => router.push({ pathname: '/read/[id]', params: { id: String(h.surah), ayah: String(h.ayah) } } as never),
           }));
+          /* pass 24: recited arabic rarely substring-matches — fuzzy-find it */
+          if (direct.length < 3 && /[\u0621-\u064A]/.test(qq)) {
+            const fuzzy = findAyahFuzzy(qq, 5).map((h) => ({
+              key: `f${h.surah}:${h.ayah}`,
+              title: `${h.surahName} ${h.surah}:${h.ayah} · ${Math.round(h.score * 100)}% match`,
+              subtitle: h.translation.slice(0, 90),
+              arabic: h.arabic.slice(0, 60),
+              onPress: () => router.push({ pathname: '/read/[id]', params: { id: String(h.surah), ayah: String(h.ayah) } } as never),
+            }));
+            return [...fuzzy, ...direct];
+          }
+          return direct;
         }}
         contentLabel="In the whole Qur'an (EN · HA · Arabic)"
       />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, TextInput, View } from 'react-native';
+import { dictateArabic, speechSupported } from '@/lib/speech';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -28,6 +29,7 @@ export function ContentSearchOverlay({
   metaSearch,
   contentSearch,
   contentLabel = 'In content',
+  initialQuery,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -37,9 +39,13 @@ export function ContentSearchOverlay({
   /** async search inside the corpus — (q) => hits (throw = unavailable) */
   contentSearch?: (q: string) => Promise<SearchHit[]>;
   contentLabel?: string;
+  /** pass 24: prefill when opened (recite-to-find pipes dictated text here) */
+  initialQuery?: string;
 }) {
   const { theme } = useTheme();
   const [q, setQ] = useState('');
+  const [micBusy, setMicBusy] = useState(false);
+  const [micHeard, setMicHeard] = useState('');
   const [content, setContent] = useState<SearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -52,8 +58,22 @@ export function ContentSearchOverlay({
       setQ('');
       setContent(null);
       setFailed(false);
+    } else if (initialQuery) {
+      setQ(initialQuery);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  /* pass 24: recite-to-find mic */
+  const recite = async () => {
+    if (micBusy) return;
+    setMicBusy(true);
+    setMicHeard('');
+    try {
+      const text = await dictateArabic((i) => setMicHeard(i), 14000);
+      if (text.trim()) setQ(text.trim());
+    } catch {} finally { setMicBusy(false); }
+  };
 
   useEffect(() => {
     if (!visible || !contentSearch) return;
@@ -117,12 +137,22 @@ export function ContentSearchOverlay({
               placeholderTextColor={theme.subtext}
               style={{ flex: 1, paddingVertical: 11, fontSize: 16, color: theme.text, fontFamily: 'Poppins-Medium' }}
             />
+            {speechSupported() ? (
+              <Pressable onPress={recite} hitSlop={8} accessibilityLabel="recite to search" style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: micBusy ? 'rgba(212,175,55,0.14)' : 'rgba(44,110,143,0.1)', borderWidth: 1, borderColor: micBusy ? 'rgba(212,175,55,0.5)' : 'rgba(44,110,143,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name={micBusy ? 'spinner' : 'microphone-alt'} size={12} color={micBusy ? '#E8C96A' : '#5EA7C9'} />
+              </Pressable>
+            ) : null}
             {q ? (
               <Pressable onPress={() => setQ('')} hitSlop={8}>
                 <FontAwesome5 name="times-circle" size={14} color={theme.subtext} />
               </Pressable>
             ) : null}
           </View>
+          {micBusy ? (
+            <T v="caption" style={{ fontSize: 10, color: theme.subtext, marginTop: 6, marginLeft: 4 }}>
+              {micHeard ? `heard: ${micHeard.slice(-60)}` : 'listening… recite the verse'}
+            </T>
+          ) : null}
         </View>
 
         <View style={{ flex: 1, paddingHorizontal: 14 }}>
