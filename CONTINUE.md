@@ -48,3 +48,12 @@ Live entry-d0b3e869f6d93aeb7208c25faa0c7979.js · master @ scratch-cleanup after
 - FA5 FREE only: repeat/kaaba/quran/mosque/hands/hadith/clock-rotate-left are Pro → '?' glyph. Use sync-alt, star-and-crescent, book-open, hands-helping, history.
 - MushafPage always-ScrollView killed the onContentLayout/scrollable machinery (deleted).
 - ReciteMode finishAyah ok-count uses states+1 (last word counted optimistically) — fine for UX.
+
+
+# Pass-26 handoff (deployed) — diag26 11/11
+- TAB ORDER ROOT CAUSE: expo-router sorts the quran/ FOLDER after file routes → state.routes order was [index, tools, community, profile, quran] and the custom bar mapped state.routes, so Quran & Hadith rendered LAST. Fix: bar maps TABS order (displayIdx); pos/pill animate by display index; onPress compares route index. Icons: Quran&Hadith=star-and-crescent, Worship Tools=compass (both FA5-free; quran/mosque/kaaba are Pro → '?'). Object-literal icon sweep hit hadith.ts/seerah.ts/duaSections.ts/calendar/surah filters too.
+- Mushaf RECITE pill was mounting ReciteMode UNCONDITIONALLY (blocked the page) — now gated on recitePage state.
+- ReciteMode v3: idempotent realignment (finals+interim rebuilt each event → align(E,S) recompute; the old incremental stepper double-counted interim tokens). align(): ordered scan (match/wasl-join 2-4/skip-ahead) → split pass (frontier word = two unused tokens glued) → correction pass (red word matching ANY unused token → ok). close() budget scales with word length (1/2/3). WordChip animates opacity/scale on state change; blind mode reveals words up to `reached` (masked ҉ until reached); gold live caption.
+- ReciteSearchModal (new): glassy centre card, pulsing gold mic rings, live Amiri-Bold 24 transcript, then 'Analyzing your recitation…' dots 1.1s → onText → results. Mic off-screen bug: search bar row overflowed (x=437 on 390px) — fixed with minWidth:0 on container+input; mic detect post-mount (speechOk state) so it always renders.
+- AI input: 16px system font (iOS no-zoom needs ≥16px), glassy bordered container that highlights when typing, clear ×, 46px send/web pills.
+- LESSON: commit BEFORE `git reset --hard` after sandbox resets (lost a turn's edits once); the reset rolls the TREE too.
