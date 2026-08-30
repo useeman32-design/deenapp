@@ -105,6 +105,11 @@ export function Compass({
             <Circle cx={c} cy={c - (R - 44)} r={17} fill={aligned ? '#4AE38F' : '#D4AF37'} opacity={aligned ? 0.22 : 0.14} />
             <Line x1={c} y1={c - (R - 66)} x2={c} y2={c - (R - 30)} stroke={aligned ? '#4AE38F' : '#D4AF37'} strokeWidth={2} strokeLinecap="round" opacity={0.55} strokeDasharray="3 4" />
           </G>
+
+          {/* tick line from hub toward the kaaba */}
+          <G transform={`rotate(${bearing} ${c} ${c})`}>
+            <Line x1={c} y1={c - (R - 66)} x2={c} y2={c - (R - 30)} stroke={aligned ? '#4AE38F' : '#D4AF37'} strokeWidth={2} strokeLinecap="round" opacity={0.55} strokeDasharray="3 4" />
+          </G>
         </G>
 
         {/* direction chevrons (fixed, near the top pointer) */}
