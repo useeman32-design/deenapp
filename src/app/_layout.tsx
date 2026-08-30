@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
+import { NetPill } from '@/lib/net';
 import { SplashGate } from '@/components/SplashGate';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 
@@ -21,11 +22,34 @@ function Root() {
     if (ready && fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [ready, fontsLoaded]);
 
-  // Web: let any unstyled text inherit Manrope (native uses system fonts).
+  /* pass 29: warm the Qur'an corpus in the background — the first
+   * recite-search used to pay the whole 114-surah load */
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    import('@/lib/quranSearch').then((m) => m.ensureQuranCorpus().catch(() => {})).catch(() => {});
+  }, []);
+
+  /* Web typography (pass 28): stable un-hashed font URLs Every deploy used
+   * to orphan the hashed asset names — a cached bundle then got 404 fonts and
+   * the WHOLE app fell back to one system font. These @font-face rules point
+   * at /fonts/*.ttf (copied verbatim from public/), survive every deploy, and
+   * match the exact family names RN styles request. */
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const el = document.createElement('style');
-    el.textContent = "html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; }";
+    const base = window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1');
+    const faces = [
+      ['Poppins', 'Poppins-Regular'],
+      ['Poppins-Medium', 'Poppins-Medium'],
+      ['Poppins-SemiBold', 'Poppins-SemiBold'],
+      ['Poppins-Bold', 'Poppins-Bold'],
+      ['Poppins-ExtraBold', 'Poppins-ExtraBold'],
+      ['Amiri', 'Amiri-Regular'],
+      ['Amiri-Bold', 'Amiri-Bold'],
+    ]
+      .map(([fam, file]) => `@font-face{font-family:'${fam}';src:url('${base}/fonts/${file}.ttf') format('truetype');font-display:swap;}`)
+      .join('');
+    el.textContent = `${faces} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; }`;
     document.head.appendChild(el);
     return () => {
       el.remove();
@@ -42,6 +66,8 @@ function Root() {
         <Stack.Screen name="videos" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', statusBarHidden: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* global connectivity pill — slow network while media loads, red banner when offline */}
+      <NetPill />
       </QuranAudioProvider>
     </SplashGate>
   );

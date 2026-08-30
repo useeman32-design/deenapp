@@ -126,7 +126,7 @@ export default function QuranHub() {
             eyebrow="READ · LISTEN · REFLECT"
             title="The Holy Qur'an"
             desc="Read, listen and explore every surah"
-            icon="quran"
+            icon="book-open"
             tint={isDark ? '#4AE38F' : '#1D6F42'}
             grad={(isDark ? ['rgba(21,92,53,0.9)', 'rgba(10,46,26,0.9)'] : ['rgba(29,111,66,0.92)', 'rgba(21,79,47,0.9)']) as [string, string, ...string[]]}
             stats={[

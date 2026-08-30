@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -10,8 +10,10 @@ import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
 import { BookmarkIcon, ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 import { savedStore } from '@/lib/savedPosts';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoLoader } from '@/components/VideoLoader';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -102,6 +104,37 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   const [dur, setDur] = useState(0);
   const [rate, setRate] = useState(1);
   const barW = useRef(300);
+  const [dragging, setDragging] = useState(false);
+  const [dragFrac, setDragFrac] = useState(0);
+  const dragFracRef = useRef(0);
+  /* draggable seek — tap or SLIDE the bar (pass 22; the old tap-only bar never moved) */
+  const seekPan = () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        setDragging(true);
+        const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
+        dragFracRef.current = f;
+        setDragFrac(f);
+      },
+      onPanResponderMove: (e) => {
+        const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
+        dragFracRef.current = f;
+        setDragFrac(f);
+      },
+      onPanResponderRelease: () => {
+        setDragging(false);
+        const f = dragFracRef.current;
+        setFrac(f);
+        if (dur > 0) {
+          try {
+            player.currentTime = f * dur;
+          } catch {}
+        }
+      },
+      onPanResponderTerminate: () => setDragging(false),
+    });
 
   useEffect(() => {
     if (started && !paused) player.play();
@@ -110,10 +143,24 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
 
   useEffect(() => {
     const t = player.addListener('timeUpdate', (st: { currentTime: number; duration?: number }) => {
-      setFrac(st.duration && st.duration > 0 ? Math.min(1, st.currentTime / st.duration) : 0);
-      if (st.duration && st.duration > 0) setDur(st.duration);
+      if (st.duration && st.duration > 0) {
+        setDur(st.duration);
+        setFrac(Math.min(1, st.currentTime / st.duration));
+      }
     });
-    return () => t.remove();
+    /* some web engines don't emit timeUpdate until seeked — poll as backup */
+    const iv = setInterval(() => {
+      const ct = (player as unknown as { currentTime?: number }).currentTime ?? 0;
+      const du = (player as unknown as { duration?: number }).duration ?? 0;
+      if (du > 0) {
+        setDur(du);
+        setFrac(Math.min(1, ct / du));
+      }
+    }, 500);
+    return () => {
+      t.remove();
+      clearInterval(iv);
+    };
   }, [player]);
 
   const cycleRate = () => {
@@ -128,10 +175,13 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   return (
     <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
       <View style={{ height: 300 }}>
-        {started ? (
+        {started && !expanded ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
+            {started && !expanded ? <VideoLoader player={player} /> : null}
           </View>
+        ) : started && expanded ? (
+          <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000' }} />
         ) : poster != null ? (
           <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
         ) : null}
@@ -164,40 +214,80 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
           <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
             <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
-              <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} />
+              {expanded ? <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} /> : null}
+              {expanded ? <VideoLoader player={player} /> : null}
             </View>
           </Pressable>
           <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="times" size={15} color="#fff" />
           </Pressable>
-          {paused ? (
-            <Pressable onPress={() => setPaused(false)} style={{ position: 'absolute', alignSelf: 'center', top: '50%', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="play" size={21} color="#fff" />
+          <Pressable onPress={() => setPaused((v) => !v)} style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+            {paused ? (
+              <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="play" size={21} color="#fff" />
+              </View>
+            ) : null}
+          </Pressable>
+          {/* pass 23: seek + time INSIDE fullscreen (it used to vanish) */}
+          <View
+            style={{
+              position: 'absolute',
+              left: 14,
+              right: 14,
+              bottom: Math.max(24, 34),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 14,
+              backgroundColor: 'rgba(10,20,14,0.6)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.14)',
+            }}
+          >
+            <Pressable onPress={() => setPaused((v) => !v)} hitSlop={8}>
+              <FontAwesome5 name={paused ? 'play' : 'pause'} size={13} color="#FFFFFF" />
             </Pressable>
-          ) : null}
+            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss((dragging ? dragFrac : frac) * dur)}</T>
+            <View
+              {...seekPan().panHandlers}
+              onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
+              style={{ flex: 1, height: 20, justifyContent: 'center' }}
+            >
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }} />
+              <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+              <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F' }} />
+            </View>
+            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
+            <Pressable onPress={cycleRate} hitSlop={8} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
+            </Pressable>
+          </View>
         </View>
       </Modal>
     
       {/* pass 20: seek bar + speed — always visible once started */}
       {started ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(4,12,8,0.55)' }}>
+        <View
+          style={[
+            { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(10,20,14,0.55)' },
+            { backdropFilter: 'blur(14px) saturate(1.3)', WebkitBackdropFilter: 'blur(14px) saturate(1.3)' } as unknown as ViewStyle,
+          ]}
+        >
           <Pressable onPress={() => setPaused((p) => !p)} hitSlop={6}>
             <FontAwesome5 name={paused ? 'play' : 'pause'} size={12} color="#FFFFFF" />
           </Pressable>
           <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(frac * dur)}</T>
-          <Pressable
-            onPress={(e) => {
-              const f = Math.max(0, Math.min(1, e.nativeEvent.locationX / (barW.current || 300)));
-              setFrac(f);
-              if (dur > 0) player.currentTime = f * dur;
-            }}
+          <View
+            {...seekPan().panHandlers}
             onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
-            style={{ flex: 1, height: 18, justifyContent: 'center' }}
+            style={{ flex: 1, height: 20, justifyContent: 'center' }}
           >
-            <View style={{ height: 3.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
-            <View style={{ position: 'absolute', left: 0, width: `${frac * 100}%`, height: 3.5, borderRadius: 2, backgroundColor: '#4AE38F' }} />
-            <View style={{ position: 'absolute', left: `${frac * 100}%`, marginLeft: -4.5, width: 9, height: 9, borderRadius: 5, backgroundColor: '#FFFFFF' }} />
-          </Pressable>
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+            <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+            <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F', transform: [{ scale: dragging ? 1.25 : 1 }] }} />
+          </View>
           <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
           <Pressable onPress={cycleRate} hitSlop={6} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
@@ -269,6 +359,7 @@ export function FeedCard({
   const [reportType, setReportType] = useState<string | null>(null);
   const [reportDesc, setReportDesc] = useState('');
   const [savedNow, setSavedNow] = useState(() => savedStore.has(post.id));
+  const [shareOpen, setShareOpen] = useState(false);
   const lastTap = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burst = useRef(new Animated.Value(0)).current;
@@ -281,9 +372,8 @@ export function FeedCard({
   );
 
   const sharePost = () => {
-    Share.share({
-      message: `${name} (@${user.username}) on DeenLink: ${post.content_text ?? ''}`,
-    }).catch(() => {});
+    haptic.light();
+    setShareOpen(true);
   };
 
   const liked = !!post.liked_by_me;
@@ -741,7 +831,7 @@ export function FeedCard({
               {post.like_count ?? 0}
             </T>
           </Pressable>
-          <Pressable onPress={() => onComments?.(post)} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={() => onComments?.(post)} accessibilityLabel="open comments" hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
             <ChatIcon size={21} color={sub} />
             <T v="caption" style={{ fontWeight: '600', fontSize: 14, color: sub }}>
               {post.comment_count ?? 0}
@@ -766,6 +856,14 @@ export function FeedCard({
           </Pressable>
         </View>
       ) : null}
+
+      {/* share — same sheet as the videos: friends / link / more / image */}
+      <ContentShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        card={{ kind: 'post', arabic: '', meaning: post.content_text ?? `${name} on DeenLink`, ref: `@${user.username} · DeenLink` }}
+        link={`https://deenlink.org/post/${post.id}`}
+      />
 
       {/* Double-tap heart burst (over the whole card) */}
       <Animated.View

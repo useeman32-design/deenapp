@@ -5,6 +5,9 @@ export type QuizQ = {
   question: string;
   options: string[];
   answer: number;
+  /** multi-correct questions: ALL indices that are correct (pick exactly
+   * `answers.length` options). Single-correct questions omit this. */
+  answers?: number[];
   explanation: string;
 };
 
@@ -157,4 +160,28 @@ export const QUIZ_POOL: QuizQ[] = [
   { id: 146, category: 'Hadith', question: "When is our Dua more readily accepted? 2 answers", options: ["During sunshine", "During rain", "If being oppressed", "If going through ease"], answer: 1, explanation: "Prophet Muhammad Ã¯-Âº said: 'Two (du'as) are not rejected: du'a at the time of the call to prayer and du'a at the time of rain.' (al-Hakim in al-Mustadrak (2534); at-Tabarani in al-Mu'jam al-Kabir (5756); classed as sahih by al-Albani in Sahih al-Jami' (3078).) Prophet Muhammad Ã¯-Âº said: 'The supplications of three are never turned back: a fasting person until he breaks his fast, a just leader, and the supplication of the oppressed is raised above the clouds by Allah, the gates of heaven open for it and the Lord says: By My might, I will surely help you in due time.' (Sunan al-TirmidhiÃŒâ€ž 3598, Hasan)" },
   { id: 147, category: 'Seerah', question: "Prophet Muhammad Ã¯-Âº said he\'s the answer of which Prophet (as)\'s Dua?", options: ["Prophet Isa (as)", "Prophet Musa (as)", "Prophet Ibraheem (as)", "Prophet Adam (as)"], answer: 2, explanation: "Prophet Muhammad Ã¯-Âº said: 'I am the supplication of my forefather Ibraheem (as).' (Ibn Hisham, Sira: 1/175; Tabari, Tarikh: 2/128.)" },
   { id: 148, category: 'Hadith', question: "Prophet Muhammad Ã¯-Âº encouraged rinsing the mouth with water after having which item?", options: ["Dates", "Milk", "Lamb", "Bread"], answer: 1, explanation: "Prophet Muhammad Ã¯-Âº drank some milk and rinsed his mouth. The Prophet Ã¯-Âº said: 'It contains fatty grease.' (Sahih Bukhari 208, Sahih Muslim 358)" },
+];
+
+/* pass 29 — pool expanded from authentic sources (Qur'an; Bukhari 1 & 5027,
+ * Tirmidhi 1956; standard fiqh references). Includes multi-select items
+ * (answers.length > 1 → the player picks that many options). */
+export const QUIZ_POOL_EXTRA: QuizQ[] = [
+  { id: 149, category: 'Quran', question: 'Which angel delivered the revelation (the Qur’an) to the Prophet ﷺ?', options: ['Mikail (as)', 'Jibril (as)', 'Israfil (as)'], answer: 1, explanation: 'Jibril (Gabriel, peace be upon him) brought the revelation down to the Prophet ﷺ.' },
+  { id: 150, category: 'Quran', question: 'Ayat al-Kursi (the Throne Verse) is found in which surah?', options: ['Al-Baqarah', 'Aal-Imran', 'An-Nisa'], answer: 0, explanation: 'Ayat al-Kursi is Qur’an 2:255, in Surah Al-Baqarah.' },
+  { id: 151, category: 'Quran', question: 'Which surah is known as the heart of the Qur’an?', options: ['Ya-Sin', 'Al-Kahf', 'Ar-Rahman'], answer: 0, explanation: 'Surah Ya-Sin is commonly called the heart of the Qur’an.' },
+  { id: 152, category: 'Quran', question: 'Surah Al-Kahf is recommended to be recited on which day?', options: ['Every Monday', 'Every Friday', 'The night of Eid'], answer: 1, explanation: 'The Prophet ﷺ recommended reciting Surah Al-Kahf on Fridays.' },
+  { id: 153, category: 'Hadith', question: '“Actions are judged by ______.” — the famous first hadith of Sahih al-Bukhari', options: ['their wealth', 'their intentions', 'their appearance'], answer: 1, explanation: '“Actions are but by intentions” — Bukhari 1, Muslim 1907.' },
+  { id: 154, category: 'Hadith', question: 'The Prophet ﷺ said the best of you are those who…', options: ['have the most wealth', 'learn the Qur’an and teach it', 'speak most eloquently'], answer: 1, explanation: '“The best among you are those who learn the Qur’an and teach it.” — Bukhari 5027.' },
+  { id: 155, category: 'Hadith', question: 'According to the Prophet ﷺ, smiling in the face of your brother is…', options: ['a sin', 'a charity (sadaqah)', 'nothing at all'], answer: 1, explanation: '“Your smile in the face of your brother is charity.” — Tirmidhi 1956.' },
+  { id: 156, category: 'Fiqh', question: 'How many rak’ahs are fard in Maghrib prayer?', options: ['2', '3', '4'], answer: 1, explanation: 'Maghrib has 3 fard rak’ahs.' },
+  { id: 157, category: 'Fiqh', question: 'Zakat al-Fitr should be paid…', options: ['before the Eid prayer', 'after the Eid prayer', 'any time in Ramadan'], answer: 0, explanation: 'The Prophet ﷺ ordered it to be paid before the Eid al-Fitr prayer.' },
+  { id: 158, category: 'Fiqh', question: 'The direction Muslims face in prayer is called…', options: ['the mihrab', 'the qiblah', 'the minbar'], answer: 1, explanation: 'The qiblah is the direction of the Kaaba in Makkah.' },
+  { id: 159, category: 'Seerah', question: 'Who was the first caliph after the Prophet ﷺ passed away?', options: ['Umar ibn al-Khattab', 'Abu Bakr as-Siddiq', 'Uthman ibn Affan'], answer: 1, explanation: 'Abu Bakr (RA) was the first of the Rightly-Guided Caliphs.' },
+  { id: 160, category: 'Seerah', question: 'The Hijrah — the migration that starts the Islamic calendar — was from Makkah to which city?', options: ['Ta’if', 'Madinah', 'Yemen'], answer: 1, explanation: 'The Prophet ﷺ migrated to Madinah (then Yathrib) in 622 CE.' },
+  { id: 161, category: 'Seerah', question: 'In which cave did the Prophet ﷺ receive the first revelation?', options: ['Cave Thawr', 'Cave Hira', 'Cave Uhud'], answer: 1, explanation: 'The first verses of Surah Al-‘Alaq were revealed in Cave Hira on Jabal an-Nur.' },
+  { id: 162, category: 'Aqidah', question: 'How many pillars does Islam have?', options: ['4', '5', '6'], answer: 1, explanation: 'Shahadah, salah, zakah, sawm and hajj — five pillars.' },
+  { id: 163, category: 'Aqidah', question: 'Belief in the angels is which pillar of iman (faith)?', options: ['The 2nd', 'The 3rd', 'The 4th'], answer: 0, explanation: 'The pillars of iman begin: belief in Allah, His angels, His books…' },
+  { id: 164, category: 'Quran', question: 'Select the TWO surahs known together as the Mu’awwidhatayn (the two protectors).', options: ['Al-Falaq', 'Al-Fatiha', 'An-Nas', 'Al-Ikhlas'], answer: 0, answers: [0, 2], explanation: 'Surah Al-Falaq (113) and Surah An-Nas (114) are the Mu’awwidhatayn.' },
+  { id: 165, category: 'Hadith', question: 'Select the TWO that are among the five pillars of Islam.', options: ['Salah', 'The Duha prayer', 'Zakah', 'The Udhiyah sacrifice'], answer: 0, answers: [0, 2], explanation: 'The five pillars: shahadah, salah, zakah, sawm (Ramadan) and hajj.' },
+  { id: 166, category: 'Seerah', question: 'Select the TWO Eid days celebrated by Muslims.', options: ['Eid al-Fitr', 'Ashura', 'Eid al-Adha', 'Isra & Mi’raj'], answer: 0, answers: [0, 2], explanation: 'Eid al-Fitr (after Ramadan) and Eid al-Adha (after Hajj).' },
 ];

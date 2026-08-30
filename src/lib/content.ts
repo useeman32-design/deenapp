@@ -212,7 +212,20 @@ export const loadBookMeta = (book: string) => loadJSON<BookMeta>(`hadith/meta_${
 export const loadBook = (book: string) => loadJSON<ContentHadith[]>(`hadith/${book}`);
 
 /* ---------- islamic ---------- */
-export type ContentDuaText = { ID: number; ARABIC_TEXT: string; ENGLISH_TEXT?: string; TRANSLITERATION?: string };
+/* real shape of the user's Hisn al-Muslim pack (pass 22): every part has
+ * arabic + transliteration + translation + repeat + AUDIO (hisnmuslim https) */
+export type ContentDuaText = {
+  ID: number;
+  ARABIC_TEXT: string;
+  /** transliteration */
+  LANGUAGE_ARABIC_TRANSLATED_TEXT?: string;
+  /** translation */
+  TRANSLATED_TEXT?: string;
+  ENGLISH_TEXT?: string;
+  TRANSLITERATION?: string;
+  REPEAT?: number;
+  AUDIO?: string;
+};
 export type ContentDua = { ID: number; TITLE: string; AUDIO_URL?: string; TEXT: ContentDuaText[] };
 export type DuaPack = Record<string, ContentDua[]>;
 

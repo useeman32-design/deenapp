@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
@@ -29,6 +30,7 @@ import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
+import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
 import * as Clipboard from 'expo-clipboard';
 import { HeartIcon } from '@/components/Icons';
@@ -295,6 +297,7 @@ function ReelItem({
             playsInline
             style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
           />
+          <VideoLoader player={player} />
         </View>
       ) : (
         <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
@@ -359,16 +362,22 @@ function ReelItem({
               opacity: pressed ? 0.7 : 1,
             })}
           >
-            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(46,204,113,0.35)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="retweet" size={8} color="#FFFFFF" />
-            </View>
-            <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' }}>
-              Reposted by @{reel.repostedBy}
-            </T>
+            {(() => {
+              const rp = MOCK_ACCOUNTS.find((x) => x.username === reel.repostedBy);
+              return (
+                <>
+                  <AvatarImage source={rp?.photo ?? null} name={rp?.full_name ?? String(reel.repostedBy)} size={18} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.35)" />
+                  <FontAwesome5 name="retweet" size={9} color="#4AE38F" />
+                  <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' }}>
+                    Reposted by @{reel.repostedBy}
+                  </T>
+                </>
+              );
+            })()}
           </Pressable>
         ) : null}
         <Pressable
-          onPress={() => onAvatar(account.photo ?? null, account.full_name)}
+          onPress={() => onOpenProfile(reel.username)}
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, opacity: pressed ? 0.8 : 1 })}
         >
           <AvatarImage source={account.photo ?? null} name={account.full_name} size={38} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.3)" />
@@ -890,22 +899,8 @@ export default function VideosFeed() {
         </Pressable>
       </View>
 
-      {/* inbox — friends' video shares, react but no chat */}
-      {inboxOpen ? (
-        <InboxOverlay
-          onClose={() => setInboxOpen(false)}
-          openReel={(reelId) => {
-            setInboxOpen(false);
-            const idx = reels.findIndex((x) => x.id === reelId);
-            if (idx >= 0) {
-              setFeedTab('foryou');
-              setIndex(idx);
-              Animated.spring(thumbX, { toValue: SEG_W, useNativeDriver: true, friction: 7, tension: 90 }).start();
-              setTimeout(() => listRef.current?.scrollToOffset({ offset: idx * VH, animated: false }), 60);
-            }
-          }}
-        />
-      ) : null}
+      {/* inbox — the SAME universal inbox as the main app: reels/posts/duas/ayahs, chat + reactions */}
+      <CommunityInbox visible={inboxOpen} onClose={() => setInboxOpen(false)} />
 
       {/* friends sheet */}
       {friendsOpen ? (

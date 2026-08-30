@@ -77,7 +77,7 @@ const CARDS: LearningCard[] = [
       { icon: BookIcon, label: 'Quran & Sunnah' },
     ],
     cta: 'Explore Stories',
-    action: { type: 'none' },
+    action: { type: 'route', href: '/tools/seerah' },
   },
   {
     title: 'Islamic Riddles',
@@ -89,7 +89,7 @@ const CARDS: LearningCard[] = [
       { icon: GraduationCapIcon, label: '3 Difficulty Levels' },
     ],
     cta: 'Solve Riddles',
-    action: { type: 'web', url: 'https://deenlink.org/learning/riddles.html' },
+    action: { type: 'route', href: '/tools/riddles' },
   },
   {
     title: 'Islamic Jokes',
@@ -101,7 +101,7 @@ const CARDS: LearningCard[] = [
       { icon: BookIcon, label: 'Share with Friends' },
     ],
     cta: 'Read Jokes',
-    action: { type: 'web', url: 'https://deenlink.org/learning/jokes.html' },
+    action: { type: 'route', href: '/tools/jokes' },
   },
   {
     title: 'Islamic Articles',
@@ -113,7 +113,7 @@ const CARDS: LearningCard[] = [
       { icon: BookIcon, label: '15 Categories' },
     ],
     cta: 'Read Articles',
-    action: { type: 'web', url: 'https://deenlink.org/learning/articles.html' },
+    action: { type: 'route', href: '/tools/articles' },
   },
   {
     title: 'Fatwa & Rulings',
@@ -125,7 +125,7 @@ const CARDS: LearningCard[] = [
       { icon: GraduationCapIcon, label: 'Verified Scholars' },
     ],
     cta: 'Browse Fatwas',
-    action: { type: 'route', href: '/tools/scholars' },
+    action: { type: 'route', href: '/tools/fatwa' },
   },
 ];
 

@@ -9,6 +9,17 @@ import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+
+/** english is {narrator, text} in some books — always flatten to a string */
+const enOf = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const o = e as { text?: unknown; narrator?: unknown };
+    const t = typeof o.text === 'string' ? o.text : typeof o.text === 'object' && o.text ? enOf(o.text) : '';
+    return t || '';
+  }
+  return '';
+};
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 
 /**
@@ -32,12 +43,28 @@ export default function HadithBookScreen() {
   const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
 
   useEffect(() => {
+    if (chapterParam) storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: `c${chapterParam}`, at: new Date().toISOString() }));
     loadBookMeta(book.id)
-      .then((m) => setMeta(m.chapters))
-      .catch(() => setMeta([]));
-    storage.getItem(`dl.hadith.last.${book.id}`).then((r) => {
-      if (r) setChapter(r);
-    });
+      .then((m) => setMeta(m.chapters?.length ? m.chapters : null) ?? Promise.reject(new Error('empty')))
+      .catch(async () => {
+        /* no chapters meta (e.g. Nawawi 40 — one big chapter) → derive it
+         * from the book data itself by grouping chapter names */
+        try {
+          const all = await loadBook(book.id);
+          const byName = new Map<string, MetaChapter>();
+          for (const h of all) {
+            const name = h.chapter_name?.english ?? `Chapter ${h.chapter_number ?? 1}`;
+            const e = byName.get(name);
+            if (e) e.hadith_count += 1;
+            else byName.set(name, { chapter_number: byName.size + 1, arabic: h.chapter_name?.arabic ?? '', english: name, hadith_count: 1 });
+          }
+          setMeta([...byName.values()]);
+        } catch {
+          setMeta([]);
+        }
+      });
+    /* pass 23: do NOT auto-restore the last chapter — opening a book always
+     * shows its CHAPTER LIST first (continue via the hero button) */
     storage.getItem(`dl.hadith.marks.${book.id}`).then((r) => {
       if (r)
         try {
@@ -51,6 +78,8 @@ export default function HadithBookScreen() {
     setChapter(id);
     setLimit(25);
     storage.setItem(`dl.hadith.last.${book.id}`, id);
+    /* global pointer powers the Continue-reading hero on the collections screen */
+    storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: id, at: new Date().toISOString() }));
   };
 
   /* stream the full book file on first reader open */
@@ -58,12 +87,18 @@ export default function HadithBookScreen() {
     if (!chapter) return;
     if (hadiths) return;
     setLoading(true);
+    const t0 = Date.now();
     loadBook(book.id)
       .then((all) => {
-        setHadiths(all);
+        /* books without chapter numbers (nawawi40) → all in chapter 1 */
+        setHadiths(all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h)));
       })
       .catch(() => setHadiths([]))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        /* large books (bukhari 25MB) — keep the spinner honest */
+        const wait = Math.max(0, 600 - (Date.now() - t0));
+        setTimeout(() => setLoading(false), wait);
+      });
   }, [chapter, hadiths, book.id]);
 
   const chNum = chapter ? Number(chapter.slice(1)) : null;
@@ -173,9 +208,9 @@ export default function HadithBookScreen() {
                     <T v="arabic" style={{ color: d.text, fontSize: 19, textAlign: 'right', lineHeight: 34 }}>
                       {h.arabic}
                     </T>
-                    {h.english ? (
+                    {enOf(h.english) ? (
                       <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 10, lineHeight: 19 }}>
-                        {h.english}
+                        {enOf(h.english)}
                       </T>
                     ) : null}
                     {h.grade ? (
@@ -188,7 +223,7 @@ export default function HadithBookScreen() {
                         haptic.selection();
                         setShareH({
                           arabic: h.arabic,
-                          meaning: h.english ?? h.chapter_name?.english ?? '',
+                          meaning: enOf(h.english) || h.chapter_name?.english || '',
                           ref: `${book.name ?? book.id} ${h.hadith_number ?? ''}${h.grade ? ` · ${h.grade}` : ''}`,
                         });
                       }}

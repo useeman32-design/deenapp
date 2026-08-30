@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { markActive, markGoal } from '@/lib/routine';
 import { T } from '@/components/T';
 import { PageHero } from '@/components/PageHero';
@@ -85,7 +86,7 @@ const TOOLS: ToolCard[] = [
     title: 'Daily Duas & Adhkar',
     desc: 'Morning & evening remembrances with audio',
     badge: 'Complete',
-    icon: PrayingHandsIcon,
+    icon: (p: IconProps) => <FontAwesome5 name="hands-helping" size={(p.size ?? 22) * 0.92} color={p.color} />,
     bar: '#00796B',
     grad: ['#00796B', '#26A69A'],
     action: { type: 'route', href: '/tools/dua' },
@@ -98,7 +99,17 @@ const TOOLS: ToolCard[] = [
     icon: KaabaIcon,
     bar: '#D4AF37',
     grad: ['#D4AF37', '#FFD54F'],
-    action: { type: 'tasbeeh' },
+    action: { type: 'route', href: '/tools/tasbeeh' },
+  },
+  {
+    key: 'mirath',
+    title: 'Mirath — Inheritance',
+    desc: 'Divide an estate islamically (faraaid)',
+    badge: 'New',
+    icon: (p: IconProps) => <FontAwesome5 name="balance-scale" size={(p.size ?? 22) * 0.9} color={p.color} />,
+    bar: '#4527A0',
+    grad: ['#4527A0', '#7E57C2'],
+    action: { type: 'route', href: '/tools/mirath' },
   },
   {
     key: 'zakat',
@@ -140,7 +151,6 @@ export default function Tools() {
   const open = (t: ToolCard) => {
     if (t.action.type === 'route') router.push(t.action.href);
     else if (t.action.type === 'web') Linking.openURL(t.action.url).catch(() => {});
-    else setTasbeehOpen(true);
   };
 
   return (

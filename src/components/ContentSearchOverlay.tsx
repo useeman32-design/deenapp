@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, TextInput, View } from 'react-native';
+import { dictateArabic, speechSupported } from '@/lib/speech';
+import { ReciteSearchModal } from '@/components/ReciteSearchModal';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -28,6 +30,7 @@ export function ContentSearchOverlay({
   metaSearch,
   contentSearch,
   contentLabel = 'In content',
+  initialQuery,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -37,9 +40,16 @@ export function ContentSearchOverlay({
   /** async search inside the corpus — (q) => hits (throw = unavailable) */
   contentSearch?: (q: string) => Promise<SearchHit[]>;
   contentLabel?: string;
+  /** pass 24: prefill when opened (recite-to-find pipes dictated text here) */
+  initialQuery?: string;
 }) {
   const { theme } = useTheme();
   const [q, setQ] = useState('');
+  const [micBusy, setMicBusy] = useState(false);
+  const [micHeard, setMicHeard] = useState('');
+  const [speechOk, setSpeechOk] = useState(false);
+  const [reciteOpen, setReciteOpen] = useState(false);
+  useEffect(() => { setSpeechOk(speechSupported()); }, []);
   const [content, setContent] = useState<SearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -52,8 +62,22 @@ export function ContentSearchOverlay({
       setQ('');
       setContent(null);
       setFailed(false);
+    } else if (initialQuery) {
+      setQ(initialQuery);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  /* pass 24: recite-to-find mic */
+  const recite = async () => {
+    if (micBusy) return;
+    setMicBusy(true);
+    setMicHeard('');
+    try {
+      const text = await dictateArabic((i) => setMicHeard(i), 14000);
+      if (text.trim()) setQ(text.trim());
+    } catch {} finally { setMicBusy(false); }
+  };
 
   useEffect(() => {
     if (!visible || !contentSearch) return;
@@ -107,7 +131,7 @@ export function ContentSearchOverlay({
           <Pressable onPress={onClose} hitSlop={10} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="chevron-left" size={14} color={theme.text} />
           </Pressable>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, paddingHorizontal: 11 }}>
+          <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, paddingHorizontal: 10 }}>
             <FontAwesome5 name="search" size={13} color={theme.subtext} />
             <TextInput
               autoFocus
@@ -115,14 +139,21 @@ export function ContentSearchOverlay({
               onChangeText={setQ}
               placeholder={placeholder}
               placeholderTextColor={theme.subtext}
-              style={{ flex: 1, paddingVertical: 11, fontSize: 16, color: theme.text, fontFamily: 'Poppins-Medium' }}
+              numberOfLines={1}
+              style={{ flex: 1, minWidth: 0, paddingVertical: 11, fontSize: 16, color: theme.text, fontFamily: 'Poppins-Medium' }}
             />
+            {speechOk ? (
+              <Pressable onPress={() => { setReciteOpen(true); }} hitSlop={8} accessibilityLabel="recite to search" style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(44,110,143,0.1)', borderWidth: 1, borderColor: 'rgba(44,110,143,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="microphone-alt" size={14} color="#5EA7C9" />
+              </Pressable>
+            ) : null}
             {q ? (
               <Pressable onPress={() => setQ('')} hitSlop={8}>
                 <FontAwesome5 name="times-circle" size={14} color={theme.subtext} />
               </Pressable>
             ) : null}
           </View>
+
         </View>
 
         <View style={{ flex: 1, paddingHorizontal: 14 }}>
@@ -154,6 +185,13 @@ export function ContentSearchOverlay({
             </>
           )}
         </View>
+        {/* pass 26: glassy recite modal — live bold transcript → analyzing → results */}
+        <ReciteSearchModal
+          visible={reciteOpen}
+          onClose={() => setReciteOpen(false)}
+          onText={(t) => { setQ(t); }}
+          label={placeholder.includes('hadith') ? 'RECITE THE HADITH' : 'RECITE THE VERSE'}
+        />
       </View>
     </Modal>
   );

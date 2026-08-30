@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -9,6 +9,16 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
 import { loadBook, loadBookMeta } from '@/lib/content';
+import { storage } from '@/lib/storage';
+
+const enOf = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const o = e as { text?: unknown };
+    return typeof o.text === 'string' ? o.text : '';
+  }
+  return '';
+};
 
 const TINTS = ['#4AE38F', '#E8C96A', '#5BC8F5', '#F0A8C0', '#7FD8A8', '#C9A0F0', '#F09A5B', '#8FB8F0', '#66E0C4', '#D8C87A', '#A8E06A', '#7AC8D8', '#F0B26A', '#B0A8F0', '#8C6D1F'];
 
@@ -20,6 +30,16 @@ export default function HadithCollections() {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [last, setLast] = useState<{ book: string; chapter: string; at: string } | null>(null);
+
+  useEffect(() => {
+    storage.getItem('dl.hadith.last').then((r) => {
+      if (r)
+        try {
+          setLast(JSON.parse(r));
+        } catch {}
+    });
+  }, []);
 
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -55,6 +75,36 @@ export default function HadithCollections() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
+          <View>
+          {last ? (
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                const b = HADITH_BOOKS.find((x) => x.id === last.book);
+                if (!b) return;
+                const num = last.chapter.startsWith('c') ? last.chapter.slice(1) : last.chapter;
+                router.push({ pathname: '/tools/hadith/[book]', params: { book: b.id, chapter: num } });
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                marginHorizontal: 16,
+                marginTop: 14,
+                paddingVertical: 12,
+                borderRadius: 13,
+                backgroundColor: isDark ? '#1F8F5C' : '#1D6F42',
+                opacity: pressed ? 0.88 : 1,
+              })}
+            >
+              <FontAwesome5 name="book-open" size={13} color="#FFFFFF" />
+              <T v="body" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+                Continue Reading — {HADITH_BOOKS.find((x) => x.id === last.book)?.name ?? 'Book'} {last.chapter.replace(/^c/, 'Ch ')}
+              </T>
+              <FontAwesome5 name="arrow-right" size={11} color="rgba(255,255,255,0.85)" />
+            </Pressable>
+          ) : null}
           <View
             style={{
               flexDirection: 'row',
@@ -77,6 +127,7 @@ export default function HadithCollections() {
               placeholderTextColor={d.faint}
               style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16, color: d.text, paddingVertical: 10, paddingLeft: 9 }}
             />
+          </View>
           </View>
         }
         renderItem={({ item: b, index }) => {
@@ -126,6 +177,35 @@ export default function HadithCollections() {
         }}
       />
 
+      {/* prominent search — type OR recite (pass 25) */}
+      <Pressable
+        onPress={() => { haptic.selection(); setSearchOpen(true); }}
+        accessibilityLabel="search or recite hadith"
+        style={({ pressed }) => [{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 11,
+          borderRadius: 16,
+          borderWidth: 1.5,
+          borderColor: 'rgba(212,175,55,0.5)',
+          backgroundColor: pressed ? 'rgba(212,175,55,0.14)' : 'rgba(212,175,55,0.08)',
+          marginHorizontal: 16,
+          marginBottom: 12,
+          paddingHorizontal: 14,
+          paddingVertical: 13,
+          opacity: pressed ? 0.85 : 1,
+        }]}
+      >
+        <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: '#B8870B', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name="search" size={13} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: d.text }}>Search or recite a hadith</T>
+          <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Books · chapters · full text · tap 🎤 to recite</T>
+        </View>
+        <FontAwesome5 name="microphone-alt" size={15} color="#B8870B" />
+      </Pressable>
+
       {/* search: books & chapters instantly; hadith texts scanned on demand */}
       <ContentSearchOverlay
         visible={searchOpen}
@@ -153,16 +233,27 @@ export default function HadithCollections() {
             } catch {}
           }
           // 2) hadith text scan (small books first, capped)
+          const bareAr = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '');
           for (const bid of ['nawawi40', 'shamail_muhammadiyah', 'riyad_assalihin', 'malik']) {
             try {
               const list = await loadBook(bid);
               const b = HADITH_BOOKS.find((x) => x.id === bid);
               for (const h of list) {
-                if (h.arabic.includes(qq.trim()) || (h.english ?? '').toLowerCase().includes(needle)) {
+                /* pass 29: recited Arabic never substring-matches (harakat,
+                 * wasl) — fuzzy token coverage for Arabic queries */
+                const fuzzyHit = /[\u0621-\u064A]/.test(qq.trim()) && qq.trim().split(/\s+/).filter(Boolean).length > 2 && (() => {
+                  const hw = bareAr(h.arabic).split(/\s+/);
+                  const qw = qq.trim().split(/\s+/).map(bareAr).filter((w) => w.length > 1);
+                  if (!qw.length) return false;
+                  let hit = 0;
+                  for (const t of qw) if (hw.some((w) => w === t || (w.length > 3 && t.length > 3 && (w.startsWith(t) || t.startsWith(w))))) hit++;
+                  return hit / qw.length >= 0.4;
+                })();
+                if (fuzzyHit || h.arabic.includes(qq.trim()) || enOf(h.english).toLowerCase().includes(needle)) {
                   hits.push({
                     key: `h-${bid}-${h.chapter_number}-${h.hadith_number ?? Math.random()}`,
                     title: `${b?.name ?? bid} · ${h.hadith_number ?? ''}`,
-                    subtitle: (h.english ?? h.chapter_name?.english ?? '').slice(0, 90),
+                    subtitle: (enOf(h.english) || h.chapter_name?.english || '').slice(0, 90),
                     arabic: h.arabic.slice(0, 44),
                     onPress: () => router.push(`/tools/hadith/${bid}?chapter=${h.chapter_number}` as never),
                   });

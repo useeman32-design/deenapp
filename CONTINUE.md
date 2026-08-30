@@ -1,136 +1,94 @@
-# PASS 20 SHIPPED (read first)
-Pass 20 live (master 5e6d9c1, gh-pages entry-ba8a62): slim reader player + per-ayah actions (play-ayah/bookmark/share w/ friends+link+watermarked image via ContentShareSheet+shareCard); EN/HA toggle in reader header; ayah bookmarks shown in Bookmarks filter; MUSHAF: bigger container, Arabic page-number vignette inside, swipe paging (audio follows page surah), settings sheet (5 themes + text size, persisted dl.mushaf.prefs), live ayah highlight, auto-next-surah w/ 3s announcement (QuranAudioContext.announcement); QUIZ redesigned (setup category+count, 20s ring, results+review+strengths); COMMENTS drag-to-grow (3 snaps) + GIF picker (9 bundled PIL-generated stickers assets/img/gifs — regenerate recipe: PIL frames + Amiri font, see pass-20 commit); SEARCH overlay (components/ContentSearchOverlay) on quran (lib/quranSearch ensureQuranCorpus scans all 114 from OUR data), hadith (chapters+texts), dua, athkar; DUAS sections grid -> dua/[id] (lib/duaSections classifier); post videos: seek+speed; sample _wm.mp4 re-watermarked (ffmpeg overlay /tmp/wm/wm.png recipe); reciter PHOTOS in assets/img/reciters + player avatar. Verified headless: scripts/diag20c.mjs all green.
+### Pass 28 (user's 8-item list) — SHIPPED
+Commit after `f31b6c3`. diag28 **16/16** (fonts/stable-URLs, listen STOP toggle, mic auto-restart across session ends — mushaf + reciter, RESET, offline banner, comments 85% + live drag + gif-in-bar, AI ayah cards + no raw markdown).
 
-# PASS 19 SHIPPED (read first)
-Pass 19 live (master ac111bc): WEB AUDIO FIXED — the global Quran player never had a mounted VideoView, and expo-video on web only creates its <video> when one is attached → recitation was silent in ALL browsers since pass 16. QuranAudioProvider now renders a hidden VideoView (null initial source). Also: pass-18 raw <Text> font regressions fixed (always use <T> or explicit Poppins*/Amiri family — raw Text renders system font on web); mushaf rebuilt as src/components/MushafPage.tsx (nested styled spans, strips API-prefixed basmallah on ayah 1 — was doubling, auto-fit 22→13pt then scroll, offline fallback to local surah data). Diagnosed with headless chromium: scripts/diag19*.mjs + scripts/pages-server.mjs (GitHub-Pages-like 404.html server — `serve` does NOT exercise deep routes).
+- **Fonts**: the "same font everywhere" recurrence = stale cached bundle → hashed font URLs 404 after each force-push deploy. Fix: `public/fonts/*.ttf` (STABLE names) + injected `@font-face` rules in `_layout.tsx` for the exact 7 family names (base path derived from `/deenapp` prefix, font-display swap). Hashed expo assets can now 404 harmlessly.
+- **reciteEngine**: `keepAlive` ref — `onend` RESTARTS recognition after 260ms while the user is listening (iOS Safari ignores `continuous`; this was the "I keep reciting but nothing detects" bug — sessions died after each pause). `no-speech/aborted` transient, `not-allowed`/`network` surfaced. `reset()` = stop + idx 0 + clear. Restart loop verified E2E with a stub that ends the session after EVERY word.
+- **Listen (ReciteMode)**: `listenOn` = audio playing/loading on THIS ayah → button becomes red STOP, tap = `audio.stop()`. Listen plays ONLY that ayah (`playToEnd` now honors `single` mid-surah — it used to roll seamlessly into the next verse); with AUTO-NEXT on, Listen uses `playSurah` (continuous by design).
+- **src/lib/net.tsx**: `netBus` (ref-counted slow reporters + online/offline events) + `<NetPill/>` mounted in root layout — "Slow network… still loading" after 1.2s persistent load, red "Network error — check your internet connection" while offline. Wired: QuranAudioContext loading probe, VideoLoader, AI stream (>4s).
+- **VideoLoader.tsx**: expo-video status poll → spinner pill overlay + netBus; on reels (`videos.tsx`) + FeedCard inline & expanded.
+- **CommentsModal**: default 85% viewport (H_MIN 50 / H_MID 70 / H_TALL 85 / H_MAX 94, snap on release). Sheet's old `flex:1` fought `height` (both flex-split with the backdrop → stuck at 50%) — removed. Drag = REAL DOM pointer listeners via callback ref (`bindHandle`) because this RN-web maps NEITHER PanResponder NOR onPointerDown props reliably; RN responder kept as native fallback. GIFs chip removed from the emoji row; small photo-video icon INSIDE the input bar toggles the picker.
+- **searchQuranCorpus**: substring-only search starved natural questions ("a verse about patience" never appears verbatim) — added token ranking (≥2 token-weight score) after exact matches. Fixes AI retrieval AND typed search.
+- **AI**: `retrieveLocal(' ')` warm-up on mount (first message used to pay the whole 114-surah + books load); `AnswerText` renderer (headings → bold colored titles, bullets/numbers with gold markers, **bold**/_italic_, [refs], NO raw `##`/`**` ever rendered); `VerseCards` — up to 3 `[Quran S:A]` refs → Amiri Arabic + translation + tap-to-open card from OUR dataset; SYSTEM_PROMPT updated (bold labels not headings, always include Arabic for quoted ayat).
+- **Diag gotchas**: headless-shell NOW ships a native SpeechRecognition that never emits — stubs must OVERRIDE unconditionally; the reader has TWO Recite buttons (ayah card + player bar whole-surah) — pick by y-range; `center()` must not clamp y≥60 (top-bar buttons sit at y≈26); drag tests must exceed the snap zone (240px) else the sheet snaps back to H_TALL.
 
-# PASS 18 SHIPPED (read first)
-Pass 18 live (master 6b0a3bd, gh-pages redeployed + base-path FIXED): all-our-data build (quran/hadith/dua/names/seerah/quiz from assets/content zip), splash video, live compass qibla, TikTok inbox, saved posts, edit-profile mirror, DeenPoints logo, input zoom fixes.
+### Pass-27b (same day, follow-up)
+User feedback fix, commit after `fc4b097`. **MushafPage inline recite v2**: recite mode NO LONGER re-renders the current ayah as WordChips (that re-wrapped the line flow). Now the SAME justified `<Text>` renders one colour `<Text>` span per word — layout byte-identical (diag asserts innerText of `[aria-label="mushaf page content"]` is UNCHANGED across normal → recite → blind → closed). Colours: unrecited = faint accent, ok = full text colour, wrong = #E05252, next-word gold cursor #C9A227 (non-blind only), blind hidden = `transparent` (keeps exact width → ayah numbers ﴿﴾ stay at their exact positions, nothing collides). Blind ALSO hides surah-name pill text + basmallah strip (frames stay to hold layout). Word-tap (ok/wrong words) → speakWord wbw audio. Banner row `paddingLeft: 40` clears the settings gear (top-left x7–37). diag27 now 20/20 (chip/gear box check, arrangement-equality checks, blind transparent-word count, numbers-visible count).
+**Sandbox-reset git hazard**: resets can restore a STALE `.git` (pass-20 base) under a CURRENT working tree — `git status` then shows dozens of files and push is rejected (non-fast-forward). Fix: `git fetch origin && git reset --mixed origin/master` (rewrites HEAD+index only, keeps the correct worktree), then commit the real diff. Never `checkout -B` over it (aborts/overwrites).
 
-## CRITICAL RULES learned in pass 18 (DO NOT REPEAT)
-1. **NEVER deploy a raw `npx expo export`** — the site lives under the GitHub Pages subpath `/deenapp/`, and a raw export emits absolute `/_expo/...` + `/assets/...` URLs → **blank white screen**. ALWAYS `bash export-web.sh` (it runs slashguard.mjs + .nojekyll + 404.html fallback). Verify live by checking the HTML's `<script src>` starts with `/deenapp/`.
-2. **Workspace snapshot cap ≈ 128MB / 10k files** — exceeding it rolls the workspace back (lost a turn's git state this way). Keep at turn end: shallow .git (~34M), assets ≤ ~35M, NO extracted assets/content (88M — it's a tracked zip `assets/content.zip`, unpacked on demand by export-web.sh), no dist (auto-excluded), node_modules/.npm auto-excluded. After deploy: `rm -rf dist assets/content`.
-3. Deploy recipe: fresh /tmp/ghp clone of gh-pages → wipe → `cp -r dist/deenapp/. .` → commit → push. Push with explicit token URL: `git push https://x-access-token:$(cat .token)@github.com/useeman32-design/deenapp.git <branch>`; set repo-local git user.email/name first (they don't survive snapshots).
+## Pass 27 — SHIPPED (2026-08-30)
+Commit `dbf1c10` on master; gh-pages live entry `_expo/static/js/web/entry-9250677358fe5e021c0da0a99b6053d7.js` (curl 200). diag27 **16/16**, engine unit tests **8/8** (`node scripts/engtest.mjs` after rebuilding `scripts/eng.mjs` via the esbuild alias line inside it).
 
-# PASS 17 SHIPPED (read first)
-Pass 17 live (master dd7236b, gh-pages f796fec): quran /v1 API fix, cassette cancel, inbox/friends/videos upgrades, avatar previews, settings screen, quiz + daily cards redesign, learning shortcut, audio in samples. Details in SESSION-MEMORY pass-17 section. Token: .token. Re-add remote each turn.
+**Shipped this pass**
+- **src/lib/reciteEngine.ts (NEW)** — shared engine. `bare()` normalize+strip harakat; `keepMarks()` light normalize that PRESERVES harakat; `strictEq` (exact or 1 sub at equal length); `align(E,S,EM?,SM?)` → `{states,reached}` with wasl joins k=2..4, skip-ahead wrong-marking, split glue, corrections pass, and a **harakat post-pass**: `marksConflict` flags vowel slips (aamanu→aaminu, kafaru→kufiru) when the transcript carries ≥2 marks/word; final-letter marks ignored (i'rab tolerance); unmarked transcripts stay lenient. `itemWords()` strips basmallah from ayah 1 (surah≠1). `speakWord()` → audio.qurancdn.com/wbw/{sss}_{aaa}_{www}.mp3 (1-based, pad3) → ar-SA TTS → ayah-audio fallback. `useReciteTracker(items,{autoNext})`: realign on EVERY onresult **via `realignRef.current()`** (fixes the stale-closure bug — autoNext-advanced ayahs align against their own words), bare+marked arrays built LOCKSTEP (filter both or neither), settle() marks unspoken wrong, mic auto-stops 250ms after completion, autoNext advances 900ms after PERFECT only.
+- **ReciteMode.tsx rebuilt on the engine** — AUTO-NEXT toggle chip (default on for mode='surah'), WordChip (320ms Animated; `masked`, `colorBase`, `faint`, `onPress` props) exported for reuse, verdict card, single-ayah Listen, reset.
+- **MushafPage.tsx** — page card borderless full-bleed; RECITE opens **inline** banner (mic/STOP, BLIND toggle, progress bar, idx/total, PERFECT/n-WRONG chip, ×) — the mushaf text itself becomes chips for the current ayah while other ayahs stay shaded in place; blind mode masks unreached words (ayah numbers remain); word-tap → speakWord (wbw CDN). The RECITE pill HIDES while the banner is open (its oversized hit area covered the × — found via elementFromPoint).
+- **ReciteSearchModal** — mic static GOLD + 'Tap the mic…' until tapped → GREEN + pulse rings + 'Listening…'. (diag27 injects a FakeSR stub via ctx.addInitScript because headless lacks SpeechRecognition — the chip itself is gated on speechOk.)
+- **quranSearch.ts findAyahFuzzy rewritten** — hybrid score 0.34 token-coverage + 0.33 ordered-LCS + 0.33 char-trigram jaccard, `stripBasm` on BOTH query and ayah-1 candidates (kills the basmallah flood that drowned Ikhlas). Battery 5/5 incl. basmallah-prefixed queries.
+- **ai.tsx** — `ThinkingDots` (3 staggered bouncing dots, 160ms offsets) replaces the ActivityIndicator; suggestions/inbox icons back to book-open.
+- **Icons** — bottom tabs keep ORIGINAL `quran` + `mosque` (FA5Free glyphmap-verified). Icon archaeology: 38545d7 = pass-25 handoff, **cae485d = pass-26a deliberate icon sweep** (the live pre-pass-27 state), so HEAD — not 38545d7 — is the correct restore baseline; hadith.ts/seerah.ts/duaSections.ts/surah.tsx/calendar.tsx/index.tsx restored from HEAD after the greedy pass-27 sweep.
 
-# PASS 16 SHIPPED (historical)
-Pass 16 live (master b7cf9cc, gh-pages 5a4797b): videos menu/hearts/share/repost/comments, YouTube webview fix, community photos+key fix, /read reader + global audio (reciters, cassette, tracking, mushaf), quiz/seerah datasets, sticky headers, cleanup. Token: .token (never commit). Re-add remote each turn.
+**Gotchas**
+- Sandbox resets wipe `.git/config` (identity + remote): re-set `git config user.name/email` (deenapp-bot <bot@deenlink.org>) and re-add origin from `.token` at repo root (token never committed).
+- NEVER blanket-replace icon names; enumerate sites + assert anchors.
+- gh-pages entry JS lives at `_expo/static/js/web/entry-*.js` — verify with the full path, not just the filename.
+- engtest: rebuild `scripts/eng.mjs` with `npx esbuild src/lib/reciteEngine.ts --bundle --format=esm --platform=browser --alias:react-native=./scripts/rnStub.js --alias:@/lib/quranSearch=./scripts/engDepsStub.ts --alias:@/lib/speech=./scripts/engDepsStub.ts --outfile=scripts/eng.mjs` (rnStub/engDepsStub are in scripts/).
 
-# PASS 15 SHIPPED (historical)
-Pass 15 live (master e74b031, gh-pages da2628e): logos, splash gate, circle tab, videos polish, quran/hadith/profile/tools redesigns, smoke15 83/83. Deploy recipe + gotchas in SESSION-MEMORY (pass-15 section). Token: repo-root .token (never commit). Re-add git remote each turn.
+# DeenLink — Pass-24 handoff (deployed)
 
-# PASS 14 STATUS (obsoleted)
-Pass 14 is SHIPPED + LIVE (master f5f1a3e, gh-pages 6389dd1, live verified incl. /videos pass-14 UI). GitHub token for ALL pushes (user directive): ghp_E3Oy…9ix4Uh (full token in repo-root .token file — git-ignored, NEVER commit it; GitHub secret-scanning rejects any push containing the literal) — re-add remote each turn (git remote add origin https://github.com/useeman32-design/deenapp.git; .git/config is snapshot-stripped). Deploy: /tmp/deploy force-push to gh-pages; verify with scripts/livecheck14.mjs. Chromium env: bash scripts/browser-env.sh.
+Live: https://useeman32-design.github.io/deenapp — entry-0aa1fb4404cd085f06cc3fce84613a9c.js
+master @ d7313ce · diag24 **14/14 green** (scripts/diag24.mjs)
 
-# DeenLink — Agent Handoff / Continue Instructions
+## SECURITY (read first)
+- The user pasted what they thought was a Grok key — it was the GITHUB DEPLOY TOKEN (ghp_…, matches .token). It is exposed in chat → user will revoke it. **When revoked, pushes fail: ask user for a fresh PAT (repo contents:write) and write it to /home/user/deenapp/.token (no newline issues).**
+- Real Grok keys look like `xai-…` (console.x.ai). The AI page stores the key in localStorage (dl.ai.key.v1) — user enters it in AI → Settings; NEVER hardcode/commit keys.
 
-Read this file FIRST if you are a new agent picking up this project. It is the single source of continuity.
-Also: `SESSION-MEMORY.md` (repo root, sanitized copy of the workspace log at `/home/user/.session-memory.md`) — chronological pass-by-pass log with extra test gotchas and exact hashes. If both exist and conflict: this file (CONTINUE.md) wins, then workspace log, then repo copy.
-Workspace: `deenlink-app/` (this repo). Repo: `github.com/useeman32-design/deenapp` (NOT deenlink-app).
-Web (GitHub Pages): https://useeman32-design.github.io/deenapp/ — live build = whatever is on branch `gh-pages`.
-Native: users run via **Expo Go** (Expo SDK 57). Windows dev machine: `C:\Projects\deenapp`.
+## Shipped this pass
+1. **Local-dev fix**: content.zip restored to git (I deleted it pass-23, breaking fresh clones — "Unable to resolve assets/content/quran/surah_1.txt"). unpack-content.mjs rewritten PURE NODE (no python — Windows-safe, minimal zip reader via zlib). package.json postinstall runs it → `git pull && npm install` just works.
+2. **DeenLink AI rewrite** (src/app/tools/ai.tsx + src/lib/ai.ts): full chat UI, persistent chat history (dl.ai.chats.v2, 40 chats × 60 msgs), history sheet (reopen/delete/clear), settings sheet (key + model picker + web-search default), streaming SSE from api.x.ai/v1/chat/completions (models grok-4-fast-reasoning/grok-4/grok-3-mini, search_parameters mode:auto → [web] citations), RAG over OUR datasets (surah-name hits + corpus keyword + bukhari/muslim/abudawud + duas + 99 names + quiz) with clickable source chips, on-device fallback answers when no key, category prompt cards, typing/thinking phases.
+3. **Recite-to-find**: mic in ContentSearchOverlay (dictateArabic, ar-SA, Web Speech API) + fuzzy Arabic matcher in quranSearch.ts (findAyahFuzzy: diacritic-stripped normalization + ordered LCS + tolerant word compare, "% match" results) — typed arabic hits the same path.
+4. **Memorization loop**: LoopCfg in QuranAudioContext (surah-scoped, from/to range, perAyah ×N/∞, cycles ×N/∞; player.replay() + domEnsurePlay for same-ayah, uri-change reload for range jumps; auto-clears on other-surah play/stop). Reader repeat button (gold when armed) → sheet with steppers/chips.
+5. **Recite Mode** (components/ReciteMode.tsx): full-screen mic overlay per ayah (reader "Recite" action + player-bar mic). Words reveal as recited (normalized token alignment, skip-detection marks the skipped word red), red underline + red word on mismatch, Listen/Retry/Next, end-of-ayah score card, tap-to-reveal practice fallback where SpeechRecognition is unsupported (iOS Safari 14.5+ has it; headless chrome has a stub).
 
-## Current state (last verified)
-- master = pass 13 (iOS inline-video fix `nativeControls={false}`; Videos: Following/For-you tabs, search overlay, Saved/Liked/Reposts library sheet, create studio (pick/sample clip) with reelStore shared to Community, repost w/ toast, download label; Community: composer under search + expanded, trending pill spacing, sticky tab top spacing, poll duration picker 1h–7d, composer Video/YouTube attach; 2 extra reels 204/205 from non-followed accounts). gh-pages = still pass 11 until next deploy.
-- **`FORCE_DEMO = true` in `src/api/client.ts`** — the app is MOCK-ONLY right now (user's request, "for now").
-  Zero network calls; every endpoint resolves to bundled data (`src/api/mocks.ts`); signed-in user is always `MOCK_USER` (photo = asset `p1`).
-  Flip the constant to `false` to go live against `https://deenlink.org` (PHP API; session-cookie + CSRF auth, already implemented in `client.ts`).
-- Pass 11 also fixed: native crash in Community tab (HTML `<b>` tags), shared `VideoModal.tsx` (web iframe / native preview + Watch on YouTube).
-- Pass 12 highlights:
-  * **Demo session is now persistent**: `dl.demoSession` in storage. FORCE_DEMO boots to the (redesigned) login ONCE; sign-in (any input / Google pill = instant demo) sets the flag; logout clears it. Tests MUST seed `dl.demoSession=1` to be signed in.
-  * **Videos feed** `src/app/videos.tsx` — root-level route, `presentation: fullScreenModal`. Vertical pager (FlatList, snapToInterval=VH), expo-video `useVideoPlayer` per item (loop, muted default; only the ACTIVE index mounts a VideoView, others show posters). Rail: like/comment(CommentsModal via reelAsPost)/bookmark(persist `dl.reels.saved`)/share/download (web: expo-asset → <a download>; native: MediaLibrary.saveToLibraryAsync). Entry points: Quick Access FIRST button (href /videos, storage key bumped `dl.quickaccess.v2`), Home campaign banner "DeenLink Videos", "Watch more", QuickGrid; `/tools/videos` redirects.
-  * Sample reels: `assets/vid/f1-f3.mp4` (540x960 center-cropped from Mixkit 720p landscape clips — mixkit.co has no portrait Islamic footage; drone mosque / Quran reading / bright interior; 3.7MB total, no audio). Posters `vid-f*.jpg`, banner `campaign-videos.jpg` (ffmpeg frames).
-  * Profile `[username].tsx`: About tab → **Videos** tab (poster grid → tap opens feed at that reel via `?start=`).
-  * **Poll rebuilt** (FeedCard): tap = vote, tap another = change, tap own = retract; radio→check indicator, fill bars, winner emerald, own gold; LayoutAnimation on web is no-op (fine).
-  * **Comments**: only avatar + name open a profile (comment body never does); `openProfile()` closes the sheet THEN pushes after 140ms; nested replies inside a soft emerald left-rail container (no more full-height hairline).
-  * Bottom nav: `bottom: 8 + insets.bottom` (was 20 — "too high on mobile"). Community FAB: `bottom: insets.bottom + 96`. Composer bar back on top of Community (opens the same modal).
-  * Login/register redesign (`AuthShell.tsx` + fields): user's mock — forest bg `assets/img/auth-bg-dark.jpg` / cream `auth-bg-light.jpg` (his uploads, compressed), emerald `#1F8F5C` Sign In, white Google pill (demo sign-in), OR divider, 16px inputs. Onboarding restyled (dash tokens, framed images, stats card, Skip).
-  * **Assets diet**: `scripts/slim-assets.py` (run after adding images) — 13.4MB → 4.0MB. onboard-*.png → .jpg (quantize/Palette). icon.png 780K→47K, patterns 3.9MB→943K, all visually lossless (verified vs git HEAD).
-  * **Zips wiped from tree**: frontend-usable data staged at `content/` (114 surah JSONs + ayah index + dua/99names/seera/quiz, 8.3MB, **gitignored** — workspace-only). Full originals stay recoverable in git history (content-pack zip blob).
+## Key knowledge
+- RNW multiline TextInput renders <textarea> — playwright selectors must be tag-agnostic (`[placeholder=…]`).
+- React #418 hydration pageerror fires app-wide on most loads — benign (React recovers); don't chase it.
+- Diag taps: reader buttons may live below the fold — pick elements with getBoundingClientRect inside viewport + scrollIntoView before tapping. Modal close = aria-labels ('close recite mode', 'AI settings', etc).
+- pages-server defaults: root dist, prefix /deenapp. Stale server holds :3996 → fuser -k 3996/tcp.
+- Sandbox resets: git fetch+reset --hard FETCH_HEAD, npm install (now also unpacks content!), npx playwright-core install chromium-headless-shell.
+- Speech: getRecognition/dictateArabic in src/lib/speech.ts; continuous mode leaks if you forget abort() on unmount.
 
-## User & working style
-- Based in Badagry, Lagos (NG). Runs the native app on his phone via Expo Go (a standing constraint — no dev builds).
-- Wants **short replies**, and **deliver → verify → deploy fast**. Do not over-explain; show results.
-- Premium dark forest / emerald / gold aesthetic is non-negotiable. Light theme must also work (bottom nav, modals, comments sheet all theme-aware).
-- Spec style: he sends numbered change lists ("passes"). Re-sent spec = "finish it now".
+## Pass-24b update — GROQ is the live provider (diag24 18/18 incl. live tests)
+- User supplied a GROQ key (gsk_…, kept ONLY in /tmp/groq.key for diag — never in repo; they will revoke it). ai.ts is now multi-provider: detectProvider() by key prefix → PROVIDERS.groq (api.groq.com/openai/v1) | PROVIDERS.xai. Groq models: openai/gpt-oss-120b (default, reasoning_effort low), gpt-oss-20b, qwen/qwen3.8-27b — verified via /v1/models.
+- gpt-oss streams chain-of-thought in delta.reasoning → shown as faint "Thinking…" italic + "reasoned Ns" badge (thinkMs>800). Answer = delta.content only.
+- Web search = groq/compound (streams its agentic <think>/<tool> blocks as content): cleanAI() strips them, "🔎 researching the web…" state while open. Compound non-stream 400s on free tier ("request_too_large") but STREAMS fine. If compound errors → auto-retry chosen model offline + "⚠️ Web search was unavailable" note. Empty 200-stream (rate-limit artifact) → honest note + library fallback, never a blank bubble.
+- Free-tier TPM limits (30k/min) → 429s during heavy diag runs; app surfaces them honestly. Live verified: Yā-Sīn answer streamed; gold-price compound answer with real numbers.
+- diag24 section 8 (LIVE) auto-skips when /tmp/groq.key is absent.
+- Recite Mode on native needs a native speech module (expo-speech-recognition) if we ship apps.
+- User's local iOS bundling: tell them `git pull && npm install` (or `node scripts/unpack-content.mjs`).
+- Loop counter badge on the mini bar (shows armed state only via gold icon for now).
 
-## Standing requirements (from all passes — still in force)
-- 5 bottom tabs: Home, Quran, Community, Tools, Profile. (Community replaced old Learning; Community screen = search (posts + accounts), Trending chips, sticky **For you / Following / Scholars** tabs, FAB (+) → post composer with poll builder (2–4 options) + "Posting… just a moment" progress, recent activity list.)
-- Home: Mecca hero image, prayer countdown, Qibla, **sun-path arc** (keeps moving past the last prayer — wrap formula in `(tabs)/index.tsx`: `sunT = nowMs <= end ? max(nowMs, fajr) : fajr + (nowMs - end)`; moon icon stays after sunset), campaign banners (field chip mandatory on posts), Daily Videos (header button "Watch more"), Daily Ayah/Hadith cards (premium, share → generated image card with logo + QR, 4 designs, dynamic height).
-- Feed = Instagram-style `FeedCard` (`src/components/FeedCard.tsx`): double-tap heart burst on ALL post types, ••• menu = Report + "Not interested" (with report modal — no outer flag), image posts → tap opens full preview, polls with vote + % bars, scholar Q&A cards, hashtags, field chips.
-- Comments = IG-style bottom sheet (`CommentsModal.tsx`): emoji row (IG-style), **no @handle prefill** when replying (only "Replying to X" chip), typed @mentions render **bold + emerald** in text, likes fill, nested replies, theme-aware.
-- Public profile screen: `src/app/profile/[username].tsx` — photo, badges, fields of knowledge, Posts/Followers/Following/Charity stats, Follow + Share, Posts / Questions / About tabs, answered questions for scholars. Tapping any name/avatar/account opens it.
-- All text inputs `fontSize: 16` (anti iOS auto-zoom) + `width: 0` where in a flex row (RNW input min-width pushes siblings off-screen).
-- Haptics: `src/lib/haptics.ts` (expo-haptics, Platform-guarded no-op on web).
-- Real community profile photos: `assets/img/profiles/p1..p7.jpg` (mocks reference them as asset ids; `profile_image_url` can be number (asset) | string (url) | null — `AvatarImage` in FeedCard handles all three).
 
-## Key code mechanics (do not regress)
-- **Burst animation (double-tap)**: `Animated.sequence([timing(420, Easing.out(Easing.back(1.9))), delay(140), timing(260, Easing.in(ease))])`, scale interp [0,0.6,1]→[0.22,1.02,1.3], opacity [0,0.12,0.72,1]→[0,0.95,0.95,0], heart 96px, `anim.start(() => burst.setValue(0))` guarantees clean end (no residual shade).
-- **Pattern/decorative overlays** must have `pointerEvents="none"` (home hero, community, profile, onboarding, ayah/hadith card) — they silently swallow taps.
-- **RNW ScrollView defaults to flex:1** — any emoji/row ScrollView inside a fixed-height sheet needs `height: 36, flexGrow: 0, flexShrink: 0`.
-- **Mock data ids** (`src/api/mocks.ts`): posts 101, 102–104, 105 (image), 106 (youtube `hwWpWoOtsBY`), 107 (long), 108, 109, 110 (poll: 132/97/61 votes). `MOCK_COMMENTS` keyed by post id (fallback → 101). `MOCK_FOLLOWED = ['alameen','salamatu_b','kunfai_ibrahim','usman_ahmad']`. `MOCK_TRENDING` tags (#Tawbah #Seerah #DailyDhikr #Tajweed #Istikhara #Halaqah). `MOCK_PROFILES` (7 accounts; `photo` IS the asset id — use directly, do NOT re-map through MOCK_PHOTOS). Daily videos: `0R1LKPRwxR4`, `ta_tTZrarE0`, `tlG38jgInLc` (oEmbed-verified 2026-08-27).
-- Sticky community tabs: show when `scrollY > 165`, translateY -58↔0, `pointerEvents: 'none'` when hidden.
-- Composer simulated publish: 1600ms "Posting…" then post lands locally (with poll if ≥2 options filled).
-- Web-only bits: `YouTubeFrame` (iframe) in FeedCard is `Platform.OS === 'web'`-gated; native gets the VideoModal preview instead. **Expo Go CANNOT embed a live YouTube player** (react-native-webview not in Expo Go) — do not try; true in-app video needs a dev build (EAS).
+# Pass-25 handoff (deployed) — diag25 19/19
+Live entry-d0b3e869f6d93aeb7208c25faa0c7979.js · master @ scratch-cleanup after 1f5d0a1
 
-## Testing (headless, in this sandbox)
-- Chromium: `/home/user/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell`, always with `LD_LIBRARY_PATH=/home/user/.chromium-libs/usr/lib/x86_64-linux-gnu`.
-- Local server: dist must be served UNDER `/deenapp/` (bundle base path): `mkdir -p /tmp/serve2 && ln -sfn <repo>/dist /tmp/serve2/deenapp && cd /tmp/serve2 && python3 -m http.server 8152`. Kill by PID via `ss -ltnp` — never `pkill -f` (matches your own shell).
-- `scripts/smoke13.mjs` = 62-check suite (smoke12 + tabs/search/library/create/repost/duration). FA5 glyph divs: search=\uf002 bookmark=\uf02e times=\uf00d volume-mute=\uf6a9, top bar y≈19 on web. `smoke12.mjs` = 47-check predecessor. (36 old + pass-12: videos feed, login redesign, composer, poll change-vote). Run: `LD_LIBRARY_PATH=… node scripts/smoke12.mjs` after export+slashguard+serve. `scripts/livecheck.mjs` = renders the LIVE site's profile deep link. `scripts/dbg15–34.mjs` = historical probes (read for technique: elementFromPoint hit-testing, RNW quirks).
-- Hard-won web-test gotchas: expo-router Tabs keeps ALL tab screens in the DOM (home first, hidden) → hit-test with elementFromPoint + prefer in-viewport y, or you grab hidden home copies; FA5 icons render as text-glyph divs (no svg); headless rAF throttling lags animated DOM ~300ms → verify end-state, not mid-frames; RN inputs set value via native setter + `input` event; video thumbs: center covered by play icon → click a corner and accept ancestor containing 'Surah'.
-- **Web passing ≠ native safe**: HTML-like lowercase tags (`<b>`, `<i>`…) render as divs on web but CRASH native ("View config getter for component `x` must be a function"). After any pass: `grep -rnE "<(b|i|em|strong|small|span|br|u|s|sub|sup|mark|font|center)\b" src/`.
-- Typecheck: `./node_modules/.bin/tsc --noEmit` (plain `npx tsc` grabs a fake package).
+## Shipped
+- **Mushaf multi-surah fix**: the old `flex:0` segments rendered ZERO-height → all surah blocks overlapped at the page top (the "merging/unreadable" on pages 602-604). Now: content ALWAYS in a ScrollView, segments auto-height with marginTop 14 separation; basmallah strip is diacritic-insensitive (API harakat differ from our constant). Every surah on a page keeps its name pill + basmallah (never surah 1/9).
+- **Loop v2**: per-ayah ∞ replaced by CUSTOM numeric input (placeholder 'custom', 1-100); range cycles keep ∞. Icon repeat→sync-alt (FA5 Pro icons render as '?' — also swapped kaaba/quran/mosque → star-and-crescent/book-open globally). Active loop = gold icon + width-badge "7×" in the player bar.
+- **Recite v2** (components/ReciteMode.tsx): items-based `ReciteItem[] {surah, ayah, arabic, label}` — reader per-ayah (mode ayah), player-bar mic = whole surah following (mode surah), mushaf page has top-right RECITE pill = follow the whole PAGE across surahs. WASL tolerance (joined words match 2-4 word runs; carry-buffer for split words), realtime interim cursor (gold current word; reds only from finals), BLIND mode (eye toggle — text masked until ayah completes), tap red/ok word → speakWord() Arabic TTS (speechSynthesis ar-SA, rate .75) w/ ayah-audio fallback. word-audio hosts (words.audios.quran.com etc) unreachable — TTS chosen instead.
+- **Recite-search prominence**: surah.tsx + hadith.tsx got big green/gold 'Search or recite' buttons; ContentSearchOverlay mic now shows a large gold live-transcript panel (Arabic, right-aligned) while listening.
+- **AI redesign**: glassy bubbles/header (rgba bg + hairline borders), hamburger top-left → Animated left drawer (history: open/delete/clear + New chat), RichText bolds+links `[Quran 2:255]`/`[Bukhari · …]`/`[Dua · …]`/`[web]` (REF_RE; refRoute maps hadith names→book routes), NAV: prompt asks model to end with `NAV: /route` → big 'Open X' button (NAV_LABELS); on-device navAnswer() answers "where is…" without a key; on-device composeLocalAnswer now emits bracketed refs (tappable). Suggestions trimmed to 3 chips.
 
-## Deploy recipe (proven, use exactly this)
-```
-cd deenlink-app
-bash scripts/export-web.sh            # exports to dist/ at repo root (NOT dist/deenapp)
-node scripts/slashguard.mjs           # rewrites routes for the /deenapp/ Pages base
-rm -rf /tmp/pages-out && mkdir -p /tmp/pages-out && cp -r dist/. /tmp/pages-out/
-git fetch origin                      # ALWAYS — stale local refs have shipped an old site before
-git checkout --orphan deploy-tmp
-git rm -rq --cached .
-git clean -fdq -e .gitignore
-cp -r /tmp/pages-out/. .
-git add -A
-git add -f assets/node_modules        # CRITICAL: repo .gitignore's "node_modules/" matches at any depth and would skip the site's own expo FA fonts / router images (36 files) → all icons break
-git commit -m "Deploy pass N"
-git push --force origin deploy-tmp:gh-pages
-git checkout master && git branch -D deploy-tmp
-```
-- Then verify: `curl` the live home, extract the `entry-*.js` hash from index.html, curl it (200), grep 2–3 pass markers in the bundle, and run `node scripts/livecheck.mjs` (profile deep link renders). Pages propagates ~1–2 min; if the old bundle hash still serves, wait and re-check.
-- Force-push master whenever history diverges (it has before — an env reset once rewound local master).
-- **NEVER `git add -A` on a branch without .gitignore present** (gh-pages has no .gitignore) — it committed 36k node_modules files once.
+## Gotchas
+- diag25 needs auth BEFORE checking text pages (ensureAuth after goto when session drops) — quran/surah needs corpus load time, poll ~8s.
+- FA5 FREE only: repeat/kaaba/quran/mosque/hands/hadith/clock-rotate-left are Pro → '?' glyph. Use sync-alt, star-and-crescent, book-open, hands-helping, history.
+- MushafPage always-ScrollView killed the onContentLayout/scrollable machinery (deleted).
+- ReciteMode finishAyah ok-count uses states+1 (last word counted optimistically) — fine for UX.
 
-## Sandbox / git environment (read before touching git)
-- The sandbox **resets at every user-turn boundary**: wipes `node_modules/`, `dist/`, `.cache/` (chromium), apt-installed /usr libs, and **`.git/config`** (identity + token-bearing remote — that file is excluded from persistence). Workspace files under /home/user persist.
-- Per-turn restore ritual:
-  1. `git config user.name "DeenLink Dev" && git config user.email "dev@deenlink.org"`
-  2. `git remote add origin https://<user>:<TOKEN>@github.com/useeman32-design/deenapp.git` — **token: ask the user** (it was pasted mid-project; do not store it in repo files — the repo is public).
-  3. `npm install && npm i --no-save playwright-core`
-  4. `npx playwright-core install chromium-headless-shell`
-  5. If chromium ldd-missing libs: `sudo apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libxdamage1 libxkbcommon0 libasound2 libatspi2.0-0` and copy the .so files into `/home/user/.chromium-libs/usr/lib/x86_64-linux-gnu/`.
-  6. `git fetch origin` before trusting any local ref (a stale `.git` once made the deploy checkout an old pass-6 site).
-- git gc after history surgery: `git gc --prune=now` (also update stale remote-tracking refs with `git fetch` first, or old objects stay reachable).
 
-## Storage audit (2026-08-28)
-- In-scope workspace ≈ **86 MB / ~400 files** of the 128 MB / 10,000-file snapshot budget (67% bytes, 4% files). Healthy.
-- `node_modules/`, `dist/`, `.cache/` are EXCLUDED from snapshots (free).
-- Breakdown: `.git` pack 37 MB (legit history incl. 18.4 MB `deenlink-content-pack.zip` from early passes — removable only by rewriting user's master history), zips 21 MB, app images ~10 MB, chromium libs ~12 MB, user uploads 3.5 MB, source small.
-- If budget pressure ever appears: first ask about the content-pack zip history rewrite; do NOT delete user uploads or .chromium-libs without asking.
-
-## Pass history (one-liners)
-1–5. Foundation: auth (login/register, session+CSRF), home, Quran, Tools suite (athkar/dua/names/calendar/qibla/prayer/hadith/courses/events/charity), profile/settings, onboarding, theme system (dark forest/emerald/gold + light).
-6. Home pass 6 (hero, campaign banners, daily ayah/hadith + share-card generator, daily videos w/ YouTube embed, accounts-to-follow).
-7–8. Community tab (IG-style feed, comments sheet, report flow, double-tap burst, image preview, in-post YouTube), Tools learning move, Learning→Tools.
-9. Live API wiring + demo fallback, real profile photos, video modal polish, share-card extra designs + dynamic height, name ellipsis, light-theme nav.
-10. Community v2 (stats cards removed; search posts+accounts; Trending; sticky For you/Following/Scholars; FAB composer + poll builder + Posting… progress), reply flow (no @prefill; Replying-to chip; bold-emerald mentions), IG emoji rows, polls postable (post 110), public profile screen, image preview height fix, burst redesign (clean end-state), haptics, sun-path night wrap, video modal (no "Open in YouTube", "Watch more"), 16px anti-zoom inputs.
-11. FORCE_DEMO mock-only mode; native Community crash fix (`<b>` tags); shared VideoModal (player preview on native + explicit Watch on YouTube; iframe on web) wired to Home + Community; demo user photo.
-- Audio wiring: deferred by user ("note this, finish homepage first") — still open if he ever asks.
-
-## Next likely asks (context)
-- Switching back to live API (flip FORCE_DEMO) + reconciling mock vs live shapes.
-- Any pass-12 spec. If native YouTube in-app is ever truly required: EAS dev build + a webview/youtube-iframe library — explain the trade-off before attempting.
-- He runs the phone build from his own clone: after every master push, tell him `git fetch origin && git reset --hard origin/master && npx expo start --clear`.
+# Pass-26 handoff (deployed) — diag26 11/11
+- TAB ORDER ROOT CAUSE: expo-router sorts the quran/ FOLDER after file routes → state.routes order was [index, tools, community, profile, quran] and the custom bar mapped state.routes, so Quran & Hadith rendered LAST. Fix: bar maps TABS order (displayIdx); pos/pill animate by display index; onPress compares route index. Icons: Quran&Hadith=star-and-crescent, Worship Tools=compass (both FA5-free; quran/mosque/kaaba are Pro → '?'). Object-literal icon sweep hit hadith.ts/seerah.ts/duaSections.ts/calendar/surah filters too.
+- Mushaf RECITE pill was mounting ReciteMode UNCONDITIONALLY (blocked the page) — now gated on recitePage state.
+- ReciteMode v3: idempotent realignment (finals+interim rebuilt each event → align(E,S) recompute; the old incremental stepper double-counted interim tokens). align(): ordered scan (match/wasl-join 2-4/skip-ahead) → split pass (frontier word = two unused tokens glued) → correction pass (red word matching ANY unused token → ok). close() budget scales with word length (1/2/3). WordChip animates opacity/scale on state change; blind mode reveals words up to `reached` (masked ҉ until reached); gold live caption.
+- ReciteSearchModal (new): glassy centre card, pulsing gold mic rings, live Amiri-Bold 24 transcript, then 'Analyzing your recitation…' dots 1.1s → onText → results. Mic off-screen bug: search bar row overflowed (x=437 on 390px) — fixed with minWidth:0 on container+input; mic detect post-mount (speechOk state) so it always renders.
+- AI input: 16px system font (iOS no-zoom needs ≥16px), glassy bordered container that highlights when typing, clear ×, 46px send/web pills.
+- LESSON: commit BEFORE `git reset --hard` after sandbox resets (lost a turn's edits once); the reset rolls the TREE too.

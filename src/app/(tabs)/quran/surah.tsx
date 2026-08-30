@@ -7,7 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { QURAN, JUZ_START } from '@/data/quran';
 import { storage } from '@/lib/storage';
 import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
-import { ensureQuranCorpus, searchQuranCorpus } from '@/lib/quranSearch';
+import { ensureQuranCorpus, findAyahFuzzy, searchQuranCorpus } from '@/lib/quranSearch';
 import { markActive, markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -16,8 +16,8 @@ import { haptic } from '@/lib/haptics';
 type Filter = 'all' | 'meccan' | 'medinan' | 'bookmarks';
 const FILTERS: { id: Filter; label: string; icon: string }[] = [
   { id: 'all', label: 'All', icon: 'list-ul' },
-  { id: 'meccan', label: 'Meccan', icon: 'kaaba' },
-  { id: 'medinan', label: 'Medinan', icon: 'mosque' },
+  { id: 'meccan', label: 'Meccan', icon: 'star-and-crescent' },
+  { id: 'medinan', label: 'Medinan', icon: 'star-and-crescent' },
   { id: 'bookmarks', label: 'Bookmarks', icon: 'bookmark' },
 ];
 
@@ -145,31 +145,6 @@ export default function SurahList() {
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <View>
-            {/* ── Ayah bookmarks (pass 20) ── */}
-            {filter === 'bookmarks' && ayahMarks.length ? (
-              <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
-                <T v="caption" style={{ color: d.faint, fontWeight: '800', fontSize: 10, letterSpacing: 0.6, marginBottom: 8 }}>
-                  SAVED AYAHS · {ayahMarks.length}
-                </T>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9, paddingRight: 8 }}>
-                  {ayahMarks.map((m) => {
-                    const sm = QURAN.find((x) => x.number === m.surah);
-                    return (
-                      <Pressable
-                        key={`${m.surah}:${m.ayah}`}
-                        onPress={() => router.push({ pathname: '/read/[id]', params: { id: String(m.surah), ayah: String(m.ayah) } } as never)}
-                        style={({ pressed }) => ({ minWidth: 132, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, gap: 3, opacity: pressed ? 0.75 : 1 })}
-                      >
-                        <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 16 }}>{sm?.name ?? ''}</T>
-                        <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>{sm?.english}</T>
-                        <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>Ayah {m.ayah}</T>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 8, marginBottom: 4 }}>Bookmarked surahs below ↓</T>
-              </View>
-            ) : null}
             {/* ── Reading Progress hero card ── */}
             <View
               style={{
@@ -233,7 +208,7 @@ export default function SurahList() {
               </View>
 
               <Pressable
-                onPress={() => open(cur.number)}
+                onPress={() => router.push({ pathname: '/read/[id]', params: { id: String(cur.number), ayah: String(curAyah) } } as never)}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -255,43 +230,34 @@ export default function SurahList() {
               </Pressable>
             </View>
 
-            {/* search */}
-            <View
-              style={{
+            {/* search — prominent: type OR recite the verse (pass 25) */}
+            <Pressable
+              onPress={() => { haptic.selection(); setDeepSearch(true); }}
+              accessibilityLabel="search or recite"
+              style={({ pressed }) => [{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: d.card,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
+                gap: 11,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.4)',
+                backgroundColor: pressed ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(29,111,66,0.10)') : isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)',
                 marginTop: 14,
                 marginHorizontal: 16,
-                paddingHorizontal: 13,
-              }}
+                paddingHorizontal: 14,
+                paddingVertical: 13,
+                opacity: pressed ? 0.85 : 1,
+              }]}
             >
-              <FontAwesome5 name="search" size={13} color={d.faint} />
-              <TextInput
-                value={q}
-                onChangeText={setQ}
-                placeholder="Search surah by name or number…"
-                placeholderTextColor={d.faint}
-                style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13*/, color: d.text, paddingVertical: 11, paddingLeft: 9 }}
-              />
-              {/* deep search — scans the whole Qur'an (EN · HA · Arabic) */}
-              <Pressable
-                onPress={() => { haptic.selection(); setDeepSearch(true); }}
-                hitSlop={8}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, marginLeft: 6 }}
-              >
-                <FontAwesome5 name="book-open" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>AYAHS</T>
-              </Pressable>
-              {q ? (
-                <Pressable onPress={() => setQ('')} hitSlop={8}>
-                  <FontAwesome5 name="times-circle" size={14} color={d.faint} />
-                </Pressable>
-              ) : null}
-            </View>
+              <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="search" size={13} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: d.text }}>Search or recite a verse</T>
+                <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>114 surahs · full text · tap 🎤 and recite to find an ayah</T>
+              </View>
+              <FontAwesome5 name="microphone-alt" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            </Pressable>
 
             {/* recent */}
             {recent.length > 0 ? (
@@ -368,6 +334,32 @@ export default function SurahList() {
                 );
               })}
             </View>
+
+            {/* ── Saved ayahs — shown in the BOOKMARKS tab (pass 22) ── */}
+            {filter === 'bookmarks' && ayahMarks.length > 0 ? (
+              <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 6 }}>
+                <T v="caption" style={{ color: d.faint, fontWeight: '800', fontSize: 10, letterSpacing: 0.6, marginBottom: 8 }}>
+                  SAVED AYAHS · {ayahMarks.length}
+                </T>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9, paddingRight: 8 }}>
+                  {ayahMarks.map((m) => {
+                    const sm = QURAN.find((x) => x.number === m.surah);
+                    return (
+                      <Pressable
+                        key={`${m.surah}:${m.ayah}`}
+                        onPress={() => router.push({ pathname: '/read/[id]', params: { id: String(m.surah), ayah: String(m.ayah) } } as never)}
+                        style={({ pressed }) => ({ minWidth: 132, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, gap: 3, opacity: pressed ? 0.75 : 1 })}
+                      >
+                        <T v="arabic" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontSize: 18 }}>{sm?.name ?? ''}</T>
+                        <T v="caption" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 11 }}>{sm?.english}</T>
+                        <T v="caption" style={{ color: d.faint, fontSize: 9.5 }}>Ayah {m.ayah}</T>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                {favs.length > 0 ? <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 8, marginBottom: 4 }}>Bookmarked surahs below ↓</T> : null}
+              </View>
+            ) : null}
           </View>
         }
         renderItem={({ item: s }) => (
@@ -426,7 +418,7 @@ export default function SurahList() {
               <FontAwesome5 name="bookmark" size={15} solid={favs.includes(s.number)} color={favs.includes(s.number) ? '#E8C96A' : d.faint} />
             </Pressable>
 
-            <T v="arabic" style={{ color: d.text, fontSize: 16 }}>
+            <T v="arabic" style={{ color: d.text, fontSize: 23, lineHeight: 32 }}>
               {s.name}
             </T>
           </Pressable>
@@ -446,13 +438,25 @@ export default function SurahList() {
         }}
         contentSearch={async (qq) => {
           await ensureQuranCorpus();
-          return searchQuranCorpus(qq).map((h) => ({
+          const direct = searchQuranCorpus(qq).map((h) => ({
             key: `a${h.surah}:${h.ayah}`,
             title: `${QURAN[h.surah - 1]?.english ?? h.surah} ${h.surah}:${h.ayah}`,
             subtitle: h.translation.slice(0, 90),
             arabic: h.arabic.slice(0, 46),
             onPress: () => router.push({ pathname: '/read/[id]', params: { id: String(h.surah), ayah: String(h.ayah) } } as never),
           }));
+          /* pass 24: recited arabic rarely substring-matches — fuzzy-find it */
+          if (direct.length < 3 && /[\u0621-\u064A]/.test(qq)) {
+            const fuzzy = findAyahFuzzy(qq, 5).map((h) => ({
+              key: `f${h.surah}:${h.ayah}`,
+              title: `${h.surahName} ${h.surah}:${h.ayah} · ${Math.round(h.score * 100)}% match`,
+              subtitle: h.translation.slice(0, 90),
+              arabic: h.arabic.slice(0, 60),
+              onPress: () => router.push({ pathname: '/read/[id]', params: { id: String(h.surah), ayah: String(h.ayah) } } as never),
+            }));
+            return [...fuzzy, ...direct];
+          }
+          return direct;
         }}
         contentLabel="In the whole Qur'an (EN · HA · Arabic)"
       />
