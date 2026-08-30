@@ -26,10 +26,13 @@ export async function resolveLocation(): Promise<Loc> {
     const granted = await Location.requestForegroundPermissionsAsync();
     if (Platform.OS === 'web' || granted.granted) {
       const pos = await Location.getCurrentPositionAsync();
+      /* pass 29: resolve a REAL place name (used to literally say
+       * "Your location") — free reverse geocoder, no key, cached. */
+      const name = await cityName(pos.coords.latitude, pos.coords.longitude);
       const loc: Loc = {
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
-        name: 'Your location',
+        name,
       };
       await storage.setItem(KEY, JSON.stringify(loc));
       return loc;
@@ -43,4 +46,25 @@ export async function resolveLocation(): Promise<Loc> {
 export async function resetLocation(): Promise<Loc> {
   await storage.removeItem(KEY);
   return resolveLocation();
+}
+
+
+/** Reverse-geocode coordinates to "City, Country" (BigDataCloud free client
+ * API — no key). Falls back to a coordinate label so it never lies. */
+export async function cityName(lat: number, lon: number): Promise<string> {
+  try {
+    const r = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+    );
+    if (r.ok) {
+      const j = (await r.json()) as { city?: string; locality?: string; principalSubdivision?: string; countryName?: string };
+      const city = j.city || j.locality || j.principalSubdivision || '';
+      const country = j.countryName || '';
+      const label = [city, country].filter(Boolean).join(', ');
+      if (label) return label;
+    }
+  } catch {
+    /* offline / blocked — coordinate label below */
+  }
+  return `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
 }

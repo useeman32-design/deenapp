@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,11 +131,10 @@ export default function PublicProfileScreen() {
 
   const shareProfile = () => {
     haptic.light();
-    Share.share({
-      title: `${name} on DeenLink`,
-      message: `Check out ${name} (@${profile.username}) on DeenLink — ${profile.bio ?? 'sharing deen together.'} https://deenlink.org/profile/${profile.username}`,
-    }).catch(() => {});
+    setShareOpen(true);
   };
+
+  const [shareOpen, setShareOpen] = useState(false);
 
   const toggleFollow = () => {
     haptic.success();
@@ -295,31 +295,41 @@ export default function PublicProfileScreen() {
             {/* stats: Posts / Followers / Following / Charity */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {[
-                { label: 'Posts', value: fmt(Math.max(posts.length, profile.posts_count)) },
-                { label: 'Followers', value: fmt(profile.followers + (following ? 1 : 0)) },
-                { label: 'Following', value: fmt(profile.following) },
-                { label: 'Charity', value: '₦ 12.4k' },
-              ].map((s) => (
-                <View
-                  key={s.label}
-                  style={{
-                    flex: 1,
-                    borderRadius: 13,
-                    backgroundColor: d.bgSoft,
-                    borderWidth: 1,
-                    borderColor: d.cardBorder,
-                    paddingVertical: 9,
-                    alignItems: 'center',
-                  }}
-                >
+                { label: 'Posts', value: fmt(Math.max(posts.length, profile.posts_count)), tab: null },
+                { label: 'Followers', value: fmt(profile.followers + (following ? 1 : 0)), tab: 'followers' },
+                { label: 'Following', value: fmt(profile.following), tab: 'following' },
+                { label: 'Charity', value: '₦ 12.4k', tab: null },
+              ].map((s) => {
+                const inner = (
+                  <View
+                    style={{
+                      flex: 1,
+                      borderRadius: 13,
+                      backgroundColor: d.bgSoft,
+                      borderWidth: 1,
+                      borderColor: d.cardBorder,
+                      paddingVertical: 9,
+                      alignItems: 'center',
+                    }}
+                  >
                   <T v="stat" style={{ color: d.text, fontWeight: '800', fontSize: 13.5 }}>
                     {s.value}
                   </T>
                   <T v="caption" style={{ color: d.faint, fontSize: 9, fontWeight: '700', letterSpacing: 0.3, marginTop: 1 }}>
                     {s.label.toUpperCase()}
                   </T>
-                </View>
-              ))}
+                  </View>
+                );
+                return s.tab ? (
+                  <Pressable key={s.label} style={{ flex: 1 }} onPress={() => { haptic.selection(); router.push({ pathname: '/tools/connections', params: { tab: s.tab! } } as never); }}>
+                    {inner}
+                  </Pressable>
+                ) : (
+                  <View key={s.label} style={{ flex: 1 }}>
+                    {inner}
+                  </View>
+                );
+              })}
             </View>
 
             {/* actions */}
@@ -577,12 +587,12 @@ export default function PublicProfileScreen() {
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.95)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setPhotoPreview(false)}>
           <View>
             <AvatarImage source={photo} name={name} size={300} tint={`${theme.primary}26`} border="rgba(212,175,55,0.55)" />
-            {/* DeenLink tag — overlapping the photo's bottom-right corner */}
+            {/* DeenLink tag — sitting ON TOP of the photo, top-right (pass 22) */}
             <View
               style={{
                 position: 'absolute',
                 right: -10,
-                bottom: -12,
+                top: -12,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 5,
@@ -605,6 +615,13 @@ export default function PublicProfileScreen() {
           </T>
         </Pressable>
       </Modal>
+      <ContentShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        card={{ kind: 'post', meaning: `${name} (@${profile.username}) — ${profile.bio ?? 'sharing deen together.'}`, ref: 'DeenLink profile' }}
+        link={`https://deenlink.org/profile/${profile.username}`}
+        noImage
+      />
     </View>
   );
 }

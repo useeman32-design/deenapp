@@ -8,6 +8,7 @@ import type { Post } from '@/api/types';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
+import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
@@ -49,6 +50,7 @@ export default function CommunityScreen() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [cDraft, setCDraft] = useState('');
   const [pollOn, setPollOn] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
@@ -303,6 +305,7 @@ export default function CommunityScreen() {
               </T>
             </View>
             <Pressable
+              onPress={() => { haptic.selection(); router.push('/tools/notifications'); }}
               style={({ pressed }) => ({
                 position: 'relative',
                 width: 40,
@@ -326,6 +329,37 @@ export default function CommunityScreen() {
                   height: 8,
                   borderRadius: 4,
                   backgroundColor: '#E67E22',
+                  borderWidth: 1.5,
+                  borderColor: d.bg,
+                }}
+              />
+            </Pressable>
+            {/* inbox — shared reels/posts/duas/ayahs (same inbox as videos) */}
+            <Pressable
+              onPress={() => { haptic.selection(); setInboxOpen(true); }}
+              style={({ pressed }) => ({
+                position: 'relative',
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)',
+                backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <FontAwesome5 name="comment-dots" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 7,
+                  right: 8,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#1F8F5C',
                   borderWidth: 1.5,
                   borderColor: d.bg,
                 }}
@@ -634,9 +668,9 @@ export default function CommunityScreen() {
                     </T>
                   </View>
                 ) : (
-                  visiblePosts.map((p) => (
-                    <FeedCard
-                      key={p.id}
+                  visiblePosts.map((p, pi) => (
+                    <View key={p.id}>
+                      <FeedCard
                       dash={d}
                       post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                       onLike={(id) => togglePostLike(id)}
@@ -649,6 +683,9 @@ export default function CommunityScreen() {
                         })
                       }
                     />
+                      {/* every 5th card — suggested accounts while you scroll (pass 22) */}
+                      {(pi + 1) % 5 === 0 ? <SuggestStrip dash={d} /> : null}
+                    </View>
                   ))
                 )}
               </View>
@@ -656,6 +693,9 @@ export default function CommunityScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* community inbox — shared posts/reels/ayahs, reactions only */}
+      <CommunityInbox visible={inboxOpen} onClose={() => setInboxOpen(false)} />
 
       {/* FAB — new post */}
       <Pressable
@@ -1080,6 +1120,52 @@ export default function CommunityScreen() {
           onClose={() => setVideoPost(null)}
         />
       ) : null}
+    </View>
+  );
+}
+
+
+/* Suggested accounts card — interleaved into the community feed (pass 22). */
+function SuggestStrip({ dash }: { dash: any }) {
+  const { isDark } = useTheme();
+  const router = useRouter();
+  const [followed, setFollowed] = useState<string[]>([]);
+  const picks = useMemo(() => MOCK_ACCOUNTS.slice().sort(() => Math.random() - 0.5).slice(0, 3), []);
+  return (
+    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: dash.faint }}>SUGGESTED FOR YOU</T>
+        <Pressable onPress={() => { haptic.selection(); router.push('/tools/suggestions'); }} hitSlop={8}>
+          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
+        </Pressable>
+      </View>
+      {/* same card design as the home screen's Accounts to Follow */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+        {picks.map((a) => (
+          <View key={a.username} style={{ width: 122, borderRadius: 18, backgroundColor: dash.card, borderWidth: 1, borderColor: dash.cardBorder, padding: 14, alignItems: 'center', gap: 7 }}>
+            <Pressable onPress={() => router.push(`/profile/${a.username}`)}>
+              <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={dash.bgSoft} border={dash.cardBorder} />
+            </Pressable>
+            <T v="caption" numberOfLines={1} style={{ fontWeight: '800', fontSize: 11, color: dash.text, textAlign: 'center' }}>
+              {a.full_name.split(' ').slice(0, 2).join(' ')}
+            </T>
+            {a.fields ? (
+              <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, color: dash.faint, marginTop: -3 }}>{a.fields}</T>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                setFollowed((f) => (f.includes(a.username) ? f.filter((x) => x !== a.username) : [...f, a.username]));
+              }}
+              style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: followed.includes(a.username) ? dash.cardBorder : 'transparent', backgroundColor: followed.includes(a.username) ? 'transparent' : '#1F8F5C', marginTop: 2 }}
+            >
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: followed.includes(a.username) ? dash.subtext : '#FFFFFF' }}>
+                {followed.includes(a.username) ? 'Following' : 'Follow'}
+              </T>
+            </Pressable>
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }

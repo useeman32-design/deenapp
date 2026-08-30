@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -213,19 +213,70 @@ export function CommentsModal({
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [gifOpen, setGifOpen] = useState(false);
-  /* pass 20: drag-to-grow sheet — snap 430 ⇄ 580 ⇄ 92% screen */
-  const [sheetH, setSheetH] = useState(580);
-  const drag = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 6,
-      onPanResponderRelease: (_e, g) => {
-        const vh = 844;
-        if (g.dy < -40) setSheetH((h) => (h >= 700 ? Math.round(vh * 0.92) : 700));
-        else if (g.dy > 40) setSheetH((h) => (h > 640 ? 580 : 430));
-      },
-    }),
-  ).current;
+  /* pass 28: LIVE drag-to-resize via pointer events (PanResponder was dead on
+   * iOS Safari web). The sheet follows the finger; release snaps. */
+  const vh = Dimensions.get('window').height;
+  const H_MAX = Math.round(vh * 0.94);
+  const H_TALL = Math.round(vh * 0.85);
+  const H_MID = Math.round(vh * 0.7);
+  const H_MIN = Math.round(vh * 0.5);
+  const [sheetH, setSheetH] = useState(() => Math.round(Dimensions.get('window').height * 0.85));
+  const dragStart = useRef<{ y: number; h: number } | null>(null);
+  const moveBy = (pageY: number) => {
+    if (!dragStart.current) return;
+    const dy = dragStart.current.y - pageY;
+    setSheetH(Math.min(H_MAX, Math.max(H_MIN, dragStart.current.h + dy)));
+  };
+  const endDrag = () => {
+    if (!dragStart.current) return;
+    dragStart.current = null;
+    setSheetH((h) => (h > H_TALL + 30 ? H_MAX : h < H_MID - 30 ? H_MID : H_TALL));
+  };
+  const onHandleDown = (e: any) => {
+    dragStart.current = { y: e.nativeEvent.pageY, h: sheetH };
+  };
+  const onHandleMove = (e: any) => moveBy(e.nativeEvent.pageY ?? 0);
+
+  /* pass 28b: RN-web (this version) doesn't map onPointerDown props — attach
+   * REAL DOM pointer listeners to the handle node; RN responder stays as the
+   * native fallback. The Modal's DOM mounts one frame AFTER `visible` flips. */
+  const handleRef = useRef<any>(null);
+  const handleEl = useRef<any>(null);
+  const handlers = useRef<{ down: (e: PointerEvent) => void; move: (e: PointerEvent) => void; up: () => void } | null>(null);
+  const sheetHRef = useRef(sheetH);
+  sheetHRef.current = sheetH;
+  const detach = () => {
+    const el = handleEl.current;
+    const h = handlers.current;
+    if (!el || !h) return;
+    el.removeEventListener('pointerdown', h.down as EventListener);
+    window.removeEventListener('pointermove', h.move as EventListener);
+    window.removeEventListener('pointerup', h.up);
+    window.removeEventListener('pointercancel', h.up);
+    handleEl.current = null;
+    handlers.current = null;
+  };
+  const attach = (el: any) => {
+    const down = (e: PointerEvent) => {
+      dragStart.current = { y: e.pageY, h: sheetHRef.current };
+      try { (el as unknown as { setPointerCapture: (i: number) => void }).setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    };
+    const move = (e: PointerEvent) => { if (dragStart.current) { e.preventDefault(); moveBy(e.pageY); } };
+    const up = () => endDrag();
+    handleEl.current = el;
+    handlers.current = { down, move, up };
+    el.addEventListener('pointerdown', down as EventListener);
+    window.addEventListener('pointermove', move as EventListener);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+  const bindHandle = (el: any) => {
+    if (handleEl.current === el) return; /* same node — keep listeners */
+    detach();
+    handleRef.current = el;
+    if (el && typeof el.addEventListener === 'function') attach(el);
+  };
 
   const colors = useMemo(
     () => ({ txt: txt as string, sub: sub as string, faint: faint as string, hairline: hairline as string, bubble: bubble as string, emerald: emerald as string, isDark }),
@@ -327,10 +378,10 @@ export function CommentsModal({
   const sheet = (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      accessibilityLabel="comments sheet"
       style={{
-        flex: 1,
         height: sheetH,
-        maxHeight: '92%',
+        maxHeight: '94%',
         backgroundColor: card,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
@@ -343,9 +394,20 @@ export function CommentsModal({
         elevation: 16,
       }}
     >
-      {/* drag handle — pull up to grow the sheet (pass 20) */}
-      <View {...drag.panHandlers} style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 6 }}>
-        <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)' }} />
+      {/* drag handle — pull up/down to resize (pass 28: live pointer drag) */}
+      <View
+        ref={bindHandle}
+        accessibilityLabel="comments drag handle"
+        onStartShouldSetResponder={() => Platform.OS !== 'web'}
+        onResponderGrant={onHandleDown}
+        onResponderMove={onHandleMove}
+        onResponderRelease={endDrag}
+        style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 8, touchAction: 'none' } as never}
+      >
+        <View style={{ width: 52, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.2)' }} />
+        <T v="meta" style={{ fontSize: 9.5, marginTop: 7, letterSpacing: 0.4, color: faint as string }}>
+          drag to resize
+        </T>
       </View>
 
       {/* Header */}
@@ -425,10 +487,6 @@ export function CommentsModal({
             </T>
           </Pressable>
         ))}
-        <Pressable onPress={() => { haptic.selection(); setGifOpen((o) => !o); }} hitSlop={4} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 8, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: gifOpen ? 'rgba(74,227,143,0.55)' : hairline, backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : 'transparent' }}>
-          <FontAwesome5 name="photo-video" size={10} color={gifOpen ? emerald : faint} />
-          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: gifOpen ? emerald : faint }}>GIF</T>
-        </Pressable>
       </ScrollView>
 
       {/* GIF picker — bundled animated stickers */}
@@ -484,6 +542,14 @@ export function CommentsModal({
             paddingVertical: 9,
           }}
         />
+        <Pressable
+          onPress={() => { haptic.selection(); setGifOpen((o) => !o); }}
+          accessibilityLabel="toggle gif picker"
+          hitSlop={6}
+          style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(20,36,28,0.06)', borderWidth: 1, borderColor: gifOpen ? 'rgba(74,227,143,0.6)' : hairline }}
+        >
+          <FontAwesome5 name="photo-video" size={13} color={gifOpen ? emerald : (faint as string)} />
+        </Pressable>
         <Pressable
           onPress={addComment}
           style={({ pressed }) => ({

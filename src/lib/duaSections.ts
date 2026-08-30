@@ -22,7 +22,7 @@ export type DuaSectionId =
 export const DUA_SECTIONS: Array<{ id: DuaSectionId; label: string; icon: string; match: RegExp }> = [
   { id: 'morning', label: 'Morning & Evening', icon: 'sun', match: /morning|evening|day and night|dawn|adhān|athan|call to prayer/i },
   { id: 'sleep', label: 'Sleep & Waking', icon: 'moon', match: /sleep|wake|dream|nightmare|bed/i },
-  { id: 'prayer', label: 'Prayer & Mosque', icon: 'mosque', match: /prayer|mosque|masjid|ablution|wudu|qibla|sujūd|sujood|ruku|ramadan|fast|itikaf|jumu|friday|eid|athaan/i },
+  { id: 'prayer', label: 'Prayer & Mosque', icon: 'star-and-crescent', match: /prayer|mosque|masjid|ablution|wudu|qibla|sujūd|sujood|ruku|ramadan|fast|itikaf|jumu|friday|eid|athaan/i },
   { id: 'home', label: 'Home & Leaving', icon: 'home', match: /home|house|leave|leaving|enter|restroom|toilet|bathroom/i },
   { id: 'eating', label: 'Eating & Drinking', icon: 'utensils', match: /eat|food|drink|meal|breakfast|dinner|zamzam|milk|fruit|honey/i },
   { id: 'dressing', label: 'Wearing Clothes', icon: 'tshirt', match: /dress|clothes|wearing|garment|new clothes|shoe|sandals/i },

@@ -1,4 +1,5 @@
 import { Linking, Pressable, ScrollView } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
 import { tiles, tilesDark } from '@/constants/theme';
@@ -43,8 +44,8 @@ export const QUICK_ITEMS: QuickItem[] = [
   { key: 'videos', label: 'Watch Videos', icon: PlayIcon, action: { type: 'route', href: '/videos' } },
   { key: 'deenai', label: 'DeenLink AI', icon: SparkleIcon, action: { type: 'web', url: 'https://deenlink.org/deenlink-ai/deenai.html' } },
   { key: 'shop', label: 'Shop', icon: BagIcon, action: { type: 'web', url: 'https://deenlink.org/shop/' } },
-  { key: 'dua', label: 'Dua', icon: PrayingHandsIcon, action: { type: 'route', href: '/tools/dua' } },
-  { key: 'athkar', label: 'Athkar', icon: BookIcon, action: { type: 'route', href: '/tools/athkar' } },
+  { key: 'dua', label: 'Dua', icon: (p: any) => <FontAwesome5 name="hands-helping" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/dua' } },
+  { key: 'athkar', label: 'Athkar', icon: (p: any) => <FontAwesome5 name="book-reader" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/athkar' } },
   { key: 'addpost', label: 'Add Post', icon: PlusIcon, action: { type: 'modal', modal: 'post' } },
   { key: 'wallpaper', label: 'Islamic Wallpapers', icon: ImageIcon, action: { type: 'route', href: '/tools/wallpapers' } },
   { key: 'donation', label: 'Donation & Charity', icon: GiftIcon, action: { type: 'route', href: '/tools/charity' } },

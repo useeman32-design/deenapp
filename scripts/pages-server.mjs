@@ -4,8 +4,9 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 
-const root = process.argv[2] ?? 'dist/deenapp';
+const root = process.argv[2] ?? 'dist';
 const port = +(process.argv[3] ?? 3996);
+const prefixArg = process.argv[4] ?? '/deenapp';
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
   '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.png': 'image/png',
@@ -16,7 +17,7 @@ const MIME = {
 createServer(async (req, res) => {
   try {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    const prefix = `/${root.split('/').pop()}`; // e.g. /deenapp
+    const prefix = prefixArg; // e.g. /deenapp (site subpath, not the local dir)
     if (p.startsWith(prefix)) p = p.slice(prefix.length) || '/';
     if (p.endsWith('/')) p += 'index.html';
     let file = join(root, p);

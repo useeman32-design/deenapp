@@ -26,7 +26,7 @@ done
 # Rewrite absolute URLs in all text assets of the export.
 # Metro emits double-quoted refs like uri:"/assets/..." — the leading " is part of the match.
 find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.svg" -o -name "*.map" \) -print0 |
-  xargs -0 perl -pi -e "s#\"/_expo/#\"${BASE}_expo/#g; s#\"/assets/#\"${BASE}assets/#g"
+  xargs -0 perl -pi -e "s#\"/_expo/#\"${BASE}_expo/#g; s#\"/assets/#\"${BASE}assets/#g; s#\"/favicon.ico#\"${BASE}favicon.ico#g"
 
 # SPA fallback for GitHub Pages deep links.
 cp dist/index.html dist/404.html

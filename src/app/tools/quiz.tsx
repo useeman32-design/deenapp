@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
-import { QUIZ_POOL, type QuizQ } from '@/data/quiz';
+import { QUIZ_POOL, QUIZ_POOL_EXTRA, type QuizQ } from '@/data/quiz';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -13,7 +13,9 @@ const COUNTS = [5, 10, 20, 0] as const; // 0 = all
 const SECONDS = 20;
 
 type Phase = 'setup' | 'play' | 'results';
-type Answered = { q: QuizQ; picked: number | null; correct: boolean; timedOut: boolean };
+type Answered = { q: QuizQ; picked: number | null; pickedMulti?: number[]; correct: boolean; timedOut: boolean };
+const correctOf = (q: QuizQ, picked: number | null, multi: number[] | undefined) =>
+  q.answers ? !!multi && multi.length === q.answers.length && q.answers.every((x) => multi.includes(x)) : picked === q.answer;
 
 /**
  * Islamic Quiz (pass 20 redesign) — modern setup → timed play → results:
@@ -32,13 +34,15 @@ export default function Quiz() {
   const [deck, setDeck] = useState<QuizQ[]>([]);
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
+  const [multi, setMulti] = useState<number[]>([]);
   const [answers, setAnswers] = useState<Answered[]>([]);
   const [left, setLeft] = useState(SECONDS);
   const [best, setBest] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lock = useRef(false);
 
-  const pool = useMemo<QuizQ[]>(() => (cat === 'All' ? QUIZ_POOL : QUIZ_POOL.filter((q) => q.category === cat)), [cat]);
+  const FULL = useMemo(() => [...QUIZ_POOL, ...QUIZ_POOL_EXTRA], []);
+  const pool = useMemo<QuizQ[]>(() => (cat === 'All' ? FULL : FULL.filter((q) => q.category === cat)), [cat, FULL]);
 
   const clearTimer = () => {
     if (timer.current) clearInterval(timer.current);
@@ -48,12 +52,13 @@ export default function Quiz() {
   useEffect(() => clearTimer, []);
 
   const start = (c: (typeof CATS)[number] = cat, n = count) => {
-    const p = c === 'All' ? QUIZ_POOL : QUIZ_POOL.filter((q) => q.category === c);
+    const p = c === 'All' ? FULL : FULL.filter((q) => q.category === c);
     const shuffled = [...p].sort(() => Math.random() - 0.5).slice(0, n === 0 ? p.length : Math.min(n, p.length));
     clearTimer();
     setDeck(shuffled);
     setI(0);
     setPicked(null);
+    setMulti([]);
     setAnswers([]);
     setPhase('play');
     armTimer();
@@ -77,18 +82,18 @@ export default function Quiz() {
 
   const q = deck[i];
 
-  const submit = (choice: number | null, timedOut = false) => {
+  const submit = (choice: number | null, timedOut = false, multiPick?: number[]) => {
     if (lock.current || !q) return;
     lock.current = true;
     clearTimer();
-    const correct = choice === q.answer;
-    setPicked(choice);
-    if (correct) haptic.success();
-    else haptic.medium();
-    setAnswers((a) => [...a, { q, picked: choice, correct, timedOut }]);
+    setPicked(choice); // neutral selection only — no reveal until the end
+    setAnswers((a) => [...a, { q, picked: choice, pickedMulti: multiPick, correct: correctOf(q, choice, multiPick), timedOut }]);
+    haptic.selection();
+    setTimeout(() => next(), 420); // glide to the next question
   };
 
   const next = () => {
+    setMulti([]);
     if (i + 1 >= deck.length) {
       const score = answers.filter((a) => a.correct).length;
       setBest((b) => Math.max(b, score));
@@ -206,46 +211,55 @@ export default function Quiz() {
           </T>
           <T v="h3" style={{ fontWeight: '800', fontSize: 17, lineHeight: 25, marginBottom: 20 }}>{q.question}</T>
 
+          {q.answers && q.answers.length > 1 ? (
+            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: '#5EA7C9', marginBottom: 10 }}>
+              PICK {q.answers.length} ANSWERS
+            </T>
+          ) : null}
           <View style={{ gap: 10 }}>
             {q.options.map((opt, idx) => {
-              const isRight = picked != null && idx === q.answer;
-              const isWrong = picked === idx && idx !== q.answer;
+              const isMulti = !!q.answers && q.answers.length > 1;
+              const chosen = isMulti ? multi.includes(idx) : picked === idx;
+              const full = isMulti && multi.length >= (q.answers?.length ?? 1) && !chosen;
               return (
                 <Pressable
                   key={idx}
-                  disabled={picked != null}
-                  onPress={() => submit(idx)}
+                  disabled={picked != null || full}
+                  onPress={() => {
+                    if (isMulti) {
+                      haptic.selection();
+                      setMulti((m) => (m.includes(idx) ? m.filter((x) => x !== idx) : m.length >= (q.answers?.length ?? 1) ? m : [...m, idx]));
+                    } else submit(idx);
+                  }}
                   style={({ pressed }) => ({
-                    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1.5,
-                    borderColor: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : picked != null ? d.cardBorder : d.cardBorder,
-                    backgroundColor: isRight ? 'rgba(46,204,113,0.14)' : isWrong ? 'rgba(255,123,123,0.12)' : d.card,
+                    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15,
+                    borderWidth: 1.5,
+                    borderColor: chosen ? (isDark ? 'rgba(74,227,143,0.7)' : 'rgba(29,111,66,0.6)') : d.cardBorder,
+                    backgroundColor: chosen ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : d.card,
                     paddingHorizontal: 14, paddingVertical: 13, opacity: picked == null && pressed ? 0.7 : 1,
                   })}
                 >
-                  <View style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 1.5, borderColor: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : d.cardBorder, backgroundColor: isRight ? 'rgba(46,204,113,0.2)' : isWrong ? 'rgba(255,123,123,0.15)' : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: isRight ? '#4AE38F' : isWrong ? '#FF7B7B' : d.subtext }}>{String.fromCharCode(65 + idx)}</T>
+                  <View style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 1.5, borderColor: chosen ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, backgroundColor: chosen ? 'rgba(46,204,113,0.18)' : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: chosen ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{String.fromCharCode(65 + idx)}</T>
                   </View>
                   <T v="bodyS" style={{ flex: 1, fontSize: 13.5, lineHeight: 19 }}>{opt}</T>
-                  {isRight ? <FontAwesome5 name="check-circle" size={17} color="#4AE38F" /> : null}
-                  {isWrong ? <FontAwesome5 name="times-circle" size={17} color="#FF7B7B" /> : null}
                 </Pressable>
               );
             })}
           </View>
 
-          {picked != null && q.explanation ? (
-            <View style={{ marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', padding: 13 }}>
-              <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.7, color: isDark ? '#E8C96A' : '#8C6D1F' }}>WHY</T>
-              <T v="caption" style={{ fontSize: 11.5, lineHeight: 17, marginTop: 4, color: d.subtext }}>{q.explanation}</T>
-            </View>
-          ) : null}
-
-          {picked != null ? (
-            <Pressable onPress={next} style={({ pressed }) => ({ marginTop: 18, alignItems: 'center', paddingVertical: 14, borderRadius: 15, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1, flexDirection: 'row', justifyContent: 'center', gap: 8 })}>
-              <T v="button" style={{ fontWeight: '800', fontSize: 13.5 }}>{i + 1 >= deck.length ? 'See results' : 'Next question'}</T>
-              <FontAwesome5 name="arrow-right" size={11} color="rgba(255,255,255,0.85)" />
+          {q.answers && q.answers.length > 1 ? (
+            <Pressable
+              disabled={picked != null || multi.length < q.answers.length}
+              onPress={() => submit(null, false, [...multi].sort((a, b) => a - b))}
+              style={({ pressed }) => ({ marginTop: 16, borderRadius: 15, paddingVertical: 13, alignItems: 'center', backgroundColor: multi.length === q.answers?.length ? (isDark ? '#1F8F5C' : '#1D6F42') : d.bgSoft, opacity: pressed ? 0.85 : 1 })}
+            >
+              <T v="button" style={{ fontWeight: '800', fontSize: 13, color: multi.length === q.answers?.length ? '#FFFFFF' : d.faint }}>
+                Confirm {multi.length}/{q.answers.length}
+              </T>
             </Pressable>
           ) : null}
+
         </ScrollView>
       </View>
     );
@@ -253,6 +267,7 @@ export default function Quiz() {
 
   /* ---------------- results ---------------- */
   const score = answers.filter((a) => a.correct).length;
+  const allCorrect = answers.length > 0 && score === answers.length;
   const pct = answers.length ? Math.round((score / answers.length) * 100) : 0;
   const R2 = 62;
   const C2 = 2 * Math.PI * R2;
@@ -267,8 +282,29 @@ export default function Quiz() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 20, padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* score ring */}
+        {/* trophy — always shown on results; confetti when ALL correct */}
+        <Confetti fire={allCorrect} />
         <View style={{ alignItems: 'center', marginBottom: 22 }}>
+          <View
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 22,
+              borderWidth: 1.5,
+              borderColor: allCorrect ? 'rgba(212,175,55,0.75)' : pct >= 70 ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)',
+              backgroundColor: allCorrect ? 'rgba(212,175,55,0.14)' : 'rgba(46,204,113,0.10)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 12,
+              shadowColor: allCorrect ? '#D4AF37' : '#1F8F5C',
+              shadowOpacity: allCorrect ? 0.55 : 0.3,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 10,
+            }}
+          >
+            <FontAwesome5 name="trophy" size={30} color={allCorrect ? '#E8C96A' : pct >= 70 ? '#4AE38F' : isDark ? '#4AE38F' : '#1D6F42'} />
+          </View>
           <View style={{ width: 150, height: 150, alignItems: 'center', justifyContent: 'center' }}>
             <Svg style={{ position: 'absolute' }} width={150} height={150}>
               <Circle cx={75} cy={75} r={R2} fill="none" stroke={d.bgSoft} strokeWidth={10} />
@@ -308,8 +344,11 @@ export default function Quiz() {
                 <T v="caption" style={{ fontWeight: '800', fontSize: 10, color: d.faint }}>Q{k + 1} · {a.q.category.toUpperCase()}{a.timedOut ? ' · TIMED OUT' : ''}</T>
               </View>
               <T v="bodyS" style={{ fontWeight: '700', fontSize: 12.5, lineHeight: 18, marginBottom: 7 }}>{a.q.question}</T>
-              <T v="caption" style={{ fontSize: 11, color: '#4AE38F', marginBottom: 3 }}>✓ {a.q.options[a.q.answer]}</T>
-              {!a.correct && a.picked != null ? <T v="caption" style={{ fontSize: 11, color: '#FF7B7B', marginBottom: 3 }}>✗ You: {a.q.options[a.picked]}</T> : null}
+              <T v="caption" style={{ fontSize: 11, color: '#4AE38F', marginBottom: 3 }}>
+                ✓ {a.q.answers ? a.q.answers.map((x) => a.q.options[x]).join(' + ') : a.q.options[a.q.answer]}
+              </T>
+              {!a.correct && a.pickedMulti ? <T v="caption" style={{ fontSize: 11, color: '#FF7B7B', marginBottom: 3 }}>✗ You: {a.pickedMulti.map((x) => a.q.options[x]).join(' + ') || '—'}</T> : null}
+              {!a.correct && !a.pickedMulti && a.picked != null ? <T v="caption" style={{ fontSize: 11, color: '#FF7B7B', marginBottom: 3 }}>✗ You: {a.q.options[a.picked]}</T> : null}
               {!a.correct && a.timedOut ? <T v="caption" style={{ fontSize: 11, color: '#FF7B7B', marginBottom: 3 }}>✗ Ran out of time</T> : null}
               {a.q.explanation ? <T v="caption" style={{ fontSize: 10.5, lineHeight: 15.5, color: d.faint, marginTop: 4 }}>{a.q.explanation}</T> : null}
             </View>
@@ -325,6 +364,65 @@ export default function Quiz() {
           </Pressable>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+
+/* Celebration confetti — fires only when the user nailed every question. */
+function Confetti({ fire }: { fire: boolean }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 26 }, (_, i) => ({
+        id: i,
+        x: Math.random() * (Dimensions.get('window').width - 20),
+        delay: Math.random() * 700,
+        dur: 1700 + Math.random() * 1400,
+        size: 6 + Math.random() * 7,
+        color: ['#4AE38F', '#E8C96A', '#5BC8F5', '#F0A8C0', '#D4AF37'][i % 5],
+        drift: (Math.random() - 0.5) * 90,
+        round: Math.random() > 0.5,
+      })),
+    [],
+  );
+  const vals = useRef<Animated.Value[]>([]);
+  if (vals.current.length === 0) vals.current = pieces.map(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!fire) return;
+    haptic.success();
+    vals.current.forEach((v, i) => {
+      Animated.sequence([
+        Animated.delay(pieces[i].delay),
+        Animated.timing(v, { toValue: 1, duration: pieces[i].dur, easing: Easing.in(Easing.poly(2)), useNativeDriver: false }),
+      ]).start();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fire]);
+
+  if (!fire) return null;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', inset: 0, zIndex: 90, overflow: 'hidden' }}>
+      {pieces.map((p, i) => (
+        <Animated.View
+          key={p.id}
+          style={{
+            position: 'absolute',
+            top: -14,
+            left: p.x,
+            width: p.size,
+            height: p.round ? p.size : p.size * 0.5,
+            borderRadius: p.round ? p.size / 2 : 2,
+            backgroundColor: p.color,
+            opacity: vals.current[i].interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }),
+            transform: [
+              { translateY: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: [0, Dimensions.get('window').height + 40] }) },
+              { translateX: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: [0, p.drift] }) },
+              { rotate: vals.current[i].interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.drift * 4}deg`] }) },
+            ],
+          }}
+        />
+      ))}
     </View>
   );
 }
