@@ -22,8 +22,12 @@ master @ d7313ce · diag24 **14/14 green** (scripts/diag24.mjs)
 - Sandbox resets: git fetch+reset --hard FETCH_HEAD, npm install (now also unpacks content!), npx playwright-core install chromium-headless-shell.
 - Speech: getRecognition/dictateArabic in src/lib/speech.ts; continuous mode leaks if you forget abort() on unmount.
 
-## Not yet done / next
-- REAL Grok test with a live xai- key (streaming + web search) — blocked on user's key.
+## Pass-24b update — GROQ is the live provider (diag24 18/18 incl. live tests)
+- User supplied a GROQ key (gsk_…, kept ONLY in /tmp/groq.key for diag — never in repo; they will revoke it). ai.ts is now multi-provider: detectProvider() by key prefix → PROVIDERS.groq (api.groq.com/openai/v1) | PROVIDERS.xai. Groq models: openai/gpt-oss-120b (default, reasoning_effort low), gpt-oss-20b, qwen/qwen3.8-27b — verified via /v1/models.
+- gpt-oss streams chain-of-thought in delta.reasoning → shown as faint "Thinking…" italic + "reasoned Ns" badge (thinkMs>800). Answer = delta.content only.
+- Web search = groq/compound (streams its agentic <think>/<tool> blocks as content): cleanAI() strips them, "🔎 researching the web…" state while open. Compound non-stream 400s on free tier ("request_too_large") but STREAMS fine. If compound errors → auto-retry chosen model offline + "⚠️ Web search was unavailable" note. Empty 200-stream (rate-limit artifact) → honest note + library fallback, never a blank bubble.
+- Free-tier TPM limits (30k/min) → 429s during heavy diag runs; app surfaces them honestly. Live verified: Yā-Sīn answer streamed; gold-price compound answer with real numbers.
+- diag24 section 8 (LIVE) auto-skips when /tmp/groq.key is absent.
 - Recite Mode on native needs a native speech module (expo-speech-recognition) if we ship apps.
 - User's local iOS bundling: tell them `git pull && npm install` (or `node scripts/unpack-content.mjs`).
 - Loop counter badge on the mini bar (shows armed state only via gold icon for now).
