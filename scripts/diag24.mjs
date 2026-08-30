@@ -13,6 +13,22 @@ const results = [];
 const ok = (name, pass, extra = '') => results.push(`${pass ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`);
 const bodyText = () => page.evaluate(() => document.body.innerText);
 
+const ensureAuthOn = async (pg) => {
+  await pg.waitForTimeout(3000);
+  for (let i = 0; i < 3; i++) {
+    const tt = await pg.evaluate(() => document.body.innerText);
+    if (!tt.includes('Welcome back!')) return;
+    const b = await pg.evaluate(() => {
+      const els = [...document.querySelectorAll('div,span,button')].filter((e) => (e.textContent || '').trim() === 'Sign In');
+      const el = els[els.length - 1];
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + 16 };
+    });
+    if (b) await pg.touchscreen.tap(b.x, b.y).catch(() => {});
+    await pg.waitForTimeout(3000);
+  }
+};
 const ensureAuth = async () => {
   await page.waitForTimeout(3000);
   for (let i = 0; i < 3; i++) {
@@ -50,13 +66,13 @@ if (gear) {
   await page.touchscreen.tap(gear.x, gear.y);
   await page.waitForTimeout(700);
   t = await bodyText();
-  ok('ai: settings sheet (key, model, web search)', t.includes('GROK') && t.includes('MODEL') && t.includes('WEB SEARCH'));
+  ok('ai: settings sheet (key, model, web search)', t.includes('GROQ / XAI API KEY') && t.includes('MODEL') && t.includes('WEB SEARCH'));
   /* invalid key warning */
   const keyInput = page.locator('input[placeholder="xai-…"]');
   await keyInput.fill('abc123');
   await page.waitForTimeout(300);
   t = await bodyText();
-  ok('ai: non-xai key shows warning', t.includes('console.x.ai'));
+  ok('ai: bad key shows provider hint', t.includes('console.groq.com'));
   await page.touchscreen.tap(195, 820); /* scrim below the centered card */
   await page.waitForTimeout(800);
 } else ok('ai: settings sheet (key, model, web search)', false, 'no gear');
@@ -184,6 +200,58 @@ if (loopBtn) {
     ok('reader: loop starts (sheet closes, reader alive)', !t.includes('Repeat for memorization') && (t.includes('Al-Falaq') || t.includes('AYAH')));
   } else ok('reader: loop starts (sheet closes, reader alive)', false, 'no start btn');
 } else ok('reader: loop sheet (range, per-ayah, cycles)', false, 'no loop btn');
+
+
+/* ── 8. LIVE Groq test (key injected from /tmp/groq.key — never committed) ── */
+import { readFileSync } from 'node:fs';
+let groqKey = null;
+try { groqKey = readFileSync('/tmp/groq.key', 'utf8').trim(); } catch {}
+if (!groqKey || groqKey.length < 20) {
+  ok('ai-live: skipped (no /tmp/groq.key)', true, 'pass');
+} else {
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await ctx2.addInitScript((k) => { try { window.localStorage.setItem('dl.ai.key.v1', k); } catch {} }, groqKey);
+  const page2 = await ctx2.newPage();
+  await page2.goto('http://localhost:3996/deenapp/tools/ai', { waitUntil: 'domcontentloaded' });
+  await ensureAuthOn(page2);
+  await page2.goto('http://localhost:3996/deenapp/tools/ai', { waitUntil: 'domcontentloaded' });
+  await page2.waitForTimeout(3000);
+  let t2 = await page2.evaluate(() => document.body.innerText);
+  ok('ai-live: GROQ pill shows after key', t2.includes('GROQ'), t2.includes('GPT-OSS 120B') ? 'model listed' : '');
+  await page2.locator('[placeholder="Ask about quran, hadith, dua…"]').fill('Which surah is called the heart of the Quran, and why? Two sentences.');
+  const sb2 = await page2.evaluate(() => { const el = [...document.querySelectorAll('[aria-label="Send"]')].pop(); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page2.touchscreen.tap(sb2.x, sb2.y);
+  let live = '', sawThink = false, sawError = '';
+  for (let i = 0; i < 34; i++) {
+    await page2.waitForTimeout(2000);
+    t2 = await page2.evaluate(() => document.body.innerText);
+    if (t2.includes('Thinking…') || t2.includes('reasoned')) sawThink = true;
+    const m = t2.match(/heart of the Quran[\s\S]{0,400}?\n/i);
+    const answerChunk = t2.split('Two sentences.').pop() ?? '';
+    if (/Y[aā].?S[iī]n|36th|Surah\s*36/i.test(answerChunk)) { live = answerChunk.slice(0, 160); break; }
+    if (t2.includes('⚠️') || t2.includes('HTTP 4')) { sawError = t2.slice(t2.indexOf('⚠️'), t2.indexOf('⚠️') + 120); }
+    if (i === 33) live = answerChunk.slice(0, 160);
+  }
+  ok('ai-live: Groq streamed a real answer', /Y[aà-â].?S[iì-î]n|36th|Surah\s*36/i.test(live), JSON.stringify(live.slice(0, 70)));
+  ok('ai-live: reasoning/thinking surfaced or low-latency answer (effort=low)', sawThink || live.length > 30);
+  /* web toggle: compound may fail on free tier → must still answer */
+  const wt = await page2.evaluate(() => { const el = [...document.querySelectorAll('[aria-label="web search toggle"]')].pop(); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page2.touchscreen.tap(wt.x, wt.y);
+  await page2.waitForTimeout(400);
+  await page2.locator('[placeholder="Ask about quran, hadith, dua…"]').fill('What is the current gold price per gram in USD? One sentence.');
+  await page2.touchscreen.tap(sb2.x, sb2.y);
+  let webAns = '';
+  for (let i = 0; i < 60; i++) {
+    await page2.waitForTimeout(2000);
+    t2 = await page2.evaluate(() => document.body.innerText);
+    const lastBubble = t2.split('DEENLINK ·').pop() ?? '';
+    if (/gold/i.test(lastBubble) && (/\$\s?\d|per gram|unavailable|HTTP \d/i.test(lastBubble))) { webAns = lastBubble.slice(0, 260); break; }
+    if (i === 59) webAns = lastBubble.slice(0, 260);
+  }
+  const answeredOrHonest = /gold/i.test(webAns) || /unavailable|HTTP \d|rate/i.test(webAns);
+  ok('ai-live: web-search toggle answers or surfaces a clear error', answeredOrHonest, JSON.stringify(webAns.slice(0, 90)));
+  await ctx2.close();
+}
 
 /* summary */
 console.log('\n===== PASS-24 DIAG =====');

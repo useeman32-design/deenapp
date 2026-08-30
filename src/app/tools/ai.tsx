@@ -7,8 +7,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import {
-  AiChat, AiMsg, AiSource, GROK_MODELS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
-  getApiKey, getModel, getWebPref, loadChats, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamGrok, uid,
+  AiChat, AiMsg, AiSource, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
+  detectProvider, getApiKey, getModel, getWebPref, loadChats, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
 
 /**
@@ -49,9 +49,11 @@ export default function DeenLinkAI() {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'retrieving' | 'thinking' | 'streaming'>('idle');
   const [apiKey, setKey] = useState('');
-  const [model, setModelState] = useState<string>(GROK_MODELS[0].id);
+  const [model, setModelState] = useState<string>(PROVIDERS.groq.models[0].id);
   const [webOn, setWebOn] = useState(false);
   const [webToggle, setWebToggle] = useState(false); // per-send web search toggle state comes from pref; this is the quick pill
+  const provider = detectProvider(apiKey);
+  const modelList = provider ? PROVIDERS[provider].models : PROVIDERS.groq.models;
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
@@ -67,6 +69,15 @@ export default function DeenLinkAI() {
   }, []);
 
   useEffect(() => { webRef.current = webToggle; }, [webToggle]);
+
+  /* if the saved model doesn't belong to the active provider, snap to its first */
+  useEffect(() => {
+    if (provider && !modelList.some((m) => m.id === model)) {
+      setModelState(modelList[0].id);
+      setModel(modelList[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]);
 
   const activeChat = useMemo(() => chats.find((c) => c.id === activeId) ?? null, [chats, activeId]);
 
@@ -113,17 +124,23 @@ export default function DeenLinkAI() {
       const history = [...msgs.filter((m) => m.text), userMsg].slice(-8).map((m) => ({ role: m.role, content: m.text }) as { role: 'user' | 'assistant'; content: string });
       const sys = SYSTEM_PROMPT + (sources.length ? '\n\n' + buildContext(sources) : '') + (webRef.current ? '\n\nWeb search is enabled — verify current facts and cite [web].' : '');
       let acc = '';
+      let reasoning = '';
+      const thinkStart = Date.now();
       let err = '';
-      await streamGrok(
+      await streamLLM(
         apiKey,
         model,
         [{ role: 'system', content: sys }, ...history],
         webRef.current,
         (e) => {
+          if (e.reason && !acc) {
+            reasoning += e.reason;
+            setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], reasoning: reasoning.slice(-300), thinkMs: Date.now() - thinkStart }; return c; });
+          }
           if (e.delta) {
             acc += e.delta;
             setPhase('streaming');
-            setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: acc, streamed: true }; return c; });
+            setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: acc, streamed: true, thinkMs: Date.now() - thinkStart }; return c; });
             scrollDown();
           }
           if (e.error) err = e.error;
@@ -137,6 +154,10 @@ export default function DeenLinkAI() {
         const fallback = composeLocalAnswer(q, sources);
         const note = `⚠️ ${err}\n\n${fallback}`;
         setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: note }; return c; });
+      } else if (!acc.trim()) {
+        /* 200-stream with zero tokens (rate-limit artifact) — answer honestly */
+        const fallback = composeLocalAnswer(q, sources);
+        setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: `⚠️ The model returned an empty response (the free tier may be rate-limited — try again in a minute).\n\n${fallback}` }; return c; });
       }
       setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...sources] }; return c; });
     } else {
@@ -185,7 +206,7 @@ export default function DeenLinkAI() {
 
   const bubble = (m: AiMsg, i: number) => {
     const mine = m.role === 'user';
-    const thinkingHere = !mine && busy && i === msgs.length - 1 && !m.text;
+    const thinkingHere = !mine && busy && i === msgs.length - 1 && (m.text.trim() === '' || researching(m.text));
     return (
       <View key={i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '86%', marginBottom: 12 }}>
         {!mine ? (
@@ -193,7 +214,7 @@ export default function DeenLinkAI() {
             <View style={{ width: 20, height: 20, borderRadius: 7, backgroundColor: isDark ? '#12291C' : '#E8F3EC', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5 name="robot" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
             </View>
-            <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>DEENLINK {apiKey ? '· GROK' : '· ON-DEVICE'}</T>
+            <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>DEENLINK {apiKey && provider ? `· ${PROVIDERS[provider].label}` : '· ON-DEVICE'}</T>
             {m.streamed ? <FontAwesome5 name="bolt" size={8} color="#E8C96A" /> : null}
           </View>
         ) : null}
@@ -210,19 +231,37 @@ export default function DeenLinkAI() {
           }}
         >
           {thinkingHere ? (
+            <View style={{ paddingVertical: 3 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                <T v="caption" style={{ fontSize: 11, color: d.faint }}>
+                  {phase === 'retrieving' ? 'Searching your library…' : m.reasoning ? 'Thinking…' : 'Thinking…'}
+                </T>
+              </View>
+              {m.reasoning ? (
+                <T v="caption" numberOfLines={3} style={{ fontSize: 9.5, fontStyle: 'italic', color: isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)', marginTop: 6, lineHeight: 14 }}>
+                  {m.reasoning}…
+                </T>
+              ) : null}
+            </View>
+          ) : researching(m.text) ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
-              <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
-              <T v="caption" style={{ fontSize: 11, color: d.faint }}>
-                {phase === 'retrieving' ? 'Searching your library…' : phase === 'thinking' ? 'Thinking…' : 'Composing…'}
-              </T>
+              <ActivityIndicator size="small" color="#5EA7C9" />
+              <T v="caption" style={{ fontSize: 11, color: '#5EA7C9' }}>🔎 researching the web…</T>
             </View>
           ) : (
             <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color: mine ? '#FFFFFF' : d.text }}>
-              {m.text}
+              {cleanAI(m.text)}
               {m.streamed && busy && i === msgs.length - 1 ? <ActivityIndicator size="small" /> : null}
             </T>
           )}
         </View>
+        {!mine && m.thinkMs != null && m.text && !thinkingHere && m.thinkMs > 800 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 }}>
+            <FontAwesome5 name="bolt" size={8} color="#E8C96A" />
+            <T v="caption" style={{ fontSize: 8.5, fontWeight: '700', color: d.faint }}>reasoned {(m.thinkMs / 1000).toFixed(1)}s</T>
+          </View>
+        ) : null}
         {/* source chips */}
         {!mine && m.sources && m.sources.length > 0 && !thinkingHere ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
@@ -254,11 +293,11 @@ export default function DeenLinkAI() {
             <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>DeenLink AI</T>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: apiKey ? 'rgba(31,143,92,0.12)' : 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: apiKey ? 'rgba(31,143,92,0.4)' : 'rgba(212,175,55,0.4)' }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: apiKey ? '#1F8F5C' : '#D4AF37' }} />
-              <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: apiKey ? (isDark ? '#4AE38F' : '#1D6F42') : '#B8870B' }}>{apiKey ? 'LIVE' : 'ON-DEVICE'}</T>
+              <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: apiKey ? (isDark ? '#4AE38F' : '#1D6F42') : '#B8870B' }}>{apiKey ? (provider ? PROVIDERS[provider].label : 'LIVE') : 'ON-DEVICE'}</T>
             </View>
           </View>
           <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>
-            {apiKey ? `${GROK_MODELS.find((m) => m.id === model)?.label ?? model} · your library + ${webToggle ? 'web' : 'offline'}` : 'Answers from your library · add a Grok key for full AI'}
+            {apiKey && provider ? `${modelList.find((m) => m.id === model)?.label ?? model} · your library + ${webToggle ? 'web' : 'model'}` : 'Answers from your library · add a Groq/Grok key for full AI'}
           </T>
         </View>
         <Pressable accessibilityLabel="Chat history" onPress={() => { haptic.selection(); setShowHistory(true); }} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
@@ -283,7 +322,7 @@ export default function DeenLinkAI() {
                 </View>
                 <T v="h1" style={{ fontSize: 22, fontWeight: '800', color: d.text, marginTop: 14 }}>Assalamu alaikum</T>
                 <T v="caption" style={{ fontSize: 11.5, color: d.faint, marginTop: 4, textAlign: 'center', lineHeight: 17 }}>
-                  Ask anything about the Qur{'\u2019'}an, hadith, duas{'\u2014'} or life. I answer from your verified library{apiKey ? ' + Grok reasoning' : ''}.
+                  Ask anything about the Qur{'\u2019'}an, hadith, duas{'\u2014'} or life. I answer from your verified library{apiKey ? ` + ${provider ? PROVIDERS[provider].label : 'AI'} reasoning` : ''}.
                 </T>
               </View>
               {CATEGORIES.map((c) => (
@@ -340,7 +379,7 @@ export default function DeenLinkAI() {
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>
-            {apiKey ? 'Verify important rulings with a qualified scholar' : 'On-device mode — tap ⟂ Settings to add a Grok API key'} · {webToggle ? 'web search ON' : 'web search off'}
+            {apiKey ? 'Verify important rulings with a qualified scholar' : 'On-device mode — tap the sliders to add a Groq API key'} · {webToggle ? 'web search ON' : 'web search off'}
           </T>
         </View>
       </KeyboardAvoidingView>
@@ -401,26 +440,26 @@ export default function DeenLinkAI() {
             <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>AI Settings</T>
             <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, marginBottom: 14 }}>Your key stays on this device only — never uploaded or committed.</T>
 
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>XAI (GROK) API KEY</T>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>GROQ / XAI API KEY</T>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, marginBottom: 14 }}>
-              <FontAwesome5 name="key" size={11} color={keyDraft.startsWith('xai-') ? '#1F8F5C' : '#B8870B'} />
+              <FontAwesome5 name="key" size={11} color={detectProvider(keyDraft) ? '#1F8F5C' : '#B8870B'} />
               <TextInput value={keyDraft} onChangeText={setKeyDraft} placeholder="xai-…" placeholderTextColor={d.faint} autoCapitalize="none" autoCorrect={false} secureTextEntry style={{ flex: 1, paddingVertical: 11, fontSize: 13, color: d.text, fontFamily: 'Poppins-Regular' }} />
               <Pressable onPress={saveKey} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42' }}>
                 <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Save</T>
               </Pressable>
             </View>
-            {keyDraft && !keyDraft.startsWith('xai-') ? (
-              <T v="caption" style={{ fontSize: 9, color: '#DC5050', marginBottom: 10 }}>That does not look like an xAI key — they start with “xai-” (from console.x.ai).</T>
+            {keyDraft && !detectProvider(keyDraft) ? (
+              <T v="caption" style={{ fontSize: 9, color: '#DC5050', marginBottom: 10 }}>Unrecognized key — Groq keys start with gsk_ (console.groq.com), xAI keys with xai-.</T>
             ) : null}
 
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>MODEL</T>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-              {GROK_MODELS.map((m) => {
+              {modelList.map((m) => {
                 const on = model === m.id;
                 return (
                   <Pressable key={m.id} onPress={() => { haptic.selection(); setModelState(m.id); setModel(m.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 11, borderWidth: 1, borderColor: on ? 'rgba(31,143,92,0.5)' : d.cardBorder, backgroundColor: on ? 'rgba(31,143,92,0.1)' : d.bgSoft }}>
                     <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: on ? '#1F8F5C' : d.faint }} />
-                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{m.label}</T>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{m.label}{m.note ? ` · ${m.note}` : ''}</T>
                   </Pressable>
                 );
               })}
@@ -429,14 +468,14 @@ export default function DeenLinkAI() {
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>DEFAULT WEB SEARCH</T>
             <Pressable onPress={() => { haptic.selection(); const nx = !webOn; setWebOn(nx); setWebPref(nx); setWebToggle(nx); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 14 }}>
               <FontAwesome5 name="globe" size={12} color={webOn ? '#5EA7C9' : d.faint} />
-              <T v="bodyS" style={{ flex: 1, fontSize: 12, color: d.text }}>Let Grok search the internet for current facts</T>
+              <T v="bodyS" style={{ flex: 1, fontSize: 12, color: d.text }}>Let the AI search the internet for current facts</T>
               <View style={{ width: 38, height: 22, borderRadius: 11, backgroundColor: webOn ? '#2C6E8F' : d.cardBorder, padding: 2 }}>
                 <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff', marginLeft: webOn ? 16 : 0 }} />
               </View>
             </Pressable>
 
             <T v="caption" style={{ fontSize: 9, color: d.faint, lineHeight: 14 }}>
-              Without a key, DeenLink AI answers on-device from the app library (quran, hadith, dua, 99 names, quizzes). With a key, Grok reasons over both your library and — if enabled — live web results. xAI bills the key’s plan; nothing passes through our servers.
+              Without a key, DeenLink AI answers on-device from the app library (quran, hadith, dua, 99 names, quizzes). With a Groq or xAI key, the model reasons over your library and — if enabled — live web results. Requests go straight from this device to the provider; nothing passes through our servers. Web search uses Groq’s compound model when available and falls back to the selected model otherwise.
             </T>
           </Pressable>
         </Pressable>
@@ -446,4 +485,8 @@ export default function DeenLinkAI() {
 }
 
 const shortUrl = (u: string) => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u.slice(0, 24); } };
+/** hide compound's agentic <think>/<tool> blocks (incl. an open trailing one) */
+const cleanAI = (t: string) =>
+  t.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<tool>[\s\S]*?<\/tool>/g, '').replace(/<think>[\s\S]*$/, '').replace(/<tool>[\s\S]*$/, '');
+const researching = (t: string) => cleanAI(t).trim().length === 0 && t.trim().length > 0;
 const dedupeSources = (list: AiSource[]) => { const seen = new Set<string>(); return list.filter((s) => { const k = s.label; if (seen.has(k)) return false; seen.add(k); return true; }); };

@@ -1,10 +1,12 @@
 /**
- * DeenLink AI engine (pass 24).
+ * DeenLink AI engine (pass 24, updated for Groq).
  * · Chat history persisted locally (dl.ai.chats.v2) — full conversations.
  * · Retrieval over OUR OWN datasets: quran corpus, hadith books, duas/athkar,
  *   99 names, quizzes → cited context.
- * · Optional real reasoning via xAI Grok (user's key, stored on-device only,
- *   never committed) with SSE streaming + optional live web search.
+ * · Real reasoning via Groq (gsk_… keys — gpt-oss models stream their
+ *   chain-of-thought in delta.reasoning, which we surface as "thinking")
+ *   or xAI Grok (xai-… keys, server-side web search). Key stored on-device
+ *   only, never committed.
  * · No key → on-device mode: answers assembled from local retrieval only.
  */
 import { loadBook, loadDuas, loadNames99, loadQuiz, loadSurah, type ContentHadith } from '@/lib/content';
@@ -12,14 +14,44 @@ import { QURAN } from '@/data/quran';
 import { ensureQuranCorpus, searchQuranCorpus } from '@/lib/quranSearch';
 import { storage } from '@/lib/storage';
 
-export const GROK_MODELS = [
-  { id: 'grok-4-fast-reasoning', label: 'Grok 4 Fast · reasoning' },
-  { id: 'grok-4', label: 'Grok 4 · flagship' },
-  { id: 'grok-3-mini', label: 'Grok 3 Mini · fast' },
-] as const;
+export type ProviderId = 'groq' | 'xai';
+export type ModelOpt = { id: string; label: string; note?: string };
+
+export const PROVIDERS: Record<ProviderId, { label: string; endpoint: string; models: ModelOpt[]; webModel: string; keyHint: string }> = {
+  groq: {
+    label: 'GROQ',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    webModel: 'groq/compound', /* built-in web search; auto-falls back if the tier blocks it */
+    models: [
+      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', note: 'deep reasoning' },
+      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B', note: 'fast reasoning' },
+      { id: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B', note: 'balanced' },
+    ],
+    keyHint: 'Groq keys start with gsk_ (console.groq.com/keys).',
+  },
+  xai: {
+    label: 'XAI',
+    endpoint: 'https://api.x.ai/v1/chat/completions',
+    webModel: '',
+    models: [
+      { id: 'grok-4-fast-reasoning', label: 'Grok 4 Fast', note: 'reasoning' },
+      { id: 'grok-4', label: 'Grok 4', note: 'flagship' },
+      { id: 'grok-3-mini', label: 'Grok 3 Mini', note: 'fast' },
+    ],
+    keyHint: 'xAI keys start with xai- (console.x.ai).',
+  },
+};
+
+/** provider from key shape: gsk_… = Groq, xai-… = xAI */
+export function detectProvider(key: string): ProviderId | null {
+  const k = key.trim();
+  if (/^gsk[-_]/.test(k)) return 'groq';
+  if (k.startsWith('xai-')) return 'xai';
+  return null;
+}
 
 export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'web'; label: string; href?: string; excerpt: string };
-export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number };
+export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number };
 export type AiChat = { id: string; title: string; at: number; msgs: AiMsg[] };
 
 const K_CHATS = 'dl.ai.chats.v2';
@@ -32,7 +64,7 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 /* ───────────────────── settings ───────────────────── */
 export async function getApiKey(): Promise<string> { return (await storage.getItem(K_KEY)) ?? ''; }
 export async function setApiKey(k: string): Promise<void> { await storage.setItem(K_KEY, k.trim()); }
-export async function getModel(): Promise<string> { return (await storage.getItem(K_MODEL)) ?? GROK_MODELS[0].id; }
+export async function getModel(): Promise<string> { return (await storage.getItem(K_MODEL)) ?? PROVIDERS.groq.models[0].id; }
 export async function setModel(m: string): Promise<void> { await storage.setItem(K_MODEL, m); }
 export async function getWebPref(): Promise<boolean> { return (await storage.getItem(K_WEB)) === '1'; }
 export async function setWebPref(on: boolean): Promise<void> { await storage.setItem(K_WEB, on ? '1' : '0'); }
@@ -174,68 +206,82 @@ export function buildContext(sources: AiSource[]): string {
 export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the DeenLink Islamic app.
 - Warm, professional, concise. Greet respectfully; assume good intent.
 - When the context includes excerpts from the app library, prefer them and cite inline like [Quran 2:255] or [Bukhari · Faith #8]. Never fabricate ayah/hadith numbers.
-- If web search results are provided, use them for current facts and cite [web].
+- If web search results are available, use them for current facts and cite [web].
 - Be honest when unsure; encourage asking a qualified scholar for rulings.
 - Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.`;
 
-export type StreamEvent = { delta?: string; done?: boolean; error?: string; citations?: string[] };
+export type StreamEvent = { delta?: string; reason?: string; done?: boolean; error?: string; citations?: string[] };
 
-export async function streamGrok(
+/** SSE chat-completion that works for both Groq and xAI (OpenAI-compatible). */
+export async function streamLLM(
   key: string,
   model: string,
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   webSearch: boolean,
   onEvent: (e: StreamEvent) => void,
 ): Promise<void> {
-  const body: Record<string, unknown> = {
-    model,
-    messages,
-    stream: true,
-    temperature: 0.6,
-  };
-  if (webSearch) body.search_parameters = { mode: 'auto', return_citations: true };
-  let res: Response;
-  try {
-    res = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    onEvent({ error: 'NETWORK — could not reach api.x.ai (check connection or key)' });
-    return;
-  }
-  if (!res.ok || !res.body) {
-    let detail = `HTTP ${res.status}`;
-    try { const j = await res.json(); detail = j?.error?.message ?? detail; } catch {}
-    onEvent({ error: detail });
-    return;
-  }
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  let citations: string[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() ?? '';
-    for (const line of lines) {
-      const l = line.trim();
-      if (!l.startsWith('data:')) continue;
-      const payload = l.slice(5).trim();
-      if (payload === '[DONE]') { onEvent({ done: true, citations }); return; }
-      try {
-        const j = JSON.parse(payload);
-        const delta = j?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) onEvent({ delta });
-        const cit = j?.citations;
-        if (Array.isArray(cit)) citations = cit.map(String).slice(0, 6);
-      } catch {}
+  const provider = detectProvider(key);
+  if (!provider) { onEvent({ error: 'Unrecognized API key — Groq keys start with gsk_, xAI keys with xai-.' }); return; }
+  const P = PROVIDERS[provider];
+
+  const useWeb = webSearch && (provider !== 'xai' ? true : true);
+  const sendModel = useWeb && provider === 'groq' ? P.webModel : model;
+  const extra: Record<string, unknown> = {};
+  if (sendModel.includes('gpt-oss')) extra.reasoning_effort = 'low'; /* snappy on free tiers */
+  if (useWeb && provider === 'xai') extra.search_parameters = { mode: 'auto', return_citations: true };
+
+  const run = async (m: string, web: boolean): Promise<string | null> => {
+    const body: Record<string, unknown> = { model: m, messages, stream: true, temperature: 0.6, ...extra };
+    let res: Response;
+    try {
+      res = await fetch(P.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
+    } catch {
+      return 'NETWORK — could not reach the API (check connection)';
     }
+    if (!res.ok || !res.body) {
+      let detail = `HTTP ${res.status}`;
+      try { const j = await res.json(); detail = j?.error?.message ?? detail; } catch {}
+      return detail;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let citations: string[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l.startsWith('data:')) continue;
+        const payload = l.slice(5).trim();
+        if (payload === '[DONE]') { onEvent({ done: true, citations }); return null; }
+        try {
+          const j = JSON.parse(payload);
+          const delta = j?.choices?.[0]?.delta;
+          if (typeof delta?.content === 'string' && delta.content) onEvent({ delta: delta.content });
+          /* gpt-oss reasoning channel (Groq) — surfaced as "thinking" */
+          if (typeof delta?.reasoning === 'string' && delta.reasoning) onEvent({ reason: delta.reasoning });
+          const cit = j?.citations ?? j?.x_groq?.citations ?? undefined;
+          if (Array.isArray(cit)) citations = cit.map(String).slice(0, 6);
+        } catch {}
+      }
+    }
+    onEvent({ done: true, citations });
+    return null;
+  };
+
+  const err = await run(sendModel, useWeb);
+  if (err && useWeb && sendModel !== model) {
+    /* web model failed (tier/limits) → retry the chosen model offline */
+    const err2 = await run(model, false);
+    if (err2) onEvent({ error: err2 });
+    else onEvent({ delta: `\n\n⚠️ Web search was unavailable (${err.slice(0, 80)}) — answered without it.`, done: true });
+    return;
   }
-  onEvent({ done: true, citations });
+  if (err) onEvent({ error: err });
 }
 
 /** on-device fallback answer built purely from retrieved sources */
