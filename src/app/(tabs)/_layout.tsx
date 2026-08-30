@@ -54,18 +54,25 @@ function FloatingTabBar({
   const itemW = barW > 0 ? (barW - 2 * SIDE_PAD) / n : 0;
   const pillX = (i: number) => SIDE_PAD + i * itemW + (itemW - PILL_W) / 2;
 
-  /* routes render in declaration order — tools sits center as a normal tab */
+  /* pass 26: render in TABS order — expo-router sorts the quran/ FOLDER after
+   * file routes, which silently pushed Quran & Hadith to the far right. */
+  const displayIdx = (name: string) => {
+    const i = TABS.findIndex((t) => t.name === name);
+    return i >= 0 ? i : state.index;
+  };
+  const activeName = state.routes[state.index]?.name ?? TABS[0].name;
 
-  const pos = useRef(new Animated.Value(state.index)).current;
+  const pos = useRef(new Animated.Value(displayIdx(activeName))).current;
 
   useEffect(() => {
     Animated.timing(pos, {
-      toValue: state.index,
+      toValue: displayIdx(activeName),
       duration: 420,
       easing: Easing.out(Easing.poly(4)),
       useNativeDriver: true,
     }).start();
-  }, [state.index, pos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeName, pos]);
 
   const pillTranslate = pos.interpolate({
     inputRange: [0, n - 1],
@@ -130,10 +137,12 @@ function FloatingTabBar({
 
       {/* per-tab content */}
       <View style={{ position: 'absolute', inset: 0, flexDirection: 'row', paddingHorizontal: SIDE_PAD }}>
-        {state.routes.map((route, i) => {
-          const name = route.name;
+        {TABS.map((tab, i) => {
+          const route = state.routes.find((r) => r.name === tab.name);
+          if (!route) return null;
+          const name = tab.name;
+          const ri = state.routes.indexOf(route);
           const isCenter = name === 'tools';
-          const tab = TABS.find((t) => t.name === name) ?? TABS[0];
           const lit = pos.interpolate({
             inputRange: [i - 0.55, i, i + 0.55],
             outputRange: [0, 1, 0],
@@ -146,9 +155,9 @@ function FloatingTabBar({
               key={route.key}
               style={{ flex: 1, alignItems: 'center', paddingTop: PILL_TOP }}
               onPress={() => {
-                if (state.index !== i) {
+                if (state.index !== ri) {
                   haptic.selection();
-                  navigation.navigate(route.name as never);
+                  navigation.navigate(name as never);
                 }
               }}
             >

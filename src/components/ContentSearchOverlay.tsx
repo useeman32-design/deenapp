@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, TextInput, View } from 'react-native';
 import { dictateArabic, speechSupported } from '@/lib/speech';
+import { ReciteSearchModal } from '@/components/ReciteSearchModal';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -46,6 +47,9 @@ export function ContentSearchOverlay({
   const [q, setQ] = useState('');
   const [micBusy, setMicBusy] = useState(false);
   const [micHeard, setMicHeard] = useState('');
+  const [speechOk, setSpeechOk] = useState(false);
+  const [reciteOpen, setReciteOpen] = useState(false);
+  useEffect(() => { setSpeechOk(speechSupported()); }, []);
   const [content, setContent] = useState<SearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -127,7 +131,7 @@ export function ContentSearchOverlay({
           <Pressable onPress={onClose} hitSlop={10} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="chevron-left" size={14} color={theme.text} />
           </Pressable>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, paddingHorizontal: 11 }}>
+          <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, paddingHorizontal: 10 }}>
             <FontAwesome5 name="search" size={13} color={theme.subtext} />
             <TextInput
               autoFocus
@@ -135,11 +139,12 @@ export function ContentSearchOverlay({
               onChangeText={setQ}
               placeholder={placeholder}
               placeholderTextColor={theme.subtext}
-              style={{ flex: 1, paddingVertical: 11, fontSize: 16, color: theme.text, fontFamily: 'Poppins-Medium' }}
+              numberOfLines={1}
+              style={{ flex: 1, minWidth: 0, paddingVertical: 11, fontSize: 16, color: theme.text, fontFamily: 'Poppins-Medium' }}
             />
-            {speechSupported() ? (
-              <Pressable onPress={recite} hitSlop={8} accessibilityLabel="recite to search" style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: micBusy ? 'rgba(212,175,55,0.14)' : 'rgba(44,110,143,0.1)', borderWidth: 1, borderColor: micBusy ? 'rgba(212,175,55,0.5)' : 'rgba(44,110,143,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name={micBusy ? 'spinner' : 'microphone-alt'} size={12} color={micBusy ? '#E8C96A' : '#5EA7C9'} />
+            {speechOk ? (
+              <Pressable onPress={() => { setReciteOpen(true); }} hitSlop={8} accessibilityLabel="recite to search" style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(44,110,143,0.1)', borderWidth: 1, borderColor: 'rgba(44,110,143,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="microphone-alt" size={14} color="#5EA7C9" />
               </Pressable>
             ) : null}
             {q ? (
@@ -148,18 +153,7 @@ export function ContentSearchOverlay({
               </Pressable>
             ) : null}
           </View>
-          {micBusy ? (
-            <View style={{ marginTop: 8, marginHorizontal: 2, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.07)', padding: 12, gap: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                <FontAwesome5 name="microphone-alt" size={12} color="#B8870B" />
-                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B', letterSpacing: 0.4 }}>LISTENING — RECITE THE VERSE</T>
-              </View>
-              <T v="arabic" style={{ fontSize: 19, lineHeight: 34, color: theme.text, textAlign: 'right' }}>
-                {micHeard ? micHeard : '…'}
-              </T>
-              <T v="caption" style={{ fontSize: 9, color: theme.subtext }}>Matching your recitation against the app library…</T>
-            </View>
-          ) : null}
+
         </View>
 
         <View style={{ flex: 1, paddingHorizontal: 14 }}>
@@ -191,6 +185,13 @@ export function ContentSearchOverlay({
             </>
           )}
         </View>
+        {/* pass 26: glassy recite modal — live bold transcript → analyzing → results */}
+        <ReciteSearchModal
+          visible={reciteOpen}
+          onClose={() => setReciteOpen(false)}
+          onText={(t) => { setQ(t); }}
+          label={placeholder.includes('hadith') ? 'RECITE THE HADITH' : 'RECITE THE VERSE'}
+        />
       </View>
     </Modal>
   );

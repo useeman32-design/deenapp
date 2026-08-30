@@ -393,15 +393,28 @@ export default function DeenLinkAI() {
 
         {/* ── input bar (glassy) ── */}
         <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: glass.border, backgroundColor: glass.bg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Pressable onPress={() => { haptic.selection(); setWebToggle((w) => { setWebPref(!w); return !w; }); }} accessibilityLabel="web search toggle" style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: webToggle ? 'rgba(44,110,143,0.5)' : glass.border, backgroundColor: webToggle ? 'rgba(44,110,143,0.1)' : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="globe" size={13} color={webToggle ? '#5EA7C9' : d.faint} />
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+            <Pressable onPress={() => { haptic.selection(); setWebToggle((w) => { setWebPref(!w); return !w; }); }} accessibilityLabel="web search toggle" style={{ width: 44, height: 46, borderRadius: 16, borderWidth: 1, borderColor: webToggle ? 'rgba(44,110,143,0.55)' : glass.border, backgroundColor: webToggle ? 'rgba(44,110,143,0.12)' : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.65)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="globe" size={14} color={webToggle ? '#5EA7C9' : d.faint} />
             </Pressable>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 20, borderWidth: 1, borderColor: glass.border, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.7)', paddingHorizontal: 13 }}>
-              <TextInput value={draft} onChangeText={setDraft} placeholder="Ask anything…" placeholderTextColor={d.faint} multiline style={{ flex: 1, minHeight: 40, maxHeight: 96, paddingVertical: 9, fontSize: 13.5, color: d.text, fontFamily: 'Poppins-Regular' }} onSubmitEditing={() => send(draft)} />
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1.5, borderColor: draft ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.45)') : glass.border, backgroundColor: isDark ? 'rgba(10,22,15,0.65)' : 'rgba(255,255,255,0.92)', paddingHorizontal: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Ask anything…"
+                placeholderTextColor={d.faint}
+                multiline
+                style={{ flex: 1, minHeight: 46, maxHeight: 100, paddingVertical: 12, fontSize: 16, lineHeight: 21, color: d.text }}
+                onSubmitEditing={() => send(draft)}
+              />
+              {draft ? (
+                <Pressable onPress={() => setDraft('')} hitSlop={8} style={{ paddingHorizontal: 4 }}>
+                  <FontAwesome5 name="times-circle" size={15} color={d.faint} />
+                </Pressable>
+              ) : null}
             </View>
-            <Pressable accessibilityLabel="Send" onPress={() => send(draft)} disabled={!draft.trim() || busy} style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: !draft.trim() || busy ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(29,111,66,0.08)') : isDark ? '#1F8F5C' : '#1D6F42', borderWidth: 1, borderColor: !draft.trim() || busy ? glass.border : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-              {busy && phase !== 'retrieving' ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={13} color={!draft.trim() || busy ? d.faint : '#FFFFFF'} />}
+            <Pressable accessibilityLabel="Send" onPress={() => send(draft)} disabled={!draft.trim() || busy} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: !draft.trim() || busy ? (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(29,111,66,0.10)') : isDark ? '#1F8F5C' : '#1D6F42', borderWidth: 1.5, borderColor: !draft.trim() || busy ? glass.border : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              {busy && phase !== 'retrieving' ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={15} color={!draft.trim() || busy ? d.faint : '#FFFFFF'} />}
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>
