@@ -254,9 +254,9 @@ export default function DeenLinkAI() {
         <View style={{ borderRadius: 18, borderBottomRightRadius: mine ? 6 : 18, borderBottomLeftRadius: mine ? 18 : 6, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: mine ? (isDark ? '#1F8F5C' : '#1D6F42') : glass.bg, borderWidth: mine ? 0 : 1, borderColor: glass.border }}>
           {thinkingHere ? (
             <View style={{ paddingVertical: 3 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
-                <T v="caption" style={{ fontSize: 11, color: d.faint }}>{m.reasoning ? 'Thinking…' : researching(m.text) ? '🔎 researching the web…' : phase === 'retrieving' ? 'Searching your library…' : 'Thinking…'}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                <ThinkingDots color={researching(m.text) ? '#5EA7C9' : isDark ? '#4AE38F' : '#1D6F42'} />
+                <T v="caption" style={{ fontSize: 11, color: d.faint }}>{m.reasoning ? 'Thinking…' : researching(m.text) ? 'researching the web…' : phase === 'retrieving' ? 'Searching your library…' : 'Thinking…'}</T>
               </View>
               {m.reasoning ? <T v="caption" numberOfLines={3} style={{ fontSize: 9.5, fontStyle: 'italic', color: isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)', marginTop: 6, lineHeight: 14 }}>{m.reasoning}…</T> : null}
             </View>
@@ -470,6 +470,30 @@ export default function DeenLinkAI() {
           </Pressable>
         </Pressable>
       </Modal>
+    </View>
+  );
+}
+
+/** three bouncing dots — the classic "AI is thinking" signal (staggered) */
+function ThinkingDots({ color }: { color: string }) {
+  const vals = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+  useEffect(() => {
+    const loops = vals.map((v, i) => {
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+        Animated.timing(v, { toValue: 0, duration: 300, easing: Easing.in(Easing.quad), useNativeDriver: false }),
+      ]));
+      setTimeout(() => loop.start(), i * 160);
+      return loop;
+    });
+    return () => loops.forEach((l) => l.stop());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 18 }}>
+      {vals.map((v, i) => (
+        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color, opacity: 0.45, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }} />
+      ))}
     </View>
   );
 }

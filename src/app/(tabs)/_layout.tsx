@@ -25,8 +25,8 @@ import { QuranMiniPlayer } from '@/components/QuranMiniPlayer';
 
 const TABS = [
   { name: 'index', first: 'Home', second: '', icon: 'home' as const },
-  { name: 'quran', first: 'Quran &', second: 'Hadith', icon: 'star-and-crescent' as const },
-  { name: 'tools', first: 'Worship', second: 'Tools', icon: 'compass' as const },
+  { name: 'quran', first: 'Quran &', second: 'Hadith', icon: 'quran' as const },
+  { name: 'tools', first: 'Worship', second: 'Tools', icon: 'mosque' as const },
   { name: 'community', first: 'Community', second: '', icon: 'users' as const },
   { name: 'profile', first: 'Profile', second: '', icon: 'user' as const },
 ];

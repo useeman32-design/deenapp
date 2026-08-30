@@ -8,7 +8,8 @@ import { storage } from '@/lib/storage';
 import { QURAN } from '@/data/quran';
 import { useQuranAudio, globalAyahOf, surahOfGlobal } from '@/context/QuranAudioContext';
 import { loadSurah, type SurahContent } from '@/lib/content';
-import { ReciteMode } from '@/components/ReciteMode';
+import { WordChip } from '@/components/ReciteMode';
+import { speakWord, useReciteTracker, type ReciteItem } from '@/lib/reciteEngine';
 
 /**
  * Mushaf page (pass 22 rewrite):
@@ -66,6 +67,15 @@ export function MushafPage({
   const [fs, setFs] = useState(DEFAULT_FS);
   const [followingAudio, setFollowingAudio] = useState(false);
   const [recitePage, setRecitePage] = useState(false);
+  const [reciteBlind, setReciteBlind] = useState(false);
+
+  /* inline page recitation (pass 27) — tracks the ayahs of THIS page */
+  const reciteItems: ReciteItem[] = useMemo(
+    () => (pg?.ayahs ?? []).map((a) => ({ surah: a.surahNo, ayah: a.numberInSurah, arabic: a.text, label: `${a.surahNo}:${a.numberInSurah}` })),
+    [pg],
+  );
+  const tr = useReciteTracker(reciteItems, { autoNext: true });
+  const curKey = reciteItems[tr.idx] ? `${reciteItems[tr.idx].surah}:${reciteItems[tr.idx].ayah}` : '';
   const boxH = useRef(0);
   const slide = useRef(new Animated.Value(0)).current;
   const loadingPage = useRef<number | null>(null);
@@ -314,17 +324,20 @@ export function MushafPage({
           onLayout={(e) => {
             boxH.current = e.nativeEvent.layout.height;
           }}
-          style={{ flex: 1, borderRadius: 12, borderWidth: 2, borderColor: skin.border, backgroundColor: skin.bg, paddingHorizontal: 14, paddingTop: 4, overflow: 'hidden' }}
+          style={{ flex: 1, backgroundColor: skin.bg, paddingHorizontal: 14, paddingTop: 4, overflow: 'hidden' }}
         >
-          {/* recite-this-page mic — top-right */}
-          <Pressable
-            onPress={() => { haptic.light(); setRecitePage(true); }}
-            accessibilityLabel="recite this page"
-            style={{ position: 'absolute', top: 7, right: 7, zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(44,110,143,0.55)', backgroundColor: 'rgba(44,110,143,0.12)', paddingHorizontal: 8 }}
-          >
-            <FontAwesome5 name="microphone-alt" size={10} color="#2C6E8F" />
-            <Text style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: '#2C6E8F', letterSpacing: 0.4 }}>RECITE</Text>
-          </Pressable>
+          {/* recite-this-page mic — top-right; hidden while the inline banner is open
+              (pass 27: its oversized hit area covered the banner's close button) */}
+          {!recitePage ? (
+            <Pressable
+              onPress={() => { haptic.light(); setRecitePage(true); }}
+              accessibilityLabel="recite this page"
+              style={{ position: 'absolute', top: 7, right: 7, zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(44,110,143,0.55)', backgroundColor: 'rgba(44,110,143,0.12)', paddingHorizontal: 8 }}
+            >
+              <FontAwesome5 name="microphone-alt" size={10} color="#2C6E8F" />
+              <Text style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: '#2C6E8F', letterSpacing: 0.4 }}>RECITE</Text>
+            </Pressable>
+          ) : null}
 
           {/* settings gear — inside the page, top-left */}
           <Pressable
@@ -336,6 +349,41 @@ export function MushafPage({
           >
             <FontAwesome5 name="sliders-h" size={11} color={skin.accent} />
           </Pressable>
+
+          {/* inline recitation controls (pass 27) */}
+          {recitePage ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 2, marginBottom: 6 }}>
+              <Pressable
+                onPress={() => { haptic.light(); if (tr.listening) tr.stop(); else tr.start(); }}
+                accessibilityLabel="page recite mic"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, borderRadius: 10, paddingHorizontal: 10, backgroundColor: tr.listening ? 'rgba(220,80,80,0.14)' : 'rgba(31,143,92,0.14)', borderWidth: 1, borderColor: tr.listening ? 'rgba(220,80,80,0.5)' : 'rgba(31,143,92,0.5)' }}
+              >
+                <FontAwesome5 name={tr.listening ? 'stop' : 'microphone-alt'} size={9} color={tr.listening ? '#DC5050' : '#1F8F5C'} />
+                <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: tr.listening ? '#DC5050' : '#1F8F5C' }}>{tr.listening ? 'STOP' : 'RECITE'}</T>
+              </Pressable>
+              <Pressable
+                onPress={() => { haptic.selection(); setReciteBlind((b) => !b); }}
+                accessibilityLabel="page blind mode"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, borderRadius: 10, paddingHorizontal: 10, backgroundColor: reciteBlind ? 'rgba(44,110,143,0.13)' : `${skin.accent}0D`, borderWidth: 1, borderColor: reciteBlind ? 'rgba(44,110,143,0.5)' : skin.border }}
+              >
+                <FontAwesome5 name={reciteBlind ? 'eye-slash' : 'eye'} size={9} color={reciteBlind ? '#2C6E8F' : skin.accent} />
+                <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: reciteBlind ? '#2C6E8F' : skin.accent }}>BLIND</T>
+              </Pressable>
+              <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: `${skin.accent}22`, overflow: 'hidden' }}>
+                <View style={{ width: `${reciteItems.length ? (100 * (tr.idx + (tr.done ? 1 : tr.reached / Math.max(1, tr.shown.length)))) / reciteItems.length : 0}%`, height: 4, backgroundColor: tr.wrongCount > 0 ? '#E05252' : '#1F8F5C' }} />
+              </View>
+              <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8.5, color: skin.accent }}>{tr.idx + 1}/{reciteItems.length}</T>
+              {tr.score ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 24, borderRadius: 8, backgroundColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.15)' : 'rgba(220,80,80,0.12)', borderWidth: 1, borderColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.5)' : 'rgba(220,80,80,0.4)' }}>
+                  <FontAwesome5 name={tr.score.wrong === 0 ? 'check' : 'exclamation'} size={8} color={tr.score.wrong === 0 ? '#B8870B' : '#DC5050'} />
+                  <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8, color: tr.score.wrong === 0 ? '#B8870B' : '#DC5050' }}>{tr.score.wrong === 0 ? 'PERFECT' : `${tr.score.wrong} WRONG`}</T>
+                </View>
+              ) : null}
+              <Pressable onPress={() => { haptic.selection(); tr.stop(); setRecitePage(false); }} accessibilityLabel="close page recite" style={{ width: 34, height: 32, borderRadius: 10, backgroundColor: `${skin.accent}12`, borderWidth: 1, borderColor: skin.border, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={10} color={skin.accent} />
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* thin meta strip: page · juz (tiny, keeps the top clean) */}
           <View style={{ alignItems: 'center', marginBottom: 2, marginLeft: 30, marginRight: 30 }}>
@@ -364,16 +412,6 @@ export function MushafPage({
         </View>
       </Animated.View>
 
-      {/* pass 26: recite the whole page — only when the user taps RECITE */}
-      {recitePage && pg && pg.ayahs.length ? (
-        <ReciteMode
-          title={`Page ${pg.pageNo ?? ''}`}
-          mode="surah"
-          startAt={0}
-          items={pg.ayahs.map((a) => ({ surah: a.surahNo, ayah: a.numberInSurah, arabic: a.text, label: `${a.surahNo}:${a.numberInSurah}` }))}
-          onClose={() => setRecitePage(false)}
-        />
-      ) : null}
       {settingsSheet}
     </View>
   );
@@ -414,6 +452,42 @@ export function MushafPage({
               </View>
             ) : null}
 
+            {recitePage ? (
+              <View style={{ paddingBottom: 6 }}>
+                {seg.ayahs.map((a) => {
+                  const isCurrent = `${a.surahNo}:${a.numberInSurah}` === curKey;
+                  if (isCurrent) {
+                    return (
+                      <View key={a.key} style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'flex-start', gap: 4 }}>
+                        {tr.shown.map((w, wi) => {
+                          const st = tr.states[wi] ?? 'hidden';
+                          return (
+                            <WordChip
+                              key={wi}
+                              word={w}
+                              state={st}
+                              listening={tr.listening}
+                              isNext={wi === tr.reached}
+                              masked={reciteBlind && st === 'hidden'}
+                              colorBase={skin.text}
+                              faint={`${skin.accent}55`}
+                              onPress={() => { if (st !== 'hidden') { haptic.selection(); speakWord(a.surahNo, a.numberInSurah, wi, w, () => audio.playAyah(a.surahNo, a.numberInSurah)); } }}
+                            />
+                          );
+                        })}
+                        <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold', fontSize: fs * 0.8, lineHeight: lh }}>﴿{arNum(a.numberInSurah)}﴾</Text>
+                      </View>
+                    );
+                  }
+                  /* other ayahs stay in place, shaded */
+                  return (
+                    <Text key={a.key} style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: `${skin.accent}99`, textAlign: 'justify', writingDirection: 'rtl', opacity: 0.35 }}>
+                      {a.text} <Text style={{ color: skin.accent, fontFamily: 'Amiri-Bold', opacity: 1 }}>﴿{arNum(a.numberInSurah)}﴾ </Text>
+                    </Text>
+                  );
+                })}
+              </View>
+            ) : (
             <Text style={{ fontFamily: 'Amiri', fontSize: fs, lineHeight: lh, color: skin.text, textAlign: 'justify', writingDirection: 'rtl', paddingBottom: 6 }}>
               {seg.ayahs.map((a) => {
                 const active = a.global === activeGlobal && audio.surah != null;
@@ -425,6 +499,7 @@ export function MushafPage({
                 );
               })}
             </Text>
+            )}
           </View>
         ))}
       </View>
