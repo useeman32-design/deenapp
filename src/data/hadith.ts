@@ -150,7 +150,7 @@ export const HADITHS: Hadith[] = [
 
 export const HADITH_CATEGORIES = [
   { id: 'Aqidah', label: 'Aqidah', icon: 'shield' },
-  { id: 'Worship', label: 'Worship', icon: 'mosque' },
+  { id: 'Worship', label: 'Worship', icon: 'star-and-crescent' },
   { id: 'Character', label: 'Character', icon: 'heart' },
   { id: 'Daily Life', label: 'Daily Life', icon: 'home' },
 ] as const;

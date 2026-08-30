@@ -1340,7 +1340,7 @@ export default function Home() {
                       }}
                       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, backgroundColor: d.emerald, paddingVertical: 11 }}
                     >
-                      <FontAwesome5 name={isHadith ? 'book' : 'quran'} size={13} color="#fff" />
+                      <FontAwesome5 name={isHadith ? 'book' : 'book-open'} size={13} color="#fff" />
                       <T v="bodyS" style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
                         {isHadith ? 'Open Hadith' : 'Open Qur’an'}
                       </T>

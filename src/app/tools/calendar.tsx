@@ -25,8 +25,8 @@ const OCCASIONS: Array<{ m: number; d: number; label: string; icon: string }> = 
   { m: 9, d: 1, label: 'First of Ramadan', icon: 'moon' },
   { m: 9, d: 27, label: 'Laylat al-Qadr (est.)', icon: 'moon' },
   { m: 10, d: 1, label: 'Eid al-Fitr', icon: 'star-and-crescent' },
-  { m: 12, d: 9, label: 'Day of Arafah', icon: 'kaaba' },
-  { m: 12, d: 10, label: 'Eid al-Adha', icon: 'kaaba' },
+  { m: 12, d: 9, label: 'Day of Arafah', icon: 'star-and-crescent' },
+  { m: 12, d: 10, label: 'Eid al-Adha', icon: 'star-and-crescent' },
 ];
 
 export default function CalendarScreen() {

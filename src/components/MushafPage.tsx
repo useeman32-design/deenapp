@@ -364,8 +364,8 @@ export function MushafPage({
         </View>
       </Animated.View>
 
-      {/* pass 25: recite the whole page — follows across surahs on it */}
-      {pg && !pg.offline && pg.ayahs.length ? (
+      {/* pass 26: recite the whole page — only when the user taps RECITE */}
+      {recitePage && pg && pg.ayahs.length ? (
         <ReciteMode
           title={`Page ${pg.pageNo ?? ''}`}
           mode="surah"

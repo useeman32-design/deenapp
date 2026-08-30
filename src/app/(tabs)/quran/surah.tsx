@@ -16,8 +16,8 @@ import { haptic } from '@/lib/haptics';
 type Filter = 'all' | 'meccan' | 'medinan' | 'bookmarks';
 const FILTERS: { id: Filter; label: string; icon: string }[] = [
   { id: 'all', label: 'All', icon: 'list-ul' },
-  { id: 'meccan', label: 'Meccan', icon: 'kaaba' },
-  { id: 'medinan', label: 'Medinan', icon: 'mosque' },
+  { id: 'meccan', label: 'Meccan', icon: 'star-and-crescent' },
+  { id: 'medinan', label: 'Medinan', icon: 'star-and-crescent' },
   { id: 'bookmarks', label: 'Bookmarks', icon: 'bookmark' },
 ];
 
