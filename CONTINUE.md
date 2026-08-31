@@ -1,4 +1,71 @@
-# CONTINUE — pass 33 handoff (2026-08-31)
+# CONTINUE — pass 34 handoff (2026-08-31)
+
+## Pass 34 shipped (master 129e0d2, gh-pages 3b61bf9, probe35 ALL PASS)
+1. "Unmatched Route" → catch-all `src/app/[...unmatched].tsx` (spinner 350ms →
+   `router.replace('/(tabs)')`). Root cause was stale cached bundles; deploys
+   stay non-destructive. NOTE: tab routes have NO /() URL form — '/community'
+   etc. now fall into the catch-all → home (graceful, expected).
+2. Qibla compass: free FontAwesome5 `kaaba` (size 15) in a 38px ring replaces
+   the photo circle (src/components/Compass.tsx).
+3. Splash GIFs recompressed (dark 775KB / light 716KB, 29 frames, 480w,
+   120-color ADAPTIVE) + SplashGate now a CENTERED rounded card
+   `min(W*0.78, 330)` 16:9 instead of full-bleed cover.
+4. Hadith: search scans ALL books in parallel (Promise.all, 8/book cap 60
+   total, canonical nums + chapter names in hit titles, ?h=N deep links);
+   translation moved to a HEADER button (aria 'translation language',
+   cycles EN→FR→BN→UR, nawawi40 added to hadithTr EXT_BOOK); share refs
+   include chapter name; arabic chapter names fontSize 18.
+5. Quran Shazam: mic card on quran hub → Web Speech (hears ANY nearby audio
+   incl. other phones) → transcript auto-runs corpus fuzzy search via
+   /surah?q= → ContentSearchOverlay prefilled.
+6. Mirath redesigned (hero, heir cards w/ person-count steppers, share bars
+   + %, distributed total).
+7. Donations REBUILT (charity.tsx): CATS order DeenLink → **ZAKAT SECOND** →
+   Sadaqah (user explicit; probe asserts t.indexOf('Zakat')<t.indexOf('Sadaqah'));
+   asnaf recipient chips (9:60 for zakat), currency chips, simulated pay 1.6s,
+   receipt card + share, history + report flag, FEE_PCT=5 visible on receipts,
+   DeenLink card shows Quran 2:261 + Muslim 1631. Storage `dl.donations.v1`.
+8. Ask Scholars REBUILT (scholars.tsx): Browse (search+field filter) / My
+   Questions (processing→answered ~9s sim) / Public (2 seeded + user's
+   answered-public); ask sheet w/ title/question/category/urgency DeenPoints
+   entry+balance/public-private toggle/photo attach; DeenPoints NEVER buys
+   fatwas — clarification card pinned at bottom. Storage
+   `dl.scholars.questions.v1`, `dl.deenpoints` default 1250.
+9. Groups (facebook-style) rail in community tab: create (open/by-request,
+   cat Mosque/School/Organization/Community), join/request, post in group
+   page. src/components/Groups.tsx, storage `dl.groups.v1`, 3 seeds.
+10. Reciters +4 (QuranAudioContext): Sudais/Shuraim/Ayyub via everyayah
+    (`everyayah.com/data/{folder}/{SSS}{AAA}.mp3`, folders
+    Abdurrahmaan_As-Sudais_192kbps / Saood_ash-Shuraym_128kbps /
+    Muhammad_Ayyoub_128kbps), Maher = islamic.network `ar.mahermuaiqly`.
+    "Muhammad Divirov" NOT FOUND anywhere (told user). Monogram avatars
+    (PIL gold initials on emerald) in assets/img/reciters/.
+11. Onboarding theme slide → pro phone-preview mockups (Dark/Light cards +
+    "Match my phone's setting").
+
+### Pass 34 gotchas
+- pages-server :3996 must run as `node scripts/pages-server.mjs dist/deenapp
+  3996 /deenapp` (root=dist/deenapp; export-web now also writes
+  dist/deenapp/404.html). `pkill -f pages-server` can kill your own shell —
+  use the stop_process/start_process tools.
+- probe ensureAuth v2 (probe35): loop ≤14 — login ('Welcome back!' → tap last
+  'Sign In' at y+16) OR onboarding (tap Get Started/Next/Skip) else break;
+  after auth the app lands on HOME tab, so re-`goto` real routes
+  ('/tools/charity' etc.) or tap the tab bar ('Quran &'+'Hadith' stacked
+  labels are TWO spans — tap the LARGEST y>720 'Quran…' node). Fresh-page ≠
+  fresh-state (localStorage is per-context): onboarding tests need
+  browser.newContext().
+- Live CDN can serve a STALE index.html (pointed at old entry-ee95…) right
+  after push while the branch HEAD correctly references entry-608c…; old
+  hashed files kept working because deploys are non-destructive. Verified:
+  entry-608c 200, splash gifs 200 (794KB/734KB at assets/assets/img/…hash.gif),
+  adhan/adhan{1,2,3}.mp3 200, all 4 reciter ids in the live bundle.
+- Remote is useeman32-design/deenapp (sandbox wipes .git/config → re-set
+  identity deenapp-bot <bot@deenlink.org> + remote from .token).
+- Snapshot-relevant total ≈113M (git 34 + assets 39 + chromium-libs 19 + rest)
+  — still under the ~128M cap. node_modules vanished again this pass.
+
+---
 
 ## ROOT CAUSE OF THE "WIPES": workspace exceeded the ~128MB snapshot cap
 (.git 81M + assets 126M + public + uploads ≈ 250M) → turn-end snapshots FAILED
