@@ -22,13 +22,10 @@ export function loadTranslation(lang: TrLang): Promise<Record<string, string>> {
   let p = cache.get(lang);
   if (p) return p;
   p = (async () => {
-    if (typeof DecompressionStream === 'undefined') throw new Error('no DecompressionStream');
-    const base = typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
-    const r = await fetch(`${base}/translations/${lang}.json.gz`);
-    if (!r.ok) throw new Error(`translation ${lang}: ${r.status}`);
-    const stream = r.body?.pipeThrough(new DecompressionStream('gzip'));
-    if (!stream) throw new Error('no body');
-    const j = JSON.parse(await new Response(stream).text()) as Record<string, string>;
+    /* pass 34b — gzio works on web (DecompressionStream) AND native (pako +
+     * the Metro dev-server URL), so FR/BN/UR/Yorùbá load in Expo Go too. */
+    const { fetchGzText } = await import('@/lib/gzio');
+    const j = JSON.parse(await fetchGzText(`/translations/${lang}.json.gz`)) as Record<string, string>;
     return j;
   })().catch((e) => {
     cache.delete(lang);

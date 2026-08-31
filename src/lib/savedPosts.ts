@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import type { Post } from '@/api/types';
+import { storage } from '@/lib/storage';
 
 /**
  * Saved posts (pass 18) — tiny persisted store of full post snapshots.
  * Feed cards show a bookmark toggle; the owner profile has a Saved tab.
- * Persists to localStorage on web; falls back to in-memory on native
- * (AsyncStorage wiring can be added without touching consumers).
+ * Persists to localStorage on web; AsyncStorage on native (pass 34b).
  */
 
 const KEY = 'dl.saved.posts.v1';
@@ -23,6 +23,17 @@ const read = (): Snapshot[] => {
   } catch {
     cache = [];
   }
+  /* pass 34b — native: hydrate from AsyncStorage once (fire-and-forget) */
+  if (Platform.OS !== 'web') {
+    void storage.getItem(KEY).then((raw) => {
+      if (raw) {
+        try {
+          cache = JSON.parse(raw) as Snapshot[];
+          listeners.forEach((l) => l());
+        } catch {}
+      }
+    }).catch(() => {});
+  }
   return cache!;
 };
 
@@ -30,6 +41,7 @@ const write = (next: Snapshot[]) => {
   cache = next;
   try {
     if (Platform.OS === 'web' && typeof window !== 'undefined') window.localStorage.setItem(KEY, JSON.stringify(next));
+    else void storage.setItem(KEY, JSON.stringify(next)).catch(() => {});
   } catch {}
   listeners.forEach((l) => l());
 };

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Modal, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { dictateArabic } from '@/lib/speech';
+import { dictateArabic, speechSupported } from '@/lib/speech';
 
 /**
  * Recite-to-search modal (pass 26): a glassy centre card —
@@ -27,6 +27,8 @@ export function ReciteSearchModal({
   const d = theme.dash;
   const [phase, setPhase] = useState<'idle' | 'listening' | 'analyzing'>('idle');
   const [live, setLive] = useState('');
+  const [typed, setTyped] = useState('');
+  const canListen = speechSupported(); /* native/no-SpeechAPI → type-it fallback */
   const pulse = useRef(new Animated.Value(0)).current;
   const dot = useRef(new Animated.Value(0)).current;
   const started = useRef(false);
@@ -90,26 +92,56 @@ export function ReciteSearchModal({
           {phase !== 'analyzing' ? (
             <>
               {/* mic: static gold until tapped — then GREEN + pulsing */}
-              <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 20, marginBottom: 16 }}>
-                {phase === 'listening' ? (
-                  <>
-                    <Animated.View style={{ position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 1.5, borderColor: 'rgba(31,143,92,0.6)', transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.65] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }) }} />
-                    <Animated.View style={{ position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 1, borderColor: 'rgba(31,143,92,0.4)', transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }) }} />
-                  </>
-                ) : null}
-                <Pressable onPress={begin} accessibilityLabel="start reciting" style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: phase === 'listening' ? 'rgba(31,143,92,0.16)' : 'rgba(212,175,55,0.13)', borderWidth: 2, borderColor: phase === 'listening' ? 'rgba(31,143,92,0.75)' : 'rgba(212,175,55,0.6)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name="microphone-alt" size={30} color={phase === 'listening' ? '#1F8F5C' : '#E8C96A'} />
-                </Pressable>
-              </View>
-              <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginBottom: 12 }}>{phase === 'listening' ? 'Listening… recite the verse, then pause' : 'Tap the mic, then recite — I’m listening'}</T>
-              {/* live transcript — big & bold */}
-              <View style={{ width: '100%', minHeight: 96, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.18)', backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(29,111,66,0.04)', padding: 14, justifyContent: 'center' }}>
-                {live ? (
-                  <Text style={{ fontFamily: 'Amiri-Bold', fontSize: 24, lineHeight: 44, color: d.text, textAlign: 'right', writingDirection: 'rtl' }}>{live}</Text>
-                ) : (
-                  <T v="caption" style={{ textAlign: 'center', color: d.faint, fontSize: 11 }}>{phase === 'listening' ? '…' : 'your recitation appears here'}</T>
-                )}
-              </View>
+              {canListen ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 20, marginBottom: 16 }}>
+                  {phase === 'listening' ? (
+                    <>
+                      <Animated.View style={{ position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 1.5, borderColor: 'rgba(31,143,92,0.6)', transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.65] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }) }} />
+                      <Animated.View style={{ position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 1, borderColor: 'rgba(31,143,92,0.4)', transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }) }} />
+                    </>
+                  ) : null}
+                  <Pressable onPress={begin} accessibilityLabel="start reciting" style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: phase === 'listening' ? 'rgba(31,143,92,0.16)' : 'rgba(212,175,55,0.13)', borderWidth: 2, borderColor: phase === 'listening' ? 'rgba(31,143,92,0.75)' : 'rgba(212,175,55,0.6)', alignItems: 'center', justifyContent: 'center' }}>
+                    <FontAwesome5 name="microphone-alt" size={30} color={phase === 'listening' ? '#1F8F5C' : '#E8C96A'} />
+                  </Pressable>
+                </View>
+              ) : null}
+              <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginBottom: 12 }}>{phase === 'listening' ? 'Listening… recite the verse, then pause' : canListen ? 'Tap the mic, then recite — I’m listening' : 'Mic listening isn’t available here — type the verse instead'}</T>
+              {!canListen ? (
+                /* type-it fallback (Expo Go / browsers without Web Speech) */
+                <View style={{ width: '100%', borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.18)', backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(29,111,66,0.04)', padding: 12, gap: 10 }}>
+                  <TextInput
+                    value={typed}
+                    onChangeText={setTyped}
+                    placeholder="e.g. bismillahir rahmanir raheem"
+                    placeholderTextColor={d.faint}
+                    multiline
+                    accessibilityLabel="type the verse"
+                    style={{ fontFamily: 'Amiri-Bold', fontSize: 20, lineHeight: 36, color: d.text, textAlign: 'right', minHeight: 72 }}
+                  />
+                  <Pressable
+                    accessibilityLabel="search typed verse"
+                    onPress={() => {
+                      const t = typed.trim();
+                      if (!t) return;
+                      haptic.light();
+                      setPhase('analyzing');
+                      setTimeout(() => { onText(t); onClose(); }, 700);
+                    }}
+                    style={{ borderRadius: 12, paddingVertical: 11, alignItems: 'center', backgroundColor: '#1F8F5C' }}
+                  >
+                    <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>FIND THE VERSE</T>
+                  </Pressable>
+                </View>
+              ) : (
+                /* live transcript — big & bold */
+                <View style={{ width: '100%', minHeight: 96, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.18)', backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(29,111,66,0.04)', padding: 14, justifyContent: 'center' }}>
+                  {live ? (
+                    <Text style={{ fontFamily: 'Amiri-Bold', fontSize: 24, lineHeight: 44, color: d.text, textAlign: 'right', writingDirection: 'rtl' }}>{live}</Text>
+                  ) : (
+                    <T v="caption" style={{ textAlign: 'center', color: d.faint, fontSize: 11 }}>{phase === 'listening' ? '…' : 'your recitation appears here'}</T>
+                  )}
+                </View>
+              )}
             </>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: 34, gap: 12 }}>

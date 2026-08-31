@@ -260,8 +260,8 @@ export async function loadFatwas(): Promise<Fatwa[]> {
   if (fatwaCache) return fatwaCache;
   if (fatwaLoading) return fatwaLoading;
   fatwaLoading = (async () => {
-    const base = typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
-    const r = await fetch(`${base}/islamqa.json`);
+    const { publicBase } = await import('@/lib/gzio');
+    const r = await fetch(`${publicBase()}/islamqa.json`);
     const j = (await r.json()) as Fatwa[];
     fatwaCache = j;
     return j;

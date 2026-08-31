@@ -14,8 +14,8 @@ export function hadithNumbers(book: string): Promise<number[]> {
   let p = cache.get(book);
   if (p) return p;
   p = (async () => {
-    const base = typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
-    const r = await fetch(`${base}/hadith-num/${book}.json`);
+    const { publicBase } = await import('@/lib/gzio');
+    const r = await fetch(`${publicBase()}/hadith-num/${book}.json`);
     const j = (await r.json()) as number[];
     if (!Array.isArray(j) || !j.length) throw new Error('no numbers for ' + book);
     return j;

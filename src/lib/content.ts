@@ -1,5 +1,7 @@
 import { Asset } from 'expo-asset';
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
+import { utf8Decode, gunzipBytes } from '@/lib/gzio';
 
 /**
  * Lazy content loader (pass 18) — reads the user's own datasets from
@@ -181,7 +183,17 @@ async function loadJSON<T>(key: string): Promise<T> {
   const mod = modules[key];
   if (mod == null) throw new Error(`content: unknown key ${key}`);
   let text: string;
-  {
+  if (Platform.OS !== 'web') {
+    /* pass 34b — native (Expo Go): assets land as local files; Hermes has no
+     * fetch(file://) nor DecompressionStream → read bytes via expo-file-system
+     * and inflate the .gz packs with pako. */
+    const a = Asset.fromModule(mod);
+    await a.downloadAsync().catch(() => {});
+    const local = (a as unknown as { localUri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
+    const buf = await new File(local.replace(/^file:\/\//, '')).arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    text = utf8Decode(key.startsWith('hadith/') ? gunzipBytes(bytes) : bytes);
+  } else {
     const a = Asset.fromModule(mod);
     await a.downloadAsync().catch(() => {});
     const url = (a as unknown as { uri?: string; localUri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
