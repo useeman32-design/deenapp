@@ -36,6 +36,21 @@
 10. gh-pages deploys now NON-DESTRUCTIVE (commit on top) so cached HTMLs
     keep their hashed JS (the likely 'Unmatched Route' cause).
 
+## Pass 33b — TRANSLATIONS (user decision)
+- Quran: Hausa+English were already in the pack. ADDED public/translations/
+  {yo,fr,bn,ur}.json.gz (~320KB each, 6236 verses "s:a"→text; yo = quran.com
+  res 125 Abu Rahimah Aykyuni, fr = Hamidullah, bn = Bengali, ur = Jalandhry).
+  Reader chip cycles EN→HA→YO→FR→BN→UR (src/lib/translations.ts, DecompressionStream).
+  NO Igbo Quran exists; Hausa x2 + Yoruba are the only Nigerian ones.
+- Hadith: NO Nigerian-language dataset exists anywhere (searched) — told user.
+  Added FR/BN/UR per-hadith CDN translations (src/lib/hadithTr.ts — fawazahmed0
+  jsDelivr, ZERO bundle size) for buhari/muslim/abudawud/tirmidhi/nasai/ibnmajah/malik
+  via chips above the hadith list; fetched by canonical number.
+- probe34 4/4. NOTE: /tmp + node_modules + .cache can VANISH MID-TURN (snapshot
+  restore) — if tsc/chromium/'/tmp/daily29.json' 404, reinstall/regenerate:
+  `npm install` · `npx playwright-core install chromium-headless-shell` ·
+  regenerate fixture from src/lib/daily.ts (see scripts pattern in bash history).
+
 ## Tests: probe32 12/12 · probe33 14/14 (new) · diag29 24/24
 ## Quran already ships FULL Hausa (6236/6236) + English in the pack.
 ## Hadith translations available (fawazahmed0): French 9/10 books, Bengali 8,

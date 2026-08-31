@@ -7,6 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { QURAN } from '@/data/quran';
 import { loadSurah, type SurahContent } from '@/lib/content';
 import { MushafPage } from '@/components/MushafPage';
+import { loadTranslation, TR_LANGS, type TrLang } from '@/lib/translations';
 import { GlassPlayerBar } from '@/components/GlassPlayerBar';
 import { ReciteMode, type ReciteItem } from '@/components/ReciteMode';
 import type { LoopCfg } from '@/context/QuranAudioContext';
@@ -49,7 +50,15 @@ export default function Reader() {
   const [reciterOpen, setReciterOpen] = useState(false);
   const [barOpen, setBarOpen] = useState(true);
   const [barW, setBarW] = useState(300);
-  const [lang, setLang] = useState<'en' | 'ha'>('en');
+  const [lang, setLang] = useState<TrLang>('en');
+  /* pass 33: extra translations (yo/fr/bn/ur) load lazily from gz packs */
+  const [trMap, setTrMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (lang === 'en' || lang === 'ha') { setTrMap({}); return; }
+    let alive = true;
+    loadTranslation(lang).then((m) => { if (alive) setTrMap(m); }).catch(() => { if (alive) setTrMap({}); });
+    return () => { alive = false; };
+  }, [lang]);
   const [shareAyah, setShareAyah] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
   const [mushafSurah, setMushafSurah] = useState(n);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -189,13 +198,14 @@ export default function Reader() {
               {mode === 'mushaf' ? `${QURAN.find((x) => x.number === mushafSurah)?.name ?? meta.name} · uthmani mushaf` : `${meta.name} · ${meta.ayahs} verses · ${meta.revelation}`}
             </T>
           </View>
-          {/* translation language — English ⇄ Hausa (our data has both) */}
+          {/* translation language — cycles EN → HA → YO → FR → BN → UR */}
           <Pressable
-            onPress={() => { haptic.selection(); setLang((l) => (l === 'en' ? 'ha' : 'en')); }}
+            accessibilityLabel="translation language"
+            onPress={() => { haptic.selection(); setLang((l) => { const i = TR_LANGS.findIndex((x) => x.id === l); return TR_LANGS[(i + 1) % TR_LANGS.length].id; }); }}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, marginRight: 8 }}
           >
             <FontAwesome5 name="language" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
-            <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5 }}>{lang === 'en' ? 'EN' : 'HA'}</T>
+            <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5 }}>{TR_LANGS.find((x) => x.id === lang)?.code ?? 'EN'}</T>
           </Pressable>
           <Pressable
             accessibilityLabel="toggle mushaf view"
@@ -262,6 +272,9 @@ export default function Reader() {
                 <Text style={{ fontSize: 25, fontFamily: 'Amiri', color: d.text, textAlign: 'right', lineHeight: 46 }}>{a.arabic}</Text>
                 {lang === 'en' && a.english ? <T v="bodyS" style={{ color: d.subtext, marginTop: 10 }}>{a.english}</T> : null}
                 {lang === 'ha' && a.hausa ? <T v="bodyS" style={{ color: d.subtext, marginTop: 10 }}>{a.hausa}</T> : null}
+                {lang !== 'en' && lang !== 'ha' && trMap[`${n}:${a.ayah}`] ? (
+                  <T v="bodyS" style={{ color: d.subtext, marginTop: 10, writingDirection: lang === 'ur' ? 'rtl' : undefined }}>{trMap[`${n}:${a.ayah}`]}</T>
+                ) : null}
                 {/* per-ayah actions: play just this ayah · bookmark · share */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 11, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
                   <Pressable

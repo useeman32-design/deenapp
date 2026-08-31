@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { loadBook, loadBookMeta, type ContentHadith, type MetaChapter } from '@/lib/content';
 import { hadithNumbers } from '@/lib/hadithNum';
+import { fetchHadithTranslation, hadithTrLangsFor, HADITH_TR_LANGS, type HadithTrLang } from '@/lib/hadithTr';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -43,6 +44,9 @@ export default function HadithBookScreen() {
   const [meta, setMeta] = useState<MetaChapter[] | null>(null);
   const [hadiths, setHadiths] = useState<ContentHadith[] | null>(null);
   const [numOf, setNumOf] = useState<Map<ContentHadith, number>>(new Map());
+  /* pass 33: FR/BN/UR translations, fetched per-hadith from the CDN */
+  const [trLang, setTrLang] = useState<HadithTrLang | null>(null);
+  const [trs, setTrs] = useState<Record<number, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [marks, setMarks] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(25);
@@ -132,6 +136,23 @@ export default function HadithBookScreen() {
   const chapterMeta = meta?.find((c) => c.chapter_number === chNum) ?? null;
   const list = useMemo(() => (chapter && hadiths ? hadiths.filter((h) => h.chapter_number === chNum) : []), [chapter, hadiths, chNum]);
 
+  /* pass 33: fetch CDN translations for the VISIBLE hadiths (FR/BN/UR) */
+  useEffect(() => {
+    if (!trLang || !hadiths) return;
+    let alive = true;
+    const nums = list.map((h, i) => (h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1)));
+    (async () => {
+      for (const n of nums.slice(0, limit)) {
+        if (!alive) return;
+        if (n in trs) continue;
+        const t = await fetchHadithTranslation(book.id, trLang, n);
+        if (!alive) return;
+        setTrs((prev) => ({ ...prev, [n]: t }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [trLang, hadiths, limit, chapter, book.id, numOf, list, trs]);
+
   const toggleMark = (id: string) => {
     haptic.light();
     setMarks((prev) => {
@@ -217,9 +238,34 @@ export default function HadithBookScreen() {
             </T>
           ) : (
             <>
+              {hadithTrLangsFor(book.id).length ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 2 }}>
+                  <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>TRANSLATION</T>
+                  <Pressable
+                    onPress={() => { haptic.selection(); setTrLang(null); }}
+                    style={{ borderRadius: 999, borderWidth: 1, borderColor: !trLang ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: !trLang ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 10, paddingVertical: 4 }}
+                  >
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: !trLang ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>EN</T>
+                  </Pressable>
+                  {hadithTrLangsFor(book.id).map((l) => {
+                    const on = trLang === l.id;
+                    return (
+                      <Pressable
+                        key={l.id}
+                        accessibilityLabel={`translation ${l.code}`}
+                        onPress={() => { haptic.selection(); setTrs({}); setTrLang(on ? null : l.id); }}
+                        style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 10, paddingVertical: 4 }}
+                      >
+                        <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{l.code}</T>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
               {list.slice(0, limit).map((h, i) => {
                 const hid = `${book.id}-${h.chapter_number}-${i}`;
                 const num = h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1);
+                const tr = trLang ? trs[num] : undefined;
                 const isJump = jumpH != null && num === jumpH;
                 return (
                   <View
@@ -249,6 +295,13 @@ export default function HadithBookScreen() {
                       <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 10, lineHeight: 19 }}>
                         {enOf(h.english)}
                       </T>
+                    ) : null}
+                    {trLang ? (
+                      tr == null ? null : (
+                        <T v="bodyS" style={{ color: isDark ? '#9FD5B8' : '#3E6E52', fontSize: 12, marginTop: 8, lineHeight: 18, fontStyle: 'italic', writingDirection: trLang === 'ur' ? 'rtl' : undefined }}>
+                          {tr}
+                        </T>
+                      )
                     ) : null}
                     <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontSize: 10, marginTop: 8, fontWeight: '700' }}>
                       {book.name ?? book.id} · Hadith {num}
