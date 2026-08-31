@@ -36,6 +36,17 @@
 10. gh-pages deploys now NON-DESTRUCTIVE (commit on top) so cached HTMLs
     keep their hashed JS (the likely 'Unmatched Route' cause).
 
+### WIPE-RECOVERY GOTCHAS (pass 33 final)
+- A MID-TURN snapshot restore can silently revert .git (deep 121M again, stale
+  refs), node_modules, /tmp AND the git remote. Recovery: re-add remote →
+  fetch → `git reset origin/master` → re-commit the (still-correct) tree → push.
+  Then ALWAYS re-trim: `git fetch --depth 1 origin master && git update-ref -d
+  refs/remotes/origin/gh-pages && git reflog expire --expire=now --all && git gc --prune=now`.
+- Keep snapshot-relevant total (everything except node_modules/dist/.cache/.npm)
+  under ~128M: currently ≈110M (git 32 + assets 43 + public 15 + chromium-libs 19).
+- Final live check done: entry-ee9586e…js + translations/*.json.gz + hadith-num
+  + adhan mp3s all 200. master=da39c70, gh-pages=390a0e9 (non-destructive).
+
 ## Pass 33b — TRANSLATIONS (user decision)
 - Quran: Hausa+English were already in the pack. ADDED public/translations/
   {yo,fr,bn,ur}.json.gz (~320KB each, 6236 verses "s:a"→text; yo = quran.com
