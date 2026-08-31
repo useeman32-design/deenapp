@@ -37,8 +37,8 @@ export default function ProphetsStories() {
   const [read, setRead] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const base = typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
-    fetch(`${base}/prophets/index.json`).then((r) => r.json()).then(setChapters).catch(() => setChapters([]));
+    const { publicBase } = require('@/lib/gzio') as typeof import('@/lib/gzio');
+    fetch(`${publicBase()}/prophets/index.json`).then((r) => r.json()).then(setChapters).catch(() => setChapters([]));
     storage.getItem('dl.prophets.read.v1').then((r) => {
       try { setRead(JSON.parse(r ?? '{}')); } catch {}
     }).catch(() => {});
@@ -49,8 +49,8 @@ export default function ProphetsStories() {
     setOpen(c);
     setFull(null);
     setLoading(true);
-    const base = typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
-    fetch(`${base}/prophets/${c.slug}.json`).then((r) => r.json()).then(setFull).catch(() => setFull(null)).finally(() => setLoading(false));
+    const { publicBase } = require('@/lib/gzio') as typeof import('@/lib/gzio');
+    fetch(`${publicBase()}/prophets/${c.slug}.json`).then((r) => r.json()).then(setFull).catch(() => setFull(null)).finally(() => setLoading(false));
   };
 
   const shown = useMemo(() => (full ? Math.min(full.paras.length, Math.max(8, read[full.slug] ?? 8)) : 0), [full, read]);
