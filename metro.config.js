@@ -8,6 +8,9 @@ const cfg = getDefaultConfig(__dirname);
 
 // .txt must be an asset extension for require('...*.txt') to resolve.
 if (!cfg.resolver.assetExts.includes('txt')) cfg.resolver.assetExts.push('txt');
+// pass 33: hadith books ship gzipped (.txt.gz, 87MB → 16MB) — Metro must
+// treat .gz as an asset too.
+if (!cfg.resolver.assetExts.includes('gz')) cfg.resolver.assetExts.push('gz');
 
 // big JSON-as-.txt assets: raise the inline limits so they are emitted as
 // files (web export serves them from /assets) rather than base64-inlined

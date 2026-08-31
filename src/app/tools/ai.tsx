@@ -10,7 +10,7 @@ import { loadSurah } from '@/lib/content';
 import { netBus } from '@/lib/net';
 import { QURAN } from '@/data/quran';
 import { mentionedSources, 
- AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
+ AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
 
@@ -315,14 +315,10 @@ export default function DeenLinkAI() {
     if (activeIdRef.current === chatId) setMsgs((m) => fn(m));
   }, []);
 
-  /* pass 28: warm the library in the background — the FIRST message used to
-   * pay the whole 114-surah + books load before the model was even called */
-  const warmed = useRef(false);
-  useEffect(() => {
-    if (warmed.current) return;
-    warmed.current = true;
-    retrieveLocal(' ').catch(() => {});
-  }, []);
+  /* pass 33: the pass-28 corpus prewarm was REMOVED — it fetched the whole
+   * Quran + 3 hadith books + fatwas (~60MB) on every screen open, which made
+   * "hello" take minutes on mobile. Retrieval now loads ONLY when a question
+   * has real keywords; greetings answer instantly (see isGreeting). */
   const [apiKey, setKey] = useState('');
   const [model, setModelState] = useState<string>(PROVIDERS.groq.models[0].id);
   const [webOn, setWebOn] = useState(false);
@@ -387,6 +383,15 @@ export default function DeenLinkAI() {
       setBusyIds((b) => b.filter((x) => x !== chatId));
       setPhase('idle');
       scrollDown();
+      return;
+    }
+
+    /* pass 33: greetings never touch the corpora — instant reply */
+    if (!apiKey && isGreeting(q)) {
+      patchChat(chatId, (m) => [...m, { role: 'assistant', text: greetingAnswer(q), at: Date.now() }]);
+      setPhase('idle');
+      scrollDown();
+      setBusyIds((b) => b.filter((x) => x !== chatId));
       return;
     }
 

@@ -237,7 +237,7 @@ export function MushafPage({
       const next = pg.pageNo + dir;
       if (next < 1 || next > 604) return;
       setFollowingAudio(false);
-      slide.setValue(dir === 1 ? -40 : 40);
+      slide.setValue(dir === 1 ? 40 : -40);
       Animated.timing(slide, { toValue: 0, duration: 240, easing: Easing.out(Easing.poly(4)), useNativeDriver: false }).start();
       load(next, true);
     },
@@ -254,8 +254,8 @@ export function MushafPage({
         onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
         onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
         onPanResponderRelease: (_e, g) => {
-          if (g.dx < -40) go(1);
-          else if (g.dx > 40) go(-1);
+          if (g.dx > 40) go(1);
+          else if (g.dx < -40) go(-1);
         },
       }),
     [go],
@@ -281,7 +281,9 @@ export function MushafPage({
             const dy = t1.clientY - st.y;
             const dt = Date.now() - st.t;
             if (dt > 800) return;
-            if (Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.25) go(dx < 0 ? 1 : -1);
+            /* pass 33: RTL paging — a mushaf reads right-to-left, so dragging
+             * the finger RIGHTWARD reveals the next page (on the left). */
+            if (Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.25) go(dx > 0 ? 1 : -1);
           },
         }
       : pan.panHandlers;

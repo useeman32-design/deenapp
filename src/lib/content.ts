@@ -130,59 +130,63 @@ const modules: Record<string, number> = {
   'quran/surah_112': require('../../assets/content/quran/surah_112.txt'),
   'quran/surah_113': require('../../assets/content/quran/surah_113.txt'),
   'quran/surah_114': require('../../assets/content/quran/surah_114.txt'),
-  'hadith/abudawud': require('../../assets/content/hadith/abudawud.txt'),
-  'hadith/ahmed': require('../../assets/content/hadith/ahmed.txt'),
-  'hadith/aladab_almufrad': require('../../assets/content/hadith/aladab_almufrad.txt'),
-  'hadith/buhari': require('../../assets/content/hadith/buhari.txt'),
-  'hadith/bulugh_almaram': require('../../assets/content/hadith/bulugh_almaram.txt'),
-  'hadith/darimi': require('../../assets/content/hadith/darimi.txt'),
-  'hadith/ibnmajah': require('../../assets/content/hadith/ibnmajah.txt'),
-  'hadith/malik': require('../../assets/content/hadith/malik.txt'),
-  'hadith/mishkat_almasabih': require('../../assets/content/hadith/mishkat_almasabih.txt'),
-  'hadith/muslim': require('../../assets/content/hadith/muslim.txt'),
-  'hadith/nasai': require('../../assets/content/hadith/nasai.txt'),
-  'hadith/nawawi40': require('../../assets/content/hadith/nawawi40.txt'),
-  'hadith/riyad_assalihin': require('../../assets/content/hadith/riyad_assalihin.txt'),
-  'hadith/shamail_muhammadiyah': require('../../assets/content/hadith/shamail_muhammadiyah.txt'),
-  'hadith/tirmidhi': require('../../assets/content/hadith/tirmidhi.txt'),
-  'hadith/meta_abudawud': require('../../assets/content/hadith/meta_abudawud.txt'),
-  'hadith/meta_ahmed': require('../../assets/content/hadith/meta_ahmed.txt'),
-  'hadith/meta_aladab_almufrad': require('../../assets/content/hadith/meta_aladab_almufrad.txt'),
-  'hadith/meta_buhari': require('../../assets/content/hadith/meta_buhari.txt'),
-  'hadith/meta_bulugh_almaram': require('../../assets/content/hadith/meta_bulugh_almaram.txt'),
-  'hadith/meta_darimi': require('../../assets/content/hadith/meta_darimi.txt'),
-  'hadith/meta_ibnmajah': require('../../assets/content/hadith/meta_ibnmajah.txt'),
-  'hadith/meta_malik': require('../../assets/content/hadith/meta_malik.txt'),
-  'hadith/meta_mishkat_almasabih': require('../../assets/content/hadith/meta_mishkat_almasabih.txt'),
-  'hadith/meta_muslim': require('../../assets/content/hadith/meta_muslim.txt'),
-  'hadith/meta_nasai': require('../../assets/content/hadith/meta_nasai.txt'),
-  'hadith/meta_riyad_assalihin': require('../../assets/content/hadith/meta_riyad_assalihin.txt'),
-  'hadith/meta_shamail_muhammadiyah': require('../../assets/content/hadith/meta_shamail_muhammadiyah.txt'),
-  'hadith/meta_tirmidhi': require('../../assets/content/hadith/meta_tirmidhi.txt'),
+  'hadith/abudawud': require('../../assets/content/hadith/abudawud.txt.gz'),
+  'hadith/ahmed': require('../../assets/content/hadith/ahmed.txt.gz'),
+  'hadith/aladab_almufrad': require('../../assets/content/hadith/aladab_almufrad.txt.gz'),
+  'hadith/buhari': require('../../assets/content/hadith/buhari.txt.gz'),
+  'hadith/bulugh_almaram': require('../../assets/content/hadith/bulugh_almaram.txt.gz'),
+  'hadith/darimi': require('../../assets/content/hadith/darimi.txt.gz'),
+  'hadith/ibnmajah': require('../../assets/content/hadith/ibnmajah.txt.gz'),
+  'hadith/malik': require('../../assets/content/hadith/malik.txt.gz'),
+  'hadith/mishkat_almasabih': require('../../assets/content/hadith/mishkat_almasabih.txt.gz'),
+  'hadith/muslim': require('../../assets/content/hadith/muslim.txt.gz'),
+  'hadith/nasai': require('../../assets/content/hadith/nasai.txt.gz'),
+  'hadith/nawawi40': require('../../assets/content/hadith/nawawi40.txt.gz'),
+  'hadith/riyad_assalihin': require('../../assets/content/hadith/riyad_assalihin.txt.gz'),
+  'hadith/shamail_muhammadiyah': require('../../assets/content/hadith/shamail_muhammadiyah.txt.gz'),
+  'hadith/tirmidhi': require('../../assets/content/hadith/tirmidhi.txt.gz'),
+  'hadith/meta_abudawud': require('../../assets/content/hadith/meta_abudawud.txt.gz'),
+  'hadith/meta_ahmed': require('../../assets/content/hadith/meta_ahmed.txt.gz'),
+  'hadith/meta_aladab_almufrad': require('../../assets/content/hadith/meta_aladab_almufrad.txt.gz'),
+  'hadith/meta_buhari': require('../../assets/content/hadith/meta_buhari.txt.gz'),
+  'hadith/meta_bulugh_almaram': require('../../assets/content/hadith/meta_bulugh_almaram.txt.gz'),
+  'hadith/meta_darimi': require('../../assets/content/hadith/meta_darimi.txt.gz'),
+  'hadith/meta_ibnmajah': require('../../assets/content/hadith/meta_ibnmajah.txt.gz'),
+  'hadith/meta_malik': require('../../assets/content/hadith/meta_malik.txt.gz'),
+  'hadith/meta_mishkat_almasabih': require('../../assets/content/hadith/meta_mishkat_almasabih.txt.gz'),
+  'hadith/meta_muslim': require('../../assets/content/hadith/meta_muslim.txt.gz'),
+  'hadith/meta_nasai': require('../../assets/content/hadith/meta_nasai.txt.gz'),
+  'hadith/meta_riyad_assalihin': require('../../assets/content/hadith/meta_riyad_assalihin.txt.gz'),
+  'hadith/meta_shamail_muhammadiyah': require('../../assets/content/hadith/meta_shamail_muhammadiyah.txt.gz'),
+  'hadith/meta_tirmidhi': require('../../assets/content/hadith/meta_tirmidhi.txt.gz'),
   'islamic/dua': require('../../assets/content/islamic/dua.txt'),
   'islamic/names99': require('../../assets/content/islamic/99names.txt'),
   'islamic/seerah': require('../../assets/content/islamic/seera_events_en.txt'),
   'islamic/quiz': require('../../assets/content/islamic/quiz_questions.txt'),
 } as Record<string, number>;
 
+/* pass 33: the hadith books ship gzipped (87MB → 16MB — the workspace
+ * outgrew its storage budget). Browsers unzip via DecompressionStream; on
+ * native (future APK) a JS gunzip (pako) must be wired before the .txt.gz
+ * assets are usable there. */
+async function gunzipResponse(r: Response): Promise<string> {
+  if (typeof DecompressionStream === 'undefined') throw new Error('content: DecompressionStream unavailable');
+  const stream = r.body?.pipeThrough(new DecompressionStream('gzip'));
+  if (!stream) throw new Error('content: no body to decompress');
+  return await new Response(stream).text();
+}
+
 async function loadJSON<T>(key: string): Promise<T> {
   if (cache.has(key)) return cache.get(key) as T;
   const mod = modules[key];
   if (mod == null) throw new Error(`content: unknown key ${key}`);
   let text: string;
-  if (Platform.OS === 'web') {
-    // asset module → url; fetch it
+  {
     const a = Asset.fromModule(mod);
     await a.downloadAsync().catch(() => {});
     const url = (a as unknown as { uri?: string; localUri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
     const r = await fetch(url);
-    text = await r.text();
-  } else {
-    const a = Asset.fromModule(mod);
-    await a.downloadAsync();
-    const url = (a as unknown as { localUri?: string; uri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
-    const r = await fetch(url as string);
-    text = await r.text();
+    text = key.startsWith('hadith/') ? await gunzipResponse(r) : await r.text();
   }
   const data = JSON.parse(text) as T;
   cache.set(key, data);

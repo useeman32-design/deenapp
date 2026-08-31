@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ import { T } from '@/components/T';
 import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
+import { ADHAN_VOICES, isAdhanPlaying, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
 
 /**
  * Prayer times (pass 23 — full redesign):
@@ -31,6 +32,7 @@ import { haptic } from '@/lib/haptics';
  */
 const DAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const ICONS: Record<string, string> = { Fajr: 'cloud-moon', Sunrise: 'sun', Dhuhr: 'sun', Asr: 'sun', Maghrib: 'moon', Isha: 'moon' };
+const AR_NAMES: Record<string, string> = { Fajr: 'الفجر', Sunrise: 'الشروق', Dhuhr: 'الظهر', Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء' };
 
 export default function PrayerTimes() {
   const { theme, isDark } = useTheme();
@@ -41,6 +43,26 @@ export default function PrayerTimes() {
   const [offset, setOffset] = useState(0);
   const [now, setNow] = useState(new Date());
   const [sheet, setSheet] = useState(false);
+  /* pass 33: adhan — plays when a prayer time arrives while the app is open */
+  const [adhanFor, setAdhanFor] = useState<string | null>(null);
+  const playedRef = useRef<string | null>(null);
+  useEffect(() => {
+    /* computed here (not from render scope) so hook order is stable even
+     * before the location resolves */
+    if (!loc || !settings.adhan || offset !== 0) return;
+    const dd = new Date();
+    dd.setHours(12, 0, 0, 0);
+    const t = computePrayerTimesWith(dd, loc, settings);
+    for (let i = 0; i < t.length; i++) {
+      if (i === 1) continue; /* no adhan at sunrise */
+      const key = `${dd.toDateString()}:${i}`;
+      if (now >= t[i] && now.getTime() - t[i].getTime() < 90_000 && playedRef.current !== key) {
+        playedRef.current = key;
+        if (playAdhan(settings.adhanVoice)) setAdhanFor(`${PRAYER_NAMES[i]}·${key}`);
+        break;
+      }
+    }
+  }, [now, loc, settings.adhan, settings.adhanVoice, offset]);
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -82,6 +104,15 @@ export default function PrayerTimes() {
   const isToday = offset === 0;
   const np = isToday ? nextPrayer(now, times) : null;
   const fmt = (t: Date) => t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  /* pass 33: CURRENT prayer — the window we are in right now (the last
+   * prayer whose time has arrived; before Fajr that is yesterday's Isha).
+   * Plain computation (NOT useMemo) — this line sits after the early return,
+   * and a hook here breaks hook order once the location resolves. */
+  let curIdx = -1;
+  if (isToday) {
+    curIdx = 5;
+    for (let i = 0; i < times.length; i++) if (times[i] <= now) curIdx = i;
+  }
 
   /* countdown ring fraction: progress between previous prayer and next */
   let ring = 0;
@@ -183,11 +214,12 @@ export default function PrayerTimes() {
           </View>
         </View>
 
-        {/* six prayers */}
-        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, overflow: 'hidden' }}>
+        {/* six prayers — pass 33 timeline: vertical rail, CURRENT prayer gold, NEXT green */}
+        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingVertical: 6 }}>
           {PRAYER_NAMES.map((name, i) => {
             const active = isToday && np?.index === i;
-            const passed = isToday && times[i] < now;
+            const current = isToday && curIdx === i;
+            const passed = isToday && times[i] < now && !current;
             const adj = settings.adjustments[i] ?? 0;
             return (
               <View
@@ -196,34 +228,67 @@ export default function PrayerTimes() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,
-                  paddingHorizontal: 15,
-                  paddingVertical: 13,
-                  backgroundColor: active ? (isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.06)') : 'transparent',
-                  borderTopWidth: i === 0 ? 0 : 1,
-                  borderTopColor: d.cardBorder,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  backgroundColor: current ? (isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.08)') : active ? (isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.06)') : 'transparent',
                 }}
               >
-                <View style={{ width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? 'rgba(46,204,113,0.18)' : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.04)', borderWidth: 1, borderColor: active ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)') : d.cardBorder }}>
-                  <FontAwesome5 name={(ICONS[name] ?? 'clock') as never} size={12} color={active ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
+                {/* timeline node + rail */}
+                <View style={{ width: 34, alignItems: 'center' }}>
+                  {i > 0 ? <View style={{ position: 'absolute', top: -21, width: 2, height: 22, backgroundColor: times[i - 1] < now && isToday ? (isDark ? 'rgba(212,175,55,0.5)' : 'rgba(140,109,31,0.35)') : d.cardBorder }} /> : null}
+                  {current ? (
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.25)', borderWidth: 1.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: '#E8C96A' }} />
+                    </View>
+                  ) : (
+                    <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: active ? (isDark ? '#4AE38F' : '#1D6F42') : passed ? d.cardBorder : isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.3)', backgroundColor: active ? (isDark ? '#4AE38F' : '#1D6F42') : 'transparent' }} />
+                  )}
+                  {i < PRAYER_NAMES.length - 1 ? <View style={{ position: 'absolute', bottom: -21, width: 2, height: 22, backgroundColor: passed || current ? (isDark ? 'rgba(212,175,55,0.5)' : 'rgba(140,109,31,0.35)') : d.cardBorder }} /> : null}
                 </View>
+
                 <View style={{ flex: 1 }}>
-                  <T v="body" style={{ fontSize: 13.5, fontWeight: '800', color: passed && !active ? d.faint : d.text }}>{name}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                    <FontAwesome5 name={(ICONS[name] ?? 'clock') as never} size={11} color={current ? '#E8C96A' : active ? (isDark ? '#4AE38F' : '#1D6F42') : passed ? d.faint : d.subtext} />
+                    <T v="body" style={{ fontSize: 13.5, fontWeight: '800', color: current ? '#E8C96A' : passed && !active ? d.faint : d.text }}>{name}</T>
+                    <T style={{ fontFamily: 'Amiri', fontSize: 13, color: current ? 'rgba(232,201,106,0.8)' : passed ? d.faint : d.subtext }}>{AR_NAMES[name] ?? ''}</T>
+                  </View>
                   {adj !== 0 ? (
-                    <T v="caption" style={{ fontSize: 9, color: '#E8C96A', marginTop: 0.5 }}>{adj > 0 ? `+${adj}` : adj} min adjusted</T>
+                    <T v="caption" style={{ fontSize: 9, color: '#E8C96A', marginTop: 1 }}>{adj > 0 ? `+${adj}` : adj} min adjusted</T>
                   ) : null}
                 </View>
-                {active ? (
+
+                {current ? (
+                  <View style={{ borderRadius: 999, backgroundColor: 'rgba(212,175,55,0.16)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.55)', paddingHorizontal: 9, paddingVertical: 3 }}>
+                    <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#E8C96A', letterSpacing: 0.4 }}>NOW</T>
+                  </View>
+                ) : active ? (
                   <View style={{ borderRadius: 999, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingHorizontal: 9, paddingVertical: 3 }}>
                     <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 }}>NEXT</T>
                   </View>
                 ) : null}
-                <T v="body" style={{ fontSize: 14, fontWeight: '800', color: passed && !active ? d.faint : d.text, fontVariant: ['tabular-nums'] }}>
+                <T v="body" style={{ fontSize: 14.5, fontWeight: '800', color: current ? '#E8C96A' : passed && !active ? d.faint : d.text, fontVariant: ['tabular-nums'] }}>
                   {fmt(times[i])}
                 </T>
               </View>
             );
           })}
         </View>
+
+        {/* adhan banner */}
+        {adhanFor ? (
+          <View style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.08)', padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(212,175,55,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="volume-up" size={13} color="#E8C96A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>It{'\u2019'}s time for {adhanFor.split('·')[0]}</T>
+              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Adhan playing — {ADHAN_VOICES.find((v) => v.id === settings.adhanVoice)?.label}</T>
+            </View>
+            <Pressable accessibilityLabel="stop adhan" onPress={() => { haptic.selection(); stopAdhan(); setAdhanFor(null); }} style={{ borderRadius: 999, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingHorizontal: 12, paddingVertical: 7 }}>
+              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Stop</T>
+            </Pressable>
+          </View>
+        ) : null}
 
         <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 12, marginHorizontal: 30, lineHeight: 15 }}>
           Times are calculated for your exact location with the {METHODS.find((m) => m.id === settings.method)?.label} method. Adjust minutes or change the method in settings — always confirm with your local mosque.
@@ -311,6 +376,35 @@ export default function PrayerTimes() {
                   <View style={{ width: 16, height: 16, borderRadius: 9, backgroundColor: '#FFFFFF', marginLeft: settings.adhan ? 18 : 0 }} />
                 </View>
               </Pressable>
+
+              {/* pass 33: adhan voice picker with preview */}
+              {settings.adhan ? (
+                <View>
+                  <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6, marginBottom: 8 }}>ADHAN RECITATION</T>
+                  {ADHAN_VOICES.map((v) => {
+                    const on = settings.adhanVoice === v.id;
+                    return (
+                      <Pressable
+                        key={v.id}
+                        accessibilityLabel={`adhan ${v.label}`}
+                        onPress={() => { haptic.selection(); const nx = { ...settings, adhanVoice: v.id }; setSettings(nx); savePrayerSettings(nx); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 11, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.06)') : 'transparent' }}
+                      >
+                        <FontAwesome5 name="speaker" size={12} color={on ? '#E8C96A' : d.faint} />
+                        <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{v.label}</T>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation(); haptic.selection(); if (isAdhanPlaying()) { stopAdhan(); setAdhanFor(null); } else playAdhan(v.id); }}
+                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <FontAwesome5 name="play" size={9} color={d.subtext} />
+                        </Pressable>
+                        {on ? <FontAwesome5 name="check-circle" size={15} color="#E8C96A" /> : null}
+                      </Pressable>
+                    );
+                  })}
+                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>The adhan plays from your device when a prayer time enters while the app is open.</T>
+                </View>
+              ) : null}
             </ScrollView>
           </View>
         </View>

@@ -164,6 +164,8 @@ export type PrayerSettings = {
   /** per-prayer minute adjustments (index matches PRAYER_NAMES) */
   adjustments: number[];
   adhan: boolean;
+  /** pass 33: which adhan recitation plays at prayer time */
+  adhanVoice: 'v1' | 'v2' | 'v3';
   city: string;
 };
 
@@ -172,6 +174,7 @@ export const DEFAULT_SETTINGS: PrayerSettings = {
   madhab: 'shafi',
   adjustments: [0, 0, 0, 0, 0, 0],
   adhan: false,
+  adhanVoice: 'v1',
   city: '',
 };
 

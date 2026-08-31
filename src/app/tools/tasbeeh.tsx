@@ -47,24 +47,48 @@ const MOODS = [
   { id: 'sad', emoji: '😔', label: 'Sad' },
 ];
 
-/* ── misbaha glow geometry — traced from the render (normalized to the
- *   cropped 1072×645 asset): left arm → elliptical bottom → right arm ── */
+/* ── misbaha glow geometry — pass 33: re-traced from the ACTUAL render.
+ *   The strand is an oval loop (tassel at the top): 33 points sampled
+ *   evenly by arc length from the detected bead centres, bead 0 = top. */
 const MISBAHA_AR = 1.662;
 const BEADS = 33;
-const G = { larmX: 0.0678, rarmX: 0.932, armTop: 0.1351, armBot: 0.569, cx: 0.5005, cy: 0.569, rx: 0.4327, ry: 0.3379, beadW: 0.0233 };
-const ARM_LEN = G.armBot - G.armTop;
-const BOT_LEN = Math.PI * (G.rx + G.ry) / 2;
-const ARC_LEN = 2 * ARM_LEN + BOT_LEN;
-const beadAt = (i: number): { x: number; y: number } => {
-  let s = (ARC_LEN * i) / (BEADS - 1);
-  if (s < ARM_LEN) return { x: G.larmX, y: G.armTop + s };
-  s -= ARM_LEN;
-  if (s <= BOT_LEN) {
-    const ang = Math.PI - (s / BOT_LEN) * Math.PI;
-    return { x: G.cx + G.rx * Math.cos(ang), y: G.cy + G.ry * Math.sin(ang) };
-  }
-  return { x: G.rarmX, y: G.armBot - (s - BOT_LEN) };
-};
+const BEAD_W = 0.025;
+const BEAD_PATH: Array<{ x: number; y: number }> = [
+  { x: 0.5008, y: 0.2029 },
+  { x: 0.5768, y: 0.2061 },
+  { x: 0.6522, y: 0.2166 },
+  { x: 0.7257, y: 0.2366 },
+  { x: 0.7955, y: 0.2668 },
+  { x: 0.8568, y: 0.3115 },
+  { x: 0.8997, y: 0.3739 },
+  { x: 0.9246, y: 0.4457 },
+  { x: 0.9353, y: 0.5210 },
+  { x: 0.9296, y: 0.5967 },
+  { x: 0.9057, y: 0.6688 },
+  { x: 0.8681, y: 0.7349 },
+  { x: 0.8164, y: 0.7905 },
+  { x: 0.7520, y: 0.8309 },
+  { x: 0.6819, y: 0.8606 },
+  { x: 0.6089, y: 0.8818 },
+  { x: 0.5337, y: 0.8936 },
+  { x: 0.4576, y: 0.8951 },
+  { x: 0.3819, y: 0.8874 },
+  { x: 0.3079, y: 0.8698 },
+  { x: 0.2383, y: 0.8393 },
+  { x: 0.1780, y: 0.7930 },
+  { x: 0.1284, y: 0.7353 },
+  { x: 0.0915, y: 0.6689 },
+  { x: 0.0687, y: 0.5964 },
+  { x: 0.0613, y: 0.5208 },
+  { x: 0.0709, y: 0.4454 },
+  { x: 0.0994, y: 0.3750 },
+  { x: 0.1467, y: 0.3159 },
+  { x: 0.2077, y: 0.2707 },
+  { x: 0.2764, y: 0.2383 },
+  { x: 0.3497, y: 0.2179 },
+  { x: 0.4249, y: 0.2067 }
+];
+const beadAt = (i: number): { x: number; y: number } => BEAD_PATH[((i % BEADS) + BEADS) % BEADS];
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const dayOffset = (n: number) => {
@@ -315,11 +339,11 @@ export default function Tasbeeh() {
                     key={i}
                     style={{
                       position: 'absolute',
-                      left: beadAt(i).x * imgW - G.beadW * imgW * 0.14,
-                      top: beadAt(i).y * imgH - G.beadW * imgW * 0.14,
-                      width: G.beadW * imgW * 0.28,
-                      height: G.beadW * imgW * 0.28,
-                      borderRadius: G.beadW * imgW * 0.14,
+                      left: beadAt(i).x * imgW - BEAD_W * imgW * 0.14,
+                      top: beadAt(i).y * imgH - BEAD_W * imgW * 0.14,
+                      width: BEAD_W * imgW * 0.28,
+                      height: BEAD_W * imgW * 0.28,
+                      borderRadius: BEAD_W * imgW * 0.14,
                       backgroundColor: NEON,
                       opacity: 0.32,
                     }}
@@ -341,9 +365,9 @@ export default function Tasbeeh() {
                 <View
                   style={{
                     position: 'absolute',
-                    width: G.beadW * imgW * 5.4,
-                    height: G.beadW * imgW * 5.4,
-                    borderRadius: (G.beadW * imgW * 5.4) / 2,
+                    width: BEAD_W * imgW * 5.4,
+                    height: BEAD_W * imgW * 5.4,
+                    borderRadius: (BEAD_W * imgW * 5.4) / 2,
                     backgroundColor: 'rgba(74,227,143,0.30)',
                     shadowColor: NEON,
                     shadowOpacity: 0.9,
@@ -352,7 +376,7 @@ export default function Tasbeeh() {
                     elevation: 8,
                   }}
                 />
-                <View style={{ width: G.beadW * imgW * 1.05, height: G.beadW * imgW * 1.05, borderRadius: (G.beadW * imgW * 1.05) / 2, backgroundColor: 'rgba(174,255,208,0.95)' }} />
+                <View style={{ width: BEAD_W * imgW * 1.05, height: BEAD_W * imgW * 1.05, borderRadius: (BEAD_W * imgW * 1.05) / 2, backgroundColor: 'rgba(174,255,208,0.95)' }} />
               </Animated.View>
             </View>
           </View>

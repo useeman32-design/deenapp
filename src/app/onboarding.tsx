@@ -14,7 +14,7 @@ const mosqueImg = require('../../assets/img/onboard-mosque.jpg');
 const patternDark = require('../../assets/img/pattern-dark.png');
 const patternLight = require('../../assets/img/pattern-light.png');
 
-const SLIDES = 3;
+const SLIDES = 4;
 const WIDTH = Dimensions.get('window').width;
 
 const STATS = [
@@ -29,7 +29,7 @@ const STATS = [
  * a stats card, skip control, gradient CTA and pill dots.
  */
 export default function Onboarding() {
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, mode, setMode } = useTheme();
   const d = theme.dash;
   const [phase, setPhase] = useState<'splash' | 'slides'>('splash');
   const [page, setPage] = useState(0);
@@ -278,6 +278,62 @@ export default function Onboarding() {
                 }}
               >
                 <Image source={mosqueImg} style={{ width: '100%', height: 232 }} resizeMode="cover" />
+              </View>
+            </View>
+            {/* Slide 4 — theme selection (pass 33: pick your look before you start) */}
+            <View style={{ width: WIDTH, padding: 26, alignItems: 'center', paddingTop: 14 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 7,
+                  backgroundColor: isDark ? 'rgba(212,175,55,0.13)' : 'rgba(140,109,31,0.08)',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(232,201,106,0.35)' : 'rgba(140,109,31,0.22)',
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                }}
+              >
+                <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10, letterSpacing: 1 }}>
+                  YOUR LOOK
+                </T>
+              </View>
+              <T v="display" style={{ marginTop: 16, textAlign: 'center', fontSize: 27, lineHeight: 34, color: d.text, fontWeight: '800' }}>
+                Choose your{'\n'}theme
+              </T>
+              <T v="bodyS" style={{ marginTop: 10, textAlign: 'center', fontSize: 13, lineHeight: 19, color: d.subtext }}>
+                Pick how DeenLink feels — you can change it anytime in Settings.
+              </T>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 28, width: '100%' }}>
+                {([
+                  { id: 'system', label: 'System', emoji: '⚙️' },
+                  { id: 'dark', label: 'Dark', emoji: '🌙' },
+                  { id: 'light', label: 'Light', emoji: '☀️' },
+                ] as const).map((opt) => {
+                  const active = mode === opt.id;
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      accessibilityLabel={`theme ${opt.label}`}
+                      onPress={() => { haptic.selection(); setMode(opt.id); }}
+                      style={{
+                        flex: 1,
+                        alignItems: 'center',
+                        gap: 8,
+                        borderRadius: 20,
+                        paddingVertical: 22,
+                        backgroundColor: active ? (isDark ? 'rgba(232,201,106,0.12)' : 'rgba(140,109,31,0.07)') : d.card,
+                        borderWidth: 1.5,
+                        borderColor: active ? '#E8C96A' : d.cardBorder,
+                      }}
+                    >
+                      <T style={{ fontSize: 30 }}>{opt.emoji}</T>
+                      <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: active ? '#E8C96A' : d.text }}>{opt.label}</T>
+                      {active ? <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#E8C96A' }} /> : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           </ScrollView>

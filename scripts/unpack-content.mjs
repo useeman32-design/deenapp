@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 
-const ZIP = 'assets/content.zip';
+const ZIP = process.env.DL_CONTENT_ZIP ?? "assets/content.zip"; // zip dropped from the repo (size) — re-download the pack if rebuilding from scratch
 const OUT = 'assets/content';
 
 /* minimal zip reader: walk the central directory (deterministic, no python) */

@@ -110,14 +110,14 @@ await go('/read/112', 5000);
 {
   const before = await page.evaluate(() => document.body.innerText.match(/PAGE (\d+)/)?.[1] ?? '');
   const cdp = await ctx.newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 80, y: 420 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 350, y: 420 }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 220, y: 424 }] });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 350, y: 428 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 70, y: 428 }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForTimeout(2600);
   const mushafStill = await page.evaluate(() => document.body.innerText.includes('uthmani mushaf'));
   const after = await page.evaluate(() => { const t = document.body.innerText; return t.match(/PAGE (\d+)/)?.[1] ?? (t.match(/60\d/)?.[0] ?? ''); });
-  ok('mushaf: swipe turns the page AND stays in the mushaf', mushafStill && after !== '' && after !== before, `${before}→${after}${mushafStill ? '' : ' (left mushaf!)'}`);
+  ok('mushaf: RTL swipe (left = previous) turns the page AND stays in the mushaf', mushafStill && after !== '' && after !== before, `${before}→${after}${mushafStill ? '' : ' (left mushaf!)'}`);
 }
 
 /* ── 5. prophets reader ── */

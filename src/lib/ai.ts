@@ -13,6 +13,9 @@ import { loadBook, loadDuas, loadNames99, loadSurah, type ContentHadith } from '
 import { QURAN } from '@/data/quran';
 import { ensureQuranCorpus, searchQuranCorpus } from '@/lib/quranSearch';
 import { storage } from '@/lib/storage';
+import { hadithNumbers } from '@/lib/hadithNum';
+
+const BOOK_LABEL: Record<string, string> = { buhari: 'Bukhari', muslim: 'Muslim', abudawud: 'Abu Dawud', tirmidhi: 'Tirmidhi', nasai: "An-Nasa'i", ibnmajah: 'Ibn Majah', malik: 'Muwatta Malik', darimi: 'Darimi', ahmed: 'Musnad Ahmad' };
 
 export type ProviderId = 'groq' | 'xai';
 export type ModelOpt = { id: string; label: string; note?: string };
@@ -87,6 +90,30 @@ export async function saveChats(chats: AiChat[]): Promise<void> {
 }
 export async function clearChats(): Promise<void> { await storage.removeItem(K_CHATS); }
 
+/* ───────────────────── greetings (pass 33 instant path) ───────────────────── */
+const GREET_RE = /^(\*|\s)*(as)?s?ala?m+u?\s*(alaikum|alykum|alaykum)?|hello+|hey+|yo|hi(ya)?|good\s+(morning|afternoon|evening|night)|how\s+are\s+you|whats\s+up|what'?s\s+up|sup|salam|peace|[\u0627-\u064A\s]{2,20}$/i;
+export function isGreeting(q: string): boolean {
+  const t = q.trim().replace(/[!.?,]+$/g, '');
+  if (!t || t.length > 40) return false;
+  return GREET_RE.test(t) || /^(السلام|سلام|مرحبا|أهلا|اهلا|صباح|مساء)/.test(t);
+}
+export function greetingAnswer(q: string): string {
+  const m = q.trim().toLowerCase();
+  const wb = /sala?m|alaikum|السلام|سلام/.test(m) || /السلام|سلام/.test(q);
+  const open = wb ? 'Wa alaikum assalam! 🌙' : 'Assalamu alaikum! 🌙';
+  return `${open}
+
+I'm DeenLink — your companion for the Qur'an, hadith, duas and daily ibadah.
+
+**Try asking me:**
+- What does verse 2:255 say?
+- Give me a hadith about kindness
+- How do I perform wudu?
+- Where is the tasbeeh counter?
+
+You can also tap any suggestion below — or add a Groq/xAI key in Settings for full AI reasoning.`;
+}
+
 /* ───────────────────── local retrieval (RAG) ───────────────────── */
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'is', 'are', 'to', 'in', 'on', 'for', 'what', 'which', 'who', 'how', 'why', 'when', 'give', 'me', 'my', 'i', 'you', 'your', 'about', 'tell', 'does', 'do', 'did', 'with', 'from', 'that', 'this', 'it', 'be', 'was', 'will', 'can', 'should', 'any', 'some', 'there', 'their', 'we', 'us', 'our']);
 
@@ -100,6 +127,10 @@ function tokenize(q: string): string[] {
 
 export async function retrieveLocal(query: string, progress?: (done: number) => void): Promise<AiSource[]> {
   const toks = tokenize(query);
+  /* pass 33: no content keywords ("hello", "salam", small talk) → NOTHING to
+   * retrieve. This used to load the whole Quran corpus + 3 hadith books +
+   * fatwas (~60MB) before answering a greeting — the 2-minute "hello". */
+  if (!toks.length) return [];
   const out: AiSource[] = [];
   const score = (text: string) => {
     const low = ' ' + text.toLowerCase() + ' ';
@@ -113,92 +144,110 @@ export async function retrieveLocal(query: string, progress?: (done: number) => 
   const all: Array<{ s: AiSource; sc: number }> = [];
   const track = (arr: Array<{ s: AiSource; sc: number }>) => { for (const r of arr) all.push(r); };
 
-  /* quran — surah NAME hits first ("what is surah al-fatiha about?") */
-  try {
-    const ql = query.toLowerCase().replace(/[^a-z\s]/g, ' ');
-    for (const m of QURAN) {
-      const nameNorm = m.english.toLowerCase().replace(/[^a-z]/g, '');
-      const hit = toks.some((t) => t.length > 3 && nameNorm.includes(t.replace(/[^a-z]/g, '')));
-      if (hit) {
-        const sc = await loadSurah(m.number);
-        const first = sc?.verses?.slice(0, 3) ?? [];
-        out.push({
-          kind: 'quran',
-          label: `Quran ${m.number} · ${m.english}`,
-          href: `/read/${m.number}`,
-          excerpt: `${m.english} (${m.ayahs} verses): ` + first.map((v) => v.arabic + ' — ' + (v.english ?? '')).join(' / ').slice(0, 420),
-        });
-        break;
-      }
-    }
-  } catch {}
-
-  /* quran — full corpus keyword search */
-  try {
-    await ensureQuranCorpus(progress);
-    const hits = searchQuranCorpus(query, 24);
-    const ranked = hits
-      .map((h) => ({ h, sc: score(h.translation) + score(h.arabic) }))
-      .sort((a, b) => b.sc - a.sc)
-      .filter((x) => x.sc >= 2)
-      .slice(0, 4);
-    for (const { h } of ranked)
-      out.push({ kind: 'quran', label: `Quran ${h.surah}:${h.ayah}`, href: `/read/${h.surah}?ayah=${h.ayah}`, excerpt: `${h.arabic}\n${h.translation}`.slice(0, 420) });
-  } catch {}
-
-  /* hadith — all books we ship */
-  for (const book of ['bukhari', 'muslim', 'abudawud']) {
+  /* pass 33: every source block runs CONCURRENTLY — they used to serialize
+   * (quran corpus → 3 hadith books → duas → names → fatwas), so the first
+   * real question waited for ~60MB of sequential fetches. */
+  const quranBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
     try {
-      const arr = await loadBook(book);
+      const ql = query.toLowerCase().replace(/[^a-z\s]/g, ' ');
+      for (const m of QURAN) {
+        const nameNorm = m.english.toLowerCase().replace(/[^a-z]/g, '');
+        const hit = toks.some((t) => t.length > 3 && nameNorm.includes(t.replace(/[^a-z]/g, '')));
+        if (hit) {
+          const sc = await loadSurah(m.number);
+          const first = sc?.verses?.slice(0, 3) ?? [];
+          res.push({
+            kind: 'quran',
+            label: `Quran ${m.number} · ${m.english}`,
+            href: `/read/${m.number}`,
+            excerpt: `${m.english} (${m.ayahs} verses): ` + first.map((v) => v.arabic + ' — ' + (v.english ?? '')).join(' / ').slice(0, 420),
+          });
+          break;
+        }
+      }
+    } catch {}
+    try {
+      await ensureQuranCorpus(progress);
+      const hits = searchQuranCorpus(query, 24);
+      const ranked = hits
+        .map((h) => ({ h, sc: score(h.translation) + score(h.arabic) }))
+        .sort((a, b) => b.sc - a.sc)
+        .filter((x) => x.sc >= 2)
+        .slice(0, 4);
+      for (const { h } of ranked)
+        res.push({ kind: 'quran', label: `Quran ${h.surah}:${h.ayah}`, href: `/read/${h.surah}?ayah=${h.ayah}`, excerpt: `${h.arabic}\n${h.translation}`.slice(0, 420) });
+    } catch {}
+    return res;
+  };
+
+  const hadithBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
+    /* pass 33 bugfix: the pack ids are 'buhari' (not 'bukhari') — the old id
+     * silently failed the load, so on-device answers NEVER cited Bukhari. */
+    const one = async (book: string) => {
+      try {
+        const arr = await loadBook(book);
+        let nums: number[] = [];
+        try { nums = await hadithNumbers(book); } catch {}
+        const ranked: { s: AiSource; sc: number }[] = [];
+        arr.forEach((h, ix) => {
+          const sc = score(h.english || '') + score(h.chapter_name?.english || '');
+          const hnum = h.hadith_number != null ? Number(h.hadith_number) : (nums[ix] ?? ix + 1);
+          push({ kind: 'hadith', label: `${BOOK_LABEL[book] ?? book} · Hadith ${hnum}${h.chapter_name?.english ? ' · ' + h.chapter_name.english : ''}`, href: `/tools/hadith/${book}?h=${hnum}`, excerpt: (h.english || h.arabic).slice(0, 420) }, sc, ranked);
+        });
+        ranked.sort((a, b) => b.sc - a.sc);
+        if (ranked[0]) return ranked[0].s;
+      } catch {}
+      return null;
+    };
+    for (const r of await Promise.all(['buhari', 'muslim', 'abudawud'].map(one))) if (r) res.push(r);
+    return res;
+  };
+
+  const duaBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
+    try {
+      const pack = await loadDuas();
       const ranked: { s: AiSource; sc: number }[] = [];
-      for (const h of arr as ContentHadith[]) {
-        const sc = score(h.english || '') + score(h.chapter_name?.english || '');
-        /* pass 32: deep-link to the EXACT hadith — ?h= scrolls + highlights it
-         * (the old link just opened the book root, which read as "wrong book") */
-        const hnum = h.hadith_number != null ? String(h.hadith_number) : String(arr.indexOf(h) + 1);
-        push({ kind: 'hadith', label: `${book.charAt(0).toUpperCase() + book.slice(1)} · ${h.chapter_name?.english ?? ''} ${h.hadith_number != null ? '#' + h.hadith_number : '#' + hnum}`.trim(), href: `/tools/hadith/${book}?h=${encodeURIComponent(hnum)}`, excerpt: (h.english || h.arabic).slice(0, 420) }, sc, ranked);
+      for (const [section, list] of Object.entries(pack))
+        for (const dua of list) {
+          const texts = (dua.TEXT ?? []).map((t) => `${t.TRANSLATED_TEXT ?? t.ENGLISH_TEXT ?? ''}`).join(' ');
+          const sc = score(dua.TITLE) * 2 + score(texts) + score(section);
+          push({ kind: 'dua', label: `Dua · ${dua.TITLE} (${section})`, href: `/tools/dua`, excerpt: texts.slice(0, 360) || dua.TITLE }, sc, ranked);
+        }
+      ranked.sort((a, b) => b.sc - a.sc);
+      ranked.slice(0, 2).forEach((r) => res.push(r.s));
+    } catch {}
+    return res;
+  };
+
+  const nameBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
+    try {
+      const names = await loadNames99();
+      const ranked: { s: AiSource; sc: number }[] = [];
+      for (const n of names.data.names) {
+        const sc = score(n.translation) * 2 + score(n.meaning) + score(n.transliteration) * 2;
+        push({ kind: 'name', label: `${n.transliteration} — ${n.translation}`, href: `/tools/names`, excerpt: `${n.name} · ${n.transliteration}: ${n.meaning}`.slice(0, 300) }, sc, ranked);
       }
       ranked.sort((a, b) => b.sc - a.sc);
-      if (ranked[0]) out.push(ranked[0].s);
+      ranked.slice(0, 2).forEach((r) => res.push(r.s));
     } catch {}
-  }
+    return res;
+  };
 
-  /* duas / athkar */
-  try {
-    const pack = await loadDuas();
-    const ranked: { s: AiSource; sc: number }[] = [];
-    for (const [section, list] of Object.entries(pack))
-      for (const dua of list) {
-        const texts = (dua.TEXT ?? []).map((t) => `${t.TRANSLATED_TEXT ?? t.ENGLISH_TEXT ?? ''}`).join(' ');
-        const sc = score(dua.TITLE) * 2 + score(texts) + score(section);
-        push({ kind: 'dua', label: `Dua · ${dua.TITLE} (${section})`, href: `/tools/dua`, excerpt: texts.slice(0, 360) || dua.TITLE }, sc, ranked);
-      }
-    ranked.sort((a, b) => b.sc - a.sc);
-    track(ranked.slice(0, 2).filter((r) => r.sc >= 3));
-    ranked.slice(0, 2).forEach((r) => out.push(r.s));
-  } catch {}
+  const fatwaBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
+    try {
+      const fq = await searchFatwas(query);
+      for (const f of fq) res.push({ kind: 'fatwa', label: `IslamQA · ${f.t}`, href: '/tools/learning?tab=fatwa', excerpt: f.a.slice(0, 400) });
+    } catch {}
+    return res;
+  };
 
-  /* 99 names */
-  try {
-    const names = await loadNames99();
-    const ranked: { s: AiSource; sc: number }[] = [];
-    for (const n of names.data.names) {
-      const sc = score(n.translation) * 2 + score(n.meaning) + score(n.transliteration) * 2;
-      push({ kind: 'name', label: `${n.transliteration} — ${n.translation}`, href: `/tools/names`, excerpt: `${n.name} · ${n.transliteration}: ${n.meaning}`.slice(0, 300) }, sc, ranked);
-    }
-    ranked.sort((a, b) => b.sc - a.sc);
-    ranked.slice(0, 2).forEach((r) => out.push(r.s));
-  } catch {}
-
-  /* quizzes dropped as citation sources (pass 29) — they read as
-   * out-of-context "references" under the answers */
-
-  /* islamqa fatwa corpus (pass 29) — 1,080 answered rulings, bundled at
-   * /islamqa.json; token-scored against the question */
-  try {
-    const fq = await searchFatwas(query);
-    for (const f of fq) out.push({ kind: 'fatwa', label: `IslamQA · ${f.t}`, href: '/tools/learning?tab=fatwa', excerpt: f.a.slice(0, 400) });
-  } catch {}
+  const parts = await Promise.all([quranBlock(), hadithBlock(), duaBlock(), nameBlock(), fatwaBlock()]);
+  for (const part of parts) out.push(...part);
 
   return out.slice(0, 6);
 }

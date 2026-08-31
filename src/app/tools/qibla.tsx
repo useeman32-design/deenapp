@@ -11,6 +11,7 @@ import { TopBar } from '@/components/TopBar';
 import { RouteMap } from '@/components/RouteMap';
 import { KaabaIcon } from '@/components/Icons';
 import { QiblaMap } from '@/components/QiblaMap';
+import { QiblaLeaflet } from '@/components/QiblaLeaflet';
 import { haptic } from '@/lib/haptics';
 
 /**
@@ -108,6 +109,9 @@ export default function Qibla() {
           <KaabaIcon size={20} color={isDark ? '#4AE38F' : '#1D6F42'} />
           <T v="h3">Direction to Makkah</T>
         </View>
+        {/* pass 33: live Leaflet map — your location → the Kaaba, great-circle line */}
+        <QiblaLeaflet userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} />
+        <T v="caption" style={{ marginTop: 10, marginBottom: 6, fontSize: 10.5, color: theme.subtext }}>Offline world view:</T>
         <QiblaMap userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} bearing={bearing} />
         <T v="caption" style={{ marginTop: 8, fontSize: 10.5, color: theme.subtext }}>
           {km.toFixed(0)} km from Makkah · for best accuracy keep the phone flat and away from magnets, metal and cases with magnetic clasps, then figure-8 it once.

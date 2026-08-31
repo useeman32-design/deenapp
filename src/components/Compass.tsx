@@ -163,11 +163,14 @@ export function Compass({
               <Image source={require('../../assets/images/kaaba.jpg')} style={{ width: 34, height: 34 }} />
             </View>
             <Svg width={size} height={size} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
-              {/* FRONT arrow — right beside the Kaaba marker, pointing at it */}
-              <G transform={`translate(${mx + 24 * Math.sin(a)} ${my - 24 * Math.cos(a)}) rotate(${(a * 180) / Math.PI})`}>
-                <Polygon points="0,-9 7,7 0,3 -7,7" fill="#D4AF37" stroke="#8C6D1F" strokeWidth={0.7} />
+              {/* pass 33: the needles START AT THE CENTER DOT — a bold gold
+               * one pointing at the Kaaba (front) and a dim one pointing the
+               * exact opposite way (qibla behind you). */}
+              <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={mx - 26 * Math.sin(a)} y2={my + 26 * Math.cos(a)} stroke={aligned ? '#4AE38F' : '#D4AF37'} strokeWidth={2.6} strokeLinecap="round" />
+              <G transform={`translate(${mx - 26 * Math.sin(a)} ${my + 26 * Math.cos(a)}) rotate(${(a * 180) / Math.PI})`}>
+                <Polygon points="0,-10 8,8 0,3.5 -8,8" fill={aligned ? '#4AE38F' : '#D4AF37'} stroke="#8C6D1F" strokeWidth={0.7} />
               </G>
-              {/* BACK arrow — opposite side, pointing away (qibla behind you) */}
+              <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={theme.text} strokeWidth={1.6} strokeLinecap="round" opacity={0.45} strokeDasharray="4 3" />
               <G transform={`translate(${bx} ${by}) rotate(${(backA * 180) / Math.PI})`} opacity={0.5}>
                 <Polygon points="0,-7 5.5,5.5 0,2.2 -5.5,5.5" fill="none" stroke={theme.text} strokeWidth={1.2} />
               </G>

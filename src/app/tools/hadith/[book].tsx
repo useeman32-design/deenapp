@@ -5,6 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { loadBook, loadBookMeta, type ContentHadith, type MetaChapter } from '@/lib/content';
+import { hadithNumbers } from '@/lib/hadithNum';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -41,6 +42,7 @@ export default function HadithBookScreen() {
   const [chapter, setChapter] = useState<string | null>(chapterParam ? `c${chapterParam}` : null);
   const [meta, setMeta] = useState<MetaChapter[] | null>(null);
   const [hadiths, setHadiths] = useState<ContentHadith[] | null>(null);
+  const [numOf, setNumOf] = useState<Map<ContentHadith, number>>(new Map());
   const [loading, setLoading] = useState(false);
   const [marks, setMarks] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(25);
@@ -96,15 +98,23 @@ export default function HadithBookScreen() {
     setLoading(true);
     const t0 = Date.now();
     loadBook(book.id)
-      .then((all) => {
+      .then(async (all) => {
         const norm = all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h));
+        /* pass 33: canonical numbers — our pack order ≠ sunnah.com order, so
+         * the number comes from a generated map (public/hadith-num/<book>.json)
+         * built by text-matching every hadith against the sunnah.com-aligned
+         * dataset. Falls back to the book-wide index. */
+        let nums: number[] = [];
+        try { nums = await hadithNumbers(book.id); } catch {}
+        setNumOf(new Map(norm.map((h, i) => [h, h.hadith_number != null ? Number(h.hadith_number) : (nums[i] ?? i + 1)])));
         setHadiths(norm);
         if (jumpH != null && Number.isFinite(jumpH)) {
-          const idx = norm.findIndex((x) => Number(x.hadith_number) === jumpH);
+          const idx = nums.indexOf(jumpH);
           const target = idx >= 0 ? norm[idx] : norm[jumpH - 1];
           if (target) {
+            const t = idx >= 0 ? idx : jumpH - 1;
             setChapter(`c${target.chapter_number ?? 1}`);
-            if (idx >= 0 ? idx + 4 > limit : jumpH + 4 > limit) setLimit((idx >= 0 ? idx : jumpH - 1) + 6);
+            if (t + 4 > limit) setLimit(t + 6);
           }
         }
       })
@@ -209,7 +219,8 @@ export default function HadithBookScreen() {
             <>
               {list.slice(0, limit).map((h, i) => {
                 const hid = `${book.id}-${h.chapter_number}-${i}`;
-                const isJump = jumpH != null && Number(h.hadith_number ?? i + 1) === jumpH;
+                const num = h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1);
+                const isJump = jumpH != null && num === jumpH;
                 return (
                   <View
                     key={hid}
@@ -223,7 +234,7 @@ export default function HadithBookScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                       <View style={{ borderRadius: 8, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 8, paddingVertical: 3 }}>
                         <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>
-                          {h.hadith_number ?? i + 1}
+                          Hadith {num}
                         </T>
                       </View>
                       <View style={{ flex: 1 }} />
@@ -239,18 +250,16 @@ export default function HadithBookScreen() {
                         {enOf(h.english)}
                       </T>
                     ) : null}
-                    {h.grade ? (
-                      <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontSize: 10, marginTop: 8, fontWeight: '700' }}>
-                        {h.grade}
-                      </T>
-                    ) : null}
+                    <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontSize: 10, marginTop: 8, fontWeight: '700' }}>
+                      {book.name ?? book.id} · Hadith {num}
+                    </T>
                     <Pressable
                       onPress={() => {
                         haptic.selection();
                         setShareH({
                           arabic: h.arabic,
                           meaning: enOf(h.english) || h.chapter_name?.english || '',
-                          ref: `${book.name ?? book.id} ${h.hadith_number ?? ''}${h.grade ? ` · ${h.grade}` : ''}`,
+                          ref: `${book.name ?? book.id} · Hadith ${num}`,
                         });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}
