@@ -69,6 +69,17 @@ export default function Mirath() {
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar title="Mirath — Inheritance" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        {/* hero */}
+        <View style={{ borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(212,175,55,0.05)', padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="balance-scale" size={16} color="#E8C96A" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <T v="h3" style={{ fontWeight: '800', fontSize: 14.5, color: d.text }}>Fara{"'"}id — the Islamic division</T>
+            <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, lineHeight: 14 }}>Enter the estate and the heirs — the shares follow the classical order: funeral costs &rarr; debts &rarr; bequest (&le;⅓) &rarr; fixed shares &rarr; residue 2:1.</T>
+          </View>
+        </View>
+
         {/* estate inputs */}
         <View style={{ ...card, padding: 14 }}>
           <T v="h3" style={{ fontWeight: '800', fontSize: 14, marginBottom: 10 }}>The estate</T>
@@ -109,26 +120,34 @@ export default function Mirath() {
 
         {/* heirs */}
         <View style={{ ...card, padding: 14, marginTop: 12 }}>
-          <T v="h3" style={{ fontWeight: '800', fontSize: 14, marginBottom: 4 }}>Who is left behind?</T>
-          <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 10 }}>Tap to include; use +/− for several sons, daughters…</T>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <T v="h3" style={{ fontWeight: '800', fontSize: 14 }}>Who is left behind?</T>
+          <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 3, marginBottom: 12 }}>Tap to include — the count steps for multiple sons, daughters, brothers or sisters.</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
             {HEIRS.map((h) => {
               const active = on[h.key];
               const many = h.key === 'son' || h.key === 'daughter' || h.key === 'brother' || h.key === 'sister';
               return (
-                <View key={h.key} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: active ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: active ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)') : 'transparent', paddingHorizontal: 8, paddingVertical: 6, gap: 6 }}>
-                  <Pressable onPress={() => { haptic.selection(); setOn((o) => ({ ...o, [h.key]: !o[h.key] })); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <FontAwesome5 name={h.icon as never} size={11} color={active ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext} />
-                    <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: active ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{h.label}</T>
+                <View key={h.key} style={{ width: '48%', flexGrow: 1, borderRadius: 15, borderWidth: 1.4, borderColor: active ? (isDark ? 'rgba(74,227,143,0.55)' : 'rgba(29,111,66,0.45)') : d.cardBorder, backgroundColor: active ? (isDark ? 'rgba(46,204,113,0.09)' : 'rgba(29,111,66,0.05)') : 'transparent', padding: 11, gap: 8 }}>
+                  <Pressable accessibilityLabel={`heir ${h.label}`} onPress={() => { haptic.selection(); setOn((o) => ({ ...o, [h.key]: !o[h.key] })); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: active ? (isDark ? 'rgba(74,227,143,0.18)' : 'rgba(29,111,66,0.1)') : isDark ? 'rgba(242,247,243,0.06)' : 'rgba(20,36,28,0.04)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: active ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)') : d.cardBorder }}>
+                      <FontAwesome5 name={h.icon as never} size={12} color={active ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: active ? d.text : d.subtext }}>{h.label}</T>
+                      <T v="caption" style={{ fontSize: 8.5, fontWeight: '700', letterSpacing: 0.4, color: active ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint, marginTop: 1 }}>{active ? 'INCLUDED' : 'TAP TO ADD'}</T>
+                    </View>
+                    <View style={{ width: 17, height: 17, borderRadius: 9, borderWidth: 1.6, borderColor: active ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, backgroundColor: active ? (isDark ? '#4AE38F' : '#1D6F42') : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                      {active ? <FontAwesome5 name="check" size={8} color="#fff" /> : null}
+                    </View>
                   </Pressable>
                   {active && many ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Pressable onPress={() => { haptic.selection(); setCounts((c) => ({ ...c, [h.key]: Math.max(0, c[h.key] - 1) })); }} style={{ width: 20, height: 20, borderRadius: 7, backgroundColor: 'rgba(140,150,145,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                        <FontAwesome5 name="minus" size={8} color={d.subtext} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.04)', paddingHorizontal: 6, paddingVertical: 4 }}>
+                      <Pressable onPress={() => { haptic.selection(); setCounts((c) => ({ ...c, [h.key]: Math.max(1, c[h.key] - 1) })); }} style={{ width: 26, height: 26, borderRadius: 9, backgroundColor: 'rgba(140,150,145,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name="minus" size={9} color={d.subtext} />
                       </Pressable>
-                      <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: d.text, minWidth: 10, textAlign: 'center' }}>{counts[h.key]}</T>
-                      <Pressable onPress={() => { haptic.selection(); setCounts((c) => ({ ...c, [h.key]: Math.min(12, c[h.key] + 1) })); }} style={{ width: 20, height: 20, borderRadius: 7, backgroundColor: 'rgba(46,204,113,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                        <FontAwesome5 name="plus" size={8} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                      <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: d.text }}>{counts[h.key]} {counts[h.key] > 1 ? 'people' : 'person'}</T>
+                      <Pressable onPress={() => { haptic.selection(); setCounts((c) => ({ ...c, [h.key]: Math.min(12, c[h.key] + 1) })); }} style={{ width: 26, height: 26, borderRadius: 9, backgroundColor: isDark ? 'rgba(74,227,143,0.16)' : 'rgba(29,111,66,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name="plus" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
                       </Pressable>
                     </View>
                   ) : null}
@@ -147,21 +166,35 @@ export default function Mirath() {
           {result.rows.length === 0 ? (
             <T v="caption" style={{ fontSize: 11.5, color: d.faint }}>Select at least one heir to see the shares.</T>
           ) : (
-            result.rows.map((r, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: d.cardBorder }}>
-                <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name={r.icon as never} size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700' }}>{r.label}</T>
-                  <T v="caption" style={{ fontSize: 10, color: d.faint }}>{r.note}</T>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{fmt(r.amount)}</T>
-                  <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{r.frac}</T>
-                </View>
+            <>
+              {result.rows.map((r, i) => {
+                const pct = result.net > 0 ? (r.amount / result.net) * 100 : 0;
+                return (
+                  <View key={i} style={{ marginBottom: 11 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name={r.icon as never} size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{r.label}</T>
+                        <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{r.note} · {r.frac}</T>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{fmt(r.amount)}</T>
+                        <T v="caption" style={{ fontSize: 9, color: d.faint }}>{pct.toFixed(1)}%</T>
+                      </View>
+                    </View>
+                    <View style={{ height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(20,36,28,0.06)', marginTop: 7, overflow: 'hidden' }}>
+                      <View style={{ width: `${Math.min(100, pct)}%`, height: 5, borderRadius: 3, backgroundColor: isDark ? '#4AE38F' : '#1D6F42' }} />
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: d.cardBorder, paddingTop: 9 }}>
+                <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: d.faint }}>DISTRIBUTED</T>
+                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{fmt(result.rows.reduce((a, r) => a + r.amount, 0))} of {fmt(result.net)}</T>
               </View>
-            ))
+            </>
           )}
           {result.note ? (
             <View style={{ marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(212,175,55,0.08)', padding: 10 }}>

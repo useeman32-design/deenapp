@@ -280,7 +280,8 @@ export default function Onboarding() {
                 <Image source={mosqueImg} style={{ width: '100%', height: 232 }} resizeMode="cover" />
               </View>
             </View>
-            {/* Slide 4 — theme selection (pass 33: pick your look before you start) */}
+            {/* Slide 4 — theme selection (pass 34: pro-style phone previews,
+             not emoji icons — pick the look before you start) */}
             <View style={{ width: WIDTH, padding: 26, alignItems: 'center', paddingTop: 14 }}>
               <View
                 style={{
@@ -295,21 +296,22 @@ export default function Onboarding() {
                   paddingVertical: 6,
                 }}
               >
+                <FontAwesome5 name="moon" size={9} color={isDark ? '#E8C96A' : '#8C6D1F'} />
                 <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 10, letterSpacing: 1 }}>
-                  YOUR LOOK
+                  APPEARANCE
                 </T>
               </View>
               <T v="display" style={{ marginTop: 16, textAlign: 'center', fontSize: 27, lineHeight: 34, color: d.text, fontWeight: '800' }}>
                 Choose your{'\n'}theme
               </T>
               <T v="bodyS" style={{ marginTop: 10, textAlign: 'center', fontSize: 13, lineHeight: 19, color: d.subtext }}>
-                Pick how DeenLink feels — you can change it anytime in Settings.
+                You can change it anytime in Settings.
               </T>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 28, width: '100%' }}>
+
+              <View style={{ flexDirection: 'row', gap: 14, marginTop: 24 }}>
                 {([
-                  { id: 'system', label: 'System', emoji: '⚙️' },
-                  { id: 'dark', label: 'Dark', emoji: '🌙' },
-                  { id: 'light', label: 'Light', emoji: '☀️' },
+                  { id: 'dark', label: 'Dark', bg: '#08120C', card: '#10241A', line: 'rgba(74,227,143,0.35)', accent: '#4AE38F', text: '#F2F7F3', sub: 'rgba(242,247,243,0.55)' },
+                  { id: 'light', label: 'Light', bg: '#F6FAF7', card: '#FFFFFF', line: 'rgba(29,111,66,0.28)', accent: '#1D6F42', text: '#14241C', sub: 'rgba(20,36,28,0.55)' },
                 ] as const).map((opt) => {
                   const active = mode === opt.id;
                   return (
@@ -317,24 +319,47 @@ export default function Onboarding() {
                       key={opt.id}
                       accessibilityLabel={`theme ${opt.label}`}
                       onPress={() => { haptic.selection(); setMode(opt.id); }}
-                      style={{
-                        flex: 1,
-                        alignItems: 'center',
-                        gap: 8,
-                        borderRadius: 20,
-                        paddingVertical: 22,
-                        backgroundColor: active ? (isDark ? 'rgba(232,201,106,0.12)' : 'rgba(140,109,31,0.07)') : d.card,
-                        borderWidth: 1.5,
-                        borderColor: active ? '#E8C96A' : d.cardBorder,
-                      }}
+                      style={{ flex: 1, borderRadius: 22, borderWidth: 2, borderColor: active ? '#E8C96A' : d.cardBorder, padding: 9, backgroundColor: active ? (isDark ? 'rgba(232,201,106,0.07)' : 'rgba(140,109,31,0.04)') : 'transparent' }}
                     >
-                      <T style={{ fontSize: 30 }}>{opt.emoji}</T>
-                      <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: active ? '#E8C96A' : d.text }}>{opt.label}</T>
-                      {active ? <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#E8C96A' }} /> : null}
+                      {/* mini phone preview */}
+                      <View style={{ borderRadius: 16, backgroundColor: opt.bg, borderWidth: 1, borderColor: opt.line, overflow: 'hidden', paddingTop: 8, paddingHorizontal: 8, paddingBottom: 10 }}>
+                        <View style={{ alignSelf: 'center', width: 34, height: 4, borderRadius: 2, backgroundColor: opt.sub, marginBottom: 8 }} />
+                        <View style={{ borderRadius: 8, backgroundColor: opt.card, borderWidth: 1, borderColor: opt.line, padding: 7, gap: 4 }}>
+                          <View style={{ width: 26, height: 5, borderRadius: 3, backgroundColor: opt.accent, opacity: 0.9 }} />
+                          <View style={{ width: 68, height: 4, borderRadius: 2, backgroundColor: opt.sub }} />
+                          <View style={{ width: 48, height: 4, borderRadius: 2, backgroundColor: opt.sub, opacity: 0.6 }} />
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 5, marginTop: 6 }}>
+                          <View style={{ flex: 1, height: 22, borderRadius: 8, backgroundColor: opt.card, borderWidth: 1, borderColor: opt.line, alignItems: 'center', justifyContent: 'center' }}>
+                            <View style={{ width: 12, height: 4, borderRadius: 2, backgroundColor: opt.accent }} />
+                          </View>
+                          <View style={{ flex: 1, height: 22, borderRadius: 8, backgroundColor: opt.card, borderWidth: 1, borderColor: opt.line, alignItems: 'center', justifyContent: 'center' }}>
+                            <View style={{ width: 12, height: 4, borderRadius: 2, backgroundColor: opt.sub }} />
+                          </View>
+                        </View>
+                        <View style={{ marginTop: 6, height: 14, borderRadius: 7, backgroundColor: opt.accent, opacity: 0.85 }} />
+                      </View>
+                      {/* label + check */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 9 }}>
+                        <View style={{ width: 15, height: 15, borderRadius: 8, borderWidth: 1.6, borderColor: active ? '#E8C96A' : d.cardBorder, backgroundColor: active ? '#E8C96A' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                          {active ? <FontAwesome5 name="check" size={7} color="#08120C" /> : null}
+                        </View>
+                        <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: active ? '#E8C96A' : d.text }}>{opt.label}</T>
+                      </View>
                     </Pressable>
                   );
                 })}
               </View>
+
+              <Pressable
+                accessibilityLabel="theme System"
+                onPress={() => { haptic.selection(); setMode('system'); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, borderWidth: 1, borderColor: mode === 'system' ? '#E8C96A' : d.cardBorder, backgroundColor: mode === 'system' ? (isDark ? 'rgba(232,201,106,0.07)' : 'rgba(140,109,31,0.04)') : 'transparent', paddingHorizontal: 14, paddingVertical: 9, marginTop: 12 }}
+              >
+                <FontAwesome5 name="mobile-alt" size={10} color={mode === 'system' ? '#E8C96A' : d.faint} />
+                <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: mode === 'system' ? '#E8C96A' : d.subtext }}>Match my phone{"'"}s setting</T>
+                {mode === 'system' ? <FontAwesome5 name="check-circle" size={12} color="#E8C96A" /> : null}
+              </Pressable>
             </View>
           </ScrollView>
 

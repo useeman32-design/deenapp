@@ -176,10 +176,22 @@ export default function HadithBookScreen() {
             <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
               {chapter ? chapterMeta?.english ?? `Chapter ${chNum}` : book.name}
             </T>
-            <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }} numberOfLines={1}>
+            <T v="caption" style={{ color: d.faint, fontSize: 12.5, marginTop: 1 }} numberOfLines={1}>
               {chapter ? `${chapterMeta?.arabic ?? ''} · ${list.length} hadiths` : `${book.total.toLocaleString()} hadiths · ${book.chapters} chapters`}
             </T>
           </View>
+          {/* pass 34: translation selector lives in the HEADER now (cycles
+             EN → FR → BN → UR; only where the CDN has the book) */}
+          {chapter && hadithTrLangsFor(book.id).length ? (
+            <Pressable
+              accessibilityLabel="translation language"
+              onPress={() => { haptic.selection(); const avail = [{ id: null }, ...hadithTrLangsFor(book.id)]; const i = avail.findIndex((x) => x.id === trLang); const nx = avail[(i + 1) % avail.length].id; setTrs({}); setTrLang(nx); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: trLang ? 'rgba(74,227,143,0.5)' : d.cardBorder, backgroundColor: trLang ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : d.card }}
+            >
+              <FontAwesome5 name="language" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5 }}>{trLang ? HADITH_TR_LANGS.find((l) => l.id === trLang)?.code : 'EN'}</T>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -215,7 +227,7 @@ export default function HadithBookScreen() {
                   <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5 }} numberOfLines={1}>
                     {c.english}
                   </T>
-                  <T v="arabic" style={{ color: d.faint, fontSize: 14, marginTop: 1 }} numberOfLines={1}>
+                  <T v="arabic" style={{ color: isDark ? 'rgba(242,247,243,0.75)' : 'rgba(20,36,28,0.7)', fontSize: 18, marginTop: 2 }} numberOfLines={1}>
                     {c.arabic}
                   </T>
                 </View>
@@ -238,30 +250,6 @@ export default function HadithBookScreen() {
             </T>
           ) : (
             <>
-              {hadithTrLangsFor(book.id).length ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 2 }}>
-                  <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>TRANSLATION</T>
-                  <Pressable
-                    onPress={() => { haptic.selection(); setTrLang(null); }}
-                    style={{ borderRadius: 999, borderWidth: 1, borderColor: !trLang ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: !trLang ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 10, paddingVertical: 4 }}
-                  >
-                    <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: !trLang ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>EN</T>
-                  </Pressable>
-                  {hadithTrLangsFor(book.id).map((l) => {
-                    const on = trLang === l.id;
-                    return (
-                      <Pressable
-                        key={l.id}
-                        accessibilityLabel={`translation ${l.code}`}
-                        onPress={() => { haptic.selection(); setTrs({}); setTrLang(on ? null : l.id); }}
-                        style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 10, paddingVertical: 4 }}
-                      >
-                        <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{l.code}</T>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : null}
               {list.slice(0, limit).map((h, i) => {
                 const hid = `${book.id}-${h.chapter_number}-${i}`;
                 const num = h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1);
@@ -312,7 +300,7 @@ export default function HadithBookScreen() {
                         setShareH({
                           arabic: h.arabic,
                           meaning: enOf(h.english) || h.chapter_name?.english || '',
-                          ref: `${book.name ?? book.id} · Hadith ${num}`,
+                          ref: `${book.name} · ${h.chapter_name?.english ? h.chapter_name.english + ' · ' : ''}Hadith ${num}`,
                         });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}

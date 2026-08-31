@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, View } from 'react-native';
 import Svg, { Circle, Defs, G, Line, Path, Polygon, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 
 /**
@@ -141,26 +142,29 @@ export function Compass({
         const by = c - (R - 16) * Math.cos(backA);
         return (
           <>
+            {/* pass 34: fa-kaaba icon (free FontAwesome solid) in a gold
+             * ring — replaces the photo circle */}
             <View
               pointerEvents="none"
               style={{
                 position: 'absolute',
-                left: mx - 17,
-                top: my - 17,
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                overflow: 'hidden',
+                left: mx - 19,
+                top: my - 19,
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                alignItems: 'center',
+                justifyContent: 'center',
                 borderWidth: 2,
                 borderColor: aligned ? '#4AE38F' : '#D4AF37',
-                backgroundColor: '#000',
+                backgroundColor: '#08110C',
                 shadowColor: '#000',
-                shadowOpacity: 0.4,
+                shadowOpacity: 0.45,
                 shadowRadius: 5,
                 shadowOffset: { width: 0, height: 2 },
               }}
             >
-              <Image source={require('../../assets/images/kaaba.jpg')} style={{ width: 34, height: 34 }} />
+              <FontAwesome5 name="kaaba" size={15} color={aligned ? '#4AE38F' : '#D4AF37'} />
             </View>
             <Svg width={size} height={size} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
               {/* pass 33: the needles START AT THE CENTER DOT — a bold gold

@@ -67,9 +67,14 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
   return (
     <>
       {children}
-      <Animated.View pointerEvents={readyAt == null ? 'box-none' : 'none'} style={{ position: 'absolute', inset: 0, zIndex: 999, opacity: fade, backgroundColor: isDark ? '#06140D' : '#F6FAF7' }}>
-        {/* the brand opening — GIF covers like a video, colour matches the clip */}
-        <Image source={isDark ? darkGif : lightGif} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} resizeMode="cover" />
+      <Animated.View pointerEvents={readyAt == null ? 'box-none' : 'none'} style={{ position: 'absolute', inset: 0, zIndex: 999, opacity: fade, backgroundColor: isDark ? '#06140D' : '#F6FAF7', alignItems: 'center', justifyContent: 'center' }}>
+        {/* pass 34: the GIF sits CENTERED at a readable size (the full-bleed
+         * cover zoomed the logo huge) on the brand colour, rounded card */}
+        <Image
+          source={isDark ? darkGif : lightGif}
+          style={{ width: Math.min(W * 0.78, 330), aspectRatio: 1.7778, borderRadius: 22, overflow: 'hidden' }}
+          resizeMode="contain"
+        />
 
         {/* thin brand loader pinned near the bottom (over the GIF) */}
         <View style={{ position: 'absolute', bottom: '11%', alignSelf: 'center', alignItems: 'center' }}>

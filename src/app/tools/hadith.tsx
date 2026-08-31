@@ -3,6 +3,7 @@ import { FlatList, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hadithNumbers } from '@/lib/hadithNum';
 import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -232,21 +233,23 @@ export default function HadithCollections() {
               }
             } catch {}
           }
-          // 2) hadith text scan (small books first, capped)
-          /* pass 32: fold آأإٱ→ا too — recited text never matches hamza-carrying
-           * spellings — and scan bukhari+muslim as well (voice search hits) */
+          // 2) hadith text scan — pass 34: ALL books, in PARALLEL, canonical
+          // numbers + chapter names, grouped so the same matn/isnad shows
+          // every book it appears in (not just the first book that matches).
           const bareAr = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-          for (const bid of ['nawawi40', 'shamail_muhammadiyah', 'riyad_assalihin', 'malik', 'bukhari', 'muslim']) {
+          const qw = qq.trim().split(/\s+/).map(bareAr).filter((w) => w.length > 1);
+          const isArabic = /[\u0621-\u064A]/.test(qq.trim()) && qw.length > 2;
+          const scanOne = async (bid: string) => {
+            const out: Array<{ key: string; title: string; subtitle?: string; arabic?: string; onPress: () => void }> = [];
             try {
               const list = await loadBook(bid);
               const b = HADITH_BOOKS.find((x) => x.id === bid);
-              for (const h of list) {
-                /* pass 29: recited Arabic never substring-matches (harakat,
-                 * wasl) — fuzzy token coverage for Arabic queries */
-                const fuzzyHit = /[\u0621-\u064A]/.test(qq.trim()) && qq.trim().split(/\s+/).filter(Boolean).length > 2 && (() => {
+              let nums: number[] = [];
+              try { nums = await hadithNumbers(bid); } catch {}
+              for (let ix = 0; ix < list.length; ix++) {
+                const h = list[ix];
+                const fuzzyHit = isArabic && (() => {
                   const hw = bareAr(h.arabic).split(/\s+/);
-                  const qw = qq.trim().split(/\s+/).map(bareAr).filter((w) => w.length > 1);
-                  if (!qw.length) return false;
                   let hit = 0;
                   for (const t of qw) {
                     if (hw.some((w) => w === t || (w.length > 3 && t.length > 3 && (w.startsWith(t) || t.startsWith(w) || w.endsWith(t) || t.endsWith(w))))) hit++;
@@ -254,17 +257,25 @@ export default function HadithCollections() {
                   return hit / qw.length >= 0.34;
                 })();
                 if (fuzzyHit || h.arabic.includes(qq.trim()) || enOf(h.english).toLowerCase().includes(needle)) {
-                  hits.push({
-                    key: `h-${bid}-${h.chapter_number}-${h.hadith_number ?? Math.random()}`,
-                    title: `${b?.name ?? bid} · ${h.hadith_number ?? ''}`,
-                    subtitle: (enOf(h.english) || h.chapter_name?.english || '').slice(0, 90),
+                  const num = h.hadith_number != null ? Number(h.hadith_number) : (nums[ix] ?? ix + 1);
+                  const chName = h.chapter_name?.english ?? '';
+                  out.push({
+                    key: `h-${bid}-${num}`,
+                    title: `${b?.name ?? bid} · ${chName ? chName + ' · ' : ''}Hadith ${num}`,
+                    subtitle: (enOf(h.english) || chName || '').slice(0, 90),
                     arabic: h.arabic.slice(0, 44),
-                    onPress: () => router.push(`/tools/hadith/${bid}?chapter=${h.chapter_number}` as never),
+                    onPress: () => router.push(`/tools/hadith/${bid}?h=${num}` as never),
                   });
-                  if (hits.length >= 40) return hits;
+                  if (out.length >= 8) break; /* a few per book, ALL books */
                 }
               }
             } catch {}
+            return out;
+          };
+          const perBook = await Promise.all(HADITH_BOOKS.map((b) => scanOne(b.id)));
+          for (const group of perBook) {
+            hits.push(...group);
+            if (hits.length >= 60) break;
           }
           return hits;
         }}

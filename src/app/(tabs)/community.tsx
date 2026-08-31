@@ -6,6 +6,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
+import { GroupsRail } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -556,6 +557,9 @@ export default function CommunityScreen() {
             </ScrollView>
           </View>
         ) : null}
+
+        {/* pass 34: GROUPS — schools, mosques, organizations (facebook-style) */}
+        <GroupsRail />
 
         {/* Feed tabs (inline at the top of the feed; sticky clone appears on scroll) */}
         {!searching ? (

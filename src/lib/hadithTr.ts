@@ -19,7 +19,7 @@ export const HADITH_TR_LANGS: Array<{ id: HadithTrLang; code: string; label: str
 
 const EXT_BOOK: Partial<Record<string, string>> = {
   buhari: 'bukhari', muslim: 'muslim', abudawud: 'abudawud', tirmidhi: 'tirmidhi',
-  nasai: 'nasai', ibnmajah: 'ibnmajah', malik: 'malik',
+  nasai: 'nasai', ibnmajah: 'ibnmajah', malik: 'malik', nawawi40: 'nawawi',
 };
 
 /** which translation languages exist for a given pack book id */

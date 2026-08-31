@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -47,6 +47,18 @@ export default function SurahList() {
   const [favs, setFavs] = useState<number[]>([]);
   const [ayahMarks, setAyahMarks] = useState<Array<{ surah: number; ayah: number }>>([]);
   const [deepSearch, setDeepSearch] = useState(false);
+  /* pass 34: Quran Shazam deep-link — ?q=<dictated arabic> opens the search
+   * prefilled and runs the corpus scan immediately */
+  const params = useLocalSearchParams<{ q?: string }>();
+  const [preQ, setPreQ] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const incoming = params.q;
+    if (incoming && typeof incoming === 'string' && incoming.trim()) {
+      setPreQ(incoming);
+      setSearchOpen(true);
+    }
+  }, [params.q]);
   const [recent, setRecent] = useState<number[]>([]);
   const [lastRead, setLastRead] = useState<{ surah: number; ayah?: number; at?: string } | null>(null);
 
@@ -427,8 +439,9 @@ export default function SurahList() {
 
       {/* deep search — surah names instantly + full corpus content scan */}
       <ContentSearchOverlay
-        visible={deepSearch}
-        onClose={() => setDeepSearch(false)}
+        visible={deepSearch || searchOpen}
+        initialQuery={preQ ?? undefined}
+        onClose={() => { setDeepSearch(false); setSearchOpen(false); setPreQ(null); }}
         placeholder="Search the Qur'an — surah or ayah text…"
         metaSearch={(qq) => {
           const needle = qq.toLowerCase();

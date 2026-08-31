@@ -17,17 +17,33 @@ import { probeAdvancing } from '@/lib/mediaProbe';
  *    the seek bar used to look frozen).
  */
 
+/* pass 34: new reciters — Sudais, Shuraim, Muhammad Ayyub & Maher Al
+ * Muaiqly live on everyayah (folder + zero-padded SSSAAA.mp3); the rest on
+ * cdn.islamic.network (global-ayah mp3s). `src` picks the URL builder. */
 export const RECITERS = [
   { id: 'ar.alafasy', name: 'Mishary Alafasy', photo: require('../../assets/img/reciters/alafasy.jpg') },
   { id: 'ar.husary', name: 'Mahmoud Al-Husary', photo: require('../../assets/img/reciters/husary.jpg') },
   { id: 'ar.abdulbasitmurattal', name: 'Abdul Basit', photo: require('../../assets/img/reciters/abdulbasit.jpg') },
   { id: 'ar.minshawi', name: 'Al-Minshawi', photo: require('../../assets/img/reciters/minshawi.jpg') },
   { id: 'ar.shaatree', name: 'Abu Bakr Ash-Shaatree', photo: require('../../assets/img/reciters/shaatree.jpg') },
+  { id: 'ar.abdurrahmaansudais', name: 'Abdurrahman As-Sudais', photo: require('../../assets/img/reciters/sudais.jpg'), src: 'everyayah', folder: 'Abdurrahmaan_As-Sudais_192kbps' },
+  { id: 'ar.saudalshuraim', name: 'Saud Ash-Shuraim', photo: require('../../assets/img/reciters/shuraim.jpg'), src: 'everyayah', folder: 'Saood_ash-Shuraym_128kbps' },
+  { id: 'ar.muhammadayyub', name: 'Muhammad Ayyub', photo: require('../../assets/img/reciters/ayyub.jpg'), src: 'everyayah', folder: 'Muhammad_Ayyoub_128kbps' },
+  { id: 'ar.mahermuaiqly', name: 'Maher Al Muaiqly', photo: require('../../assets/img/reciters/maher.jpg') },
 ] as const;
 
 export type LoopCfg = { surah: number; from: number; to: number; perAyah: number; cycles: number };
 
-const ayahAudio = (reciter: string, globalAyah: number) => `https://cdn.islamic.network/quran/audio/128/${reciter}/${globalAyah}.mp3`;
+const RECITER_CFG = (id: string) => RECITERS.find((r) => r.id === id);
+const ayahAudio = (reciter: string, globalAyah: number, surah?: number, ayah?: number) => {
+  const cfg = RECITER_CFG(reciter) as { src?: string; folder?: string } | undefined;
+  if (cfg?.src === 'everyayah' && cfg.folder && surah != null && ayah != null) {
+    const s3 = String(surah).padStart(3, '0');
+    const a3 = String(ayah).padStart(3, '0');
+    return `https://everyayah.com/data/${cfg.folder}/${s3}${a3}.mp3`;
+  }
+  return `https://cdn.islamic.network/quran/audio/128/${reciter}/${globalAyah}.mp3`;
+};
 
 /* expo-video web: replace() does load()+play() and the play promise silently
  * aborts (its internal `playing` flag stays true, so retries no-op). Ensure
@@ -125,7 +141,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
   /* playback intent — survives source swaps; (re)fires on readyToPlay */
   const wantPlay = useRef(false);
 
-  const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah)) : null;
+  const uri = surah != null ? ayahAudio(reciter, globalAyahOf(surah, ayah), surah, ayah) : null;
 
   /* what plays after the current ayah (null = stop) */
   const nextOf = (s: number, a: number): { surah: number; ayah: number } | null => {
@@ -192,7 +208,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
       standbySrc.current = null;
       return;
     }
-    const nextUri = ayahAudio(reciter, globalAyahOf(nx.surah, nx.ayah));
+    const nextUri = ayahAudio(reciter, globalAyahOf(nx.surah, nx.ayah), nx.surah, nx.ayah);
     if (nextUri !== standbySrc.current) {
       standbySrc.current = nextUri;
       try {
