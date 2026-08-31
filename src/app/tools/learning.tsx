@@ -44,7 +44,7 @@ const CARDS: LearningCard[] = [
     action: { type: 'route', href: '/tools/quiz' },
   },
   {
-    title: 'Islamic Courses & Lessons',
+    title: 'Courses, Lessons & Lectures',
     desc: 'Structured courses on Tafsir, Fiqh, Aqeedah, Arabic, Seerah, and more. Learn at your own pace with certified instructors.',
     icon: BookIcon,
     grad: ['#00796B', '#00BFA5'],
@@ -56,7 +56,7 @@ const CARDS: LearningCard[] = [
     action: { type: 'route', href: '/tools/courses' },
   },
   {
-    title: 'Islamic Events',
+    title: 'Seerah Events',
     desc: 'Explore key moments from the Seerah and early Islamic history in a timeline built for quick reading and deeper reflection.',
     icon: LandmarkIcon,
     grad: ['#D4AF37', '#F39C12'],
@@ -64,8 +64,8 @@ const CARDS: LearningCard[] = [
       { icon: LandmarkIcon, label: '40+ Milestones' },
       { icon: BookIcon, label: 'Seerah Timeline' },
     ],
-    cta: 'Explore Events',
-    action: { type: 'route', href: '/tools/events' },
+    cta: 'Explore the Timeline',
+    action: { type: 'route', href: '/tools/seerah' },
   },
   {
     title: 'Story of the Prophets',
@@ -73,11 +73,11 @@ const CARDS: LearningCard[] = [
     icon: MosqueIcon,
     grad: ['#8D6E63', '#A0522D'],
     stats: [
-      { icon: MosqueIcon, label: '25+ Prophets' },
-      { icon: BookIcon, label: 'Quran & Sunnah' },
+      { icon: MosqueIcon, label: '19 Chapters' },
+      { icon: BookIcon, label: 'Ibn Kathir' },
     ],
     cta: 'Explore Stories',
-    action: { type: 'route', href: '/tools/seerah' },
+    action: { type: 'route', href: '/tools/prophets' },
   },
   {
     title: 'Islamic Riddles',

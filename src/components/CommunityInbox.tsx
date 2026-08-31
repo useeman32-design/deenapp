@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, Image, ImageBackground, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -18,7 +19,19 @@ import { storage } from '@/lib/storage';
 
 const EMOJIS = ['🤍', '😂', '😮', '🤲', '🔥', '🕌'] as const;
 type Kind = 'post' | 'reel' | 'ayah' | 'hadith' | 'dua' | 'profile';
-type ShareItem = { id: string; kind: Kind; title: string; ago: string; dir: 'them' | 'me' };
+type ShareItem = {
+  id: string;
+  kind: Kind;
+  title: string;
+  ago: string;
+  dir: 'them' | 'me';
+  /* pass 31/32 previews */
+  thumb?: number;      /* reel/post preview image */
+  dur?: string;        /* reel duration chip */
+  arabic?: string;     /* ayah/hadith/dua arabic text */
+  refLabel?: string;   /* citation under arabic */
+  sub?: string;        /* post caption / profile handle */
+};
 type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me' };
 type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string> };
 
@@ -34,34 +47,43 @@ const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
 const ago = () => 'now';
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-/* seed — what friends shared with you (in-app content only) */
+/* seed — what friends shared with you (in-app content only). every
+ * sharable kind previews the way it looks when shared — reels as video
+ * thumbnails with a play chip, posts with their picture, ayah/hadith/dua as
+ * ornate arabic text cards with their citation, profiles as a follow card. */
+const THUMBS = {
+  mosque: require('../../assets/img/post-mosque.jpg'),
+  quran: require('../../assets/img/onboard-book.jpg'),
+  mecca: require('../../assets/img/mecca.jpg'),
+  medina: require('../../assets/img/medina.jpg'),
+};
 const SEED: Thread[] = [
   { friend: 'aisha_yusuf', items: [
-    { id: uid(), kind: 'post', title: 'Never underestimate a single ayah a day…', ago: '2h', dir: 'them' },
-    { id: uid(), kind: 'ayah', title: 'Surah Al-Fatiha · Ayah 5', ago: '6h', dir: 'them' },
-    { id: uid(), kind: 'dua', title: 'Dua before sleeping — Hisn al-Muslim', ago: '1d', dir: 'them' },
+    { id: uid(), kind: 'post', title: 'Never underestimate a single ayah a day…', ago: '2h', dir: 'them', thumb: THUMBS.quran, sub: 'aisha_yusuf · 214 likes · 36 comments' },
+    { id: uid(), kind: 'ayah', title: 'Surah Al-Fatiha · Ayah 5', ago: '6h', dir: 'them', arabic: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ', refLabel: 'Al-Fatiha 1:5 · tap to read' },
+    { id: uid(), kind: 'dua', title: 'Dua before sleeping — Hisn al-Muslim', ago: '1d', dir: 'them', arabic: 'بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا', refLabel: 'Hisn al-Muslim · sleeping dua' },
   ], chat: [
     { id: uid(), text: 'This dua changed my nights, try it tonight inshaAllah', ago: '1d', dir: 'them' },
   ], reactions: {} },
   { friend: 'alameen', items: [
-    { id: uid(), kind: 'reel', title: 'Quran recitation — Al-Furqan', ago: '5h', dir: 'them' },
-    { id: uid(), kind: 'post', title: 'Reminder: the dua of Yunus (as)', ago: '2d', dir: 'them' },
+    { id: uid(), kind: 'reel', title: 'Quran recitation — Al-Furqan', ago: '5h', dir: 'them', thumb: THUMBS.mecca, dur: '0:48' },
+    { id: uid(), kind: 'post', title: 'Reminder: the dua of Yunus (as)', ago: '2d', dir: 'them', thumb: THUMBS.mosque, sub: 'alameen · 1.2k likes · 204 comments' },
   ], chat: [], reactions: {} },
   { friend: 'usman_ahmad', items: [
-    { id: uid(), kind: 'ayah', title: 'Ash-Sharh · Ayah 6', ago: '9h', dir: 'them' },
-    { id: uid(), kind: 'reel', title: 'One ummah, one qiblah', ago: '1d', dir: 'them' },
+    { id: uid(), kind: 'ayah', title: 'Ash-Sharh · Ayah 6', ago: '9h', dir: 'them', arabic: 'إِنَّ مَعَ الْعُسْرِ يُسْرًا', refLabel: 'Ash-Sharh 94:6 · tap to read' },
+    { id: uid(), kind: 'reel', title: 'One ummah, one qiblah', ago: '1d', dir: 'them', thumb: THUMBS.medina, dur: '1:12' },
   ], chat: [], reactions: {} },
   { friend: 'Gimba', items: [
-    { id: uid(), kind: 'dua', title: 'Dua after adhan', ago: '1d', dir: 'them' },
-    { id: uid(), kind: 'hadith', title: 'Bukhari · “None of you truly believes…”', ago: '1d', dir: 'them' },
-  ], chat: [], reactions: {} },
-  { friend: 'maryam_s', items: [
-    { id: uid(), kind: 'profile', title: 'Profile — Ustādh Ibrāhīm (quran teacher)', ago: '3h', dir: 'them' },
-    { id: uid(), kind: 'reel', title: 'Beautiful adhan from Makkah', ago: '8h', dir: 'them' },
-    { id: uid(), kind: 'post', title: 'Jumu’ah reminder — arrive early', ago: '2d', dir: 'them' },
+    { id: uid(), kind: 'dua', title: 'Dua after adhan', ago: '1d', dir: 'them', arabic: 'اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ', refLabel: 'Hisn al-Muslim · after adhan' },
+    { id: uid(), kind: 'hadith', title: 'Bukhari · “None of you truly believes…”', ago: '1d', dir: 'them', arabic: 'لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ', refLabel: 'Sahih al-Bukhari 13 · tap to open' },
   ], chat: [], reactions: {} },
   { friend: 'mayanchie12', items: [
-    { id: uid(), kind: 'post', title: 'Seerah quiz — how many events do you know?', ago: '2d', dir: 'them' },
+    { id: uid(), kind: 'post', title: 'Seerah quiz — how many events do you know?', ago: '2d', dir: 'them', thumb: THUMBS.mosque, sub: 'mayanchie12 · 88 likes · 41 comments' },
+  ], chat: [], reactions: {} },
+  { friend: 'maryam_s', items: [
+    { id: uid(), kind: 'profile', title: 'Profile — Ustādh Ibrāhīm (quran teacher)', ago: '3h', dir: 'them', sub: '@ustadh_ibrahim · 4.2k followers · Quran & Tajwid' },
+    { id: uid(), kind: 'reel', title: 'Beautiful adhan from Makkah', ago: '8h', dir: 'them', thumb: THUMBS.mecca, dur: '2:05' },
+    { id: uid(), kind: 'post', title: 'Jumu’ah reminder — arrive early', ago: '2d', dir: 'them', thumb: THUMBS.quran, sub: 'maryam_s · 530 likes · 77 comments' },
   ], chat: [], reactions: {} },
 ];
 
@@ -211,13 +233,68 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
                     opacity: pressed ? 0.85 : 1,
                   })}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                     <FontAwesome5 name={meta.icon as never} size={10} color={meta.tint} />
                     <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: meta.tint, letterSpacing: 0.4 }}>{meta.label.toUpperCase()}</T>
                     <View style={{ flex: 1 }} />
                     <FontAwesome5 name={mine ? 'share' : 'share-alt'} size={8} color={d.faint} />
                   </View>
-                  <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{it.title}</T>
+
+                  {/* pass 32: each sharable type previews the way it really looks */}
+                  {it.kind === 'reel' && it.thumb != null ? (
+                    <View style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 7 }}>
+                      <ImageBackground source={it.thumb} style={{ width: '100%', height: 128, justifyContent: 'center', alignItems: 'center' }} resizeMode="cover">
+                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+                          <FontAwesome5 name="play" size={13} color="#fff" />
+                        </View>
+                        <View style={{ position: 'absolute', right: 7, bottom: 7, borderRadius: 7, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{it.dur ?? '0:30'}</T>
+                        </View>
+                        <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 44 }} />
+                        <View style={{ position: 'absolute', left: 8, bottom: 7, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <FontAwesome5 name="video" size={8} color="#E8C96A" />
+                          <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, fontWeight: '800', color: '#fff' }}>{it.title}</T>
+                        </View>
+                      </ImageBackground>
+                    </View>
+                  ) : it.kind === 'post' && it.thumb != null ? (
+                    <View style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, marginBottom: 7 }}>
+                      <Image source={it.thumb} style={{ width: '100%', height: 96 }} resizeMode="cover" />
+                      <View style={{ padding: 8 }}>
+                        <T v="bodyS" style={{ fontSize: 12, lineHeight: 17, color: d.text }}>{it.title}</T>
+                        {it.sub ? <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 4 }}>{it.sub}</T> : null}
+                      </View>
+                    </View>
+                  ) : (it.kind === 'ayah' || it.kind === 'hadith' || it.kind === 'dua') && it.arabic ? (
+                    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: it.kind === 'ayah' ? 'rgba(212,175,55,0.45)' : it.kind === 'hadith' ? 'rgba(200,162,200,0.5)' : 'rgba(240,168,192,0.5)', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)', padding: 11, marginBottom: 7, alignItems: 'center' }}>
+                      <T v="arabic" style={{ fontSize: 17, lineHeight: 32, textAlign: 'center', color: d.text }}>{it.arabic}</T>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
+                        <View style={{ width: 14, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                        <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: it.kind === 'ayah' ? '#B8870B' : d.faint, letterSpacing: 0.4 }}>{it.refLabel ?? it.title}</T>
+                        <View style={{ width: 14, height: 1, backgroundColor: 'rgba(212,175,55,0.5)' }} />
+                      </View>
+                    </View>
+                  ) : it.kind === 'profile' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(143,211,182,0.5)', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)', padding: 10, marginBottom: 7 }}>
+                      <AvatarImage source={null} name="UI" size={40} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                      <View style={{ flex: 1 }}>
+                        <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>Ustādh Ibrāhīm</T>
+                        <T v="caption" numberOfLines={2} style={{ fontSize: 9, color: d.faint, marginTop: 2 }}>{it.sub}</T>
+                      </View>
+                      <View style={{ borderRadius: 9, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingHorizontal: 10, paddingVertical: 5 }}>
+                        <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>VIEW</T>
+                      </View>
+                    </View>
+                  ) : (
+                    <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{it.title}</T>
+                  )}
+                  {/* kinds with a rich preview still show the source line */}
+                  {(it.kind === 'ayah' || it.kind === 'hadith' || it.kind === 'dua') && it.arabic ? (
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 2 }}>{it.title}</T>
+                  ) : null}
+                  {(it.kind === 'reel' || it.kind === 'post') ? (
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 2 }}>{it.kind === 'reel' ? 'Reel shared from Videos' : 'Post shared from the community feed'}</T>
+                  ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 }}>
                     <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{mine ? `you shared · ${it.ago}` : `shared with you · ${it.ago}`}</T>
                     {reaction ? (

@@ -7,6 +7,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { loadFatwas, type Fatwa } from '@/lib/ai';
+import { storage } from '@/lib/storage';
 
 /** Learning — Fatwa & Rulings (pass 29): searchable islamqa corpus
  * (1,080 answered rulings) bundled with the app. */
@@ -17,11 +18,30 @@ export default function FatwaBrowser() {
   const [q, setQ] = useState('');
   const [all, setAll] = useState<Fatwa[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  /* pass 32: save rulings (bookmark icon) + a SAVED view, like the seerah
+   * events screen — saved fatwas persist in local storage. */
+  const [savedIdx, setSavedIdx] = useState<Set<number>>(new Set());
+  const [view, setView] = useState<'all' | 'saved'>('all');
 
   useEffect(() => { loadFatwas().then(setAll).catch(() => setAll([])); }, []);
+  useEffect(() => {
+    storage.getItem('dl.fatwa.saved').then((r) => {
+      try { setSavedIdx(new Set(JSON.parse(r ?? '[]') as number[])); } catch {}
+    }).catch(() => {});
+  }, []);
+  const toggleSave = (i: number) => {
+    haptic.light();
+    setSavedIdx((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      storage.setItem('dl.fatwa.saved', JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+  };
 
   const list = useMemo(() => {
     if (!all) return [];
+    if (view === 'saved') return all.filter((_, i) => savedIdx.has(i));
     const needle = q.trim().toLowerCase();
     if (!needle) return all.slice(0, 30);
     const toks = needle.split(/\s+/).filter((t) => t.length > 2);
@@ -36,7 +56,7 @@ export default function FatwaBrowser() {
       .sort((a, b) => b.sc - a.sc)
       .slice(0, 40)
       .map((x) => x.f);
-  }, [all, q]);
+  }, [all, q, view, savedIdx]);
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -57,9 +77,18 @@ export default function FatwaBrowser() {
             </Pressable>
           ) : null}
         </View>
-        <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 7, marginLeft: 4 }}>
-          {all ? `${all.length} answered rulings · islamqa.info archive` : 'Loading the corpus…'}
-        </T>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: 0 }}>
+          {(['all', 'saved'] as const).map((v) => (
+            <Pressable key={v} onPress={() => { haptic.selection(); setView(v); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 6, marginRight: 7, borderWidth: 1, borderColor: view === v ? (isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)') : d.cardBorder, backgroundColor: view === v ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : d.card }}>
+              <FontAwesome5 name={v === 'all' ? 'scale' : 'bookmark'} size={9} color={view === v ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: view === v ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint }}>{v === 'all' ? 'ALL RULINGS' : `SAVED (${savedIdx.size})`}</T>
+            </Pressable>
+          ))}
+          <View style={{ flex: 1 }} />
+          <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>
+            {view === 'all' ? (all ? `${all.length} rulings · islamqa.info archive` : 'Loading…') : `${list.length} saved`}
+          </T>
+        </View>
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         {!all ? (
@@ -68,7 +97,7 @@ export default function FatwaBrowser() {
             <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 8 }}>Loading 1,080 rulings…</T>
           </View>
         ) : list.length === 0 ? (
-          <T v="caption" style={{ textAlign: 'center', marginTop: 30, fontSize: 11.5 }}>No rulings match “{q}”. Try a simpler word.</T>
+          <T v="caption" style={{ textAlign: 'center', marginTop: 30, fontSize: 11.5 }}>{view === 'saved' ? 'No saved rulings yet — tap the bookmark on any ruling.' : `No rulings match “${q}”. Try a simpler word.`}</T>
         ) : (
           list.map((f, i) => {
             const isOpen = open === i;
@@ -83,6 +112,9 @@ export default function FatwaBrowser() {
                     <FontAwesome5 name="scale" size={11} color="#3F51B5" />
                   </View>
                   <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', lineHeight: 18 }}>{f.t}</T>
+                  <Pressable onPress={() => toggleSave(list.indexOf(f) >= 0 ? all.indexOf(f) : i)} hitSlop={8} style={{ padding: 4 }}>
+                    <FontAwesome5 name="bookmark" size={13} solid={savedIdx.has(all.indexOf(f))} color={savedIdx.has(all.indexOf(f)) ? '#E8C96A' : d.faint} />
+                  </Pressable>
                   <FontAwesome5 name={isOpen ? 'chevron-up' : 'chevron-down'} size={10} color={d.faint} />
                 </View>
                 {isOpen ? (

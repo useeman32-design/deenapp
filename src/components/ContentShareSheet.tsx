@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
+import { addUserPost } from '@/lib/userPosts';
 
 /**
  * ContentShareSheet (pass 20) — the "share like the videos" sheet, reused by
@@ -39,6 +40,15 @@ export function ContentShareSheet({
   const [sent, setSent] = useState<string | null>(null);
 
   if (!visible) return null;
+
+  const shareAsPost = async () => {
+    if (!card) return;
+    haptic.success();
+    try {
+      await addUserPost(card.meaning, card.kind);
+      onClose();
+    } catch {}
+  };
 
   const makeImage = async () => {
     if (busy || !card) return;
@@ -105,8 +115,9 @@ export function ContentShareSheet({
 
           <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
             <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: link }).catch(() => {}); }} />
+            <Row icon="edit" label="Share as post" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
             <Row icon="share-alt" label="More options…" tint="#5BC8F5" onPress={() => { Share.share({ message: `${card?.meaning ?? ''}\n\n${card?.ref ?? ''}\n${link}` }).catch(() => {}); }} />
-            {!noImage ? <Row icon="image" label="Share as image (with watermark)" tint="#E8C96A" onPress={makeImage} /> : null}
+            {!noImage ? <Row icon="image" label="Share as image" tint="#E8C96A" onPress={makeImage} /> : null}
           </View>
 
           {busy ? (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState , useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -27,7 +27,11 @@ import { ContentShareSheet } from '@/components/ContentShareSheet';
  * reader streams the book's full text file (filtered by chapter).
  */
 export default function HadithBookScreen() {
-  const { book: bookId, chapter: chapterParam } = useLocalSearchParams<{ book: string; chapter?: string }>();
+  const { book: bookId, chapter: chapterParam, h: hParam } = useLocalSearchParams<{ book: string; chapter?: string; h?: string }>();
+  /* pass 32: AI/deep links carry the EXACT hadith (?h=number) — open its
+   * chapter, scroll to it and highlight it (the old link just opened the book
+   * root, which read as "a different book"). */
+  const jumpH = hParam != null && hParam !== '' ? Number(decodeURIComponent(hParam)) : null;
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -84,14 +88,25 @@ export default function HadithBookScreen() {
 
   /* stream the full book file on first reader open */
   useEffect(() => {
+    /* a pure ?h= deep link enters straight into chapter 1's reader so the
+     * stream begins; the jump above then lands on the real chapter */
+    if (!chapter && jumpH != null) setChapter('c1');
     if (!chapter) return;
     if (hadiths) return;
     setLoading(true);
     const t0 = Date.now();
     loadBook(book.id)
       .then((all) => {
-        /* books without chapter numbers (nawawi40) → all in chapter 1 */
-        setHadiths(all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h)));
+        const norm = all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h));
+        setHadiths(norm);
+        if (jumpH != null && Number.isFinite(jumpH)) {
+          const idx = norm.findIndex((x) => Number(x.hadith_number) === jumpH);
+          const target = idx >= 0 ? norm[idx] : norm[jumpH - 1];
+          if (target) {
+            setChapter(`c${target.chapter_number ?? 1}`);
+            if (idx >= 0 ? idx + 4 > limit : jumpH + 4 > limit) setLimit((idx >= 0 ? idx : jumpH - 1) + 6);
+          }
+        }
       })
       .catch(() => setHadiths([]))
       .finally(() => {
@@ -101,6 +116,8 @@ export default function HadithBookScreen() {
       });
   }, [chapter, hadiths, book.id]);
 
+  const scroller = useRef<ScrollView>(null);
+  const jumped = useRef(false);
   const chNum = chapter ? Number(chapter.slice(1)) : null;
   const chapterMeta = meta?.find((c) => c.chapter_number === chNum) ?? null;
   const list = useMemo(() => (chapter && hadiths ? hadiths.filter((h) => h.chapter_number === chNum) : []), [chapter, hadiths, chNum]);
@@ -181,7 +198,7 @@ export default function HadithBookScreen() {
         </ScrollView>
       ) : (
         /* ── reader: full texts ── */
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scroller} contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           {loading ? (
             <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
           ) : list.length === 0 ? (
@@ -192,8 +209,17 @@ export default function HadithBookScreen() {
             <>
               {list.slice(0, limit).map((h, i) => {
                 const hid = `${book.id}-${h.chapter_number}-${i}`;
+                const isJump = jumpH != null && Number(h.hadith_number ?? i + 1) === jumpH;
                 return (
-                  <View key={hid} style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 17, padding: 16, marginBottom: 11 }}>
+                  <View
+                    key={hid}
+                    onLayout={(e) => {
+                      if (isJump && !jumped.current) {
+                        jumped.current = true;
+                        setTimeout(() => scroller.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - 100), animated: true }), 250);
+                      }
+                    }}
+                    style={{ backgroundColor: isJump ? (isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.07)') : d.card, borderWidth: 1, borderColor: isJump ? 'rgba(212,175,55,0.65)' : d.cardBorder, borderRadius: 17, padding: 16, marginBottom: 11 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                       <View style={{ borderRadius: 8, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 8, paddingVertical: 3 }}>
                         <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>

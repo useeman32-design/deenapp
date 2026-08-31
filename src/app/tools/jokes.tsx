@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { JOKES } from '@/data/learn';
+import { addUserPost } from '@/lib/userPosts';
 
 /** Learning — clean Islamic jokes (pass 29): one at a time, next / share. */
 export default function Jokes() {
@@ -17,6 +18,7 @@ export default function Jokes() {
   const [i, setI] = useState(0);
   const j = JOKES[i % JOKES.length];
   const [shown, setShown] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -41,7 +43,7 @@ export default function Jokes() {
               <FontAwesome5 name="arrow-right" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>NEXT JOKE</T>
             </Pressable>
-            <Pressable onPress={() => Share.share({ message: `${j.setup}\n\n${j.punch}\n\n— DeenLink` }).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(212,175,55,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
+            <Pressable onPress={() => { haptic.success(); addUserPost(`${j.setup}\n\n${j.punch} 😄`, 'joke').then(() => setToast('Posted to your feed ✓')); setTimeout(() => setToast(null), 2200); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 14, paddingVertical: 9 }}>
               <FontAwesome5 name="share-alt" size={10} color="#B8870B" />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B' }}>SHARE</T>
             </Pressable>
@@ -50,6 +52,7 @@ export default function Jokes() {
             The Prophet ﷺ smiled and joked truthfully — humor here is clean, honest and never at anyone’s expense.
           </T>
         </View>
+        {toast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', textAlign: 'center', marginTop: 10 }}>{toast}</T> : null}
       </ScrollView>
     </View>
   );

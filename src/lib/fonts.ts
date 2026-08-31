@@ -14,6 +14,10 @@ export function useAppFonts(): [boolean] {
     'Poppins-ExtraBold': require('../fonts/Poppins-ExtraBold.ttf'),
     Amiri: require('../fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('../fonts/Amiri-Bold.ttf'),
+    'ArefRuqaa': require('../fonts/ArefRuqaa-Regular.ttf'),
+    'ArefRuqaa-Bold': require('../fonts/ArefRuqaa-Bold.ttf'),
+    Sora: require('../fonts/Sora.ttf'),
+    Manrope: require('../fonts/Manrope.ttf'),
   });
   return [loaded];
 }

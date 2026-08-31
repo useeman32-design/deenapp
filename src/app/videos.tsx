@@ -638,7 +638,7 @@ export default function VideosFeed() {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        showToast('Downloading with DeenLink watermark');
+        showToast('Downloading video');
         return;
       }
       const MediaLibrary = await import('expo-media-library');
@@ -648,7 +648,7 @@ export default function VideosFeed() {
         return;
       }
       await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Saved ✓', reel.wm != null ? 'Video saved to your gallery with the DeenLink watermark.' : 'Video saved to your gallery.');
+      Alert.alert('Saved ✓', 'Video saved to your gallery.');
     } catch {
       Alert.alert('Download failed', 'Please try again in a moment.');
     }
@@ -1235,7 +1235,7 @@ export default function VideosFeed() {
             {!sendToOpen ? (
               <View style={{ paddingHorizontal: 14, gap: 2 }}>
                 <MoreRow icon="retweet" label={moreReel && reposted.has(moreReel.id) ? 'Undo repost' : 'Repost'} tint="#4AE38F" onPress={() => { if (moreReel) toggleRepost(moreReel.id); setMoreReel(null); }} />
-                <MoreRow icon="download" label="Download (watermarked)" tint="#E8C96A" onPress={() => { if (moreReel) downloadReel(moreReel); setMoreReel(null); }} />
+                <MoreRow icon="download" label="Download" tint="#E8C96A" onPress={() => { if (moreReel) downloadReel(moreReel); setMoreReel(null); }} />
                 <MoreRow icon="paper-plane" label="Send to…" tint="#4AE38F" onPress={() => setSendToOpen(true)} />
 
                 {/* speed selector */}

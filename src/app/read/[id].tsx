@@ -37,7 +37,15 @@ export default function Reader() {
 
   const [data, setData] = useState<SurahContent | null>(null);
   const [marks, setMarks] = useState<Set<number>>(new Set());
-  const [mode, setMode] = useState<Mode>('reading');
+  /* pass 32: keep the mushaf view when a page swipe crosses into another
+   * surah — the router.replace remount would otherwise dump the reader back
+   * into reading mode mid-swipe. */
+  const [mode, setMode] = useState<Mode>(() =>
+    (globalThis as unknown as { __dlReadMode?: Mode }).__dlReadMode === 'mushaf' ? 'mushaf' : 'reading',
+  );
+  useEffect(() => {
+    (globalThis as unknown as { __dlReadMode?: Mode }).__dlReadMode = mode;
+  }, [mode]);
   const [reciterOpen, setReciterOpen] = useState(false);
   const [barOpen, setBarOpen] = useState(true);
   const [barW, setBarW] = useState(300);
@@ -190,6 +198,7 @@ export default function Reader() {
             <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5 }}>{lang === 'en' ? 'EN' : 'HA'}</T>
           </Pressable>
           <Pressable
+            accessibilityLabel="toggle mushaf view"
             onPress={() => (mode === 'reading' ? enterMushaf() : (haptic.selection(), setMode('reading')))}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.45)' : 'rgba(184,134,11,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)' }}
           >

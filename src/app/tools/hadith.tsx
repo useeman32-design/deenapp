@@ -233,8 +233,10 @@ export default function HadithCollections() {
             } catch {}
           }
           // 2) hadith text scan (small books first, capped)
-          const bareAr = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '');
-          for (const bid of ['nawawi40', 'shamail_muhammadiyah', 'riyad_assalihin', 'malik']) {
+          /* pass 32: fold آأإٱ→ا too — recited text never matches hamza-carrying
+           * spellings — and scan bukhari+muslim as well (voice search hits) */
+          const bareAr = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
+          for (const bid of ['nawawi40', 'shamail_muhammadiyah', 'riyad_assalihin', 'malik', 'bukhari', 'muslim']) {
             try {
               const list = await loadBook(bid);
               const b = HADITH_BOOKS.find((x) => x.id === bid);
@@ -246,8 +248,10 @@ export default function HadithCollections() {
                   const qw = qq.trim().split(/\s+/).map(bareAr).filter((w) => w.length > 1);
                   if (!qw.length) return false;
                   let hit = 0;
-                  for (const t of qw) if (hw.some((w) => w === t || (w.length > 3 && t.length > 3 && (w.startsWith(t) || t.startsWith(w))))) hit++;
-                  return hit / qw.length >= 0.4;
+                  for (const t of qw) {
+                    if (hw.some((w) => w === t || (w.length > 3 && t.length > 3 && (w.startsWith(t) || t.startsWith(w) || w.endsWith(t) || t.endsWith(w))))) hit++;
+                  }
+                  return hit / qw.length >= 0.34;
                 })();
                 if (fuzzyHit || h.arabic.includes(qq.trim()) || enOf(h.english).toLowerCase().includes(needle)) {
                   hits.push({

@@ -153,7 +153,10 @@ export async function retrieveLocal(query: string, progress?: (done: number) => 
       const ranked: { s: AiSource; sc: number }[] = [];
       for (const h of arr as ContentHadith[]) {
         const sc = score(h.english || '') + score(h.chapter_name?.english || '');
-        push({ kind: 'hadith', label: `${book.charAt(0).toUpperCase() + book.slice(1)} · ${h.chapter_name?.english ?? ''} ${h.hadith_number != null ? '#' + h.hadith_number : ''}`.trim(), href: `/tools/hadith/${book}`, excerpt: (h.english || h.arabic).slice(0, 420) }, sc, ranked);
+        /* pass 32: deep-link to the EXACT hadith — ?h= scrolls + highlights it
+         * (the old link just opened the book root, which read as "wrong book") */
+        const hnum = h.hadith_number != null ? String(h.hadith_number) : String(arr.indexOf(h) + 1);
+        push({ kind: 'hadith', label: `${book.charAt(0).toUpperCase() + book.slice(1)} · ${h.chapter_name?.english ?? ''} ${h.hadith_number != null ? '#' + h.hadith_number : '#' + hnum}`.trim(), href: `/tools/hadith/${book}?h=${encodeURIComponent(hnum)}`, excerpt: (h.english || h.arabic).slice(0, 420) }, sc, ranked);
       }
       ranked.sort((a, b) => b.sc - a.sc);
       if (ranked[0]) out.push(ranked[0].s);
@@ -232,6 +235,36 @@ export async function searchFatwas(query: string, limit = 2): Promise<Fatwa[]> {
   return scored.slice(0, limit).map((x) => x.f);
 }
 
+/** pass 32: the chips under an answer must be the sources the model ACTUALLY
+ * cited — not every excerpt we retrieved (off-topic refs under a good answer
+ * were the complaint). Heuristics per kind, sliced to 6. */
+export function mentionedSources(sources: AiSource[], answer: string): AiSource[] {
+  const a = answer.toLowerCase();
+  const hit = (s: AiSource): boolean => {
+    if (s.kind === 'web') return true; // streamed citations are always real
+    if (s.kind === 'quran') {
+      const m = s.label.match(/(\d+)[^\d]+(\d+)/);
+      return m ? a.includes(`${m[1]}:${m[2]}`) : a.includes(s.label.toLowerCase().slice(0, 12));
+    }
+    if (s.kind === 'hadith') {
+      const num = s.label.match(/#(\d+)/);
+      if (num && a.includes(`#${num[1]}`)) return true;
+      const words = s.excerpt.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 4);
+      const phrase = words.slice(0, 6).join(' ');
+      if (phrase && a.includes(phrase)) return true;
+      const book = s.label.split(' ·')[0].toLowerCase();
+      return a.includes(book) && a.includes(s.excerpt.toLowerCase().slice(0, 34));
+    }
+    /* fatwa / dua / name — ≥2 distinctive title words appear in the answer */
+    const words = s.label.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 4 && !['islamqa', 'dua'].includes(w));
+    if (words.length < 2) return a.includes(s.label.toLowerCase().slice(0, 20));
+    let n = 0;
+    for (const w of words) if (a.includes(w)) n += 1;
+    return n >= 2;
+  };
+  return sources.filter(hit).slice(0, 6);
+}
+
 export function buildContext(sources: AiSource[]): string {
   if (!sources.length) return '';
   return (
@@ -244,6 +277,7 @@ export function buildContext(sources: AiSource[]): string {
 export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the DeenLink Islamic app.
 - Warm, professional, concise. Greet respectfully; assume good intent.
 - When the context includes excerpts from the app library, prefer them and cite inline like [Quran 2:255] or [Bukhari · Faith #8]. Never fabricate ayah/hadith numbers.
+- GROUNDING (strict): quote or cite ONLY ayahs/hadiths that appear VERBATIM in the provided context excerpts. If the context has no fitting citation, answer from general knowledge WITHOUT a bracketed citation — never attach a reference that was not given to you, and never pick a loosely-related one when the context already contains the right one (prefer the MOST relevant excerpt).
 - If web search results are available, use them for current facts and cite [web].
 - Be honest when unsure; encourage asking a qualified scholar for rulings.
 - Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.
@@ -301,6 +335,7 @@ export async function streamLLM(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   webSearch: boolean,
   onEvent: (e: StreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const provider = detectProvider(key);
   if (!provider) { onEvent({ error: 'Unrecognized API key — Groq keys start with gsk_, xAI keys with xai-.' }); return; }
@@ -316,8 +351,9 @@ export async function streamLLM(
     const body: Record<string, unknown> = { model: m, messages, stream: true, temperature: 0.6, ...extra };
     let res: Response;
     try {
-      res = await fetch(P.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
-    } catch {
+      res = await fetch(P.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body), signal });
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return null; /* user tapped stop — partial text stays */
       return 'NETWORK — could not reach the API (check connection)';
     }
     if (!res.ok || !res.body) {

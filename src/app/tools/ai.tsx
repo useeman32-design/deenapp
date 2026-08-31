@@ -9,8 +9,8 @@ import { haptic } from '@/lib/haptics';
 import { loadSurah } from '@/lib/content';
 import { netBus } from '@/lib/net';
 import { QURAN } from '@/data/quran';
-import {
-  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
+import { mentionedSources, 
+ AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
 
@@ -105,7 +105,7 @@ function inlineFormat(text: string, color: string, onNav: (r: string) => void, k
     if (bareRefs.length) {
       let lastIx = 0;
       for (const br of bareRefs) {
-        if (br.i > lastIx) out.push(<T key={`${key}-${ci}-p${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color }}>{bodyTxt.slice(lastIx, br.i).replace(/\*{1,2}/g, '')}</T>);
+        if (br.i > lastIx) out.push(bodyTxt.slice(lastIx, br.i).replace(/\*{1,2}/g, ''));
         out.push(
           <T
             key={`${key}-${ci}-r${tk++}`}
@@ -118,7 +118,7 @@ function inlineFormat(text: string, color: string, onNav: (r: string) => void, k
         );
         lastIx = br.i + br.len;
       }
-      if (lastIx < bodyTxt.length) out.push(<T key={`${key}-${ci}-z${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color }}>{bodyTxt.slice(lastIx).replace(/\*{1,2}/g, '')}</T>);
+      if (lastIx < bodyTxt.length) out.push(bodyTxt.slice(lastIx).replace(/\*{1,2}/g, ''));
       return;
     }
     /* 2. within plain text: **bold** then _italic_ */
@@ -127,7 +127,7 @@ function inlineFormat(text: string, color: string, onNav: (r: string) => void, k
       const isBold = bi % 2 === 1;
       if (isBold) {
         out.push(
-          <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color, fontWeight: '800' }}>
+          <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21, color, fontWeight: '800' }}>
             {bp}
           </T>
         );
@@ -136,17 +136,9 @@ function inlineFormat(text: string, color: string, onNav: (r: string) => void, k
       const itParts = bp.split(/(?:^|\W)_([^_]+)_(?:$|\W)/g);
       itParts.forEach((ip, ii) => {
         if (ii % 2 === 1) {
-          out.push(
-            <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color, fontStyle: 'italic' }}>
-              {ip}
-            </T>
-          );
+          out.push(ip);
         } else if (ip) {
-          out.push(
-            <T key={`${key}-${ci}-${tk++}`} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, color }}>
-              {ip.replace(/\*{1,2}/g, '')}
-            </T>
-          );
+          out.push(ip.replace(/\*{1,2}/g, ''));
         }
       });
     });
@@ -186,7 +178,7 @@ function AnswerText({ text, color, accent, onNav }: { text: string; color: strin
         if (bl.k === 'space') return <View key={i} style={{ height: 7 }} />;
         if (bl.k === 'h') {
           return (
-            <T key={i} v="bodyS" style={{ fontSize: 14, lineHeight: 20, fontWeight: '800', color: accent, letterSpacing: 0.2, marginTop: i === 0 ? 0 : 9, marginBottom: 2 }}>
+            <T key={i} v="bodyS" style={{ fontFamily: 'Sora', fontSize: 14, lineHeight: 20, fontWeight: '800', color: accent, letterSpacing: 0.3, marginTop: i === 0 ? 0 : 10, marginBottom: 3 }}>
               {inlineFormat(bl.s, accent, onNav, `h${i}`)}
             </T>
           );
@@ -196,7 +188,7 @@ function AnswerText({ text, color, accent, onNav }: { text: string; color: strin
             <View key={i} style={{ flexDirection: 'row', gap: 7, marginTop: 3 }}>
               <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, fontWeight: '900', color: '#E8C96A' }}>{bl.marker}</T>
               <View style={{ flex: 1 }}>
-                <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20 }}>
+                <T v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21 }}>
                   {inlineFormat(bl.s, color, onNav, `b${i}`)}
                 </T>
               </View>
@@ -204,7 +196,7 @@ function AnswerText({ text, color, accent, onNav }: { text: string; color: strin
           );
         }
         return (
-          <T key={i} v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, marginTop: i === 0 ? 0 : 2 }}>
+          <T key={i} v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21, marginTop: i === 0 ? 0 : 3 }}>
             {inlineFormat(bl.s, color, onNav, `p${i}`)}
           </T>
         );
@@ -302,8 +294,26 @@ export default function DeenLinkAI() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<AiMsg[]>([]);
   const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyIds, setBusyIds] = useState<string[]>([]);
+  const busy = activeId != null && busyIds.includes(activeId);
   const [phase, setPhase] = useState<'idle' | 'retrieving' | 'thinking' | 'streaming'>('idle');
+  /* pass 32: chats stream INDEPENDENTLY — leave chat A mid-answer, keep using
+   * chat B; A keeps streaming into its own stored thread. Every write goes
+   * through patchChat so a stream can never bleed across chats. */
+  const activeIdRef = useRef<string | null>(null);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  const aborts = useRef<Map<string, AbortController>>(new Map());
+  const patchChat = useCallback((chatId: string, fn: (m: AiMsg[]) => AiMsg[]) => {
+    setChats((prev) => {
+      const idx = prev.findIndex((c) => c.id === chatId);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], msgs: fn(next[idx].msgs), at: Date.now() };
+      saveChats(next);
+      return next;
+    });
+    if (activeIdRef.current === chatId) setMsgs((m) => fn(m));
+  }, []);
 
   /* pass 28: warm the library in the background — the FIRST message used to
    * pay the whole 114-surah + books load before the model was even called */
@@ -340,29 +350,32 @@ export default function DeenLinkAI() {
   }, [provider]);
   useEffect(() => { Animated.timing(drawerX, { toValue: drawerOpen ? 1 : 0, duration: 260, easing: Easing.out(Easing.poly(4)), useNativeDriver: false }).start(); }, [drawerOpen]);
 
-  /* persist conversation */
-  useEffect(() => {
-    if (!activeId || !msgs.length) return;
-    setChats((prev) => {
-      const title = prev.find((c) => c.id === activeId)?.title ?? msgs[0].text.slice(0, 42);
-      const next = [{ id: activeId, title, at: Date.now(), msgs }, ...prev.filter((c) => c.id !== activeId)];
-      saveChats(next);
-      return next;
-    });
-  }, [msgs, activeId]);
+  /* (persistence is chat-scoped in patchChat — the old effect re-saved the
+   * OPEN chat on every stream delta of any other chat, corrupting threads) */
 
   const scrollDown = useCallback(() => { setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80); }, []);
 
   const send = async (text: string) => {
     const q = text.trim();
-    if (!q || busy) return;
+    if (!q) return;
+    let chatId = activeId;
+    if (chatId && busyIds.includes(chatId)) return; /* only THIS chat blocks */
     haptic.light();
     const userMsg: AiMsg = { role: 'user', text: q, at: Date.now() };
-    let chatId = activeId;
-    if (!chatId) { chatId = uid(); setActiveId(chatId); }
-    setMsgs((m) => [...m, userMsg]);
+    if (!chatId) { chatId = uid(); setActiveId(chatId); activeIdRef.current = chatId; }
+    /* register the thread immediately so patchChat can stream into it even if
+     * the user hops to another chat mid-answer */
+    setChats((prev) => (prev.some((c) => c.id === chatId) ? prev : [{ id: chatId, title: q.slice(0, 42), at: Date.now(), msgs: [] }, ...prev]));
+    if (activeIdRef.current === chatId) setMsgs((m) => [...m, userMsg]);
+    setChats((prev) => {
+      const idx = prev.findIndex((c) => c.id === chatId);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], msgs: [...next[idx].msgs, userMsg], at: Date.now() };
+      return next;
+    });
     setDraft('');
-    setBusy(true);
+    setBusyIds((b) => [...b, chatId]);
     scrollDown();
 
     /* on-device navigation answers don't need retrieval */
@@ -370,8 +383,8 @@ export default function DeenLinkAI() {
     if (!apiKey && nav) {
       setPhase('thinking');
       await new Promise((r) => setTimeout(r, 350));
-      setMsgs((m) => [...m, { role: 'assistant', text: nav.text, at: Date.now(), nav: nav.route }]);
-      setBusy(false);
+      patchChat(chatId, (m) => [...m, { role: 'assistant', text: nav.text, at: Date.now(), nav: nav.route }]);
+      setBusyIds((b) => b.filter((x) => x !== chatId));
       setPhase('idle');
       scrollDown();
       return;
@@ -380,7 +393,7 @@ export default function DeenLinkAI() {
     setPhase('retrieving');
     let sources: AiSource[] = [];
     try { sources = await retrieveLocal(q); } catch {}
-    setMsgs((m) => [...m, { role: 'assistant', text: '', at: Date.now() }]);
+    patchChat(chatId, (m) => [...m, { role: 'assistant', text: '', at: Date.now() }]);
 
     if (apiKey) {
       setPhase('thinking');
@@ -390,44 +403,49 @@ export default function DeenLinkAI() {
       let reasoning = '';
       const thinkStart = Date.now();
       let err = '';
+      const ac = new AbortController();
+      aborts.current.set(chatId, ac);
       const netTimer = setTimeout(() => netBus.slow(true), 4000);
       const netDone = () => { clearTimeout(netTimer); netBus.slow(false); };
       await streamLLM(apiKey, model, [{ role: 'system', content: sys }, ...history], webRef.current, (e) => {
         if (e.reason && !acc) {
           reasoning += e.reason;
-          setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], reasoning: reasoning.slice(-300), thinkMs: Date.now() - thinkStart }; return c; });
+          patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], reasoning: reasoning.slice(-300), thinkMs: Date.now() - thinkStart }; return c; });
         }
         if (e.delta) {
           acc += e.delta;
-          setPhase('streaming');
-          setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: acc, streamed: true, thinkMs: Date.now() - thinkStart }; return c; });
-          scrollDown();
+          if (activeIdRef.current === chatId) setPhase('streaming');
+          patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: acc, streamed: true, thinkMs: Date.now() - thinkStart }; return c; });
+          if (activeIdRef.current === chatId) scrollDown();
         }
         if (e.error) err = e.error;
         if (e.citations?.length) {
           const webSrcs: AiSource[] = e.citations.map((c) => ({ kind: 'web' as const, label: shortUrl(c), excerpt: c }));
-          setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...webSrcs] }; return c; });
+          patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...webSrcs] }; return c; });
         }
-      });
+      }, ac.signal);
       netDone();
+      aborts.current.delete(chatId);
       const navRoute = acc.match(NAV_LINE)?.[1];
       if (err) {
         const fallback = composeLocalAnswer(q, sources);
-        setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: `⚠️ ${err}\n\n${fallback}` }; return c; });
+        patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: `⚠️ ${err}\n\n${fallback}` }; return c; });
       } else if (!acc.trim()) {
         const fallback = composeLocalAnswer(q, sources);
-        setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: `⚠️ The model returned an empty response (the free tier may be rate-limited — try again in a minute).\n\n${fallback}` }; return c; });
+        patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: `⚠️ The model returned an empty response (the free tier may be rate-limited — try again in a minute).\n\n${fallback}` }; return c; });
       } else if (navRoute) {
-        setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], nav: navRoute }; return c; });
+        patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], nav: navRoute }; return c; });
       }
-      setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...sources] }; return c; });
+      /* pass 32: only the sources the answer ACTUALLY cites become chips */
+      const cited = acc.trim() ? mentionedSources(sources, acc) : sources;
+      patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...cited] }; return c; });
     } else {
       setPhase('thinking');
       await new Promise((r) => setTimeout(r, 500));
-      setMsgs((m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: composeLocalAnswer(q, sources), sources }; return c; });
+      patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: composeLocalAnswer(q, sources), sources }; return c; });
       scrollDown();
     }
-    setBusy(false);
+    setBusyIds((b) => b.filter((x) => x !== chatId));
     setPhase('idle');
     scrollDown();
   };
@@ -627,7 +645,7 @@ export default function DeenLinkAI() {
                 placeholder="Ask anything…"
                 placeholderTextColor={d.faint}
                 multiline
-                style={{ flex: 1, minHeight: 46, maxHeight: 100, paddingVertical: 12, fontSize: 16, lineHeight: 21, color: d.text }}
+                style={{ flex: 1, minHeight: 38, maxHeight: 84, paddingVertical: 8, fontSize: 15, lineHeight: 20, color: d.text }}
                 onSubmitEditing={() => send(draft)}
               />
               {draft ? (
@@ -636,8 +654,14 @@ export default function DeenLinkAI() {
                 </Pressable>
               ) : null}
             </View>
-            <Pressable accessibilityLabel="Send" onPress={() => send(draft)} disabled={!draft.trim() || busy} style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: !draft.trim() || busy ? (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(29,111,66,0.10)') : isDark ? '#1F8F5C' : '#1D6F42', borderWidth: 1.5, borderColor: !draft.trim() || busy ? glass.border : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-              {busy && phase !== 'retrieving' ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={15} color={!draft.trim() || busy ? d.faint : '#FFFFFF'} />}
+            {/* busy → the button becomes a loader; tapping it STOPS the stream */}
+            <Pressable
+              accessibilityLabel={busy ? 'stop generating' : 'Send'}
+              onPress={() => { if (busy) { haptic.light(); activeId != null && aborts.current.get(activeId)?.abort(); } else send(draft); }}
+              disabled={!busy && !draft.trim()}
+              style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: busy ? 'rgba(220,80,80,0.16)' : !draft.trim() ? (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(29,111,66,0.10)') : isDark ? '#1F8F5C' : '#1D6F42', borderWidth: 1.5, borderColor: busy ? 'rgba(220,80,80,0.5)' : !draft.trim() ? glass.border : 'transparent', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {busy ? <ActivityIndicator size="small" color="#DC5050" /> : <FontAwesome5 name="paper-plane" size={15} color={!draft.trim() ? d.faint : '#FFFFFF'} />}
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>

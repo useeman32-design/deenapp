@@ -46,6 +46,8 @@ function Root() {
       ['Poppins-ExtraBold', 'Poppins-ExtraBold'],
       ['Amiri', 'Amiri-Regular'],
       ['Amiri-Bold', 'Amiri-Bold'],
+      ['ArefRuqaa', 'ArefRuqaa-Regular'],
+      ['ArefRuqaa-Bold', 'ArefRuqaa-Bold'],
     ]
       .map(([fam, file]) => `@font-face{font-family:'${fam}';src:url('${base}/fonts/${file}.ttf') format('truetype');font-display:swap;}`)
       .join('');

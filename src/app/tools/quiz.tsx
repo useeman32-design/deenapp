@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Easing, Pressable, ScrollView, Share, View } from 'react-native';
+import { Image } from 'expo-image';
+import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
+import { addUserPost } from '@/lib/userPosts';
+import { recordQuiz, listQuizzes, agoOf, type QuizAttempt } from '@/lib/quizHistory';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
@@ -30,6 +34,13 @@ export default function Quiz() {
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<Phase>('setup');
   const [cat, setCat] = useState<(typeof CATS)[number]>('All');
+  /* quiz history (setup screen) */
+  const [history, setHistory] = useState<QuizAttempt[]>([]);
+  useEffect(() => { listQuizzes().then(setHistory).catch(() => {}); }, []);
+  /* score sharing (results phase) */
+  const [scoreCard, setScoreCard] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [count, setCount] = useState<number>(10);
   const [deck, setDeck] = useState<QuizQ[]>([]);
   const [i, setI] = useState(0);
@@ -97,6 +108,7 @@ export default function Quiz() {
     if (i + 1 >= deck.length) {
       const score = answers.filter((a) => a.correct).length;
       setBest((b) => Math.max(b, score));
+      void recordQuiz({ cat, score, total: deck.length, pct: deck.length ? Math.round((score / deck.length) * 100) : 0 });
       setPhase('results');
       return;
     }
@@ -168,6 +180,27 @@ export default function Quiz() {
             <FontAwesome5 name="bolt" size={14} color="#FFFFFF" />
             <T v="button" style={{ fontWeight: '800', fontSize: 14 }}>Start quiz</T>
           </Pressable>
+
+          {/* pass 32: quiz history — every finished attempt, newest first */}
+          {history.length ? (
+            <View style={{ marginTop: 18 }}>
+              <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 8 }}>RECENT QUIZZES</T>
+              <View style={{ gap: 8 }}>
+                {history.slice(0, 5).map((h, k) => (
+                  <View key={h.at} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: h.pct >= 70 ? 'rgba(74,227,143,0.4)' : h.pct >= 40 ? 'rgba(212,175,55,0.4)' : 'rgba(255,123,123,0.35)', backgroundColor: d.card, padding: 12 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: h.pct >= 70 ? 'rgba(74,227,143,0.5)' : h.pct >= 40 ? 'rgba(212,175,55,0.5)' : 'rgba(255,123,123,0.45)' }}>
+                      <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: h.pct >= 70 ? '#4AE38F' : h.pct >= 40 ? '#B8870B' : '#FF7B7B' }}>{h.pct}%</T>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <T v="bodyS" style={{ fontWeight: '700', fontSize: 12.5 }}>{h.cat} quiz</T>
+                      <T v="caption" style={{ fontSize: 10, marginTop: 1 }}>{h.score}/{h.total} correct · {agoOf(h.at)}</T>
+                    </View>
+                    <FontAwesome5 name={h.pct >= 70 ? 'check-circle' : 'redo'} size={13} color={h.pct >= 70 ? '#4AE38F' : d.faint} />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           {best > 0 ? (
             <T v="caption" style={{ textAlign: 'center', marginTop: 14, color: d.faint }}>Best score this session: {best}/{deck.length || count}</T>
@@ -333,6 +366,38 @@ export default function Quiz() {
             );
           })}
         </View>
+
+        {/* pass 32: share the score — as a community post, to friends, or as
+         * a saved image card (the watermark lives in the image, not the label) */}
+        <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>SHARE YOUR SCORE</T>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 22 }}>
+          {[
+            { icon: 'edit', label: 'As post', tint: '#4AE38F', act: async () => { await addUserPost(`I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me? 🏆`, 'quiz'); setShareToast('Posted to your feed ✓'); } },
+            { icon: 'paper-plane', label: 'To friends', tint: '#5BC8F5', act: async () => { setShareBusy(true); Share.share({ message: `I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me?` }).catch(() => {}).finally(() => setShareBusy(false)); } },
+            { icon: 'image', label: 'Save image', tint: '#E8C96A', act: async () => { setShareBusy(true); try { const url = await generateShareCard({ kind: 'post', meaning: `${pct}% — ${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, ref: 'DeenLink Islamic Quiz' }, 'classic'); setScoreCard(url); } catch {} setShareBusy(false); } },
+          ].map((b) => (
+            <Pressable key={b.label} onPress={() => { haptic.light(); b.act(); }} style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: `${b.tint}55`, backgroundColor: `${b.tint}14`, opacity: pressed ? 0.8 : 1 })}>
+              {shareBusy ? <ActivityIndicator size="small" color={b.tint} /> : <FontAwesome5 name={b.icon as never} size={13} color={b.tint} />}
+              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: b.tint }}>{b.label}</T>
+            </Pressable>
+          ))}
+        </View>
+        {shareToast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', marginBottom: 16, textAlign: 'center' }}>{shareToast}</T> : null}
+        {scoreCard ? (
+          <View style={{ alignItems: 'center', marginBottom: 22, gap: 10 }}>
+            <Image source={{ uri: scoreCard }} style={{ width: 240, height: 307, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable onPress={() => shareOrSaveCard(scoreCard, 'deenlink-quiz.png', `DeenLink Quiz — ${pct}%`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9 }}>
+                <FontAwesome5 name="share" size={12} color="#fff" />
+                <T v="button" style={{ fontSize: 12.5 }}>Share</T>
+              </Pressable>
+              <Pressable onPress={() => downloadDataUrl(scoreCard, 'deenlink-quiz.png')} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 16, paddingVertical: 9 }}>
+                <FontAwesome5 name="download" size={12} color={d.text} />
+                <T v="bodyS" style={{ fontSize: 12.5, color: d.text }}>Save</T>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {/* review */}
         <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>REVIEW ANSWERS</T>

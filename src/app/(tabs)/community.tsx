@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
+import { listUserPosts } from '@/lib/userPosts';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -39,6 +40,38 @@ export default function CommunityScreen() {
   const router = useRouter();
 
   const [posts, setPosts] = useState<Post[]>(MOCK_FEED);
+
+  /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
+   * ayahs…) live in lib/userPosts — surface them above the mock feed */
+  useEffect(() => {
+    listUserPosts().then((ups) => {
+      if (!ups.length) return;
+      const asPosts: Post[] = ups.map((u) => ({
+        id: 1e9 + (u.at % 1e8),
+        content_text: u.text,
+        time_ago: 'now',
+        like_count: 0,
+        comment_count: 0,
+        liked_by_me: false,
+        is_public_qa: false,
+        user: {
+          id: 99,
+          username: ME.handle,
+          full_name: ME.name,
+          user_type: 'user',
+          profile_image_url: null,
+          deenpoints_balance: 240,
+          is_email_verified: 1,
+          account_status: 'active',
+          verification_badge: null,
+          scholar: null,
+          fields: 'Sunni',
+        } as unknown as Post['user'],
+        media: [],
+      }));
+      setPosts((ps) => [...asPosts, ...ps]);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   const [videoPost, setVideoPost] = useState<Post | null>(null);
@@ -305,6 +338,8 @@ export default function CommunityScreen() {
               </T>
             </View>
             <Pressable
+              accessibilityLabel="notifications"
+              accessibilityHint="Open your notification inbox"
               onPress={() => { haptic.selection(); router.push('/tools/notifications'); }}
               style={({ pressed }) => ({
                 position: 'relative',
