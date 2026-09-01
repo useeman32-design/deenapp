@@ -22,6 +22,7 @@ import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
 import { ADHAN_VOICES, isAdhanPlaying, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { stopBubble } from '@/lib/press';
 
 /**
  * Prayer times (pass 23 — full redesign):
@@ -393,7 +394,7 @@ export default function PrayerTimes() {
                         <FontAwesome5 name="speaker" size={12} color={on ? '#E8C96A' : d.faint} />
                         <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{v.label}</T>
                         <Pressable
-                          onPress={(e) => { e.stopPropagation(); haptic.selection(); if (isAdhanPlaying()) { stopAdhan(); setAdhanFor(null); } else playAdhan(v.id); }}
+                          onPress={(e) => { stopBubble(e); haptic.selection(); if (isAdhanPlaying()) { stopAdhan(); setAdhanFor(null); } else playAdhan(v.id); }}
                           style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)', alignItems: 'center', justifyContent: 'center' }}
                         >
                           <FontAwesome5 name="play" size={9} color={d.subtext} />

@@ -7,6 +7,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { stopBubble } from '@/lib/press';
 
 /**
  * Donations (pass 34 — full rebuild):
@@ -418,7 +419,7 @@ export default function Donations() {
       {/* receipt detail + report */}
       <Modal visible={openReceipt != null} transparent animationType="slide" onRequestClose={() => setOpenReceipt(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }} onPress={() => setOpenReceipt(null)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: (insets.bottom ?? 0) + 20 }}>
+          <Pressable onPress={(e) => stopBubble(e)} style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: (insets.bottom ?? 0) + 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <FontAwesome5 name="receipt" size={14} color="#E8C96A" />
               <T v="h3" style={{ fontWeight: '800', flex: 1, marginLeft: 8 }}>Receipt · {openReceipt?.ref}</T>

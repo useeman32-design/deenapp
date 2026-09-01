@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Animated, Text, View } from 'react-native';
+import { Animated, Platform, Text, View } from 'react-native';
 
 /**
  * Global connectivity UX (pass 28).
@@ -16,7 +16,12 @@ let state: NetState = { slow: 0, offline: false };
 const subs = new Set<(s: NetState) => void>();
 const emit = () => subs.forEach((f) => f({ ...state }));
 
-if (typeof window !== 'undefined') {
+/* pass 34f: React Native defines a global `window` WITHOUT DOM event APIs —
+ * `typeof window !== 'undefined'` is TRUE on native and window.addEventListener
+ * is undefined, which crashed the whole module graph in Expo Go. Check for
+ * the web PLATFORM + the actual function instead. */
+const webEvents = Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+if (webEvents) {
   window.addEventListener('online', () => { state = { ...state, offline: false }; emit(); });
   window.addEventListener('offline', () => { state = { ...state, offline: true }; emit(); });
   state = { ...state, offline: !navigator.onLine };
@@ -30,7 +35,10 @@ export const netBus = {
     if (next !== state.slow) { state = { ...state, slow: next }; emit(); }
   },
   offline(): boolean {
-    return typeof window === 'undefined' ? false : !navigator.onLine;
+    /* native has no navigator.onLine (it reads undefined → would always say
+     * "offline") — assume online there; the pill is web-only UX for now. */
+    if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+    return !navigator.onLine;
   },
 };
 

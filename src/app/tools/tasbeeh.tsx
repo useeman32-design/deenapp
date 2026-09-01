@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { stopBubble } from '@/lib/press';
 
 /**
  * Tasbeeh / Dhikr (pass 30 — full premium rebuild):
@@ -489,7 +490,7 @@ export default function Tasbeeh() {
       {/* ── settings sheet ── */}
       <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.75)', justifyContent: 'flex-end' }} onPress={() => setSettingsOpen(false)}>
-          <Pressable style={{ backgroundColor: '#081209', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: insets.bottom + 18, paddingTop: 16 }} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={{ backgroundColor: '#081209', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: insets.bottom + 18, paddingTop: 16 }} onPress={(e) => stopBubble(e)}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.16)', alignSelf: 'center', marginBottom: 14 }} />
             <T v="h3" style={{ fontSize: 15, fontWeight: '800', color: INK, marginHorizontal: 18, marginBottom: 4 }}>Settings</T>
             <T v="caption" style={{ fontSize: 10.5, color: INK_FAINT, marginHorizontal: 18, marginBottom: 12 }}>Choose your dhikr — counts are kept per dhikr, every day.</T>
@@ -535,7 +536,7 @@ export default function Tasbeeh() {
       {/* ── custom target sheet ── */}
       <Modal visible={customOpen} transparent animationType="fade" onRequestClose={() => setCustomOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.75)', justifyContent: 'center', paddingHorizontal: 34 }} onPress={() => setCustomOpen(false)}>
-          <Pressable style={{ backgroundColor: '#081209', borderRadius: 22, borderWidth: 1, borderColor: GLASS_BR, padding: 19 }} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={{ backgroundColor: '#081209', borderRadius: 22, borderWidth: 1, borderColor: GLASS_BR, padding: 19 }} onPress={(e) => stopBubble(e)}>
             <T v="h3" style={{ fontSize: 15, fontWeight: '800', color: INK }}>Custom target</T>
             <T v="caption" style={{ fontSize: 10.5, color: INK_FAINT, marginTop: 3, marginBottom: 13 }}>Any number between 3 and 9,999.</T>
             <TextInput

@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { dictateArabic, speechSupported } from '@/lib/speech';
+import { stopBubble } from '@/lib/press';
 
 /**
  * Recite-to-search modal (pass 26): a glassy centre card —
@@ -79,7 +80,7 @@ export function ReciteSearchModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,10,6,0.62)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={onClose}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%', borderRadius: 24, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.22)', backgroundColor: isDark ? 'rgba(14,28,20,0.92)' : 'rgba(255,255,255,0.9)', padding: 22, alignItems: 'center' }}>
+        <Pressable onPress={(e) => stopBubble(e)} style={{ width: '100%', borderRadius: 24, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.22)', backgroundColor: isDark ? 'rgba(14,28,20,0.92)' : 'rgba(255,255,255,0.9)', padding: 22, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start' }}>
             <FontAwesome5 name="microphone-alt" size={12} color="#E8C96A" />
             <T v="caption" style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: '#B8870B' }}>{label}</T>

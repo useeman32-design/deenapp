@@ -19,6 +19,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useQuranAudio, RECITERS } from '@/context/QuranAudioContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { stopBubble } from '@/lib/press';
 
 type Mode = 'reading' | 'mushaf';
 
@@ -336,7 +337,7 @@ export default function Reader() {
       {/* ── pass-24: repeat / memorization loop sheet ── */}
       <Modal visible={loopOpen} animationType="slide" transparent onRequestClose={() => setLoopOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} onPress={() => setLoopOpen(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ borderRadius: 22, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingBottom: insets.bottom + 14, paddingHorizontal: 16, paddingTop: 16 }}>
+          <Pressable onPress={(e) => stopBubble(e)} style={{ borderRadius: 22, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingBottom: insets.bottom + 14, paddingHorizontal: 16, paddingTop: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 }}>
               <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name="sync-alt" size={12} color="#E8C96A" />

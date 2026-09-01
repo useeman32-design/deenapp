@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptics';
 import { loadSurah } from '@/lib/content';
 import { netBus } from '@/lib/net';
 import { QURAN } from '@/data/quran';
+import { stopBubble } from '@/lib/press';
 import { mentionedSources, 
  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
@@ -275,7 +276,12 @@ function FeedbackRow({ text, msgKey }: { text: string; msgKey: number }) {
       {chip('thumbs-up', 'Helpful', vote === 'up', '#1F8F5C', () => setVote((v) => (v === 'up' ? null : 'up')))}
       {chip('thumbs-down', 'Not helpful', vote === 'down', '#C0392B', () => setVote((v) => (v === 'down' ? null : 'down')))}
       {chip('copy', copied ? 'Copied!' : 'Copy', copied, '#2C6E8F', () => {
-        navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {});
+        /* pass 34f: navigator.clipboard is web-only — native uses the Share sheet */
+        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {});
+        } else {
+          Share.share({ message: text }).catch(() => {});
+        }
       })}
     </View>
   );
@@ -678,7 +684,7 @@ export default function DeenLinkAI() {
       {/* ── settings sheet ── */}
       <Modal visible={showSettings} animationType="slide" transparent onRequestClose={() => setShowSettings(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={() => setShowSettings(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ marginTop: insets.top + 60, marginHorizontal: 10, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 16 }}>
+          <Pressable onPress={(e) => stopBubble(e)} style={{ marginTop: insets.top + 60, marginHorizontal: 10, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 16 }}>
             <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>AI Settings</T>
             <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, marginBottom: 14 }}>Your key stays on this device only — never uploaded or committed.</T>
 

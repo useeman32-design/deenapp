@@ -5,7 +5,8 @@ import { probeAdvancing } from '@/lib/mediaProbe';
 /* expo-video web play() can silently abort after replace() — make sure the
  * actual <video> element carrying this src plays (DOM-level fallback). */
 function domEnsurePlay(uri: string | null, tries = 0) {
-  if (typeof window === 'undefined' || !uri) return;
+  /* pass 34f: native defines `window` but has no document — bail before touching the DOM */
+  if (typeof document === 'undefined' || !uri) return;
   try {
     const doc = window.document;
     const el = [...doc.querySelectorAll('video')].find((v) => v.getAttribute('src') === uri);
