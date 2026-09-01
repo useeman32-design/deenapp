@@ -1,5 +1,36 @@
 # CONTINUE — pass 34 handoff (2026-08-31)
 
+## Pass 34f — EXPO GO RUNTIME CRASH FIXED (master 073a54b, gh-pages 14f8d35, ALL PASS)
+User ran in Expo Go (iOS): bundle OK, then `TypeError: undefined is not a
+function` at net.tsx:20 window.addEventListener → EVERY "Route missing
+default export" warning + ErrorBoundary crash was CASCADE from that one
+module-scope throw. ROOT CAUSE: React Native defines a global `window`
+(without DOM APIs) — `typeof window !== 'undefined'` is TRUE on native and
+`window.addEventListener` is undefined. `typeof window` guards are NOT
+native-safety; use `Platform.OS === 'web'` (+ function check).
+- net.tsx: top-level online/offline listeners + navigator.onLine now behind
+  `webEvents` (Platform web + addEventListener fn). netBus.offline() returns
+  false on native (navigator.onLine is undefined there → always "offline").
+- NEW src/lib/press.ts `stopBubble(e)` — RNW press events bubble and carry
+  stopPropagation; NATIVE press events don't bubble and HAVE NO
+  stopPropagation (calling it crashes on tap). Replaced 7 raw
+  e.stopPropagation() sites: read/[id], tools/ai, tools/charity,
+  tools/prayer, tools/tasbeeh ×2, ReciteSearchModal.
+- domEnsurePlay (QuranAudioContext + useAudio): guard is now
+  `typeof document === 'undefined'` (window exists on native; document doesn't).
+- tools/ai copy chip: navigator.clipboard is web-only → native uses Share.share.
+- Already-safe (verified, don't re-audit): useHeading (Platform split, native
+  uses expo-sensors magnetometer), CommentsModal drag (checks
+  typeof el.addEventListener), mediaProbe/QiblaLeaflet/GlobeMap/videos/
+  _layout fonts (Platform-guarded), haptics (expo-haptics, in Expo Go),
+  gzio publicBase (Platform split). All deps are Expo Go-compatible modules;
+  only expo-speech-recognition is dev-build-only (graceful in Go).
+- Verified: android .hbc compiles, tsc clean, web probe35 19/19.
+- User note: the npm-install error they re-pasted was the OLD stale log
+  (same timestamp as before the 34d fix) — Metro bundled fine after.
+- After pulling this, user should restart Metro with cache clear:
+  `npx expo start -c`.
+
 ## Pass 34e — REAL LOGO + GLASSY AUTH (master 59391ee, gh-pages ceeb465, ALL PASS)
 User: compressed splash GIF quality is poor; attached the REAL DeenLink logo
 (uploads PNG 1254², 2.39MB, full-bleed art on solid black, emblem-style).
