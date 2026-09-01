@@ -1,5 +1,26 @@
 # CONTINUE — pass 34 handoff (2026-08-31)
 
+## Pass 34c — NATIVE MIC (master 74592e3, gh-pages a55dd60, probe35 ALL PASS)
+User: mic features are VERY important. Why they die in Expo Go: speech.ts
+used the browser Web Speech API; Expo Go is a fixed native binary with no
+speech engine and no way to add one. Fix = expo-speech-recognition
+(v57.0.0, matches SDK 57) — REAL on-device engine, but only in compiled
+builds (dev client / APK / IPA), never inside Expo Go.
+- speech.ts: `nativeSpeechProbe()` LAZY `require('expo-speech-recognition')`
+  in try/catch — NEVER a top-level import (requireNativeModule throws at
+  import time inside Expo Go). If present → `new ExpoWebSpeechRecognition()`
+  is a DROP-IN Web-Speech-shaped object, so dictateArabic / reciteEngine /
+  ContentSearchOverlay / ReciteSearchModal all work unchanged.
+- `ensureMicPermission()` — requestPermissionsAsync up-front (getRecognition
+  fires it; dictateArabic awaits it, rejects MIC_NOT_ALLOWED when denied).
+- reciteEngine permission-denied copy: "device settings" not "browser".
+- app.json plugin: expo-speech-recognition w/ microphonePermission +
+  speechRecognitionPermission strings. eas.json ADDED (development =
+  dev-client APK+simulator, preview/production = APK).
+- Verified: android .hbc bundles clean, tsc clean, web probe35 19/19.
+- On phone: Expo Go → typed fallback (expected); **dev build or APK → full
+  mic**: Quran Shazam, recite-to-search, Recite Mode scoring.
+
 ## Pass 34b — EXPO GO SUPPORT (master 722c2dc, gh-pages d58f659, probe35 ALL PASS)
 User wants to run the app on a phone via Expo Go. Native audit + fixes:
 - **content.ts loadJSON native branch**: Hermes has no fetch(file://) nor
