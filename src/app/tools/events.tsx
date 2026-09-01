@@ -22,7 +22,7 @@ export default function Events() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <TopBar title="Islamic Events" subtitle="Lectures, gatherings & holidays" />
+      <TopBar showBack title="Islamic Events" subtitle="Lectures, gatherings & holidays" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
         {items.map((ev) => (
           <Card key={ev.id} style={{ marginBottom: 9, flexDirection: 'row', alignItems: 'center' }}>

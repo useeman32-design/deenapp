@@ -111,7 +111,7 @@ export default function Scholars() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Ask Scholars" />
+      <TopBar showBack title="Ask Scholars" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* tabs */}

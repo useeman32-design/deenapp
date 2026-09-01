@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Easing, Pressable, ScrollView, Share, View } from 'react-native';
 import { Image } from 'expo-image';
-import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
+import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
 import { addUserPost } from '@/lib/userPosts';
 import { recordQuiz, listQuizzes, agoOf, type QuizAttempt } from '@/lib/quizHistory';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -38,7 +38,8 @@ export default function Quiz() {
   const [history, setHistory] = useState<QuizAttempt[]>([]);
   useEffect(() => { listQuizzes().then(setHistory).catch(() => {}); }, []);
   /* score sharing (results phase) */
-  const [scoreCard, setScoreCard] = useState<string | null>(null);
+  /* pass 38 — square generated-art score card (5 shuffling SVG designs) */
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [count, setCount] = useState<number>(10);
@@ -374,7 +375,7 @@ export default function Quiz() {
           {[
             { icon: 'edit', label: 'As post', tint: '#4AE38F', act: async () => { await addUserPost(`I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me? 🏆`, 'quiz'); setShareToast('Posted to your feed ✓'); } },
             { icon: 'paper-plane', label: 'To friends', tint: '#5BC8F5', act: async () => { setShareBusy(true); Share.share({ message: `I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me?` }).catch(() => {}).finally(() => setShareBusy(false)); } },
-            { icon: 'image', label: 'Save image', tint: '#E8C96A', act: async () => { setShareBusy(true); try { const url = await generateShareCard({ kind: 'post', meaning: `${pct}% — ${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, ref: 'DeenLink Islamic Quiz' }, 'classic'); setScoreCard(url); } catch {} setShareBusy(false); } },
+            { icon: 'palette', label: 'Share art', tint: '#E8C96A', act: async () => { setScoreCard({ kind: 'quiz', metric: `${pct}%`, title: 'Islamic Quiz', subtitle: `${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, link: 'https://deenlink.org/tools/quiz' }); } },
           ].map((b) => (
             <Pressable key={b.label} onPress={() => { haptic.light(); b.act(); }} style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: `${b.tint}55`, backgroundColor: `${b.tint}14`, opacity: pressed ? 0.8 : 1 })}>
               {shareBusy ? <ActivityIndicator size="small" color={b.tint} /> : <FontAwesome5 name={b.icon as never} size={13} color={b.tint} />}
@@ -383,21 +384,7 @@ export default function Quiz() {
           ))}
         </View>
         {shareToast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', marginBottom: 16, textAlign: 'center' }}>{shareToast}</T> : null}
-        {scoreCard ? (
-          <View style={{ alignItems: 'center', marginBottom: 22, gap: 10 }}>
-            <Image source={{ uri: scoreCard }} style={{ width: 240, height: 307, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable onPress={() => shareOrSaveCard(scoreCard, 'deenlink-quiz.png', `DeenLink Quiz — ${pct}%`).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9 }}>
-                <FontAwesome5 name="share" size={12} color="#fff" />
-                <T v="button" style={{ fontSize: 12.5 }}>Share</T>
-              </Pressable>
-              <Pressable onPress={() => downloadDataUrl(scoreCard, 'deenlink-quiz.png')} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 16, paddingVertical: 9 }}>
-                <FontAwesome5 name="download" size={12} color={d.text} />
-                <T v="bodyS" style={{ fontSize: 12.5, color: d.text }}>Save</T>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
+        <ScoreShareSheet visible={!!scoreCard} onClose={() => setScoreCard(null)} card={scoreCard} />
 
         {/* review */}
         <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>REVIEW ANSWERS</T>

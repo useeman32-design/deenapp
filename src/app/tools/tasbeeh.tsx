@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
+import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 
@@ -97,6 +98,8 @@ export default function Tasbeeh() {
   const [customOpen, setCustomOpen] = useState(false);
   const [customTxt, setCustomTxt] = useState('');
   const [celebrate, setCelebrate] = useState(false);
+  /* pass 38 — share the dhikr count as generated square art */
+  const [shareCard, setShareCard] = useState<ScoreCard | null>(null);
 
   const pulse = useRef(new Animated.Value(1)).current;
   const floatUp = useRef(new Animated.Value(0)).current;
@@ -300,9 +303,21 @@ export default function Tasbeeh() {
               </Animated.Text>
             </View>
             <T v="caption" style={{ fontSize: 13, color: INK_FAINT, marginTop: -6, fontWeight: '700' }}>/ {target > 0 ? target : '∞'}</T>
-            <T v="caption" style={{ fontSize: 10.5, color: 'rgba(242,247,243,0.38)', marginTop: 5, letterSpacing: 0.5 }}>
-              {celebrate ? 'Tour complete — Alhamdulillah 🤍' : `Tours: ${tours}`}
-            </T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 5 }}>
+              <T v="caption" style={{ fontSize: 10.5, color: 'rgba(242,247,243,0.38)', letterSpacing: 0.5 }}>
+                {celebrate ? 'Tour complete — Alhamdulillah 🤍' : `Tours: ${tours}`}
+              </T>
+              {tours > 0 ? (
+                <Pressable
+                  accessibilityLabel="share dhikr art"
+                  onPress={() => setShareCard({ kind: 'dhikr', metric: String(count), title: PRESETS.find((x) => x.id === presetId)?.label ?? 'Dhikr', subtitle: `${tours} tour${tours === 1 ? '' : 's'} complete · DeenLink Misbaha`, link: 'https://deenlink.org/tools/tasbeeh' })}
+                  hitSlop={8}
+                  style={{ width: 24, height: 24, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.1)', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <FontAwesome5 name="share-alt" size={9} color="#E8C96A" />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -532,6 +547,7 @@ export default function Tasbeeh() {
           </Pressable>
         </Pressable>
       </Modal>
+      <ScoreShareSheet visible={!!shareCard} onClose={() => setShareCard(null)} card={shareCard} />
     </View>
   );
 }

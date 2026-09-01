@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { resolveLocation, detectLocationChange, applyLocation, watchLocation, type Loc } from '@/lib/location';
 import {
   computePrayerTimesWith,
   countdownTo,
   DEFAULT_SETTINGS,
   formatHijri,
+  formatTime,
   formatGregorian,
   loadPrayerSettings,
   METHODS,
@@ -54,6 +55,8 @@ export default function PrayerTimes() {
   const [preview, setPreview] = useState<'v1' | 'v2' | 'v3' | null>(null);
   /* pass 33: adhan — plays when a prayer time arrives while the app is open */
   const [adhanFor, setAdhanFor] = useState<string | null>(null);
+  /* pass 38 — "new location detected" prompt candidate */
+  const [moved, setMoved] = useState<Loc | null>(null);
   const playedRef = useRef<string | null>(null);
   useEffect(() => {
     /* computed here (not from render scope) so hook order is stable even
@@ -75,6 +78,10 @@ export default function PrayerTimes() {
 
   useEffect(() => {
     resolveLocation().then(setLoc);
+    /* pass 38 — detect a saved-location change once on open (never silent) */
+    detectLocationChange().then((cand) => { if (cand) setMoved(cand); });
+    const stop = watchLocation((cand) => { setMoved(cand); });
+    return stop ?? undefined;
     loadPrayerSettings().then(setSettings);
   }, []);
 
@@ -144,7 +151,7 @@ export default function PrayerTimes() {
   const times = apiTimes ?? computePrayerTimesWith(selDate, loc, settings);
   const isToday = offset === 0;
   const np = isToday ? nextPrayer(now, times) : null;
-  const fmt = (t: Date) => t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const fmt = (t: Date) => formatTime(t); /* pass 38: 12h AM/PM always */
   /* pass 33: CURRENT prayer — the window we are in right now (the last
    * prayer whose time has arrived; before Fajr that is yesterday's Isha).
    * Plain computation (NOT useMemo) — this line sits after the early return,
@@ -213,6 +220,38 @@ export default function PrayerTimes() {
           <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Full month timetable</T>
           <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>{apiSrc === 'live' ? 'ISLAMICAPI' : 'OFFLINE CALC'} · SAVE / SHARE</T>
           <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+        </Pressable>
+
+        {/* pass 38 — new-location prompt (never switch silently) */}
+        {moved ? (
+          <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(91,200,245,0.5)' : 'rgba(91,200,245,0.4)', backgroundColor: isDark ? 'rgba(91,200,245,0.1)' : 'rgba(91,200,245,0.07)', paddingHorizontal: 12, paddingVertical: 10 }}>
+            <FontAwesome5 name="map-marked-alt" size={15} color="#5BC8F5" />
+            <View style={{ flex: 1 }}>
+              <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>New location detected: {moved.name}</T>
+              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Update your prayer times to this location?</T>
+            </View>
+            <Pressable
+              accessibilityLabel="update location"
+              onPress={() => { haptic.success(); applyLocation(moved).then(() => { setMoved(null); setApiTimes(null); resolveLocation().then(setLoc); }); }}
+              style={{ borderRadius: 10, backgroundColor: '#1F8F5C', paddingHorizontal: 12, paddingVertical: 8 }}
+            >
+              <T v="button" style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>Update</T>
+            </Pressable>
+            <Pressable onPress={() => { haptic.selection(); setMoved(null); }} hitSlop={8}>
+              <FontAwesome5 name="times" size={12} color={d.faint} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* pass 38 — adhan popup preview, one tap from the main screen */}
+        <Pressable
+          accessibilityLabel="preview adhan popup"
+          onPress={() => { haptic.medium(); setAdhanFor('Dhuhr·preview'); }}
+          style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: isDark ? 'rgba(91,200,245,0.08)' : 'rgba(91,200,245,0.05)', paddingHorizontal: 13, paddingVertical: 10 }}
+        >
+          <FontAwesome5 name="bell" size={13} color="#5BC8F5" />
+          <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Preview the adhan alert</T>
+          <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>SEE POPUP</T>
         </Pressable>
 
         {/* hero — next prayer (pass 29: same background + sun-walk arc as the home hero) */}
@@ -424,6 +463,20 @@ export default function PrayerTimes() {
                 <View style={{ width: 40, height: 22, borderRadius: 12, backgroundColor: settings.adhan ? '#1F8F5C' : d.bgSoft, borderWidth: 1, borderColor: settings.adhan ? '#1F8F5C' : d.cardBorder, padding: 2 }}>
                   <View style={{ width: 16, height: 16, borderRadius: 9, backgroundColor: '#FFFFFF', marginLeft: settings.adhan ? 18 : 0 }} />
                 </View>
+              </Pressable>
+
+              {/* pass 38 — SEE the adhan popup before it ever fires */}
+              <Pressable
+                accessibilityLabel="preview adhan popup"
+                onPress={() => { haptic.medium(); setAdhanFor('Dhuhr·preview'); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: isDark ? 'rgba(91,200,245,0.07)' : 'rgba(91,200,245,0.05)', marginBottom: 8 }}
+              >
+                <FontAwesome5 name="eye" size={14} color="#5BC8F5" />
+                <View style={{ flex: 1 }}>
+                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>Preview the adhan alert</T>
+                  <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 1 }}>See how the call-to-prayer popup will appear</T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
               </Pressable>
 
               {/* pass 33: adhan voice picker with preview */}

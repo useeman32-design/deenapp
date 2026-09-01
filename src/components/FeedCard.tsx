@@ -325,6 +325,9 @@ export function FeedCard({
   dash,
   field,
   groupLabel,
+  group,
+  rank,
+  onOpenGroup,
 }: {
   post: Post;
   onLike?: (id: number) => void;
@@ -336,6 +339,10 @@ export function FeedCard({
   field?: string;
   /** pass 36 — group posts: emerald chip with the group's name */
   groupLabel?: string;
+  /** pass 38 — GROUP-FIRST cards: group identity leads, user follows, rank badge */
+  group?: { name: string; cat?: string; avatar?: string; catIcon?: string };
+  rank?: 'owner' | 'admin' | 'member';
+  onOpenGroup?: () => void;
 }) {
   const { theme, isDark } = useTheme();
   const router = useRouter();
@@ -456,8 +463,40 @@ export function FeedCard({
         elevation: 2,
       }}
     >
+      {/* pass 38 — GROUP-FIRST header: the group leads the card (name, pic,
+       * badge), then the posting member underneath, then content */}
+      {group ? (
+        <Pressable
+          accessibilityLabel={`open group ${group.name}`}
+          onPress={() => { haptic.selection(); onOpenGroup?.(); }}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 9, opacity: pressed ? 0.75 : 1 })}
+        >
+          <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+            {group.avatar ? (
+              <T v="h3" style={{ fontSize: 16 }}>{group.avatar}</T>
+            ) : (
+              <FontAwesome5 name={(group.catIcon ?? 'users') as never} size={12} color="#E8C96A" />
+            )}
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <T v="body" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '900', fontSize: 13, color: txt, flexShrink: 1, letterSpacing: 0.2 }}>
+                {group.name}
+              </T>
+              <FontAwesome5 name="chevron-right" size={8} color={faint} />
+              <T v="caption" style={{ color: faint, fontSize: 11 }}>{post.time_ago ?? ''}</T>
+            </View>
+            {group.cat ? <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, color: faint, marginTop: 1.5, letterSpacing: 0.3 }}>{group.cat.toUpperCase()} GROUP</T> : null}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3.5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(212,175,55,0.1)' }}>
+            <FontAwesome5 name="users" size={7} color="#E8C96A" />
+            <T v="caption" style={{ fontSize: 8, fontWeight: '900', color: '#E8C96A', letterSpacing: 0.5 }}>GROUP</T>
+          </View>
+        </Pressable>
+      ) : null}
+
       {/* Header (avatar + name open the public profile — pass 18: no avatar preview on posts) */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 11 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 11, marginLeft: group ? 6 : 0 }}>
         <Pressable
           hitSlop={8}
           onPress={() => {
@@ -484,7 +523,27 @@ export function FeedCard({
             <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10.5, color: sub, flexShrink: 1, maxWidth: 150 }}>
               @{user.username}
             </T>
-            {groupLabel ? (
+            {rank ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 3.5,
+                  borderWidth: 1,
+                  borderColor: rank === 'owner' ? 'rgba(212,175,55,0.5)' : rank === 'admin' ? 'rgba(47,164,107,0.5)' : `${hairline}`,
+                  borderRadius: 7,
+                  paddingHorizontal: 6,
+                  paddingVertical: 1.5,
+                  backgroundColor: rank === 'owner' ? 'rgba(212,175,55,0.1)' : rank === 'admin' ? 'rgba(47,164,107,0.1)' : 'transparent',
+                }}
+              >
+                <FontAwesome5 name={rank === 'owner' ? 'crown' : rank === 'admin' ? 'shield-alt' : 'user'} size={7} color={rank === 'owner' ? '#E8C96A' : rank === 'admin' ? '#2FA46B' : sub} solid />
+                <T v="caption" style={{ fontSize: 8, fontWeight: '900', letterSpacing: 0.5, color: rank === 'owner' ? '#E8C96A' : rank === 'admin' ? '#2FA46B' : sub }}>
+                  {rank === 'owner' ? 'OWNER' : rank === 'admin' ? 'ADMIN' : 'MEMBER'}
+                </T>
+              </View>
+            ) : null}
+            {groupLabel && !group ? (
               <View
                 style={{
                   flexDirection: 'row',

@@ -544,6 +544,10 @@ export default function DeenLinkAI() {
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       {/* ── glassy header ── */}
       <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: glass.border, backgroundColor: glass.bg, flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+        {/* pass 38 — back button (was missing) */}
+        <Pressable accessibilityLabel="Go back" onPress={() => { haptic.selection(); if (router.canGoBack()) router.back(); }} style={{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, borderColor: glass.border, backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name="chevron-left" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+        </Pressable>
         <Pressable accessibilityLabel="Chat history" onPress={() => { haptic.selection(); setDrawerOpen(true); }} style={{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, borderColor: glass.border, backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="bars" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
         </Pressable>

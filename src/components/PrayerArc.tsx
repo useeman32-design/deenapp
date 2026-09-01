@@ -1,5 +1,6 @@
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
+import { formatTime } from '@/lib/prayer';
 
 /**
  * Mini semicircle showing the five daily prayers, with the next one
@@ -23,7 +24,7 @@ export function PrayerArc({ times, nextIndex, size = 158 }: { times: Date[]; nex
   const p4 = pt(angles[4]);
   const arc = `M ${p0.x} ${p0.y} A ${r} ${r} 0 0 1 ${p4.x} ${p4.y}`;
 
-  const fmt = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const fmt = (d: Date) => formatTime(d); /* pass 38: 12h AM/PM always */
 
   return (
     <Svg width={size} height={h} viewBox={`0 0 ${size} ${h}`}>

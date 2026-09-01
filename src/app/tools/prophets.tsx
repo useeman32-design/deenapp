@@ -199,7 +199,7 @@ export default function ProphetsStories() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Story of the Prophets" subtitle="Ibn Kathir · 25 chapters · Adam → Muhammad ﷺ" />
+      <TopBar showBack title="Story of the Prophets" subtitle="Ibn Kathir · 25 chapters · Adam → Muhammad ﷺ" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         {/* hero — continue where you stopped (like the Qur'an reader) */}
         {lastCh && lastTh ? (

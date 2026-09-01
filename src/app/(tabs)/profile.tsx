@@ -18,7 +18,7 @@ import { FeedCard } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { Platform } from 'react-native';
 import { UI_SCALES, useUIScale, useSetUIScale } from '@/context/UIScale';
-import { RewardModal, useDeenPoints } from '@/components/DeenPoints';
+import { DeenPointsBuyModal, RewardModal, useDeenPoints } from '@/components/DeenPoints';
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 import { useSaved } from '@/lib/savedPosts';
 
@@ -44,6 +44,8 @@ export default function Profile() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
+  /* pass 38 — the DeenPoints chip opens the BUY modal (it used to fire the check-in!) */
+  const [buyOpen, setBuyOpen] = useState(false);
   const [reward, setReward] = useState(false);
   const dp = useDeenPoints();
 
@@ -128,9 +130,10 @@ export default function Profile() {
             Profile
           </T>
           <Pressable
+            accessibilityLabel="get deenpoints"
             onPress={() => {
               haptic.light();
-              doCheckIn();
+              setBuyOpen(true);
             }}
             hitSlop={8}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.08)', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 6, marginRight: 8, opacity: pressed ? 0.75 : 1 })}
@@ -357,6 +360,7 @@ export default function Profile() {
         )}
       </ScrollView>
       <RewardModal visible={reward} onClose={() => setReward(false)} amount={5} />
+      <DeenPointsBuyModal visible={buyOpen} onClose={() => setBuyOpen(false)} />
 
     </View>
   );

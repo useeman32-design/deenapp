@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -20,6 +19,13 @@ import { storage } from '@/lib/storage';
  */
 
 export type GroupPost = { id: string; author: string; text: string; at: number };
+/* pass 38 — owner-managed roles */
+export type Role = 'owner' | 'admin' | 'member';
+export const ROLE_META: Record<Role, { label: string; icon: string; color: string }> = {
+  owner: { label: 'OWNER', icon: 'crown', color: '#E8C96A' },   /* gold — both themes */
+  admin: { label: 'ADMIN', icon: 'shield-alt', color: '#2FA46B' }, /* mid-emerald — both themes */
+  member: { label: 'MEMBER', icon: 'user', color: '#8FA89B' },  /* neutral grey-green */
+};
 export type Group = {
   id: string;
   name: string;
@@ -31,7 +37,19 @@ export type Group = {
   joined: null | 'member' | 'requested';
   mine?: boolean;
   posts: GroupPost[];
+  /* pass 38 additions */
+  bio?: string;                      /* short line under the name */
+  cover?: string;                    /* COVER_STYLES id — default fallback */
+  avatar?: string;                   /* profile picture (emoji) at creation */
+  roles?: Record<string, Role>;      /* member name → role */
+  following?: string[];              /* members the user follows */
 };
+
+export function roleOf(g: Group | null | undefined, member: string): Role {
+  if (!g) return 'member';
+  if (member === ME && g.mine && !g.roles?.[ME]) return 'owner'; /* creators own what they made */
+  return g.roles?.[member] ?? (member === ME && g.mine ? 'owner' : 'member');
+}
 
 export const GROUP_KEY = 'dl.groups.v1';
 export const ME = 'You';
@@ -46,9 +64,9 @@ export const gradFor = (cat: string): [string, string] => CAT_GRAD[cat] ?? CAT_G
 export const catIcon = (cat: string) => (cat === 'Mosque' ? 'mosque' : cat === 'School' ? 'graduation-cap' : cat === 'Organization' ? 'building' : 'users');
 
 export const SEED: Group[] = [
-  { id: 'g1', name: "Abuja Jumu'ah Circle", desc: 'Weekly tafsir & brotherhood at the central mosque.', cat: 'Mosque', open: false, members: ['Ibrahim S.', 'Aisha K.', 'Yusuf B.'], memberCount: 1284, joined: null, posts: [{ id: 'p1', author: 'Ibrahim S.', text: 'Reminder: this week\'s tafsir moves to 5:30 PM after Maghrib inshaAllah.', at: Date.now() - 3600000 * 5 }] },
-  { id: 'g2', name: 'DeenLink Student Halaqah', desc: 'School halaqah — memorize & revise together every weekend.', cat: 'School', open: true, members: ['Maryam A.'], memberCount: 342, joined: null, posts: [] },
-  { id: 'g3', name: 'Sisters of Light', desc: 'A safe space for sisters to learn, ask and grow.', cat: 'Community', open: false, members: ['Khadijah T.'], memberCount: 876, joined: null, posts: [] },
+  { id: 'g1', name: "Abuja Jumu'ah Circle", desc: 'Weekly tafsir & brotherhood at the central mosque.', cat: 'Mosque', open: false, members: ['Ibrahim S.', 'Aisha K.', 'Yusuf B.'], memberCount: 1284, joined: null, bio: 'Tafsir every Friday after Jumu\'ah · Central Mosque, Abuja', cover: 'emerald', avatar: '🕌', roles: { 'Ibrahim S.': 'owner', 'Aisha K.': 'admin', 'Yusuf B.': 'member' }, following: [], posts: [{ id: 'p1', author: 'Ibrahim S.', text: 'Reminder: this week\'s tafsir moves to 5:30 PM after Maghrib inshaAllah.', at: Date.now() - 3600000 * 5 }] },
+  { id: 'g2', name: 'DeenLink Student Halaqah', desc: 'School halaqah — memorize & revise together every weekend.', cat: 'School', open: true, members: ['Maryam A.'], memberCount: 342, joined: null, bio: 'Weekend halaqah · Juz 29 revision', cover: 'night', avatar: '📖', roles: { 'Maryam A.': 'owner' }, following: [], posts: [] },
+  { id: 'g3', name: 'Sisters of Light', desc: 'A safe space for sisters to learn, ask and grow.', cat: 'Community', open: false, members: ['Khadijah T.'], memberCount: 876, joined: null, bio: 'Sisters only · learn, ask, grow', cover: 'gold', avatar: '🌙', roles: { 'Khadijah T.': 'owner' }, following: [], posts: [] },
 ];
 
 export async function loadGroups(): Promise<Group[]> {
@@ -65,14 +83,14 @@ export function saveGroups(list: Group[]) {
 }
 
 /* ── group posts as real FeedCards ── */
-const GROUP_MEMBERS: Record<string, Array<{ name: string; user: string }>> = {
+const GROUP_MEMBERS: Record<string, Array<{ name: string; user: string; role?: Role }>> = {
   g1: [
-    { name: 'Ibrahim S.', user: 'ibrahim.s' },
-    { name: 'Aisha K.', user: 'aisha.k' },
-    { name: 'Yusuf B.', user: 'yusuf.b' },
+    { name: 'Ibrahim S.', user: 'ibrahim.s', role: 'owner' },
+    { name: 'Aisha K.', user: 'aisha.k', role: 'admin' },
+    { name: 'Yusuf B.', user: 'yusuf.b', role: 'member' },
   ],
-  g2: [{ name: 'Maryam A.', user: 'maryam.a' }],
-  g3: [{ name: 'Khadijah T.', user: 'khadijah.t' }],
+  g2: [{ name: 'Maryam A.', user: 'maryam.a', role: 'owner' }],
+  g3: [{ name: 'Khadijah T.', user: 'khadijah.t', role: 'owner' }],
 };
 
 export function groupPostAsFeed(g: { id: string; name: string }, p: GroupPost): Post {
@@ -119,7 +137,7 @@ export function GroupFeedPosts({ onComments }: { onComments?: (p: Post) => void 
       </View>
       {SAMPLE_FEED.map((sp) => {
         const g = SEED.find((x) => x.id === sp.gid) ?? SEED[0];
-        const member = GROUP_MEMBERS[g.id]?.find((m) => m.name === sp.author) ?? { name: sp.author, user: 'member' };
+        const member = GROUP_MEMBERS[g.id]?.find((m) => m.name === sp.author) ?? { name: sp.author, user: 'member', role: 'member' as const };
         const id = Math.abs([...sp.gid + sp.author].reduce((a, c) => a + c.charCodeAt(0), 0));
         const post = {
           id,
@@ -135,13 +153,48 @@ export function GroupFeedPosts({ onComments }: { onComments?: (p: Post) => void 
             key={id}
             dash={d}
             post={post}
-            groupLabel={g.name}
+            group={{ name: g.name, cat: g.cat, avatar: g.avatar, catIcon: catIcon(g.cat) }}
+            rank={member.role ?? 'member'}
+            onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: g.id } } as never)}
             onLike={(pid) => { haptic.light(); setLiked((s) => { const n = new Set(s); if (n.has(pid)) n.delete(pid); else n.add(pid); return n; }); }}
             onComments={onComments}
           />
         );
       })}
     </View>
+  );
+}
+
+/* ── pass 38 — ONE group post as a group-first card, for MIXING into the
+ * home feed between normal posts (the user asked for mixed, not separate) ── */
+export function GroupFeedInline({ onComments, index = 0 }: { onComments?: (p: Post) => void; index?: number }) {
+  const { theme } = useTheme();
+  const d = theme.dash;
+  const router = useRouter();
+  const [liked, setLiked] = useState(false);
+  const sp = SAMPLE_FEED[index % SAMPLE_FEED.length];
+  const g = SEED.find((x) => x.id === sp.gid) ?? SEED[0];
+  const member = GROUP_MEMBERS[g.id]?.find((m) => m.name === sp.author) ?? { name: sp.author, user: 'member', role: 'member' as const };
+  const id = 900000 + Math.abs([...sp.gid + sp.author].reduce((a, c) => a + c.charCodeAt(0), 0));
+  const post = {
+    id,
+    content_text: sp.text,
+    like_count: sp.likes + (liked ? 1 : 0),
+    comment_count: sp.comments,
+    liked_by_me: liked,
+    time_ago: sp.ago,
+    user: { id: id + 1, username: member.user, full_name: member.name, user_type: 'member', profile_image: null },
+  } as Post;
+  return (
+    <FeedCard
+      dash={d}
+      post={post}
+      group={{ name: g.name, cat: g.cat, avatar: g.avatar, catIcon: catIcon(g.cat) }}
+      rank={member.role ?? 'member'}
+      onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: g.id } } as never)}
+      onLike={() => { haptic.light(); setLiked((v) => !v); }}
+      onComments={onComments}
+    />
   );
 }
 
@@ -177,7 +230,9 @@ export function GroupsRail() {
               onPress={() => openGroup(g.id)}
               style={{ width: 168, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card }}
             >
-              <ExpoImage source={require('../../assets/img/mecca.jpg')} style={{ width: '100%', height: 62 }} contentFit="cover" />
+              <LinearGradient colors={(COVER_STYLES.find((c) => c.id === g.cover) ?? COVER_STYLES[0]).grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: 62, alignItems: 'center', justifyContent: 'center' }}>
+                {g.avatar ? <T v="h1" style={{ fontSize: 26 }}>{g.avatar}</T> : <FontAwesome5 name={catIcon(g.cat)} size={20} color="#E8C96A" />}
+              </LinearGradient>
               <LinearGradient colors={[`${c1}55`, c1]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 62 }} />
               <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
                 <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center', marginTop: -17 }}>
@@ -214,21 +269,24 @@ export function GroupsRail() {
 }
 
 /* ── create sheet (pass 36 upgrade: cover style + icon + live preview) ── */
-const COVER_STYLES: Array<{ id: string; label: string; grad: [string, string] }> = [
+export const COVER_STYLES: Array<{ id: string; label: string; grad: [string, string] }> = [
   { id: 'emerald', label: 'Emerald', grad: ['#0E3B26', '#06180F'] },
   { id: 'night', label: 'Night blue', grad: ['#123B52', '#0A2334'] },
   { id: 'gold', label: 'Gold', grad: ['#4A3A12', '#2A2008'] },
   { id: 'teal', label: 'Teal', grad: ['#123F3A', '#0A2320'] },
 ];
-const CATS: Array<Group['cat']> = ['Mosque', 'School', 'Organization', 'Community'];
+export const CATS: Array<Group['cat']> = ['Mosque', 'School', 'Organization', 'Community'];
+export const AVATARS = ['🕌', '📖', '🌙', '⭐', '🤲', '🕋', '🌿', '💡'] as const;
 
 export function CreateGroupModal({ visible, onClose, onCreate }: { visible: boolean; onClose: () => void; onCreate: (g: Group) => void }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const [bio, setBio] = useState('');
   const [cat, setCat] = useState<Group['cat']>('Community');
   const [cover, setCover] = useState('emerald');
+  const [avatar, setAvatar] = useState<string>('🕌');
   const [openJoin, setOpenJoin] = useState(true);
   const valid = name.trim().length >= 3;
   const cg = COVER_STYLES.find((c) => c.id === cover) ?? COVER_STYLES[0];
@@ -256,7 +314,7 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
             <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, marginBottom: 16 }}>
               <LinearGradient colors={cg.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 64, alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1.5, borderColor: 'rgba(232,201,102,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name={catIcon(cat)} size={13} color="#E8C96A" />
+                  {avatar ? <T v="h2" style={{ fontSize: 17 }}>{avatar}</T> : <FontAwesome5 name={catIcon(cat)} size={13} color="#E8C96A" />}
                 </View>
               </LinearGradient>
               <View style={{ padding: 11, backgroundColor: d.card }}>
@@ -285,6 +343,28 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               maxLength={140}
               style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, paddingTop: 11, paddingBottom: 11, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, minHeight: 76, textAlignVertical: 'top', marginBottom: 14 }}
             />
+
+            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>BIO — SHOWN UNDER THE NAME</T>
+            <TextInput
+              value={bio}
+              onChangeText={setBio}
+              placeholder="e.g. Tafsir every Friday after Jumu'ah"
+              placeholderTextColor={d.faint}
+              maxLength={90}
+              style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, marginBottom: 14 }}
+            />
+
+            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>PROFILE PICTURE</T>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {AVATARS.map((a) => {
+                const on = avatar === a;
+                return (
+                  <Pressable key={a} onPress={() => { haptic.selection(); setAvatar(a); }} style={{ width: 42, height: 42, borderRadius: 13, borderWidth: 2, borderColor: on ? '#E8C96A' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.1)' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                    <T v="h2" style={{ fontSize: 19 }}>{a}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
 
             <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>CATEGORY</T>
             <View style={{ flexDirection: 'row', gap: 7, marginBottom: 14 }}>
@@ -329,7 +409,7 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               onPress={() => {
                 if (!valid) return;
                 haptic.success();
-                onCreate({ id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [] });
+                onCreate({ id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover, avatar, roles: { [ME]: 'owner' }, following: [] });
               }}
               style={{ borderRadius: 14, backgroundColor: valid ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', paddingVertical: 14 }}
             >

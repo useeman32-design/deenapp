@@ -73,7 +73,7 @@ export default function FatwaBrowser() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Fatwa & Rulings" />
+      <TopBar showBack title="Fatwa & Rulings" />
       <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 10 }}>
           <FontAwesome5 name="search" size={12} color={d.faint} />

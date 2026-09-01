@@ -69,7 +69,7 @@ export default function Names() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="99 Names of Allah" subtitle={pack ? `${list.length} of ${pack.length} names · audio` : `${list.length} names · offline list`} />
+      <TopBar showBack title="99 Names of Allah" subtitle={pack ? `${list.length} of ${pack.length} names · audio` : `${list.length} names · offline list`} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
         <Pressable
           onPress={() => { haptic.selection(); setLang((l) => (l === 'en' ? 'ar' : 'en')); }}

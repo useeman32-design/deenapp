@@ -25,6 +25,7 @@ import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
+import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
@@ -156,6 +157,8 @@ export default function Home() {
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
+  /* pass 38 — group posts MIXED into the main feed */
+  const [hasGroups, setHasGroups] = useState(true);
   const [heroSz, setHeroSz] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
@@ -803,7 +806,9 @@ export default function Home() {
             </Pressable>
           </View>
           <View style={{ gap: 12 }}>
-            {posts.slice(0, 8).map((p) => (
+            {posts.slice(0, 8).map((p, pi) => (
+              <View key={p.id} style={{ gap: 12 }}>
+              {(pi === 1 || pi === 4) && hasGroups ? <GroupFeedInline index={pi === 1 ? 0 : 1} onComments={(pp) => setCommentPost(pp)} /> : null}
               <FeedCard
                 key={p.id}
                 dash={d}
@@ -828,6 +833,7 @@ export default function Home() {
                   })
                 }
               />
+              </View>
             ))}
           </View>
           {/* View more on community */}

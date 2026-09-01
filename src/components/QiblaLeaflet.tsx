@@ -34,7 +34,7 @@ function loadLeaflet(): Promise<any> {
   return w.__dlLeaflet;
 }
 
-export function QiblaLeaflet({ userLoc, userName, distanceKm }: { userLoc: { lat: number; lon: number }; userName: string; distanceKm: number }) {
+export function QiblaLeaflet({ userLoc, userName, distanceKm, height = 250 }: { userLoc: { lat: number; lon: number }; userName: string; distanceKm: number; height?: number }) {
   const { isDark } = useTheme();
   const ref = useRef<View>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'failed'>('loading');
@@ -94,7 +94,7 @@ export function QiblaLeaflet({ userLoc, userName, distanceKm }: { userLoc: { lat
   return (
     <View
       ref={ref}
-      style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(242,247,243,0.14)' : 'rgba(20,36,28,0.12)', height: 250, backgroundColor: isDark ? '#0A100D' : '#F2F6F3' }}
+      style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(242,247,243,0.14)' : 'rgba(20,36,28,0.12)', height, backgroundColor: isDark ? '#0A100D' : '#F2F6F3' }}
     />
   );
 }

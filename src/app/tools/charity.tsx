@@ -231,7 +231,7 @@ export default function Donations() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Donations" />
+      <TopBar showBack title="Donations" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
         {view === 'menu' ? (

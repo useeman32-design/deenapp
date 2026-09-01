@@ -29,7 +29,7 @@ export function TopBar({
       }}
     >
       {showBack ? (
-        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable accessibilityLabel="back" accessibilityRole="button" onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
           <T v="h2" style={{ color: d.emerald, fontSize: 18, lineHeight: 24 }}>‹</T>
         </Pressable>
       ) : null}

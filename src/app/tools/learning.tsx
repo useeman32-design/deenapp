@@ -52,6 +52,7 @@ const LIBRARY: Section[] = [
   { title: 'Stories of the Prophets', desc: 'From Adam to Muhammad (PBUT) — lessons, wisdom, guidance.', icon: MosqueIcon, grad: ['#8D6E63', '#A1887F'], chip: '19 chapters', cta: 'Explore', href: '/tools/prophets' },
   { title: 'Articles', desc: 'Contemporary issues, spirituality and family life.', icon: NewspaperIcon, grad: ['#C62828', '#EF5350'], chip: '300+ articles', cta: 'Read', href: '/tools/articles' },
   { title: 'Fatwa & Rulings', desc: '1,080 verified rulings, searchable by topic.', icon: ScaleIcon, grad: ['#303F9F', '#5C6BC0'], chip: 'islamqa archive', cta: 'Browse', href: '/tools/fatwa' },
+  { title: 'Ruqyah Shariah', desc: 'Quran & Sunnah healing — recite programs and learn.', icon: MosqueIcon, grad: ['#0E5E52', '#26A69A'], chip: '3 programs', cta: 'Open', href: '/tools/ruqyah' },
 ];
 
 export default function Learning() {
@@ -81,7 +82,7 @@ export default function Learning() {
             <T v="h2" style={{ fontWeight: '900', fontSize: 21, color: '#F2F7F3', lineHeight: 27 }}>Enhance Your Knowledge</T>
             <T v="caption" style={{ fontSize: 11, color: 'rgba(242,247,243,0.75)', marginTop: 3 }}>Courses, quizzes & knowledge for every Muslim</T>
             <View style={{ flexDirection: 'row', gap: 7, marginTop: 11 }}>
-              {['8 sections', '100+ quizzes', '300+ articles'].map((st) => (
+              {['9 sections', '100+ quizzes', '300+ articles'].map((st) => (
                 <View key={st} style={{ borderRadius: 9, backgroundColor: 'rgba(232,201,102,0.14)', borderWidth: 1, borderColor: 'rgba(232,201,102,0.4)', paddingHorizontal: 9, paddingVertical: 4 }}>
                   <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: '#E8C96A' }}>{st}</T>
                 </View>

@@ -17,7 +17,7 @@ export default function Articles() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Articles" />
+      <TopBar showBack title="Articles" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         {ARTICLES.map((a, i) => {
           const isOpen = open === i;

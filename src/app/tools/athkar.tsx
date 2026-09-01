@@ -23,7 +23,7 @@ export default function Athkar() {
   const [searchOpen, setSearchOpen] = useState(false);
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <TopBar
+      <TopBar showBack
         title="Athkar"
         subtitle="Daily remembrances"
         right={

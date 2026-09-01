@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
+import { fetchNisab } from '@/lib/islamicApi';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 
@@ -43,6 +44,21 @@ export default function Zakat() {
   const [silverGrams, setSilverGrams] = useState('');
   const [silverPrice, setSilverPrice] = useState('');
   const [standard, setStandard] = useState<'gold' | 'silver'>('gold');
+  /* pass 38 — LIVE nisab + metal prices from IslamicAPI (falls back to manual entry) */
+  const [live, setLive] = useState<'loading' | 'live' | 'off'>('loading');
+
+  useEffect(() => {
+    let dead = false;
+    fetchNisab('ngn')
+      .then((n) => {
+        if (dead) return;
+        setGoldPrice((p) => p || String(Math.round(n.gold.unit_price)));
+        setSilverPrice((p) => p || String(Math.round(n.silver.unit_price)));
+        setLive('live');
+      })
+      .catch(() => { if (!dead) setLive('off'); });
+    return () => { dead = true; };
+  }, []);
 
   const set = (k: string) => (t: string) => setV((p) => ({ ...p, [k]: t }));
 
@@ -93,6 +109,12 @@ export default function Zakat() {
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Zakat Calculator</T>
             <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>2.5% of net wealth held one lunar year</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5, alignSelf: 'flex-start', borderRadius: 8, borderWidth: 1, borderColor: live === 'live' ? 'rgba(74,227,143,0.4)' : d.cardBorder, backgroundColor: live === 'live' ? (isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)') : 'transparent', paddingHorizontal: 7, paddingVertical: 3 }}>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: live === 'live' ? '#4AE38F' : d.faint }} />
+              <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', letterSpacing: 0.4, color: live === 'live' ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint }}>
+                {live === 'live' ? 'LIVE NISAB · ISLAMICAPI' : live === 'loading' ? 'FETCHING NISAB…' : 'MANUAL PRICES — OFFLINE'}
+              </T>
+            </View>
           </View>
         </View>
 

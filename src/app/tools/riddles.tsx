@@ -58,7 +58,7 @@ export default function Riddles() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Islamic Riddles" subtitle={`${list.length} riddles · train your mind`} />
+      <TopBar showBack title="Islamic Riddles" subtitle={`${list.length} riddles · train your mind`} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: insets.bottom + 30, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         {/* focus card */}
         <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 22, padding: 20, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}>

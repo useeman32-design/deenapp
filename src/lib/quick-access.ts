@@ -27,6 +27,7 @@ export const QUICK_CATALOG: QuickItem[] = [
   { key: 'scholars', label: 'Scholars', icon: { fa: 'user-graduate' }, accent: 'gold', href: '/tools/scholars' },
   { key: 'inbox', label: 'Inbox', icon: { fa: 'inbox' }, accent: 'emerald', href: '/tools/inbox' },
   { key: 'ai', label: 'DeenLink AI', icon: { fa: 'robot' }, accent: 'gold', href: '/tools/ai' },
+  { key: 'ruqyah', label: 'Ruqyah', icon: { fa: 'shield-alt' }, accent: 'emerald', href: '/tools/ruqyah' },
 ];
 
 export const DEFAULT_QUICK: string[] = ['videos', 'quran', 'hadith', 'dua', 'prayer', 'learning'];

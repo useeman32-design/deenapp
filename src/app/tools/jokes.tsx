@@ -22,7 +22,7 @@ export default function Jokes() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Islamic Jokes" />
+      <TopBar showBack title="Islamic Jokes" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 30, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 18, padding: 18 }}>
           <View style={{ alignItems: 'center', marginBottom: 14 }}>

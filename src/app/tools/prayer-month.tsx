@@ -9,7 +9,7 @@ import { PageHero } from '@/components/PageHero';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 import { resolveLocation, type Loc } from '@/lib/location';
-import { computePrayerTimesWith, DEFAULT_SETTINGS, loadPrayerSettings, PRAYER_NAMES, type PrayerSettings } from '@/lib/prayer';
+import { computePrayerTimesWith, DEFAULT_SETTINGS, loadPrayerSettings, PRAYER_NAMES, to12h, type PrayerSettings } from '@/lib/prayer';
 import { fetchPrayerMonth } from '@/lib/islamicApi';
 import { shareSvgRef, saveSvgRefAsJpg, type SvgRefHandle } from '@/lib/svgExport';
 
@@ -103,11 +103,18 @@ export default function PrayerMonth() {
     fetchPrayerMonth({ lat: loc.latitude, lon: loc.longitude, method, school: settings.madhab === 'hanafi' ? 2 : 1 })
       .then((list) => {
         if (dead) return;
-        setDays(list.map((dy) => ({
-          date: dy.date,
-          hijri: dy.hijri_date ? `${parseInt(dy.hijri_date.day, 10)} ${dy.hijri_date.month.en}` : localHijri(dy.date),
-          t: [dy.times.Fajr, dy.times.Sunrise, dy.times.Dhuhr, dy.times.Asr, dy.times.Maghrib, dy.times.Isha],
-        })));
+        setDays(list.map((dy) => {
+          /* pass 38 — the API nests hijri under hijri_date.hijri (the flat
+           * read produced "NaN undefined" on every live row) */
+          const hj = (dy.hijri_date as unknown as { hijri?: { day?: string; month?: { en?: string } }; day?: string; month?: { en?: string } } | undefined) ?? undefined;
+          const hd = hj?.hijri ?? hj;
+          const hijri = hd?.day && hd?.month?.en ? `${parseInt(hd.day, 10)} ${hd.month.en}` : localHijri(dy.date);
+          return {
+            date: dy.date,
+            hijri,
+            t: [dy.times.Fajr, dy.times.Sunrise, dy.times.Dhuhr, dy.times.Asr, dy.times.Maghrib, dy.times.Isha].map(to12h),
+          };
+        }));
         setSrc('live');
       })
       .catch(() => {

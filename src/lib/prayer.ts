@@ -110,7 +110,23 @@ export function formatGregorian(date: Date): string {
 }
 
 export function formatTime(d: Date): string {
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  /* pass 38 — deterministic 12-hour AM/PM (toLocaleTimeString follows the
+   * device locale and printed 24h for many users) */
+  let h = d.getHours();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${ap}`;
+}
+
+/** pass 38 — "HH:MM" (24h API string) → "h:MM AM/PM" */
+export function to12h(t: string): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? '').trim());
+  if (!m) return String(t ?? '');
+  let h = parseInt(m[1], 10);
+  if (Number.isNaN(h)) return String(t ?? '');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m[2]} ${ap}`;
 }
 
 export function qiblaDirection(coords: { latitude: number; longitude: number }): number {

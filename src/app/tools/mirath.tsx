@@ -67,7 +67,7 @@ export default function Mirath() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar title="Mirath — Inheritance" />
+      <TopBar showBack title="Mirath — Inheritance" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         {/* hero */}
         <View style={{ borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(212,175,55,0.05)', padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
