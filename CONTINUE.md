@@ -1,5 +1,33 @@
 # CONTINUE — pass 34 handoff (2026-08-31)
 
+## Pass 34e — REAL LOGO + GLASSY AUTH (master 59391ee, gh-pages ceeb465, ALL PASS)
+User: compressed splash GIF quality is poor; attached the REAL DeenLink logo
+(uploads PNG 1254², 2.39MB, full-bleed art on solid black, emblem-style).
+- assets/img/logo.webp (720², q84, 96KB) → SplashGate (replaces both GIFs —
+  gifs DELETED, ~1.5MB saved). Square rounded-30 card min(W*0.6, 262),
+  spring pop-in (Animated spring scale 0.88→1), loader bar + BISMILLAH kept.
+- assets/img/logo-360.webp (360², q85, 32KB) → AuthShell top-center 116px
+  rounded badge (replaces code-drawn DeenLogo emblem + removed the second
+  logo-badge.png row in AuthHeading — ONE logo only). login/register inner
+  padding 26→0 (card provides it now).
+- AuthShell form = FROSTED GLASS card: rgba(6,22,14,0.55)/rgba(255,255,255,
+  0.55), radius 26, emerald border, web backdropFilter blur(18px)
+  saturate(1.4) via `[style, {...webOnly} as unknown as ViewStyle]` (RN
+  typings reject backdropFilter in ViewStyle; ImageStyle rejects elevation —
+  don't put elevation in Image styles). AuthField bgs softened to 0.5/0.62
+  so the glass reads.
+- webp is bundled fine by Metro (default assetExts) — web+native both OK.
+- GOTCHA: local pages-server lacked GH-Pages pretty-URL (/login → login.html)
+  → served 404.html shell → React #418 hydration error that does NOT exist
+  on real GH Pages. Fixed: try `p + '.html'` before 404 (and MIME from the
+  SERVED path — extname('/login')='' → octet-stream → "Download is starting").
+  dbg: all 4 routes clean locally + probe35 19/19 + LIVE login verified
+  (logo-360 img, glass blur, no old badge, zero pageerror).
+- playwright browser cache vanished again → `npx playwright-core install
+  chromium-headless-shell` (v1.62.1 → build 1234, matches probe path).
+- node_modules vanished again (npm install). Sandbox also wiped .git/config
+  (remote + identity gone) → re-add origin from .token, set user.name/email.
+
 ## Pass 34d — FRESH-CLONE npm install FIXED (master 1f972bb, gh-pages 53c1480)
 User hit: `npm install` → postinstall unpack-content.mjs → "assets/content.zip
 not found". Root cause: the ENTIRE assets/content tree is gitignored (the
