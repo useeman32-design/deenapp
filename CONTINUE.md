@@ -2,6 +2,29 @@
 
 ## Pass 39 SHIPPED (master 021cc4e, gh-pages 896c4db, probe35 ALL PASS 16/16, android .hbc OK, live entry bundle 200)
 
+### Post-ship native verification (2026-09-02) — EVERYTHING BELOW RE-RUN ON d548380
+- Fresh clone-state audit: `npx tsc --noEmit` CLEAN · `expo export --platform ios`
+  → entry-…hbc OK · `--platform android` → entry-…hbc OK (both bundles compile
+  from the shipped tree; no type or bundler errors).
+- MODULE AUDIT (Expo Go 57, iOS + Android):
+  ✓ In Expo Go (both platforms): expo-router, asset, blur, clipboard,
+  constants, device, file-system (new File/Paths API), font, glass-effect,
+  haptics, image, image-manipulator, image-picker, linear-gradient, linking,
+  location, media-library, sensors, sharing, splash-screen, status-bar,
+  symbols, system-ui, video, web-browser, @expo/ui, @expo/vector-icons,
+  rn-async-storage, gesture-handler, reanimated, safe-area-context, svg,
+  webview, worklets. Pure JS: adhan, qrcode, pako.
+  ⚠ expo-speech-recognition is the ONLY custom-native dep → real mic
+  dictation works in DEV BUILDS / APK / IPA only; Expo Go auto-falls back to
+  typed input (lazy probe in src/lib/speech.ts never crashes Go). Plugin
+  permission strings already in app.json.
+- app.json: scheme `deenlink` (share-art QR deep links), splash/location/
+  speech/sharing/video plugins configured; android package + adaptive icon;
+  iOS icon + tablet support.
+- Sandbox rolled back to pass-34f AGAIN before this check (git + worktree);
+  recovered with the standard recipe (re-add tokened remote → fetch →
+  reset --hard origin/master). Nothing lost — origin was already correct.
+
 ### Qibla (qibla.tsx + QiblaLeaflet.tsx + QiblaNativeSat.tsx NEW)
 - Design picker is now a "Change compass" BUTTON → modal (6 cards w/ color
   dots + check, persists dl.qibla.design). Inline pills removed.
