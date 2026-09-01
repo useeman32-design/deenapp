@@ -2,6 +2,26 @@
 
 ## Pass 39 SHIPPED (master 021cc4e, gh-pages 896c4db, probe35 ALL PASS 16/16, android .hbc OK, live entry bundle 200)
 
+### WORKSPACE BUDGET (2026-09-02) — READ THIS BEFORE BIG BUILDS
+- Snapshot cap = 128 MB / 10k files over NON-excluded paths (node_modules,
+  dist, .cache etc. don't count; `.git` DOES count). We hit 189.5 MB once →
+  78 largest files were silently NOT saved → that is what kept rolling the
+  local repo back to pass-34f between turns.
+- FIX in place: local `.git` is a SHALLOW clone (`--depth 1 --single-branch
+  -b master`, ~27 MB). Push from it works normally. Do NOT `git fetch
+  --unshallow` and do NOT fetch gh-pages locally — gh-pages is cloned fresh
+  in /tmp at deploy time (procedure below).
+- `.chromium-libs` stash (19 MB) REMOVED to fit budget — after a reset run
+  `bash scripts/browser-env.sh` (apt-get + reinstall, ~1 min) before probe35.
+- Keep the eligible set < ~100 MB: never leave big artifacts outside
+  node_modules/dist/.cache; clean /tmp clones right after deploying; push
+  after every green gate so nothing lives only in the worktree.
+- If .git creeps past ~40 MB: `git fetch --depth 1 origin master && git
+  reflog expire --expire=now --all && git gc --prune=now`.
+- Rollback recovery with the SHALLOW repo: re-add tokened remote →
+  `git fetch --depth 1 origin master` → `git reset --hard origin/master`
+  (unpushed work is unrecoverable — hence: push often).
+
 ### Post-ship native verification (2026-09-02) — EVERYTHING BELOW RE-RUN ON d548380
 - Fresh clone-state audit: `npx tsc --noEmit` CLEAN · `expo export --platform ios`
   → entry-…hbc OK · `--platform android` → entry-…hbc OK (both bundles compile
