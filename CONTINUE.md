@@ -1,5 +1,43 @@
 # CONTINUE — pass 34 handoff (2026-08-31)
 
+## Pass 34b — EXPO GO SUPPORT (master 722c2dc, gh-pages d58f659, probe35 ALL PASS)
+User wants to run the app on a phone via Expo Go. Native audit + fixes:
+- **content.ts loadJSON native branch**: Hermes has no fetch(file://) nor
+  DecompressionStream → `Asset.fromModule → downloadAsync → new File(
+  localUri sans file://).arrayBuffer() → pako.ungzip (hadith .gz) /
+  utf8Decode → JSON.parse`. Web path byte-identical.
+- **NEW src/lib/gzio.ts** — shared: `utf8Decode` (TextDecoder w/ manual
+  fallback), `gunzipBytes` (pako), `publicBase()` (web: /deenapp pathname;
+  native: `http://${Constants.expoConfig.hostUri}` — Metro serves public/),
+  `fetchGzText(path)` (DecompressionStream web / pako native).
+- translations.ts + hadithNum.ts + ai.ts (islamqa corpus) + prophets.tsx now
+  load via gzio → work in Expo Go (translations/hadith-num/prophets/adhan/
+  islamqa all live in public/, served by the dev server).
+- **pako ^3.0.1 + expo-asset ~57.0.15** added via `npx expo install`.
+- **adhanPlayer.ts**: native playback via expo-video `createVideoPlayer`
+  (mp3 audio through headless player, loop, release on stop) — web unchanged.
+- **savedPosts.ts**: persists via AsyncStorage on native (was in-memory).
+- **ReciteSearchModal**: `speechSupported()` gate → type-it TextInput
+  fallback ("FIND THE VERSE") — native has no Web Speech (Quran Shazam +
+  recite-search become typed search there; no crash, no dead mic).
+- Already native-safe: storage.ts (AsyncStorage), fonts (expo-font
+  useAppFonts in lib/fonts.ts), audio (expo-video), Qibla/GlobeMap/videos
+  Platform-guarded, net/ai window-guards.
+- **Verified: `npx expo export --platform android AND ios` both bundle
+  clean** (5.4MB .hbc). Expo SDK ~57.0.16 / RN 0.86.2 / React 19.2.3 — needs
+  a CURRENT Expo Go.
+- GitHub Pages CDN staleness AGAIN (raw + pages both lag one deploy; old
+  hashed entries keep working since deploys are non-destructive). Branch
+  HEAD is the truth: check `api.github.com/.../commits/<sha>` file list,
+  NOT raw (raw also caches ~5min, and don't grep only the first 2KB of
+  index.html — the entry tag sits at the END).
+
+### How the user runs it (Expo Go)
+git pull → npm install → npx expo start → scan QR with Expo Go (same Wi-Fi).
+First hadith/Quran open downloads + ungzips assets on device (few seconds).
+
+---
+
 ## Pass 34 shipped (master 129e0d2, gh-pages 3b61bf9, probe35 ALL PASS)
 1. "Unmatched Route" → catch-all `src/app/[...unmatched].tsx` (spinner 350ms →
    `router.replace('/(tabs)')`). Root cause was stale cached bundles; deploys
