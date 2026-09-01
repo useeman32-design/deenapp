@@ -1,4 +1,88 @@
-# CONTINUE — pass 38 handoff (2026-09-01)
+# CONTINUE — pass 39 handoff (2026-09-01)
+
+## Pass 39 SHIPPED (master 021cc4e, gh-pages 896c4db, probe35 ALL PASS 16/16, android .hbc OK, live entry bundle 200)
+
+### Qibla (qibla.tsx + QiblaLeaflet.tsx + QiblaNativeSat.tsx NEW)
+- Design picker is now a "Change compass" BUTTON → modal (6 cards w/ color
+  dots + check, persists dl.qibla.design). Inline pills removed.
+- Map is SATELLITE (Esri World Imagery) everywhere; first view DOWNLOADS and
+  SAVES tiles (web: localStorage `dl.tile.*` data-URLs via a custom Leaflet
+  TileLayer.createTile; native: QiblaNativeSat WebView — self-contained tile
+  mosaic, no Leaflet CDN, same localStorage cache inside the webview). Every
+  later view paints the SAVED map (chip: SAVED MAP · SATELLITE). The Offline
+  world-map fallback + chip are REMOVED. Web map h=196. Verified: 6 tiles
+  cached on first load, chip flips to SAVED on reload.
+
+### Zakat calculator (zakat.tsx — full rebuild)
+- Metal prices are LIVE + READ-ONLY (IslamicAPI fetchNisab; offline fallback
+  constants ₦191,313/g gold, ₦2,862/g silver). You enter GRAMS; value is
+  computed (verified: 100g → ₦19,131,342).
+- No auto-calc: big CALCULATE ZAKAT button gates the hero (dashes before).
+- Nisab value rendered BOLD inside the hero line (nested <Text fontWeight 900>).
+- "Money owed to you" (receivable) field REMOVED. Assets: cash, bank, goods;
+  liabilities: debts. Gold/silver live in the metals card.
+- Quran 9:103 (Arabic Amiri + translation) card at the bottom.
+- Donations' zakat sheet (charity.tsx) mirrors this: grams + live read-only
+  prices + Calculate button + 9:103; "Pay ₦X zakat now" after calculating.
+
+### Donations (charity.tsx)
+- "Donate to DeenLink" category REMOVED (user directive — reverses the old
+  probe-locked order). Now: Zakat → Sadaqah. Cat 'deenlink' kept in the type
+  for old receipts (receiptText branch intact). probe35 updated accordingly.
+- Hero rearranged: icon medallion + "Give for the sake of Allah" title,
+  ayah (2:261), divider, bookmarked hadith (Muslim 1631).
+- Recipients are MULTI-SELECT ("GIVEN TO — SELECT ALL THAT APPLY", checkmark
+  chips, "N recipients selected"); dono.recipient = joined names.
+- Form category header: dark LinearGradient (per-cat) + gold 8-point-star
+  lattice texture + icon + subtitle (was flat tint background).
+
+### Prayer month IMAGE EXPORT — FIXED (prayer-month.tsx)
+- Root cause: react-native-svg refs expose NO toDataURL() on web — every web
+  export silently failed. Fix: `monthCanvasDataUrl()` — the same A4 design
+  hand-drawn on a <canvas> (gradients, Poppins, gold rules, watermark),
+  canvas.toDataURL('image/jpeg', .92) → shareImage. Verified live: 382KB JPEG
+  generated (window.__dlMonthExport exposes length for probes). Native keeps
+  the svgRef→toDataURL path (works there).
+
+### Groups
+- Community tab: the separate "FROM YOUR GROUPS" section is GONE; group posts
+  are MIXED into the main feed via <GroupFeedInline/> after the 1st + 3rd
+  cards (GroupsRail stays as discovery). Home: feed trimmed 8 → 4 posts,
+  group card after the 2nd.
+- Gallery uploads: pickGroupPhoto([1,1] / [16,9]) via expo-image-picker
+  (base64 JPEG data URI, quality .55). EditGroupSheet: "Upload picture from
+  gallery" (profile) + "Upload cover photo from gallery" (cover) + remove
+  buttons; cover modal on the group screen too. isGroupImg() = data:/file:/http
+  prefix; renders ExpoImage in group screen, rail cards, and FeedCard group
+  tile (emoji fallback otherwise).
+
+### Ruqyah AUDIO (src/lib/ruqyahAudio.ts NEW)
+- Static MP3s per the API docs (NOT in the JSON): per-surah {n}.mp3 (1,2,7,
+  20,109,112,113,114), 'Ayatul Kursi.mp3', total_{brief|med|long}_ruqyah.mp3.
+  audioForEntry(title) parses entry titles; audioForProgram(programId).
+- Player: web HTMLAudioElement, native expo-video headless (adhan pattern);
+  ONE thing plays at a time; onRuqyahAudio listener drives UI.
+- Surfaces: "Listen — full program audio" row in the recite tab; speaker icon
+  on rows that have audio; play/pause + cloud-download in the entry sheet.
+
+### Learning + Mirath
+- learning.tsx LIBRARY += Hadith Library, Duas & Adhkar, Morning & Evening
+  Athkar, Names of Allah (99), Ask a Scholar; Ruqyah chip "308 recitations".
+- mirath.tsx: Quran 4:11 ayah card at the bottom + explicit al-hajb notes —
+  "Brothers/Sisters do NOT inherit here: a male child (son) survives, and a
+  son excludes siblings completely (al-hajb)" (+ the father-excludes variant).
+
+### Gotchas this pass
+- Sandbox reset AGAIN mid-pass (node_modules wiped + .git rolled back to
+  pass-34f while worktree stayed current). Recovery: remote add origin w/
+  .token → fetch → reset --soft origin/master → git add -A (worktree wins).
+- GroupFeedPosts is now UNUSED in community (kept exported; GroupFeedInline
+  is the mixing primitive).
+- probe35 donations test now asserts NO DeenLink card + SELECT ALL THAT APPLY
+  on the form page.
+
+# ── pass 38 archive ──
+
 
 ## Pass 38 SHIPPED (master 3cd2d7e, gh-pages 1c9fc60, probe35 ALL PASS 16/16, android .hbc OK, live bundles 200)
 
