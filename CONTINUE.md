@@ -1,5 +1,25 @@
 # CONTINUE — pass 34 handoff (2026-08-31)
 
+## Pass 34d — FRESH-CLONE npm install FIXED (master 1f972bb, gh-pages 53c1480)
+User hit: `npm install` → postinstall unpack-content.mjs → "assets/content.zip
+not found". Root cause: the ENTIRE assets/content tree is gitignored (the
+`content/` .gitignore pattern matches at any depth) and content.zip was
+deleted in pass 33 → fresh clones have NO content pack at all (no quran txt,
+no hadith gz, no islamic packs) → Metro would fail next.
+Fix:
+- content pack (147 files, 17.2MB zip) hosted at STABLE URL
+  https://useeman32-design.github.io/deenapp/content/content.zip
+  (pushed to gh-pages /content/ — survives every deploy: deploys are
+  non-destructive adds; local public/ NOT used, so snapshot stays lean).
+- unpack-content.mjs rewritten: MARKERS check (quran surah_1+surah_114,
+  buhari+nawawi40+meta gz, dua, seera) → exit 0 if pack present; else
+  download PACK_URL (env DL_CONTENT_URL overridable, Node18+ fetch) to
+  assets/content.zip (now gitignored) → existing unzip.
+- TESTED fresh-clone simulation: download+extract 147 files, md5 identical
+  to sandbox originals, second run exits 0 fast.
+- gh-pages CDN lags a few minutes after push (404→200); raw.githubusercontent
+  verifies branch HEAD immediately.
+
 ## Pass 34c — NATIVE MIC (master 74592e3, gh-pages a55dd60, probe35 ALL PASS)
 User: mic features are VERY important. Why they die in Expo Go: speech.ts
 used the browser Web Speech API; Expo Go is a fixed native binary with no
