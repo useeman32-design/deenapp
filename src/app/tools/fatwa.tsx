@@ -22,6 +22,10 @@ export default function FatwaBrowser() {
    * events screen — saved fatwas persist in local storage. */
   const [savedIdx, setSavedIdx] = useState<Set<number>>(new Set());
   const [view, setView] = useState<'all' | 'saved'>('all');
+  /* pass 36 — ALL rulings load (was capped at 30): incremental pages of 40
+   * with a loader pinned to the bottom while more stream in */
+  const [limit, setLimit] = useState(40);
+  const [more, setMore] = useState(false);
 
   useEffect(() => { loadFatwas().then(setAll).catch(() => setAll([])); }, []);
   useEffect(() => {
@@ -39,11 +43,11 @@ export default function FatwaBrowser() {
     });
   };
 
-  const list = useMemo(() => {
+  const matched = useMemo(() => {
     if (!all) return [];
     if (view === 'saved') return all.filter((_, i) => savedIdx.has(i));
     const needle = q.trim().toLowerCase();
-    if (!needle) return all.slice(0, 30);
+    if (!needle) return all;
     const toks = needle.split(/\s+/).filter((t) => t.length > 2);
     return all
       .map((f) => {
@@ -54,9 +58,18 @@ export default function FatwaBrowser() {
       })
       .filter((x) => x.sc > 0)
       .sort((a, b) => b.sc - a.sc)
-      .slice(0, 40)
       .map((x) => x.f);
   }, [all, q, view, savedIdx]);
+  const list = matched.slice(0, limit);
+
+  useEffect(() => { setLimit(40); }, [q, view]);
+
+  /* scroll near the end → stream the next page in (with a brief loader) */
+  const loadMore = () => {
+    if (more || !all || limit >= matched.length) return;
+    setMore(true);
+    setTimeout(() => { setLimit((l) => l + 40); setMore(false); }, 450);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -90,11 +103,30 @@ export default function FatwaBrowser() {
           </T>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 30 }}
+        showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+          if (contentOffset.y + layoutMeasurement.height > contentSize.height - 420) loadMore();
+        }}
+        scrollEventThrottle={140}
+      >
         {!all ? (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} />
-            <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 8 }}>Loading 1,080 rulings…</T>
+          <View style={{ gap: 10, marginTop: 6 }}>
+            {[...Array(7)].map((_, i) => (
+              <View key={i} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 9, opacity: 1 - i * 0.1 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.06)' }} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ height: 10, borderRadius: 5, width: `${72 - i * 6}%`, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.06)' }} />
+                  <View style={{ height: 8, borderRadius: 4, width: `${46 + i * 4}%`, backgroundColor: isDark ? 'rgba(242,247,243,0.05)' : 'rgba(20,36,28,0.04)' }} />
+                </View>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 }}>
+              <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{all ? 'Loading more…' : 'Loading the rulings archive…'}</T>
+            </View>
           </View>
         ) : list.length === 0 ? (
           <T v="caption" style={{ textAlign: 'center', marginTop: 30, fontSize: 11.5 }}>{view === 'saved' ? 'No saved rulings yet — tap the bookmark on any ruling.' : `No rulings match “${q}”. Try a simpler word.`}</T>
@@ -135,6 +167,17 @@ export default function FatwaBrowser() {
             );
           })
         )}
+        {all && list.length < matched.length ? (
+          <Pressable onPress={loadMore} style={{ alignItems: 'center', paddingVertical: 16, gap: 7 }}>
+            {more ? <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+            <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>
+              {more ? 'Loading more rulings…' : `Load more (${matched.length - list.length} remaining)`}
+            </T>
+          </Pressable>
+        ) : null}
+        {all && limit >= matched.length && matched.length > 40 ? (
+          <T v="caption" style={{ textAlign: 'center', fontSize: 9.5, color: d.faint, paddingBottom: 8 }}>— all {matched.length} rulings loaded —</T>
+        ) : null}
       </ScrollView>
     </View>
   );

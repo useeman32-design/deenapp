@@ -324,6 +324,7 @@ export function FeedCard({
   showActions = true,
   dash,
   field,
+  groupLabel,
 }: {
   post: Post;
   onLike?: (id: number) => void;
@@ -333,6 +334,8 @@ export function FeedCard({
   showActions?: boolean;
   dash?: DashTheme;
   field?: string;
+  /** pass 36 — group posts: emerald chip with the group's name */
+  groupLabel?: string;
 }) {
   const { theme, isDark } = useTheme();
   const router = useRouter();
@@ -481,6 +484,26 @@ export function FeedCard({
             <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10.5, color: sub, flexShrink: 1, maxWidth: 150 }}>
               @{user.username}
             </T>
+            {groupLabel ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  borderWidth: 1,
+                  borderColor: `${accent}55`,
+                  borderRadius: 7,
+                  paddingHorizontal: 6,
+                  paddingVertical: 1.5,
+                  backgroundColor: `${accent}12`,
+                }}
+              >
+                <FontAwesome5 name="users" size={7} color={accent} />
+                <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: accent, letterSpacing: 0.4 }}>
+                  {groupLabel}
+                </T>
+              </View>
+            ) : null}
             {fieldLabel ? (
               <View
                 style={{

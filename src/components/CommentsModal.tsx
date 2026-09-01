@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -285,6 +285,15 @@ export function CommentsModal({
 
   // re-seed whenever a different post opens
   const seedKey = post?.id ?? -1;
+  /* pass 36 — comments loader: shows a shimmer for a beat when the sheet
+   * opens, so slow networks never present an empty sheet */
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    const t = setTimeout(() => setLoading(false), 550);
+    return () => clearTimeout(t);
+  }, [seedKey, visible]);
   useEffect(() => {
     if (visible) {
       setItems(seed.map((c) => ({ ...c, replies: c.replies?.map((r) => ({ ...r })) })));
@@ -448,7 +457,20 @@ export function CommentsModal({
           {total(items)} COMMENTS
         </T>
 
-        {items.map((c) => (
+        {loading ? (
+          <View style={{ gap: 14, marginTop: 12 }} pointerEvents="none">
+            {[...Array(3)].map((_, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 9, opacity: 1 - i * 0.22 }}>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.07)' }} />
+                <View style={{ flex: 1, gap: 6, marginTop: 2 }}>
+                  <View style={{ height: 9, borderRadius: 5, width: `${38 + i * 9}%`, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.07)' }} />
+                  <View style={{ height: 9, borderRadius: 5, width: `${84 - i * 12}%`, backgroundColor: isDark ? 'rgba(242,247,243,0.06)' : 'rgba(20,36,28,0.05)' }} />
+                </View>
+              </View>
+            ))}
+            <ActivityIndicator size="small" color={emerald} style={{ marginTop: 2 }} />
+          </View>
+        ) : items.map((c) => (
           <CommentRow
             key={c.id}
             c={c}

@@ -169,6 +169,17 @@ export default function CommunityScreen() {
     if (tab === 'scholars') return posts.filter((p) => !!p.user.scholar);
     return posts;
   }, [posts, tab, searching]);
+  /* pass 36 — feed pages in while you scroll, with a loader at the bottom
+   * (older posts "load" like a real network feed instead of all at once) */
+  const [feedLimit, setFeedLimit] = useState(4);
+  const [feedMore, setFeedMore] = useState(false);
+  const feedShown = visiblePosts.slice(0, feedLimit);
+  useEffect(() => { setFeedLimit(4); }, [tab, searching]);
+  const loadFeedMore = () => {
+    if (feedMore || feedLimit >= visiblePosts.length) return;
+    setFeedMore(true);
+    setTimeout(() => { setFeedLimit((l) => l + 3); setFeedMore(false); }, 650);
+  };
 
   const pickTab = (t: FeedTab) => {
     if (t === tab) return;
@@ -296,6 +307,8 @@ export default function CommunityScreen() {
           const y = e.nativeEvent.contentOffset.y;
           const s = y > 165;
           if (s !== sticky) setSticky(s);
+          const { contentOffset: co, contentSize: cs, layoutMeasurement: lm } = e.nativeEvent;
+          if (co.y + lm.height > cs.height - 500) loadFeedMore();
         }}
         scrollEventThrottle={16}
       >
@@ -560,7 +573,7 @@ export default function CommunityScreen() {
 
         {/* pass 34: GROUPS — schools, mosques, organizations (facebook-style) */}
         <GroupsRail />
-        <GroupFeedPosts />
+        <GroupFeedPosts onComments={(pp) => setCommentPost(pp)} />
 
         {/* Feed tabs (inline at the top of the feed; sticky clone appears on scroll) */}
         {!searching ? (
@@ -708,7 +721,7 @@ export default function CommunityScreen() {
                     </T>
                   </View>
                 ) : (
-                  visiblePosts.map((p, pi) => (
+                  feedShown.map((p, pi) => (
                     <View key={p.id}>
                       <FeedCard
                       dash={d}
@@ -728,6 +741,13 @@ export default function CommunityScreen() {
                     </View>
                   ))
                 )}
+                {/* pass 36 — older posts loader while scrolling */}
+                {!searching && feedLimit < visiblePosts.length ? (
+                  <Pressable onPress={loadFeedMore} style={{ alignItems: 'center', gap: 8, paddingVertical: 18 }}>
+                    {feedMore ? <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+                    <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{feedMore ? 'Loading older posts…' : 'Load older posts'}</T>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           </>

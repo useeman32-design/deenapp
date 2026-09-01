@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED } from '@/api/mocks';
 import { AvatarImage } from '@/components/FeedCard';
 import { useTheme } from '@/context/ThemeContext';
+import { catIcon, loadGroups } from '@/components/Groups';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 
@@ -16,6 +17,44 @@ import { haptic } from '@/lib/haptics';
  */
 
 type Tab = 'following' | 'followers' | 'suggested';
+
+/* pass 36 — live group list (storage-backed) → /tools/group?id=… */
+function GroupLinks() {
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const router = useRouter();
+  const [groups, setGroups] = useState<Awaited<ReturnType<typeof loadGroups>> | null>(null);
+  useEffect(() => { loadGroups().then(setGroups); }, []);
+  if (!groups) {
+    return (
+      <View style={{ alignItems: 'center', gap: 8, marginTop: 30 }}>
+        <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+        <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>Loading your groups…</T>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {groups.map((g) => (
+        <Pressable
+          key={g.id}
+          onPress={() => router.push({ pathname: '/tools/group', params: { id: g.id } } as never)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 8 }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(74,227,143,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name={catIcon(g.cat) as never} size={14} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{g.name}</T>
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{g.cat} · {g.memberCount.toLocaleString()} members{g.joined ? ' · joined' : ''}</T>
+          </View>
+          <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+        </Pressable>
+      ))}
+      <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 8 }}>Open the Community tab to browse & create groups</T>
+    </View>
+  );
+}
 
 export default function Connections() {
   const { theme, isDark } = useTheme();
@@ -73,29 +112,9 @@ export default function Connections() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {tab === 'groups' ? (
-          /* pass 35 — your groups in the connections screen */
+          /* pass 36 — your groups open the full group profile screen */
           <View style={{ paddingHorizontal: 16 }}>
-            {[
-              { name: "Abuja Jumu'ah Circle", cat: 'Mosque', members: 1284, icon: 'mosque' },
-              { name: 'DeenLink Student Halaqah', cat: 'School', members: 342, icon: 'graduation-cap' },
-              { name: 'Sisters of Light', cat: 'Community', members: 876, icon: 'users' },
-            ].map((g) => (
-              <Pressable
-                key={g.name}
-                onPress={() => router.push('/(tabs)/community')}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 8 }}
-              >
-                <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(74,227,143,0.1)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name={g.icon as never} size={14} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{g.name}</T>
-                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{g.cat} · {g.members.toLocaleString()} members</T>
-                </View>
-                <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
-              </Pressable>
-            ))}
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 8 }}>Open the Community tab to browse & join groups</T>
+            <GroupLinks />
           </View>
         ) : null}
         {tab !== 'groups' && list.length === 0 ? (

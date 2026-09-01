@@ -21,7 +21,7 @@ import { T } from '@/components/T';
 import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
-import { ADHAN_VOICES, isAdhanPlaying, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { ADHAN_VOICES, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
 import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
 import { useRouter } from 'expo-router';
 import { stopBubble } from '@/lib/press';
@@ -49,6 +49,9 @@ export default function PrayerTimes() {
   const [sheet, setSheet] = useState(false);
   const [methodPicker, setMethodPicker] = useState(false);
   const [adhanLoading, setAdhanLoading] = useState(false);
+  /* pass 36 — exclusive preview: only the voice actually playing shows
+   * "playing" (before, every button lit because isAdhanPlaying() is global) */
+  const [preview, setPreview] = useState<'v1' | 'v2' | 'v3' | null>(null);
   /* pass 33: adhan — plays when a prayer time arrives while the app is open */
   const [adhanFor, setAdhanFor] = useState<string | null>(null);
   const playedRef = useRef<string | null>(null);
@@ -64,7 +67,7 @@ export default function PrayerTimes() {
       const key = `${dd.toDateString()}:${i}`;
       if (now >= t[i] && now.getTime() - t[i].getTime() < 90_000 && playedRef.current !== key) {
         playedRef.current = key;
-        if (playAdhan(settings.adhanVoice)) setAdhanFor(`${PRAYER_NAMES[i]}·${key}`);
+        if (playAdhan(settings.adhanVoice)) { setPreview(null); setAdhanFor(`${PRAYER_NAMES[i]}·${key}`); }
         break;
       }
     }
@@ -440,12 +443,18 @@ export default function PrayerTimes() {
                         <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{v.label}</T>
                         <Pressable
                           accessibilityLabel={`preview adhan ${v.label}`}
-                          onPress={(e) => { stopBubble(e); haptic.selection(); if (isAdhanPlaying() || adhanLoading) { stopAdhan(); setAdhanFor(null); setAdhanLoading(false); } else { setAdhanLoading(true); playAdhan(v.id); setTimeout(() => setAdhanLoading(false), 1400); } }}
-                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: (isAdhanPlaying() || adhanLoading) ? 'rgba(212,175,55,0.18)' : (isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)'), alignItems: 'center', justifyContent: 'center' }}
+                          onPress={(e) => {
+                            stopBubble(e); haptic.selection();
+                            if (preview === v.id) { stopAdhan(); setPreview(null); setAdhanFor(null); return; }
+                            setAdhanLoading(true);
+                            if (playAdhan(v.id)) { setPreview(v.id); setAdhanFor(null); }
+                            setTimeout(() => setAdhanLoading(false), 900);
+                          }}
+                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: preview === v.id ? 'rgba(212,175,55,0.18)' : (isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)'), alignItems: 'center', justifyContent: 'center' }}
                         >
-                          {adhanLoading ? (
+                          {adhanLoading && preview !== v.id && !preview ? (
                             <ActivityIndicator size="small" color="#E8C96A" />
-                          ) : isAdhanPlaying() ? (
+                          ) : preview === v.id ? (
                             <FontAwesome5 name="pause" size={9} color="#E8C96A" />
                           ) : (
                             <FontAwesome5 name="play" size={9} color={d.subtext} />

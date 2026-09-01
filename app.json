@@ -33,7 +33,7 @@
         {
           "backgroundColor": "#0E7A5F",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 220
         }
       ],
       [
@@ -58,7 +58,7 @@
       "reactCompiler": true
     },
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-full.png",
       "backgroundColor": "#06140D",
       "resizeMode": "contain"
     },

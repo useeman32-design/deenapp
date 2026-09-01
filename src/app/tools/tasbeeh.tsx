@@ -8,7 +8,6 @@ import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
-import Svg, { Circle as SvgCircle, Defs, Ellipse, LinearGradient as SvgLg, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 /**
  * Tasbeeh / Dhikr (pass 30 — full premium rebuild):
@@ -53,39 +52,25 @@ const MOODS = [
 /* ── misbaha glow geometry — pass 33: re-traced from the ACTUAL render.
  *   The strand is an oval loop (tassel at the top): 33 points sampled
  *   evenly by arc length from the detected bead centres, bead 0 = top. */
-/* pass 35 — the misbaha is now DRAWN (transparent SVG strand + beads) so
- * the tracking bead is ON the path BY CONSTRUCTION. 33 beads, evenly spaced
- * by arc length around the oval; bead 0 starts just right of the tassel. */
-const SV_W = 100;
-const SV_H = 62;
-const CX = 50;
-const CY = 33;
-const RX = 40;
-const RY = 24;
-const strandPoint = (t: number): { x: number; y: number } => {
-  const a = -Math.PI / 2 + t * Math.PI * 2;
-  return { x: CX + RX * Math.cos(a), y: CY + RY * Math.sin(a) };
-};
-const BEAD_PATH: Array<{ x: number; y: number }> = (() => {
-  const N = 720;
-  const cum: number[] = [0];
-  for (let i = 1; i <= N; i++) {
-    const p0 = strandPoint((i - 1) / N);
-    const p1 = strandPoint(i / N);
-    cum.push(cum[i - 1] + Math.hypot(p1.x - p0.x, p1.y - p0.y));
-  }
-  const total = cum[N];
-  const pts: Array<{ x: number; y: number }> = [];
-  let j = 0;
-  for (let b = 0; b < 33; b++) {
-    const target = (b / 33) * total;
-    while (j < N && cum[j + 1] < target) j++;
-    const seg = cum[j + 1] - cum[j] || 1;
-    const f = (target - cum[j]) / seg;
-    pts.push(strandPoint((j + f) / N));
-  }
-  return pts;
-})();
+/* pass 36 — misbaha RESTORED: the original photo with its background keyed
+ * out (misbaha-transparent.png, flood-filled from the borders so shading on
+ * the beads survives). BEAD_PATH is fitted to the beads ACTUALLY in the photo
+ * (extracted from the alpha channel), 33 beads evenly spaced by arc length. */
+const MISBAHA_AR = 1.662;
+const BEAD_W = 0.025;
+const BEAD_PATH: Array<{ x: number; y: number }> = [
+  { x: 0.9340, y: 0.4990 }, { x: 0.9258, y: 0.5793 }, { x: 0.9015, y: 0.6566 },
+  { x: 0.8620, y: 0.7279 }, { x: 0.8107, y: 0.7887 }, { x: 0.7473, y: 0.8400 },
+  { x: 0.6761, y: 0.8783 }, { x: 0.6000, y: 0.9028 }, { x: 0.5191, y: 0.9136 },
+  { x: 0.4388, y: 0.9099 }, { x: 0.3607, y: 0.8920 }, { x: 0.2862, y: 0.8601 },
+  { x: 0.2192, y: 0.8154 }, { x: 0.1613, y: 0.7585 }, { x: 0.1158, y: 0.6920 },
+  { x: 0.0840, y: 0.6173 }, { x: 0.0679, y: 0.5381 }, { x: 0.0681, y: 0.4586 },
+  { x: 0.0844, y: 0.3795 }, { x: 0.1164, y: 0.3048 }, { x: 0.1621, y: 0.2385 },
+  { x: 0.2202, y: 0.1817 }, { x: 0.2873, y: 0.1372 }, { x: 0.3620, y: 0.1055 },
+  { x: 0.4402, y: 0.0880 }, { x: 0.5204, y: 0.0845 }, { x: 0.6013, y: 0.0955 },
+  { x: 0.6774, y: 0.1202 }, { x: 0.7484, y: 0.1587 }, { x: 0.8117, y: 0.2102 },
+  { x: 0.8627, y: 0.2712 }, { x: 0.9020, y: 0.3426 }, { x: 0.9261, y: 0.4200 },
+];
 const beadAt = (i: number): { x: number; y: number } => BEAD_PATH[((i % BEADS) + BEADS) % BEADS];
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -95,58 +80,12 @@ const dayOffset = (n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-/* pass 35 — transparent drawn misbaha: strand + 33 beads + tassel.
- * Lit beads (index < active) glow emerald; the active bead burns neon. */
-function MisbahaSvg({ width, height, active, passed }: { width: number; height: number; active: number; passed: number }) {
-  return (
-    <Svg width={width} height={height} viewBox={`0 0 ${SV_W} ${SV_H}`} style={{ position: 'absolute', top: 0, left: 0 }}>
-      <Defs>
-        <RadialGradient id="beadGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#4AE38F" stopOpacity="0.9" />
-          <Stop offset="100%" stopColor="#4AE38F" stopOpacity="0" />
-        </RadialGradient>
-        <SvgLg id="strandG" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0%" stopColor="rgba(232,201,102,0.9)" />
-          <Stop offset="100%" stopColor="rgba(232,201,102,0.45)" />
-        </SvgLg>
-      </Defs>
-      {/* the string */}
-      <Ellipse cx={CX} cy={CY} rx={RX} ry={RY} fill="none" stroke="url(#strandG)" strokeWidth={0.7} />
-      {/* tassel at the top of the strand */}
-      <SvgCircle cx={CX} cy={CY - RY} r={2.6} fill="#E8C96A" />
-      <Path d={`M ${CX - 1.6} ${CY - RY + 2} q -1.8 5 -0.6 9 M ${CX} ${CY - RY + 2.4} q -0.6 5 0 9.6 M ${CX + 1.6} ${CY - RY + 2} q 1.8 5 0.6 9`} stroke="rgba(232,201,102,0.85)" strokeWidth={0.55} fill="none" />
-      {/* beads */}
-      {BEAD_PATH.map((bp, i) => {
-        const lit = i < active;
-        const isLead = i % 11 === 0 && i !== 0;
-        const r = isLead ? 2.5 : 2.1;
-        const active1 = i === active;
-        return (
-          <SvgCircle
-            key={i}
-            cx={bp.x}
-            cy={bp.y}
-            r={active1 ? r + 0.5 : r}
-            fill={active1 ? NEON : lit ? 'rgba(52,160,102,0.95)' : 'rgba(233,240,235,0.92)'}
-            opacity={lit ? 1 : 0.95}
-            stroke={active1 ? '#D8FFE9' : 'rgba(4,10,7,0.5)'}
-            strokeWidth={active1 ? 0.5 : 0.35}
-          />
-        );
-      })}
-      {/* under-glow wash behind the active bead (drawn UNDER by render order first, but subtle) */}
-      <SvgCircle cx={beadAt(active).x} cy={beadAt(active).y} r={7} fill="url(#beadGlow)" />
-      <SvgCircle cx={beadAt(passed > 0 ? passed - 1 : 0).x} cy={beadAt(passed > 0 ? passed - 1 : 0).y} r={3.6} fill="url(#beadGlow)" opacity={passed > 0 ? 0.8 : 0} />
-    </Svg>
-  );
-}
-
 export default function Tasbeeh() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const W = Dimensions.get('window').width;
   const imgW = W - 24;
-  const imgH = imgW / (SV_W / SV_H);
+  const imgH = imgW / MISBAHA_AR;
 
   const [presetId, setPresetId] = useState('tawhid');
   const [target, setTarget] = useState(99);
@@ -370,7 +309,8 @@ export default function Tasbeeh() {
         {/* ── HERO: the physical misbaha — tap / swipe to count ── */}
         <Pressable accessibilityLabel="tasbeeh-deck" accessibilityRole="button" onPress={bump} {...deckPan.panHandlers} style={{ marginHorizontal: 12, marginTop: 10 }}>
           <View style={{ borderRadius: 26, overflow: 'hidden' }}>
-            {/* pass 35 — glow beads UNDER the strand (was on top of a photo) */}
+            {/* the REAL misbaha — background keyed out, glow renders UNDER it */}
+            <Image source={require('../../../assets/img/misbaha-transparent.png')} style={{ width: imgW, height: imgH }} resizeMode="contain" />
             <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, width: imgW, height: imgH }}>
               {Array.from({ length: BEADS }).map((_, i) =>
                 i < activeBead ? (
@@ -378,13 +318,13 @@ export default function Tasbeeh() {
                     key={i}
                     style={{
                       position: 'absolute',
-                      left: (beadAt(i).x / SV_W) * imgW - 3.2,
-                      top: (beadAt(i).y / SV_H) * imgH - 3.2,
-                      width: 6.4,
-                      height: 6.4,
-                      borderRadius: 3.2,
+                      left: beadAt(i).x * imgW - 3.4,
+                      top: beadAt(i).y * imgH - 3.4,
+                      width: 6.8,
+                      height: 6.8,
+                      borderRadius: 3.4,
                       backgroundColor: NEON,
-                      opacity: 0.4,
+                      opacity: 0.5,
                     }}
                   />
                 ) : null,
@@ -392,8 +332,8 @@ export default function Tasbeeh() {
               <Animated.View
                 style={{
                   position: 'absolute',
-                  left: (beadAt(activeBead).x / SV_W) * imgW,
-                  top: (beadAt(activeBead).y / SV_H) * imgH,
+                  left: beadAt(activeBead).x * imgW,
+                  top: beadAt(activeBead).y * imgH,
                   width: 0,
                   height: 0,
                   alignItems: 'center',
@@ -401,11 +341,9 @@ export default function Tasbeeh() {
                   transform: [{ scale: glowPulse }],
                 }}
               >
-                <View style={{ position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(74,227,143,0.32)', shadowColor: NEON, shadowOpacity: 0.95, shadowRadius: 20, shadowOffset: { width: 0, height: 0 }, elevation: 8 }} />
+                <View style={{ position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(74,227,143,0.35)', shadowColor: NEON, shadowOpacity: 0.95, shadowRadius: 20, shadowOffset: { width: 0, height: 0 }, elevation: 8 }} />
               </Animated.View>
             </View>
-            {/* the drawn misbaha — transparent strand + beads (SVG) */}
-            <MisbahaSvg width={imgW} height={imgH} active={activeBead} passed={activeBead} />
             {/* soft blend into the screen bg */}
             <LinearGradient colors={['rgba(5,13,9,0.55)', 'rgba(5,13,9,0)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54 }} pointerEvents="none" />
             <LinearGradient colors={['rgba(5,13,9,0)', 'rgba(5,13,9,0.6)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60 }} pointerEvents="none" />

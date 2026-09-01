@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -65,8 +65,11 @@ export default function Courses() {
   /* per-course progress: { [courseId]: number[] (completed lesson indexes) } */
   const [progress, setProgress] = useState<Record<string, number[]>>({});
 
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    api.courses().then(setCourses);
+    api.courses()
+      .then((c) => { setCourses(c); })
+      .finally(() => setLoading(false));
     storage.getItem('dl.courses.progress.v1').then((r) => {
       try { setProgress(JSON.parse(r ?? '{}')); } catch {}
     }).catch(() => {});
@@ -110,6 +113,28 @@ export default function Courses() {
           })}
         </ScrollView>
         <View style={{ paddingTop: 12, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
+          {/* pass 36 — loading skeleton while courses load (slow networks) */}
+          {loading && !list.length ? (
+            <>
+              {[...Array(4)].map((_, i) => (
+                <View key={i} style={{ backgroundColor: theme.card, borderRadius: 16, padding: 16, gap: 10, opacity: 1 - i * 0.15 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <View style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: isDark ? 'rgba(242,247,243,0.07)' : 'rgba(20,36,28,0.06)' }} />
+                    <View style={{ flex: 1, gap: 7 }}>
+                      <View style={{ height: 11, borderRadius: 6, width: '58%', backgroundColor: isDark ? 'rgba(242,247,243,0.07)' : 'rgba(20,36,28,0.06)' }} />
+                      <View style={{ height: 9, borderRadius: 5, width: '76%', backgroundColor: isDark ? 'rgba(242,247,243,0.05)' : 'rgba(20,36,28,0.04)' }} />
+                    </View>
+                  </View>
+                  <View style={{ height: 9, borderRadius: 5, width: '92%', backgroundColor: isDark ? 'rgba(242,247,243,0.05)' : 'rgba(20,36,28,0.04)' }} />
+                  <View style={{ height: 5, borderRadius: 3, width: '100%', backgroundColor: isDark ? 'rgba(242,247,243,0.06)' : 'rgba(20,36,28,0.05)' }} />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', paddingVertical: 4 }}>
+                <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                <T v="caption" style={{ fontSize: 10.5, color: theme.subtext }}>Loading courses…</T>
+              </View>
+            </>
+          ) : null}
           {list.map((c) => {
             const lessons = lessonsFor(c);
             const done = (progress[c.id] ?? []).length;

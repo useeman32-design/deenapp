@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import Svg, { Circle, Defs, Line, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -31,6 +31,19 @@ const EMERALD = '#1D6F42';
 
 const fmtHM = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+/* pass 36 — hijri equivalent for every row: prefer the API's hijri_date, fall
+ * back to the device's Umm-al-Qura calendar so the column is NEVER empty. */
+const hijriFmt = (() => {
+  try {
+    return new Intl.DateTimeFormat('en-GB-u-ca-islamic-umalqura', { day: 'numeric', month: 'long' });
+  } catch { return null; }
+})();
+const localHijri = (iso: string): string | undefined => {
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime()) || !hijriFmt) return undefined;
+  try { return hijriFmt.format(d).replace(/ (AH|ah)$/i, ''); } catch { return undefined; }
+};
+
 export default function PrayerMonth() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -59,7 +72,7 @@ export default function PrayerMonth() {
         if (dead) return;
         setDays(list.map((dy) => ({
           date: dy.date,
-          hijri: dy.hijri_date ? `${parseInt(dy.hijri_date.day, 10)} ${dy.hijri_date.month.en}` : undefined,
+          hijri: dy.hijri_date ? `${parseInt(dy.hijri_date.day, 10)} ${dy.hijri_date.month.en}` : localHijri(dy.date),
           t: [dy.times.Fajr, dy.times.Sunrise, dy.times.Dhuhr, dy.times.Asr, dy.times.Maghrib, dy.times.Isha],
         })));
         setSrc('live');
@@ -72,7 +85,7 @@ export default function PrayerMonth() {
         for (let i = 1; i <= total; i++) {
           const dd = new Date(now.getFullYear(), now.getMonth(), i, 12, 0, 0);
           const ts = computePrayerTimesWith(dd, loc, settings);
-          out.push({ date: dd.toISOString().slice(0, 10), t: ts.map(fmtHM) });
+          out.push({ date: dd.toISOString().slice(0, 10), hijri: localHijri(dd.toISOString().slice(0, 10)), t: ts.map(fmtHM) });
         }
         if (!dead) { setDays(out); setSrc('off'); }
       });
@@ -139,9 +152,18 @@ export default function PrayerMonth() {
             ))}
           </View>
           {days == null ? (
-            <View style={{ padding: 26, alignItems: 'center', gap: 8 }}>
-              <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} />
-              <T v="caption" style={{ fontSize: 11, color: d.faint }}>{src === 'live' ? 'Fetching the month from IslamicAPI…' : 'Calculating the month…'}</T>
+            <View style={{ padding: 18, gap: 10 }}>
+              {[...Array(10)].map((_, i) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 8, opacity: 1 - i * 0.07 }}>
+                  {[...Array(8)].map((_, j) => (
+                    <View key={j} style={{ flex: 1, height: 10, borderRadius: 5, backgroundColor: isDark ? 'rgba(242,247,243,0.07)' : 'rgba(20,36,28,0.06)' }} />
+                  ))}
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 4 }}>
+                <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                <T v="caption" style={{ fontSize: 11, color: d.faint }}>Building the month timetable…</T>
+              </View>
             </View>
           ) : days.map((dy) => {
             const dt = new Date(`${dy.date}T12:00:00`);
@@ -239,9 +261,4 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
       <SvgText x={A4W / 2} y={A4H / 2 + 60} textAnchor="middle" fontSize="150" fill="rgba(29,111,70,0.045)" fontWeight="900" fontFamily="Poppins-ExtraBold" transform={`rotate(-24 ${A4W / 2} ${A4H / 2})`}>DEENLINK</SvgText>
     </Svg>
   );
-}
-
-/* tiny <G> alias so the map above reads clean */
-function G({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
 }
