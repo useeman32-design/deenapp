@@ -436,7 +436,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
       if (code === 'not-allowed' || code === 'service-not-allowed') {
         keepAlive.current = false;
         setListening(false);
-        setError('Microphone permission denied — enable it in browser settings.');
+        setError('Microphone permission denied — enable it in your device settings.');
         return;
       }
       if (code === 'network') setError('Speech recognition needs an internet connection.');

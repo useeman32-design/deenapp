@@ -3,7 +3,12 @@
  * iOS Safari 14.5+ and Chrome support webkitSpeechRecognition; Android Chrome
  * too. Native apps would need a native module — we expose isSupported so UI
  * can fall back to typed input / tap-to-reveal practice.
+ *
+ * pass 34c: on native (dev builds / APK / IPA) the same Web-Speech-shaped
+ * interface is provided by expo-speech-recognition (real on-device engine).
+ * Expo Go (fixed binary, no custom native modules) gets the typed fallback.
  */
+import { Platform } from 'react-native';
 
 export type RecResult = { final: string; interim: string };
 
@@ -22,12 +27,66 @@ type AnyRec = {
 };
 
 export function speechSupported(): boolean {
+  /* native (dev build / APK): real on-device engine via
+   * expo-speech-recognition. Expo Go: module absent → null → callers show
+   * the type-it fallback. */
+  if (nativeSpeechProbe()) return true;
   if (typeof window === 'undefined') return false;
   const w = window as any;
   return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
 }
 
+/* ── pass 34c: native speech engine (expo-speech-recognition) ──
+ * ExpoSpeechRecognitionModule is created via requireNativeModule at import
+ * time, which THROWS inside Expo Go (the binary has no such module) — so the
+ * require must be lazy and guarded, never a top-level import. */
+type NativeSpeechPkg = {
+  ExpoWebSpeechRecognition: new (...a: unknown[]) => AnyRec;
+  ExpoSpeechRecognitionModule: { requestPermissionsAsync: () => Promise<{ granted?: boolean }>; abort: () => void };
+};
+let nativeSpeech: NativeSpeechPkg | null | undefined; /* undefined = not probed */
+
+function nativeSpeechProbe(): NativeSpeechPkg | null {
+  if (nativeSpeech !== undefined) return nativeSpeech;
+  nativeSpeech = null;
+  if (Platform.OS !== 'web') {
+    try {
+      const mod = require('expo-speech-recognition') as NativeSpeechPkg | undefined;
+      if (mod?.ExpoWebSpeechRecognition && mod?.ExpoSpeechRecognitionModule) nativeSpeech = mod;
+    } catch { /* Expo Go / web: not available */ }
+  }
+  return nativeSpeech;
+}
+
+/** Ask for mic (+ speech on iOS) permission up-front. Web: no-op (the
+ *  browser shows its own prompt). Resolves false when denied. */
+export async function ensureMicPermission(): Promise<boolean> {
+  const pkg = nativeSpeechProbe();
+  if (!pkg) return true;
+  try {
+    const p = await pkg.ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    return Boolean(p?.granted);
+  } catch {
+    return false;
+  }
+}
+
 export function getRecognition(opts?: { lang?: string; continuous?: boolean }): AnyRec | null {
+  const pkg = nativeSpeechProbe();
+  if (pkg) {
+    try {
+      const r = new pkg.ExpoWebSpeechRecognition();
+      r.lang = opts?.lang ?? 'ar-SA';
+      r.continuous = opts?.continuous ?? true;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      /* pop the system permission dialog before the first tap-to-talk */
+      void ensureMicPermission();
+      return r;
+    } catch {
+      return null;
+    }
+  }
   if (typeof window === 'undefined') return null;
   const w = window as any;
   const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
@@ -50,6 +109,14 @@ export function getRecognition(opts?: { lang?: string; continuous?: boolean }): 
  *  · MIC_NOT_ALLOWED rejects (caller shows the permission hint)
  */
 export function dictateArabic(onInterim?: (text: string) => void, timeoutMs = 12000): Promise<string> {
+  /* native: show the mic permission dialog BEFORE opening the listener */
+  return ensureMicPermission().then((granted) => {
+    if (!granted) return Promise.reject(new Error('MIC_NOT_ALLOWED'));
+    return dictateArabicInner(onInterim, timeoutMs);
+  });
+}
+
+function dictateArabicInner(onInterim?: (text: string) => void, timeoutMs = 12000): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = getRecognition({ continuous: true });
     if (!r) return reject(new Error('UNSUPPORTED'));

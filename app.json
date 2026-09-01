@@ -43,7 +43,14 @@
         }
       ],
       "expo-video",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "DeenLink uses the microphone to listen to Qur\u2019an recitation for voice search and practice.",
+          "speechRecognitionPermission": "DeenLink recognizes your recitation to find verses and score your practice."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
