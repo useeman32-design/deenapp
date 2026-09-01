@@ -84,6 +84,20 @@ export async function saveToGallery(uri: string): Promise<boolean> {
   }
 }
 
+/** pass 37 — can this device save images? (web: always false → share/download
+ * only; native: only when the photo-library permission is already granted).
+ * "Save to gallery" is a privilege — the Share sheet is for everyone. */
+export async function canSaveImages(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  try {
+    const MediaLibrary = await import('expo-media-library');
+    const cur = await MediaLibrary.getPermissionsAsync();
+    return cur.granted;
+  } catch {
+    return false;
+  }
+}
+
 /** one-shot: rasterize a hidden Svg ref → JPEG file → share (native) */
 export async function shareSvgRef(ref: React.RefObject<SvgRefHandle>, fileName: string, message = ''): Promise<void> {
   const png = await svgRefToPng(ref);

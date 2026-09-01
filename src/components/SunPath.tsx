@@ -11,8 +11,13 @@ import { formatTime } from '@/lib/prayer';
 /* Professional prayer-day visual: markers at their REAL positions on the
    day's arc, sun/moon at the CURRENT time, next prayer highlighted. */
 
+/* pass 37 — cache the last measured width so remounts (navigating back to
+ * home/prayer) start at the CORRECT width instead of 338 → no visible
+ * "adjust-and-snap-back" glitch on the arc. */
+let cachedW = 0;
+
 export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; nextIndex: number | null }) {
-  const [w, setW] = useState(338);
+  const [w, setW] = useState(cachedW || 338);
   const H = 120;
   const pad = 18;
   const baseline = 84;
@@ -41,7 +46,7 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
   if (!times) {
     return (
       <View
-        onLayout={(e) => setW(Math.max(e.nativeEvent.layout.width, 200))}
+        onLayout={(e) => { const mw = Math.max(e.nativeEvent.layout.width, 200); cachedW = mw; setW(mw); }}
         style={{ height: H, justifyContent: 'center' }}
       >
         <View
@@ -112,7 +117,7 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
 
 
   return (
-    <View onLayout={(e) => setW(Math.max(e.nativeEvent.layout.width, 200))} style={{ height: H }}>
+    <View onLayout={(e) => { const mw = Math.max(e.nativeEvent.layout.width, 200); cachedW = mw; setW(mw); }} style={{ height: H }}>
       <Svg width={w} height={H}>
         <Defs>
           <SvgLinear id="sun-area" x1="0" y1="0" x2="0" y2="1">

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
 import { ShareCardSvg } from '@/components/ShareCardSvg';
-import { saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
+import { canSaveImages, saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
 import { addUserPost } from '@/lib/userPosts';
 
 /**
@@ -42,6 +42,10 @@ export function ContentShareSheet({
   /* pass 35 — native share-as-image: the same card rendered as SVG (web keeps the canvas path) */
   const [svgMode, setSvgMode] = useState(false);
   const exportRef = useRef<SvgRefHandle>(null);
+  /* pass 37 — saving to the gallery is a privilege (needs photo permission);
+   * sharing via the native sheet is for everyone */
+  const [canSave, setCanSave] = useState(false);
+  useEffect(() => { canSaveImages().then(setCanSave).catch(() => setCanSave(false)); }, []);
   const [sent, setSent] = useState<string | null>(null);
 
   if (!visible && (svgMode || imgUrl)) { setSvgMode(false); setImgUrl(null); }
@@ -147,10 +151,12 @@ export function ContentShareSheet({
                   <FontAwesome5 name="share" size={12} color="#fff" />
                   <T v="button" style={{ fontSize: 12.5 }}>Share</T>
                 </Pressable>
-                <Pressable onPress={() => { saveSvgRefAsJpg(exportRef, `deenlink-${card.kind}`).catch(() => {}); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10 }}>
-                  <FontAwesome5 name="download" size={12} color={theme.text} />
-                  <T v="bodyS" style={{ fontSize: 12.5, color: theme.text }}>Save</T>
-                </Pressable>
+                {canSave ? (
+                  <Pressable onPress={() => { saveSvgRefAsJpg(exportRef, `deenlink-${card.kind}`).catch(() => {}); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10 }}>
+                    <FontAwesome5 name="download" size={12} color={theme.text} />
+                    <T v="bodyS" style={{ fontSize: 12.5, color: theme.text }}>Save</T>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           ) : null}

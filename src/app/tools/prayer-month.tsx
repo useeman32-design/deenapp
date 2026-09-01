@@ -29,19 +29,48 @@ const COLS = ['Date', 'Hijri', 'Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Is
 const GOLD = '#D4AF37';
 const EMERALD = '#1D6F42';
 
-const fmtHM = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+/* pass 37 — ALL date/time formatting is locale-free and deterministic.
+ * toLocale* on Hermes/Expo Go is unreliable (missing Intl data on some
+ * builds) and was part of the month-screen death. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const fmtHM = (d: Date) => {
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
+};
+const shortDate = (iso: string) => {
+  const dt = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  const day = dt.getDate();
+  if (Number.isNaN(day)) return iso.slice(0, 10);
+  return `${day} ${MONTHS[dt.getMonth()] ?? ''}`;
+};
 
-/* pass 36 — hijri equivalent for every row: prefer the API's hijri_date, fall
- * back to the device's Umm-al-Qura calendar so the column is NEVER empty. */
-const hijriFmt = (() => {
-  try {
-    return new Intl.DateTimeFormat('en-GB-u-ca-islamic-umalqura', { day: 'numeric', month: 'long' });
-  } catch { return null; }
-})();
+/* pass 37 — hijri fallback WITHOUT Intl: the tabular Islamic calendar
+ * (arithmetic, widely-used approximation of Umm al-Qura ±1 day).
+ * Works identically on every JS engine including Hermes without Intl. */
+const HI_MONTHS = ['Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani', 'Jumada al-Ula', 'Jumada al-Akhirah', 'Rajab', "Sha'ban", 'Ramadan', 'Shawwal', "Dhu al-Qi'dah", 'Dhu al-Hijjah'];
 const localHijri = (iso: string): string | undefined => {
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime()) || !hijriFmt) return undefined;
-  try { return hijriFmt.format(d).replace(/ (AH|ah)$/i, ''); } catch { return undefined; }
+  try {
+    const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return undefined;
+    const jd = Math.floor(d.getTime() / 86400000) + 2440588;
+    const l0 = jd - 1948440 + 10632;
+    const n = Math.floor((l0 - 1) / 10631);
+    let l1 = l0 - 10631 * n + 354;
+    const j = Math.floor((10985 - l1) / 5316) * Math.floor((50 * l1) / 17719) + Math.floor(l1 / 5670) * Math.floor((43 * l1) / 15238);
+    l1 = l1 - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+    const m = Math.floor((24 * l1) / 709);
+    const day = l1 - Math.floor((709 * m) / 24);
+    const year = 30 * n + j - 30;
+    const mo = HI_MONTHS[m - 1];
+    if (!mo || day < 1 || day > 30) return undefined;
+    return `${day} ${mo}`;
+  } catch {
+    return undefined;
+  }
 };
 
 export default function PrayerMonth() {
@@ -53,6 +82,9 @@ export default function PrayerMonth() {
   const [days, setDays] = useState<Day[] | null>(null);
   const [src, setSrc] = useState<'loading' | 'live' | 'off'>('loading');
   const [exporting, setExporting] = useState(false);
+  /* pass 37 — the A4 surface mounts ONLY during an export. It used to sit
+   * offscreen permanently; on native that giant surface was the page-killer. */
+  const [exportOn, setExportOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const svgRef = useRef<SvgRefHandle>(null);
 
@@ -61,7 +93,8 @@ export default function PrayerMonth() {
     loadPrayerSettings().then(setSettings);
   }, []);
 
-  const monthLabel = useMemo(() => new Date().toLocaleDateString([], { month: 'long', year: 'numeric' }), []);
+  const now0 = new Date();
+  const monthLabel = `${MONTHS_LONG[now0.getMonth()]} ${now0.getFullYear()}`;
 
   useEffect(() => {
     if (!loc) return;
@@ -83,39 +116,52 @@ export default function PrayerMonth() {
         const out: Day[] = [];
         const total = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         for (let i = 1; i <= total; i++) {
-          const dd = new Date(now.getFullYear(), now.getMonth(), i, 12, 0, 0);
-          const ts = computePrayerTimesWith(dd, loc, settings);
-          out.push({ date: dd.toISOString().slice(0, 10), hijri: localHijri(dd.toISOString().slice(0, 10)), t: ts.map(fmtHM) });
+          try {
+            const dd = new Date(now.getFullYear(), now.getMonth(), i, 12, 0, 0);
+            const iso = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            const ts = computePrayerTimesWith(dd, loc, settings);
+            out.push({ date: iso, hijri: localHijri(iso), t: ts.map(fmtHM) });
+          } catch {}
         }
         if (!dead) { setDays(out); setSrc('off'); }
       });
     return () => { dead = true; };
   }, [loc, settings]);
 
-  const doShare = async () => {
-    if (exporting || !days) return;
-    haptic.medium();
-    setExporting(true);
+  const runExport = async (mode: 'share' | 'save') => {
+    setExportOn(true);
+    /* give the surface a beat to lay out before rasterizing */
+    await new Promise((r) => setTimeout(r, 450));
     try {
-      await shareSvgRef(svgRef, `deenlink-prayer-times-${new Date().toISOString().slice(0, 7)}`, `DeenLink — ${monthLabel} prayer times`);
-    } catch { setToast('Could not export — try again'); }
-    setExporting(false);
-  };
-
-  const doSave = async () => {
-    if (exporting || !days) return;
-    haptic.medium();
-    setExporting(true);
-    try {
-      if (Platform.OS === 'web') {
+      const name = `deenlink-prayer-times-${new Date().toISOString().slice(0, 7)}`;
+      if (mode === 'share') {
+        await shareSvgRef(svgRef, name, `DeenLink — ${monthLabel} prayer times`);
+      } else if (Platform.OS === 'web') {
         setToast('Long-press the image → Save, or use Share');
-        await doShare();
+        await shareSvgRef(svgRef, name, `DeenLink — ${monthLabel} prayer times`);
       } else {
-        const ok = await saveSvgRefAsJpg(svgRef, `deenlink-prayer-times-${new Date().toISOString().slice(0, 7)}`);
+        const ok = await saveSvgRefAsJpg(svgRef, name);
         setToast(ok ? 'Saved to your gallery ✓' : 'Could not save — check photo permission');
       }
-    } catch { setToast('Could not save — try Share instead'); }
-    setExporting(false);
+    } catch {
+      setToast('Could not export — try again');
+    } finally {
+      setExportOn(false);
+    }
+  };
+
+  const doShare = () => {
+    if (exporting || !days) return;
+    haptic.medium();
+    setExporting(true);
+    runExport('share').finally(() => setExporting(false));
+  };
+
+  const doSave = () => {
+    if (exporting || !days) return;
+    haptic.medium();
+    setExporting(true);
+    runExport('save').finally(() => setExporting(false));
   };
 
   useEffect(() => {
@@ -172,7 +218,7 @@ export default function PrayerMonth() {
               <View key={dy.date} style={{ flexDirection: 'row', paddingVertical: 8, backgroundColor: isToday ? (isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.08)') : 'transparent', borderBottomWidth: 1, borderBottomColor: d.cardBorder }}>
                 <View style={{ flex: 1.3, alignItems: 'center', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
                   <T v="bodyS" style={{ fontSize: 11, fontWeight: isToday ? '900' : '700', color: isToday ? '#D4AF37' : d.text }}>
-                    {dt.getDate()} {dt.toLocaleDateString([], { month: 'short' })}
+                    {shortDate(dy.date)}
                   </T>
                 </View>
                 <View style={{ flex: 1.3, alignItems: 'center' }}>
@@ -189,10 +235,12 @@ export default function PrayerMonth() {
         </View>
       </ScrollView>
 
-      {/* hidden A4 export surface (rasterized on demand) */}
-      <View pointerEvents="none" style={{ position: 'absolute', left: -9999, top: 0, width: A4W, height: A4H }}>
-        <MonthTableSvg ref={svgRef} days={days ?? []} monthLabel={monthLabel} location={loc?.name ?? ''} methodLabel="" />
-      </View>
+      {/* hidden A4 export surface — mounted ONLY while exporting (pass 37) */}
+      {exportOn ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: -9999, top: 0, width: A4W, height: A4H }}>
+          <MonthTableSvg ref={svgRef} days={days ?? []} monthLabel={monthLabel} location={loc?.name ?? ''} methodLabel="" />
+        </View>
+      ) : null}
 
       <Modal visible={!!toast} transparent animationType="fade" onRequestClose={() => setToast(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,8,5,0.5)', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 90 }} onPress={() => setToast(null)}>
@@ -240,13 +288,12 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
       {rows.map((dy, r) => {
         const y = top + 40 + r * rowH;
         const isToday = dy.date === today;
-        const dt = new Date(`${dy.date}T12:00:00`);
         return (
           <G key={dy.date}>
             {isToday ? <Rect x={x0} y={y} width={A4W - x0 * 2} height={rowH} fill="rgba(212,175,55,0.14)" rx="6" /> : null}
             <Line x1={x0} y1={y + rowH} x2={A4W - x0} y2={y + rowH} stroke="rgba(20,36,28,0.10)" strokeWidth="1" />
             <SvgText x={x0 + colW * 0.5} y={y + rowH * 0.66} textAnchor="middle" fontSize="17" fontWeight={isToday ? '800' : '600'} fill={isToday ? '#8a6d14' : '#14241C'} fontFamily="Poppins">
-              {dt.getDate()} {dt.toLocaleDateString([], { month: 'short' })}
+              {shortDate(dy.date)}
             </SvgText>
             <SvgText x={x0 + colW * 1.5} y={y + rowH * 0.66} textAnchor="middle" fontSize="15" fill="rgba(20,36,28,0.62)" fontFamily="Poppins">{dy.hijri ?? '—'}</SvgText>
             {dy.t.map((t, i) => (
