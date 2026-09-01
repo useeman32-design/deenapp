@@ -71,7 +71,7 @@ export default function Register() {
 
   return (
     <AuthShell>
-      <View style={{ paddingHorizontal: 26, paddingBottom: 10 }}>
+      <View style={{ paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 2 }}>
           <Pressable
             onPress={() => router.back()}

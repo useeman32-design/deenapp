@@ -22,12 +22,18 @@ createServer(async (req, res) => {
     if (p.endsWith('/')) p += 'index.html';
     let file = join(root, p);
     let body;
-    try { body = await readFile(file); } catch {
-      body = await readFile(join(root, '404.html'));
-      res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
-      return res.end(body);
+    let served = p;
+    try { body = await readFile(file); }
+    catch {
+      /* GitHub Pages "pretty URL": /login serves login.html before 404.html */
+      try { body = await readFile(join(root, p + '.html')); served = p + '.html'; }
+      catch {
+        body = await readFile(join(root, '404.html'));
+        res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(body);
+      }
     }
-    res.writeHead(200, { 'content-type': MIME[extname(p)] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'content-type': MIME[extname(served)] ?? 'application/octet-stream' });
     res.end(body);
   } catch (e) { res.writeHead(500); res.end(String(e)); }
 }).listen(port, '0.0.0.0', () => console.log(`pages-server on :${port} serving ${root}`));

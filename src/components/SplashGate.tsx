@@ -4,19 +4,15 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 
 /**
- * Splash (pass 32): the user's brand opening — Dark.MP4 / Light.MP4 converted
- * to optimized GIFs (480px, 12fps, adaptive palette). The pass-31 <video>
- * approach silently failed to autoplay on several real devices (autoplay
- * policy + expo-video start races); an animated GIF renders via a plain
- * <Image> with ZERO autoplay rules, on web AND native. The brand colour
- * paints instantly behind it while the GIF streams in.
+ * Splash (pass 34e): the user's REAL DeenLink logo (their latest artwork,
+ * webp 720px ~96KB) on a rounded brand card — replaces the pass-34 animated
+ * GIFs (the recompression looked poor) and the pass-31/32 video experiments.
  *
- * Timing: brand colour immediately; the GIF plays ~one loop (4s); the gate
- * leaves when the app is ready AND at least 2.8s passed (cap 5.5s).
+ * Timing: brand colour immediately; the logo springs in; the gate leaves
+ * when the app is ready AND at least 2.8s passed (cap 5.5s).
  * Once per app lifetime on native; every cold web load.
  */
-const darkGif = require('../../assets/img/splash-dark.gif');
-const lightGif = require('../../assets/img/splash-light.gif');
+const logo = require('../../assets/img/logo.webp');
 
 let nativeSeen = false;
 
@@ -26,6 +22,7 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
   const [gone, setGone] = useState(false);
   const fade = useRef(new Animated.Value(1)).current;
   const barW = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0)).current;
   const start = useRef(Date.now()).current;
   const [readyAt, setReadyAt] = useState<number | null>(null);
 
@@ -45,7 +42,8 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
   useEffect(() => {
     if (!show) return;
     Animated.timing(barW, { toValue: 0.72, duration: 1600, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
-  }, [show, barW]);
+    Animated.spring(pop, { toValue: 1, friction: 7, tension: 40, useNativeDriver: false }).start();
+  }, [show, barW, pop]);
 
   /* leave: ready AND min-watch elapsed (absolute cap so a stuck boot never
    * holds the app hostage) */
@@ -68,12 +66,23 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
     <>
       {children}
       <Animated.View pointerEvents={readyAt == null ? 'box-none' : 'none'} style={{ position: 'absolute', inset: 0, zIndex: 999, opacity: fade, backgroundColor: isDark ? '#06140D' : '#F6FAF7', alignItems: 'center', justifyContent: 'center' }}>
-        {/* pass 34: the GIF sits CENTERED at a readable size (the full-bleed
-         * cover zoomed the logo huge) on the brand colour, rounded card */}
-        <Image
-          source={isDark ? darkGif : lightGif}
-          style={{ width: Math.min(W * 0.78, 330), aspectRatio: 1.7778, borderRadius: 22, overflow: 'hidden' }}
-          resizeMode="contain"
+        {/* pass 34e: the REAL logo on a rounded brand card, gentle spring-in */}
+        <Animated.Image
+          source={logo}
+          style={{
+            width: Math.min(W * 0.6, 262),
+            aspectRatio: 1,
+            borderRadius: 30,
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(74,227,143,0.28)' : 'rgba(29,111,66,0.22)',
+            shadowColor: '#000000',
+            shadowOpacity: 0.35,
+            shadowRadius: 26,
+            shadowOffset: { width: 0, height: 10 },
+            transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) }],
+          }}
+          resizeMode="cover"
         />
 
         {/* thin brand loader pinned near the bottom (over the GIF) */}

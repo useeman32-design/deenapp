@@ -37,7 +37,7 @@ export default function Login() {
 
   return (
     <AuthShell>
-      <View style={{ paddingHorizontal: 26 }}>
+      <View>
         <AuthHeading title="Welcome back!" sub="Sign in to continue your journey" />
 
         <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" icon="envelope" keyboard="email-address" />

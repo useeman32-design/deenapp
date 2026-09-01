@@ -1,18 +1,19 @@
 import { ReactNode, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View, type ViewStyle } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
-import { DeenLogo } from '@/components/DeenLogo';
 import { haptic } from '@/lib/haptics';
 
 const bgDark = require('../../assets/img/auth-bg-dark.jpg');
 const bgLight = require('../../assets/img/auth-bg-light.jpg');
+/* pass 34e: the user's REAL DeenLink logo (replaces the generated emblem) */
+const realLogo = require('../../assets/img/logo-360.webp');
 
 /**
- * Shared shell for the login / register redesign (pass 12):
- * full-bleed brand background (user-supplied art) · DeenLink emblem +
- * wordmark · tagline. Children render inside a keyboard-aware scroll.
+ * Shared shell for the login / register redesign (pass 12, glass pass 34e):
+ * full-bleed brand background (user-supplied art) · REAL DeenLink logo ·
+ * wordmark · tagline · children in a FROSTED-GLASS card.
  */
 export function AuthShell({ children }: { children: ReactNode }) {
   const { isDark } = useTheme();
@@ -20,45 +21,72 @@ export function AuthShell({ children }: { children: ReactNode }) {
     <View style={{ flex: 1, backgroundColor: isDark ? '#03180F' : '#F6F1E7' }}>
       <Image source={isDark ? bgDark : bgLight} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 54, paddingBottom: 28 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* brand */}
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 46, paddingBottom: 28 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* brand — the real logo, centred */}
           <View style={{ alignItems: 'center', paddingHorizontal: 32 }}>
-            <DeenLogo size={74} color={isDark ? '#4AE38F' : '#1D6F42'} accent={isDark ? '#D4AF37' : '#B8860B'} />
-            <T v="h2" style={{ marginTop: 12, fontSize: 24, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C', letterSpacing: 0.2 }}>
+            <Image
+              source={realLogo}
+              style={{
+                width: 116,
+                height: 116,
+                borderRadius: 27,
+                overflow: 'hidden',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.24)',
+                shadowColor: '#000000',
+                shadowOpacity: 0.3,
+                shadowRadius: 18,
+                shadowOffset: { width: 0, height: 8 },
+              }}
+              resizeMode="cover"
+            />
+            <T v="h2" style={{ marginTop: 14, fontSize: 24, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C', letterSpacing: 0.2 }}>
               DeenLink
             </T>
             <T v="caption" style={{ marginTop: 3, fontSize: 11.5, color: isDark ? 'rgba(242,247,243,0.62)' : 'rgba(20,36,28,0.6)', letterSpacing: 0.3 }}>
               Strengthen Your Deen, Every Day
             </T>
           </View>
-          {children}
+
+          {/* frosted-glass form card (pass 34e) */}
+          <View
+            style={[
+              {
+                marginHorizontal: 18,
+                marginTop: 18,
+                borderRadius: 26,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(74,227,143,0.24)' : 'rgba(29,111,66,0.2)',
+                backgroundColor: isDark ? 'rgba(6,22,14,0.55)' : 'rgba(255,255,255,0.55)',
+                paddingHorizontal: 18,
+                paddingTop: 8,
+                paddingBottom: 22,
+                shadowColor: '#000000',
+                shadowOpacity: 0.22,
+                shadowRadius: 24,
+                shadowOffset: { width: 0, height: 10 },
+                elevation: 8,
+              },
+              /* frosted glass — RNW forwards web-only props to the DOM */
+              {
+                backdropFilter: 'blur(18px) saturate(1.4)',
+                WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
+              } as unknown as ViewStyle,
+            ]}
+          >
+            {children}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-/** Headline block: real DeenLink logo + slogan, then "Welcome back!" + line. */
+/** Headline block inside the glass card: "Welcome back!" + line. */
 export function AuthHeading({ title, sub }: { title: string; sub: string }) {
   const { isDark } = useTheme();
   return (
-    <View style={{ marginTop: 30, marginBottom: 18 }}>
-      {/* real DeenLink logo (from deenlink.org) */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <Image
-          source={require('../../assets/img/logo-badge.png')}
-          style={{ width: 58, height: 59 }}
-          resizeMode="contain"
-        />
-        <View style={{ flex: 1 }}>
-          <T v="caption" style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, color: isDark ? '#D4AF37' : '#B8860B' }}>
-            DEENLINK
-          </T>
-          <T v="caption" style={{ fontSize: 11.5, marginTop: 2, color: isDark ? 'rgba(242,247,243,0.65)' : 'rgba(20,36,28,0.65)' }}>
-            All-in-one islamic app
-          </T>
-        </View>
-      </View>
+    <View style={{ marginTop: 22, marginBottom: 18 }}>
       <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>
         {title}
       </T>
@@ -108,8 +136,8 @@ export function AuthField({
           gap: 10,
           borderRadius: 14,
           borderWidth: 1.5,
-          borderColor: focus ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.10)' : 'rgba(20,36,28,0.12)',
-          backgroundColor: isDark ? 'rgba(2,59,42,0.85)' : 'rgba(255,255,255,0.92)',
+          borderColor: focus ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)',
+          backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)',
           paddingHorizontal: 14,
           height: 50,
         }}
