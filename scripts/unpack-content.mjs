@@ -9,6 +9,31 @@ import { dirname, join } from 'node:path';
 
 const ZIP = process.env.DL_CONTENT_ZIP ?? "assets/content.zip"; // zip dropped from the repo (size) — re-download the pack if rebuilding from scratch
 const OUT = 'assets/content';
+/* pass 34d: stable home of the content pack (gh-pages, served verbatim).
+ * npm install downloads it automatically on a fresh clone. */
+const PACK_URL = process.env.DL_CONTENT_URL ?? 'https://useeman32-design.github.io/deenapp/content/content.zip';
+
+/* markers: if all exist the pack is already in place — nothing to do */
+const MARKERS = [
+  join('quran', 'surah_1.txt'),
+  join('quran', 'surah_114.txt'),
+  join('hadith', 'buhari.txt.gz'),
+  join('hadith', 'nawawi40.txt.gz'),
+  join('hadith', 'meta_buhari.txt.gz'),
+  join('islamic', 'dua.txt'),
+  join('islamic', 'seera_events_en.txt'),
+];
+const packPresent = () => MARKERS.every((m) => existsSync(join(OUT, m)));
+
+/* download the pack (Node 18+ fetch, works on Windows/macOS/Linux) */
+async function downloadPack(dest) {
+  const res = await fetch(PACK_URL);
+  if (!res.ok) throw new Error(`unpack-content: download failed (${res.status}) ${PACK_URL}`);
+  const total = +(res.headers.get('content-length') ?? 0);
+  const buf = Buffer.from(await res.arrayBuffer());
+  writeFileSync(dest, buf);
+  console.log(`unpack-content: downloaded pack ${buf.length} bytes${total ? ` / ${total}` : ''} <- ${PACK_URL}`);
+}
 
 /* minimal zip reader: walk the central directory (deterministic, no python) */
 function unzip(zipPath, outDir) {
@@ -47,14 +72,17 @@ function unzip(zipPath, outDir) {
   return n;
 }
 
-if (!existsSync(ZIP)) {
-  if (existsSync(join(OUT, 'quran', 'surah_1.txt'))) {
-    console.log('unpack-content: already unpacked (zip absent) — ok');
-    process.exit(0);
+async function main() {
+  if (packPresent()) {
+    console.log('unpack-content: content pack already present — ok');
+    return;
   }
-  console.error(`unpack-content: ${ZIP} not found — it must be tracked in git.`);
-  process.exit(1);
+  let zip = ZIP;
+  if (!existsSync(zip)) {
+    console.log('unpack-content: pack missing on a fresh clone — downloading…');
+    await downloadPack(zip);
+  }
+  const n = unzip(zip, OUT);
+  console.log(`unpack-content: extracted ${n} files -> ${OUT}/`);
 }
-
-const n = unzip(ZIP, OUT);
-console.log(`unpack-content: extracted ${n} files -> ${OUT}/`);
+main().catch((e) => { console.error(String(e?.message ?? e)); process.exit(1); });
