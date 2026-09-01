@@ -806,9 +806,10 @@ export default function Home() {
             </Pressable>
           </View>
           <View style={{ gap: 12 }}>
-            {posts.slice(0, 8).map((p, pi) => (
+            {/* pass 39 — fewer posts on home (was 8) */}
+            {posts.slice(0, 4).map((p, pi) => (
               <View key={p.id} style={{ gap: 12 }}>
-              {(pi === 1 || pi === 4) && hasGroups ? <GroupFeedInline index={pi === 1 ? 0 : 1} onComments={(pp) => setCommentPost(pp)} /> : null}
+              {pi === 1 && hasGroups ? <GroupFeedInline index={0} onComments={(pp) => setCommentPost(pp)} /> : null}
               <FeedCard
                 key={p.id}
                 dash={d}

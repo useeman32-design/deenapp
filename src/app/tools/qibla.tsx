@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Modal, Platform, Pressable, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { KAABA, distanceKm, qiblaDirection } from '@/lib/prayer';
@@ -10,8 +10,8 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { RouteMap } from '@/components/RouteMap';
 import { KaabaIcon } from '@/components/Icons';
-import { QiblaMap } from '@/components/QiblaMap';
 import { QiblaLeaflet } from '@/components/QiblaLeaflet';
+import { QiblaNativeSat } from '@/components/QiblaNativeSat';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { ScrollView } from 'react-native';
@@ -29,7 +29,8 @@ export default function Qibla() {
   const buzzedFor = useRef(false);
   /* pass 38 — selectable compass design (persisted) + offline map toggle */
   const [design, setDesign] = useState<QiblaDesign>('classic');
-  const [showOffline, setShowOffline] = useState(false);
+  /* pass 39 — designs live behind a "Change compass" button → modal */
+  const [designPicker, setDesignPicker] = useState(false);
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -89,23 +90,16 @@ export default function Qibla() {
           <Compass bearing={bearing} heading={h} delta={delta} size={252} design={design} />
         </View>
 
-        {/* pass 38 — compass design picker */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 14, paddingHorizontal: 2 }}>
-          {QIBLA_DESIGNS.map((ds) => {
-            const on = design === ds.id;
-            return (
-              <Pressable
-                key={ds.id}
-                accessibilityLabel={`compass design ${ds.label}`}
-                onPress={() => pickDesign(ds.id)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.border, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.06)') : theme.card, paddingHorizontal: 10, paddingVertical: 6 }}
-              >
-                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: ds.dot[0], borderWidth: 1.5, borderColor: ds.dot[1] }} />
-                <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext }}>{ds.label}</T>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* pass 39 — one button opens the compass-style modal */}
+        <Pressable
+          accessibilityLabel="change compass"
+          onPress={() => { haptic.selection(); setDesignPicker(true); }}
+          style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, borderWidth: 1.5, borderColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)', paddingHorizontal: 14, paddingVertical: 8 }}
+        >
+          <FontAwesome5 name="palette" size={11} color="#E8C96A" />
+          <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#E8C96A' : '#8C6D1F' }}>Change compass</T>
+          <FontAwesome5 name="chevron-right" size={9} color={isDark ? '#E8C96A' : '#8C6D1F'} />
+        </Pressable>
 
         {heading.needsPermission ? (
           <Pressable
@@ -143,27 +137,62 @@ export default function Qibla() {
         )}
       </View>
 
-      {/* pass 38 — map raised & compact; offline world view behind a chip */}
+      {/* pass 39 — the SAVED satellite map: first visit downloads it, every
+       * visit after shows it instantly. No more offline fallback. */}
       <View style={{ paddingHorizontal: 18, marginTop: 18, marginBottom: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <KaabaIcon size={16} color={isDark ? '#4AE38F' : '#1D6F42'} />
           <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5 }}>Direction to Makkah</T>
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={() => { haptic.selection(); setShowOffline((v) => !v); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: showOffline ? 'rgba(212,175,55,0.5)' : theme.border, backgroundColor: showOffline ? 'rgba(212,175,55,0.1)' : theme.card, paddingHorizontal: 10, paddingVertical: 4 }}>
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: showOffline ? '#B8870B' : theme.subtext }}>{showOffline ? 'Live map' : 'Offline map'}</T>
-          </Pressable>
         </View>
-        {showOffline ? (
-          <QiblaMap userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} bearing={bearing} />
+        {Platform.OS === 'web' ? (
+          <QiblaLeaflet userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} height={196} />
         ) : (
-          /* pass 33: live Leaflet map — your location → the Kaaba, great-circle line */
-          <QiblaLeaflet userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} height={168} />
+          <QiblaNativeSat userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} height={196} />
         )}
         <T v="caption" style={{ marginTop: 8, fontSize: 10, color: theme.subtext }}>
-          {km.toFixed(0)} km from Makkah · keep the phone flat, away from metal, then figure-8 it once.
+          {km.toFixed(0)} km from Makkah · satellite map saved on first view for offline use.
         </T>
       </View>
       </ScrollView>
+
+      {/* pass 39 — compass designs, chosen in a modal */}
+      <Modal visible={designPicker} transparent animationType="slide" onRequestClose={() => setDesignPicker(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setDesignPicker(false)} />
+          <View style={{ backgroundColor: theme.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: theme.border, padding: 18, paddingBottom: 28 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="palette" size={14} color="#E8C96A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="h3" style={{ fontWeight: '900', fontSize: 16, color: theme.text }}>Compass style</T>
+                <T v="caption" style={{ fontSize: 10, color: theme.subtext, marginTop: 1 }}>Pick a design — it is saved for next time</T>
+              </View>
+              <Pressable onPress={() => setDesignPicker(false)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: theme.cardSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={12} color={theme.subtext} />
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {QIBLA_DESIGNS.map((ds) => {
+                const on = design === ds.id;
+                return (
+                  <Pressable
+                    key={ds.id}
+                    accessibilityLabel={`compass design ${ds.label}`}
+                    onPress={() => { pickDesign(ds.id); setDesignPicker(false); }}
+                    style={{ width: '31%', aspectRatio: 1, borderRadius: 16, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.border, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.05)') : theme.background, alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: ds.dot[0], borderWidth: 2.5, borderColor: ds.dot[1], alignItems: 'center', justifyContent: 'center' }}>
+                      {on ? <FontAwesome5 name="check" size={13} color="#FFFFFF" /> : null}
+                    </View>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext }}>{ds.label}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

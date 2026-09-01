@@ -7,6 +7,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahEntry } from '@/lib/islamicApi';
+import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, stopRuqyahAudio } from '@/lib/ruqyahAudio';
 
 /**
  * pass 35 — Ruqyah Shariah (islamicapi.com):
@@ -31,6 +32,9 @@ export default function Ruqyah() {
   const [readSet, setReadSet] = useState<Set<string>>(new Set());
   const [topic, setTopic] = useState<string | null>(null);
   const [topicArts, setTopicArts] = useState<RuqyahEntry[] | null>(null);
+  /* pass 39 — ruqyah AUDIO (static MP3s from the API docs) */
+  const [playing, setPlaying] = useState<string | null>(null);
+  useEffect(() => onRuqyahAudio((k) => setPlaying(k)), []);
 
   useEffect(() => {
     setEntries(null); setErr(false);
@@ -63,7 +67,9 @@ export default function Ruqyah() {
           <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }} numberOfLines={1}>{e.title}</T>
           <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }} numberOfLines={1}>{e.reference || e.sub_category || (source === 'from-quran' ? 'Quran' : 'Sunnah')}</T>
         </View>
-        {done ? <FontAwesome5 name="check-circle" size={14} color={isDark ? '#4AE38F' : '#1D6F42'} /> : <FontAwesome5 name="chevron-right" size={11} color={d.faint} />}
+        {done ? <FontAwesome5 name="check-circle" size={14} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+        {audioForEntry(e.title) ? <FontAwesome5 name="volume-up" size={11} color="#E8C96A" style={{ marginLeft: done ? 6 : 0 }} /> : null}
+        <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
       </Pressable>
     );
   };
@@ -122,6 +128,27 @@ export default function Ruqyah() {
                 );
               })}
             </View>
+
+            {/* pass 39 — listen to the COMPLETE program while you recite */}
+            {(() => {
+              const full = audioForProgram(program);
+              const key = `full:${program}`;
+              const isOn = playing === key;
+              return full ? (
+                <Pressable
+                  accessibilityLabel="play full ruqyah program"
+                  onPress={() => { haptic.medium(); if (isOn) stopRuqyahAudio(); else playRuqyahAudio(key, full.url); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isOn ? 'rgba(74,227,143,0.5)' : 'rgba(212,175,55,0.45)', backgroundColor: isOn ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)') : isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 11, marginHorizontal: 16, marginBottom: 12 }}
+                >
+                  <FontAwesome5 name={isOn ? 'pause' : 'headphones'} size={13} color={isOn ? (isDark ? '#4AE38F' : '#1D6F42') : '#E8C96A'} />
+                  <View style={{ flex: 1 }}>
+                    <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{isOn ? 'Playing full program…' : 'Listen — full program audio'}</T>
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{full.label} · downloaded as you listen</T>
+                  </View>
+                  {isOn ? <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} /> : <FontAwesome5 name="chevron-right" size={10} color={d.faint} />}
+                </Pressable>
+              ) : null;
+            })()}
 
             {/* search */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 12, height: 42, marginHorizontal: 16, marginBottom: 12 }}>
@@ -207,6 +234,34 @@ export default function Ruqyah() {
               {open?.reference ? (
                 <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#E8C96A', marginTop: 12 }}>— {open.reference}</T>
               ) : null}
+              {/* pass 39 — listen to this entry's audio */}
+              {(() => {
+                const a = open ? audioForEntry(open.title) : null;
+                const key = `e:${open?.id ?? ''}`;
+                const isOn = playing === key;
+                return a ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isOn ? 'rgba(74,227,143,0.5)' : 'rgba(212,175,55,0.45)', backgroundColor: isOn ? (isDark ? 'rgba(46,204,113,0.09)' : 'rgba(29,111,66,0.05)') : isDark ? 'rgba(212,175,55,0.07)' : 'rgba(212,175,55,0.05)', paddingHorizontal: 13, paddingVertical: 11, marginTop: 14 }}>
+                    <Pressable
+                      accessibilityLabel={isOn ? 'stop ruqyah audio' : 'play ruqyah audio'}
+                      onPress={() => { haptic.medium(); if (isOn) stopRuqyahAudio(); else if (a) playRuqyahAudio(key, a.url); }}
+                      hitSlop={8}
+                    >
+                      <FontAwesome5 name={isOn ? 'pause' : 'play'} size={13} color={isOn ? (isDark ? '#4AE38F' : '#1D6F42') : '#E8C96A'} />
+                    </Pressable>
+                    <Pressable onPress={() => { haptic.medium(); if (isOn) stopRuqyahAudio(); else if (a) playRuqyahAudio(key, a.url); }} style={{ flex: 1 }}>
+                      <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{isOn ? 'Playing recitation…' : 'Listen to the recitation'}</T>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel="download ruqyah audio"
+                      onPress={() => { haptic.light(); playRuqyahAudio(key, a.url); }}
+                      hitSlop={8}
+                      style={{ width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: 'rgba(91,200,245,0.08)', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <FontAwesome5 name="cloud-download-alt" size={12} color="#5BC8F5" />
+                    </Pressable>
+                  </View>
+                ) : null;
+              })()}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable
                   onPress={() => { if (!open) return; haptic.success(); setReadSet((s) => new Set(s).add(`${program}:${source}:${open.id}`)); Share.share({ message: `${open.title}\n\n${open.arabic}\n\n${open.translation ?? ''}\n\n— ${open.reference ?? 'Ruqyah Shariah'} · DeenLink` }).catch(() => {}); }}

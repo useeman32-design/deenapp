@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { DashTheme } from '@/constants/theme';
 import type { Post } from '@/api/types';
@@ -472,7 +473,9 @@ export function FeedCard({
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 9, opacity: pressed ? 0.75 : 1 })}
         >
           <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-            {group.avatar ? (
+            {group.avatar && /^data:|^file:|^https?:/.test(group.avatar) ? (
+              <ExpoImage source={{ uri: group.avatar }} style={{ width: '100%', height: '100%', borderRadius: 10 }} contentFit="cover" />
+            ) : group.avatar ? (
               <T v="h3" style={{ fontSize: 16 }}>{group.avatar}</T>
             ) : (
               <FontAwesome5 name={(group.catIcon ?? 'users') as never} size={12} color="#E8C96A" />

@@ -11,7 +11,7 @@ import { stopBubble } from '@/lib/press';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { computePrayerTimesWith, DEFAULT_SETTINGS, loadPrayerSettings, PRAYER_NAMES, to12h, type PrayerSettings } from '@/lib/prayer';
 import { fetchPrayerMonth } from '@/lib/islamicApi';
-import { shareSvgRef, saveSvgRefAsJpg, type SvgRefHandle } from '@/lib/svgExport';
+import { shareSvgRef, saveSvgRefAsJpg, shareImage, type SvgRefHandle } from '@/lib/svgExport';
 
 /**
  * pass 35 — full-month prayer timetable.
@@ -139,12 +139,16 @@ export default function PrayerMonth() {
     setExportOn(true);
     /* give the surface a beat to lay out before rasterizing */
     await new Promise((r) => setTimeout(r, 450));
+    const name = `deenlink-prayer-times-${new Date().toISOString().slice(0, 7)}`;
     try {
-      const name = `deenlink-prayer-times-${new Date().toISOString().slice(0, 7)}`;
-      if (mode === 'share') {
-        await shareSvgRef(svgRef, name, `DeenLink — ${monthLabel} prayer times`);
-      } else if (Platform.OS === 'web') {
-        setToast('Long-press the image → Save, or use Share');
+      if (Platform.OS === 'web') {
+        /* pass 39 — THE FIX: web Svg refs expose no toDataURL (that is why
+         * export "failed" silently). Rasterize the SAME A4 design on a canvas. */
+        const dataUrl = monthCanvasDataUrl(days ?? [], monthLabel, loc?.name ?? '');
+        (window as unknown as { __dlMonthExport?: number }).__dlMonthExport = dataUrl.length;
+        await shareImage(dataUrl, name, `DeenLink — ${monthLabel} prayer times`);
+        setToast(mode === 'save' ? 'Image downloaded — check your files' : 'Opening share / download…');
+      } else if (mode === 'share') {
         await shareSvgRef(svgRef, name, `DeenLink — ${monthLabel} prayer times`);
       } else {
         const ok = await saveSvgRefAsJpg(svgRef, name);
@@ -315,4 +319,118 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
       <SvgText x={A4W / 2} y={A4H / 2 + 60} textAnchor="middle" fontSize="150" fill="rgba(29,111,70,0.045)" fontWeight="900" fontFamily="Poppins-ExtraBold" transform={`rotate(-24 ${A4W / 2} ${A4H / 2})`}>DEENLINK</SvgText>
     </Svg>
   );
+}
+
+/* ── pass 39 — WEB export: the A4 table drawn on a real canvas.
+ * react-native-svg refs have no toDataURL() on web — this is the fix for
+ * "the timetable is not generating an image". Mirrors MonthTableSvg 1:1. ── */
+
+function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): string {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) throw new Error('no document');
+  const canvas = doc.createElement('canvas');
+  canvas.width = A4W;
+  canvas.height = A4H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no 2d ctx');
+
+  const rows = days.slice(0, 31);
+  const top = 300;
+  const rowH = Math.min(40, (A4H - top - 120) / Math.max(rows.length, 1));
+  const x0 = 70;
+  const colW = (A4W - x0 * 2) / 8;
+  const today = new Date().toISOString().slice(0, 10);
+
+  /* paper */
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, A4W, A4H);
+  /* header band gradient */
+  const g = ctx.createLinearGradient(0, 0, A4W * 0.4, 230);
+  g.addColorStop(0, '#124A30');
+  g.addColorStop(1, '#06140D');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, A4W, 230);
+  ctx.fillStyle = GOLD;
+  ctx.fillRect(0, 226, A4W, 6);
+  /* medallion */
+  ctx.beginPath();
+  ctx.arc(110, 115, 52, 0, Math.PI * 2);
+  ctx.fillStyle = '#06140D';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = GOLD;
+  ctx.stroke();
+  ctx.fillStyle = GOLD;
+  ctx.font = '40px "Poppins-Bold", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('ﷲ', 110, 130);
+  /* titles */
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '800 42px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
+  ctx.fillText('Prayer Times', 190, 100);
+  ctx.fillStyle = '#E8C96A';
+  ctx.font = '26px "Poppins-Medium", sans-serif';
+  ctx.fillText(`${monthLabel}${location ? ` · ${location}` : ''}`, 190, 140);
+  ctx.fillStyle = 'rgba(255,255,255,0.66)';
+  ctx.font = '18px "Poppins", sans-serif';
+  ctx.fillText('Calculated for your location · deenlink', 190, 176);
+
+  /* column headers */
+  ctx.fillStyle = '#0E7A46';
+  ctx.fillRect(x0, 252, A4W - x0 * 2, 40);
+  ctx.textAlign = 'center';
+  COLS.forEach((c, i) => {
+    ctx.fillStyle = i === 0 ? GOLD : '#FFFFFF';
+    ctx.font = '800 19px "Poppins-Bold", sans-serif';
+    ctx.fillText(c, x0 + colW * i + colW / 2, 279);
+  });
+
+  /* rows */
+  rows.forEach((dy, r) => {
+    const y = top + 40 + r * rowH;
+    const isToday = dy.date === today;
+    if (isToday) {
+      ctx.fillStyle = 'rgba(212,175,55,0.14)';
+      ctx.fillRect(x0, y, A4W - x0 * 2, rowH);
+    }
+    ctx.strokeStyle = 'rgba(20,36,28,0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y + rowH);
+    ctx.lineTo(A4W - x0, y + rowH);
+    ctx.stroke();
+    ctx.fillStyle = isToday ? '#8a6d14' : '#14241C';
+    ctx.font = `${isToday ? '800' : '600'} 17px "Poppins", sans-serif`;
+    ctx.fillText(shortDate(dy.date), x0 + colW * 0.5, y + rowH * 0.66);
+    ctx.fillStyle = 'rgba(20,36,28,0.62)';
+    ctx.font = '15px "Poppins", sans-serif';
+    ctx.fillText(dy.hijri ?? '—', x0 + colW * 1.5, y + rowH * 0.66);
+    dy.t.forEach((t, i) => {
+      ctx.fillStyle = i === 1 ? 'rgba(20,36,28,0.5)' : '#14241C';
+      ctx.font = `${i === 1 ? '400' : '600'} 16px "Poppins", sans-serif`;
+      ctx.fillText(t, x0 + colW * (i + 2) + colW / 2, y + rowH * 0.66);
+    });
+  });
+
+  /* watermark */
+  ctx.save();
+  ctx.translate(A4W / 2, A4H / 2 + 60);
+  ctx.rotate((-24 * Math.PI) / 180);
+  ctx.fillStyle = 'rgba(29,111,70,0.045)';
+  ctx.font = '900 150px "Poppins-ExtraBold", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('DEENLINK', 0, 0);
+  ctx.restore();
+
+  /* footer */
+  ctx.textAlign = 'center';
+  ctx.fillStyle = EMERALD;
+  ctx.font = '700 18px "Poppins-SemiBold", sans-serif';
+  ctx.fillText('Generated by DeenLink — Strengthen Your Deen, Every Day', A4W / 2, A4H - 62);
+  ctx.fillStyle = 'rgba(20,36,28,0.45)';
+  ctx.font = '13px "Poppins", sans-serif';
+  ctx.fillText('Times are estimates — always confirm with your local mosque.', A4W / 2, A4H - 34);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 }

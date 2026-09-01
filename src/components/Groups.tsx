@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -230,9 +231,13 @@ export function GroupsRail() {
               onPress={() => openGroup(g.id)}
               style={{ width: 168, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card }}
             >
-              <LinearGradient colors={(COVER_STYLES.find((c) => c.id === g.cover) ?? COVER_STYLES[0]).grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: 62, alignItems: 'center', justifyContent: 'center' }}>
-                {g.avatar ? <T v="h1" style={{ fontSize: 26 }}>{g.avatar}</T> : <FontAwesome5 name={catIcon(g.cat)} size={20} color="#E8C96A" />}
-              </LinearGradient>
+              {isGroupImg(g.cover) ? (
+                <ExpoImage source={{ uri: g.cover }} style={{ width: '100%', height: 62 }} contentFit="cover" />
+              ) : (
+                <LinearGradient colors={(COVER_STYLES.find((c) => c.id === g.cover) ?? COVER_STYLES[0]).grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: 62, alignItems: 'center', justifyContent: 'center' }}>
+                  {isGroupImg(g.avatar) ? <ExpoImage source={{ uri: g.avatar }} style={{ width: 34, height: 34, borderRadius: 10 }} contentFit="cover" /> : g.avatar ? <T v="h1" style={{ fontSize: 26 }}>{g.avatar}</T> : <FontAwesome5 name={catIcon(g.cat)} size={20} color="#E8C96A" />}
+                </LinearGradient>
+              )}
               <LinearGradient colors={[`${c1}55`, c1]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 62 }} />
               <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
                 <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center', marginTop: -17 }}>
@@ -277,6 +282,29 @@ export const COVER_STYLES: Array<{ id: string; label: string; grad: [string, str
 ];
 export const CATS: Array<Group['cat']> = ['Mosque', 'School', 'Organization', 'Community'];
 export const AVATARS = ['🕌', '📖', '🌙', '⭐', '🤲', '🕋', '🌿', '💡'] as const;
+
+/* pass 39 — custom pictures from the gallery: avatars/covers can be photos */
+export const isGroupImg = (v?: string | null): v is string => !!v && /^(data:|file:|https?:)/.test(v);
+
+/** pick an image from the gallery → small JPEG data URI (persistable) */
+export async function pickGroupPhoto(aspect: [number, number]): Promise<string | null> {
+  try {
+    const ImagePicker = await import('expo-image-picker');
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect,
+      quality: 0.55,
+      base64: true,
+    });
+    if (res.canceled || !res.assets?.[0]?.base64) return null;
+    return `data:image/jpeg;base64,${res.assets[0].base64}`;
+  } catch {
+    return null;
+  }
+}
+
+/* ── create sheet (pass 36 upgrade: cover style + icon + live preview) ── */
 
 export function CreateGroupModal({ visible, onClose, onCreate }: { visible: boolean; onClose: () => void; onCreate: (g: Group) => void }) {
   const { theme, isDark } = useTheme();

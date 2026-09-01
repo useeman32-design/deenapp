@@ -52,7 +52,13 @@ const LIBRARY: Section[] = [
   { title: 'Stories of the Prophets', desc: 'From Adam to Muhammad (PBUT) — lessons, wisdom, guidance.', icon: MosqueIcon, grad: ['#8D6E63', '#A1887F'], chip: '19 chapters', cta: 'Explore', href: '/tools/prophets' },
   { title: 'Articles', desc: 'Contemporary issues, spirituality and family life.', icon: NewspaperIcon, grad: ['#C62828', '#EF5350'], chip: '300+ articles', cta: 'Read', href: '/tools/articles' },
   { title: 'Fatwa & Rulings', desc: '1,080 verified rulings, searchable by topic.', icon: ScaleIcon, grad: ['#303F9F', '#5C6BC0'], chip: 'islamqa archive', cta: 'Browse', href: '/tools/fatwa' },
-  { title: 'Ruqyah Shariah', desc: 'Quran & Sunnah healing — recite programs and learn.', icon: MosqueIcon, grad: ['#0E5E52', '#26A69A'], chip: '3 programs', cta: 'Open', href: '/tools/ruqyah' },
+  { title: 'Ruqyah Shariah', desc: 'Quran & Sunnah healing — recite programs, listen and learn.', icon: MosqueIcon, grad: ['#0E5E52', '#26A69A'], chip: '308 recitations', cta: 'Open', href: '/tools/ruqyah' },
+  /* pass 39 — the rest of the app's learning content, surfaced here */
+  { title: 'Hadith Library', desc: 'Read Sahih al-Bukhari, Muslim and more with translations.', icon: BookIcon, grad: ['#2E7D32', '#66BB6A'], chip: 'major collections', cta: 'Read', href: '/tools/hadith' },
+  { title: 'Duas & Adhkar', desc: 'Authentic supplications for every moment of the day.', icon: MosqueIcon, grad: ['#6A1B9A', '#AB47BC'], chip: '100+ duas', cta: 'Open', href: '/tools/dua' },
+  { title: 'Morning & Evening Athkar', desc: 'Daily protection remembrances with counters.', icon: InfoIcon, grad: ['#00838F', '#26C6DA'], chip: 'daily routine', cta: 'Open', href: '/tools/athkar' },
+  { title: 'Names of Allah', desc: 'The 99 beautiful names with meanings and evidence.', icon: MosqueIcon, grad: ['#B8860B', '#FFD54F'], chip: '99 names', cta: 'Learn', href: '/tools/names' },
+  { title: 'Ask a Scholar', desc: 'Browse verified answers or ask qualified scholars.', icon: ScaleIcon, grad: ['#4527A0', '#7E57C2'], chip: '1,300+ answers', cta: 'Ask', href: '/tools/fatwa' },
 ];
 
 export default function Learning() {

@@ -76,8 +76,9 @@ await ensureAuth();
 await go('/tools/charity', 6500);
 {
   let t = await page.evaluate(() => document.body.innerText);
-  ok('donations: 3 categories + history (DeenLink → Zakat → Sadaqah)', /Donate to DeenLink/i.test(t) && /Sadaqah/i.test(t) && /Zakat/i.test(t) && /History/i.test(t) && t.indexOf('Zakat') < t.indexOf('Sadaqah'));
-  ok('donations: sadaqah jariyah ayah + hadith on the DeenLink card', /Quran 2:261/.test(t) && /Muslim 1631/.test(t));
+  /* pass 39 — Donate to DeenLink removed; Zakat → Sadaqah, hero ayah + hadith */
+  ok('donations: 2 categories + history (Zakat → Sadaqah, no DeenLink card)', !/Donate to DeenLink/i.test(t) && /Sadaqah/i.test(t) && /Zakat/i.test(t) && /History/i.test(t) && t.indexOf('Zakat') < t.indexOf('Sadaqah'));
+  ok('donations: hero ayah + hadith (rearranged + icon)', /Quran 2:261/.test(t) && /Muslim 1631/.test(t) && /Give for the sake of Allah/i.test(t));
   const b = await tap('donate Zakat');
   if (b) {
     await page.touchscreen.tap(b.x, b.y);
@@ -89,7 +90,7 @@ await go('/tools/charity', 6500);
     if (amt) { await page.touchscreen.tap(amt.x, amt.y); await page.keyboard.type('5000', { delay: 20 }); }
     await page.waitForTimeout(800);
     t = await page.evaluate(() => document.body.innerText);
-    ok('donations: form shows recipients + currency + fee', /GIVEN TO/i.test(t) && /CURRENCY/i.test(t) && /processing \(5%\)/i.test(t) && /Pay NGN 5,000/.test(t), (t.match(/Pay [A-Z]{3} [\d,]+/) || [''])[0]);
+    ok('donations: form shows multi-select recipients + currency + fee', /GIVEN TO[\s\S]*SELECT ALL THAT APPLY/i.test(t) && /CURRENCY/i.test(t) && /processing \(5%\)/i.test(t) && /Pay NGN 5,000/.test(t), (t.match(/Pay [A-Z]{3} [\d,]+/) || [''])[0]);
   }
 }
 

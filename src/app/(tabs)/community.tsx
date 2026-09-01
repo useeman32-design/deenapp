@@ -6,7 +6,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
-import { GroupFeedPosts, GroupsRail } from '@/components/Groups';
+import { GroupFeedInline, GroupsRail } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -573,7 +573,6 @@ export default function CommunityScreen() {
 
         {/* pass 34: GROUPS — schools, mosques, organizations (facebook-style) */}
         <GroupsRail />
-        <GroupFeedPosts onComments={(pp) => setCommentPost(pp)} />
 
         {/* Feed tabs (inline at the top of the feed; sticky clone appears on scroll) */}
         {!searching ? (
@@ -723,6 +722,10 @@ export default function CommunityScreen() {
                 ) : (
                   feedShown.map((p, pi) => (
                     <View key={p.id}>
+                      {/* pass 39 — group posts MIXED into the feed, not separated */}
+                      {pi === 0 || pi === 2 ? (
+                        <GroupFeedInline index={pi === 0 ? 0 : 1} onComments={(pp) => setCommentPost(pp)} />
+                      ) : null}
                       <FeedCard
                       dash={d}
                       post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}

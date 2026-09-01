@@ -203,6 +203,17 @@ export default function Mirath() {
           ) : null}
         </View>
 
+        {/* pass 39 — the inheritance ayah at the bottom */}
+        <View style={{ borderRadius: 18, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.05)' : 'rgba(212,175,55,0.04)', padding: 16, alignItems: 'center', marginBottom: 4 }}>
+          <FontAwesome5 name="balance-scale" size={12} color="#E8C96A" style={{ marginBottom: 8 }} />
+          <T v="bodyS" style={{ fontFamily: 'Amiri-Bold', fontSize: 16, lineHeight: 30, color: isDark ? '#E8C96A' : '#8C6D1F', textAlign: 'right' }}>
+            يُوصِيكُمُ اللَّهُ فِي أَوْلَادِكُمْ ۖ لِلذَّكَرِ مِثْلُ حَظِّ الْأُنثَيَيْنِ
+          </T>
+          <T v="caption" style={{ fontSize: 10, color: d.subtext, marginTop: 8, lineHeight: 15, textAlign: 'center' }}>
+            “Allah instructs you concerning your children: for the male, what is equal to the share of two females…” — Quran 4:11
+          </T>
+        </View>
+
         <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 12, lineHeight: 15, textAlign: 'center' }}>
           Classical fara'id for common cases. Complex estates (grandchildren, half-siblings, waqf…) need a qualified scholar — verify before distribution.
         </T>
@@ -283,6 +294,17 @@ function compute(estate: number, debts: number, bequestPct: number, on: Record<H
     notes.push(`Remaining ${fmt(res)} is distributed to the residuary heirs or charity per a scholar’s advice.`);
   }
 
+  /* pass 39 — CLEAR blocking rules (al-hajb): a surviving male descendant
+   * (son) — and likewise the father — EXCLUDES siblings entirely. */
+  if ((on.brother || on.sister) && on.son) {
+    notes.unshift(
+      on.brother && on.sister
+        ? 'Brothers and sisters do NOT inherit here: a male child (son) survives, and a son excludes siblings completely (al-hajb). The son takes the residue after the fixed shares.'
+        : (on.brother ? 'Brothers' : 'Sisters') + ' do NOT inherit here: a male child (son) survives, and a son excludes siblings completely (al-hajb).',
+    );
+  } else if ((on.brother || on.sister) && on.father && !hasChild) {
+    notes.unshift((on.brother ? 'Brothers' : on.sister ? 'Sisters' : 'Siblings') + ' do NOT inherit here: the father survives and excludes siblings (al-hajb) — he takes ⅙ plus the residue.');
+  }
   if (on.husband && on.wife) notes.unshift('Both spouses selected — check this estate (a person is normally survived by one spouse).');
   return { net, rows, note: notes.join(' ') };
 }

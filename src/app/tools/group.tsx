@@ -10,9 +10,12 @@ import { FeedCard } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
 import { haptic } from '@/lib/haptics';
+import { Image as ExpoImage } from 'expo-image';
 import {
   ME,
   catIcon,
+  isGroupImg,
+  pickGroupPhoto,
   loadGroups,
   saveGroups,
   roleOf,
@@ -158,9 +161,13 @@ export default function GroupScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* ── cover (styled, default fallback) — owner can change it ── */}
+        {/* ── cover (photo or styled, default fallback) — owner can change it ── */}
         <View>
-          <LinearGradient colors={coverStyle.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: 150 }} />
+          {isGroupImg(group.cover) ? (
+            <ExpoImage source={{ uri: group.cover }} style={{ width: '100%', height: 150 }} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={coverStyle.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: 150 }} />
+          )}
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', opacity: 0.14 }}>
             <FontAwesome5 name="mosque" size={64} color="#E8C96A" />
           </View>
@@ -185,8 +192,10 @@ export default function GroupScreen() {
 
         {/* ── identity block ── */}
         <View style={{ paddingHorizontal: 16 }}>
-          <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: d.card, borderWidth: 2.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center', marginTop: -38 }}>
-            {group.avatar ? (
+          <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: d.card, borderWidth: 2.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center', marginTop: -38, overflow: 'hidden' }}>
+            {isGroupImg(group.avatar) ? (
+              <ExpoImage source={{ uri: group.avatar }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+            ) : group.avatar ? (
               <T v="h1" style={{ fontSize: 32 }}>{group.avatar}</T>
             ) : (
               <FontAwesome5 name={catIcon(group.cat)} size={24} color="#E8C96A" />
@@ -464,8 +473,36 @@ export default function GroupScreen() {
           <Pressable style={{ flex: 1 }} onPress={() => setCoverOpen(false)} />
           <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: 30 }}>
             <T v="h3" style={{ fontWeight: '900', fontSize: 16, color: d.text, marginBottom: 4 }}>Group cover</T>
-            <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 14 }}>Pick a style — the default applies automatically</T>
+            <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 14 }}>Pick a style or upload your own photo — a default applies automatically</T>
+            {/* pass 39 — cover photo straight from the gallery */}
+            <Pressable
+              accessibilityLabel="upload cover from gallery"
+              onPress={async () => {
+                const uri = await pickGroupPhoto([16, 9]);
+                if (uri) { haptic.success(); setCoverOpen(false); upd((x) => ({ ...x, cover: uri })); }
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.08)' : 'rgba(91,200,245,0.05)', paddingHorizontal: 13, paddingVertical: 12, marginBottom: 12 }}
+            >
+              <FontAwesome5 name="images" size={13} color="#5BC8F5" />
+              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>Upload cover photo from gallery</T>
+              <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+            </Pressable>
+            {isGroupImg(group.cover) ? (
+              <Pressable
+                accessibilityLabel="remove cover photo"
+                onPress={() => { haptic.medium(); upd((x) => ({ ...x, cover: 'emerald' })); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(229,62,62,0.35)', backgroundColor: 'rgba(229,62,62,0.05)', paddingHorizontal: 13, paddingVertical: 10, marginBottom: 12 }}
+              >
+                <FontAwesome5 name="trash" size={12} color="#E53E3E" />
+                <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12, color: '#E53E3E' }}>Remove uploaded photo (back to style)</T>
+              </Pressable>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8 }}>
+              {isGroupImg(group.cover) ? (
+                <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#E8C96A' }}>
+                  <ExpoImage source={{ uri: group.cover }} style={{ width: '100%', height: 52 }} contentFit="cover" />
+                </View>
+              ) : null}
               {COVER_STYLES.map((c) => {
                 const on = (group.cover ?? 'emerald') === c.id;
                 return (
@@ -560,6 +597,34 @@ function EditGroupSheet({ visible, onClose, group, onSave, isOwner }: { visible:
             </View>
 
             <T v="caption" style={label}>PROFILE PICTURE</T>
+            {/* pass 39 — custom profile picture from the gallery */}
+            <Pressable
+              accessibilityLabel="upload group picture from gallery"
+              onPress={async () => {
+                const uri = await pickGroupPhoto([1, 1]);
+                if (uri) { haptic.success(); setAvatar(uri); }
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(74,227,143,0.4)', backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 }}
+            >
+              {isGroupImg(avatar) ? (
+                <ExpoImage source={{ uri: avatar }} style={{ width: 34, height: 34, borderRadius: 11 }} contentFit="cover" />
+              ) : (
+                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(74,227,143,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="camera" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontWeight: '800', fontSize: 12, color: d.text }}>Upload picture from gallery</T>
+                <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 1 }}>Square photo · replaces the emoji</T>
+              </View>
+              <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+            </Pressable>
+            {isGroupImg(avatar) ? (
+              <Pressable onPress={() => { haptic.medium(); setAvatar(''); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <FontAwesome5 name="trash" size={10} color="#E53E3E" />
+                <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#E53E3E' }}>Remove photo</T>
+              </Pressable>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {AVATARS.map((a) => {
                 const on = avatar === a;
@@ -571,7 +636,24 @@ function EditGroupSheet({ visible, onClose, group, onSave, isOwner }: { visible:
               })}
             </View>
 
-            <T v="caption" style={label}>COVER STYLE</T>
+            <T v="caption" style={label}>COVER</T>
+            <Pressable
+              accessibilityLabel="upload cover from gallery in settings"
+              onPress={async () => {
+                const uri = await pickGroupPhoto([16, 9]);
+                if (uri) { haptic.success(); setCover(uri); }
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.08)' : 'rgba(91,200,245,0.05)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 }}
+            >
+              {isGroupImg(cover) ? (
+                <ExpoImage source={{ uri: cover }} style={{ width: 40, height: 24, borderRadius: 7 }} contentFit="cover" />
+              ) : (
+                <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(91,200,245,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="images" size={12} color="#5BC8F5" />
+                </View>
+              )}
+              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12, color: d.text }}>Upload cover photo from gallery</T>
+            </Pressable>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
               {COVER_STYLES.map((c) => {
                 const on = cover === c.id;
