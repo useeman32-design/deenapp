@@ -1,4 +1,77 @@
-# CONTINUE — pass 37 handoff (2026-09-01)
+# CONTINUE — pass 38 handoff (2026-09-01)
+
+## Pass 38 SHIPPED (master 3cd2d7e, gh-pages 1c9fc60, probe35 ALL PASS 16/16, android .hbc OK, live bundles 200)
+
+### Groups — owner-managed suite (src/components/Groups.tsx + src/app/tools/group.tsx)
+- Model: `Role = owner|admin|member`, `ROLE_META` (gold crown / green shield /
+  neutral), `roleOf(g,name)` (creators own what they made), Group += bio,
+  cover (COVER_STYLES id, default emerald), avatar (emoji, AVATARS picker),
+  roles map, following[]. Seeds g1-g3 carry bio/cover/avatar/roles.
+- Group screen: styled cover + "Change cover" (owner/admin), emoji medallion,
+  BIO under the name, Manage-group button → EditGroupSheet (name/bio/desc/
+  category/avatar/cover/open-join Switch, persists via saveGroups), Add-members
+  sheet (ADDABLE list), per-member ••• menu (Make admin / Remove admin /
+  Remove from group), Follow/Following toggles (persisted per group), member
+  rows tap → /profile/[username]. Role badge beside every member.
+- FeedCard (src/components/FeedCard.tsx): NEW props `group` {name,cat,avatar,
+  catIcon} + `rank` + `onOpenGroup` → GROUP-FIRST header (gold group tile +
+  name + chevron + time + GROUP chip on top; posting user indented below with
+  rank badge). Old groupLabel chip kept only as non-group fallback.
+- Home feed MIXES group posts: index.tsx interleaves <GroupFeedInline/> after
+  the 2nd and 5th Recent-Posts cards (hasGroups flag). Community tab rail uses
+  the same group-first cards.
+
+### Share art — square generated cards (src/components/ScoreShareSheet.tsx)
+- ScoreShareSheet + ScoreShareSvg: 1080×1080 SVG, 5 PROCEDURAL backgrounds
+  (star lattice / sunburst rays / moroccan tiles / dome scallops / crescent
+  field) shuffle on tap — ZERO image files. QR deep-links (deenlink.org/tools/…,
+  "SCAN TO PLAY"). Share = native sheet via shareSvgRef; Save only when
+  canSaveImages(). Wired: quiz results ("Share art" replaces canvas card),
+  tasbeeh (share chip appears after first complete tour, metric = count).
+  ScoreCard type: {kind, metric, title, subtitle, link}.
+
+### DeenPoints fixes (src/components/DeenPoints.tsx, profile.tsx)
+- BUG FIXED: profile DP chip called doCheckIn() → now opens DeenPointsBuyModal
+  (a11y "get deenpoints"; check-in ONLY via the Check In button).
+- Buy modal: custom-amount TextInput (min 10, ₦1.5/pt, digits only) overrides
+  pack when valid; "WHAT ARE DEENPOINTS?" panel (same clarification as
+  scholars: rewards activity, urgency priority, never buys fatwas).
+- RewardModal REBUILT as gift box OPENING: box springs in → gold lid flies up
+  rotated → deenpoints.png coin rises out w/ glow + 6-petal sparkle burst.
+
+### Prayer (times/month/adhan)
+- formatTime deterministic 12h AM/PM (no Intl) + `to12h()` in src/lib/prayer.ts;
+  prayer.tsx + PrayerArc use formatTime; month rows via to12h. Verified live:
+  AM/PM everywhere, 180 month cells, no 24h leak.
+- Month hijri read from NESTED hijri_date.hijri.{day,month.en} (was flat →
+  "NaN undefined"); fallback localHijri. Verified clean.
+- Adhan preview: "Preview the adhan alert" row on the MAIN screen (above hero)
+  AND in settings next to the toggle → setAdhanFor('Dhuhr·preview') shows the
+  real popup without audio. Verified fires + dismiss.
+- Location (src/lib/location.ts NEW): CHANGE_THRESHOLD_KM=15, distanceKm,
+  detectLocationChange() one-shot on open, watchLocation() 120s/15km watcher,
+  applyLocation(). Prayer screen shows a BLUE prompt banner "New location
+  detected: [name] — Update your prayer times?" with Update/× (never silent;
+  Update re-fetches). Needs real GPS movement to trigger on device.
+
+### Qibla / compass (verified: 6 designs, back a11y, pill)
+- Compass.tsx 6 palettes (classic/minimal/night/royal/bedouin/digital) via
+  QIBLA_DESIGNS, persisted dl.qibla.design. qibla.tsx: TopBar showBack,
+  location pill (name + lat/lon), compact raised map (QiblaLeaflet h=168,
+  Live/Offline chip). TopBar back now has a11y "back" (all 11 tool screens).
+  NOTE: two `{2.6)`/`{0.45)` regex-patch typos in Compass.tsx caused TS1005 —
+  fixed; re-check any future regex patch with tsc immediately.
+
+### Zakat + API audit
+- zakat.tsx: fetchNisab('ngn') on mount prefills gold/silver per-gram prices
+  (₦191k/₦2.9k at ship time) + LIVE NISAB · ISLAMICAPI chip (MANUAL PRICES
+  fallback). Verified LIVE chip on device-web. Audit: prayer day+month,
+  charity nisab, ruqyah, zakat all wired; zakat-nisab needs `api_key` param
+  (NOT key/apikey/header) — client's get() already correct.
+- Ruqyah discoverability: QuickGrid + quick-access.ts shortcut + learning row
+  ("Ruqyah Shariah · 9 sections") — all three verified.
+
+# ── pass 37 archive ──
 
 ## Pass 37 SHIPPED (master 683cbe7, gh-pages 26d78fb, probe35 ALL PASS, android .hbc OK)
 
