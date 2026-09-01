@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGradient as SvgLinear, Stop } from 'react-native-svg';
@@ -282,14 +283,14 @@ export default function Home() {
               May Allah bless your day
             </T>
             <T v="caption" style={{ color: d.text, fontSize: 11.5, fontWeight: '700', marginTop: 3 }}>
-              {formatHijri(new Date())} AH
+              {formatHijri(new Date())}
             </T>
             <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 0 }}>
               {formatGregorian(new Date())}
             </T>
           </View>
           <Pressable
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => router.push('/tools/notifications')}
             style={({ pressed }) => ({
               position: 'relative',
               width: 40,
@@ -347,10 +348,12 @@ export default function Home() {
           >
           <View style={{ position: 'relative', padding: 18, paddingBottom: 12 }}>
             {heroSz.w > 0 ? (
-              <Image
+              /* pass 35 — expo-image contentFit=cover centers the crop correctly
+               * on every native build (RN Image cover mis-anchors on some Androids) */
+              <ExpoImage
                 source={mecca}
                 style={{ position: 'absolute', top: 0, left: 0, width: heroSz.w, height: heroSz.h }}
-                resizeMode="cover"
+                contentFit="cover"
               />
             ) : null}
             <LinearGradient

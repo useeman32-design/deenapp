@@ -70,7 +70,7 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
         <Animated.Image
           source={logo}
           style={{
-            width: Math.min(W * 0.6, 262),
+            width: Math.min(W * 0.42, 188),
             aspectRatio: 1,
             borderRadius: 30,
             overflow: 'hidden',

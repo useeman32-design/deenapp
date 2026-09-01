@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -51,6 +53,8 @@ const CAT_GRAD: Record<string, [string, string]> = {
 };
 
 export function GroupsRail({ onOpenFeed }: { onOpenFeed?: (text: string) => void }) {
+  const router = useRouter();
+  const onOpenConnections = () => router.push('/tools/connections');
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const [groups, setGroups] = useState<Group[] | null>(null);
@@ -149,17 +153,34 @@ export function GroupsRail({ onOpenFeed }: { onOpenFeed?: (text: string) => void
             const isMember = open.joined === 'member';
             return (
               <View style={{ flex: 1 }}>
-                <View style={{ backgroundColor: c1, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.13)', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' }}>
-                    <FontAwesome5 name="users" size={15} color="#E8C96A" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: '#F2F7F3' }}>{open.name}</T>
-                    <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{open.memberCount.toLocaleString()} members · {open.cat} · {open.open ? 'Anyone can join' : 'Join by request'}</T>
-                  </View>
-                  <Pressable onPress={() => setOpen(null)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                {/* pass 35 — facebook-style group profile: cover + overlapping logo */}
+                <View>
+                  <Image source={require('../../assets/img/mecca.jpg')} style={{ width: '100%', height: 108 }} resizeMode="cover" />
+                  <LinearGradient colors={[`${c1}CC`, `${c1}F2`]} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+                  <Pressable onPress={() => setOpen(null)} hitSlop={10} style={{ position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="times" size={12} color="#F2F7F3" />
                   </Pressable>
+                  <View style={{ marginTop: -30, paddingHorizontal: 16 }}>
+                    <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: d.card, borderWidth: 2.5, borderColor: '#E8C96A', alignItems: 'center', justifyContent: 'center' }}>
+                      <FontAwesome5 name={open.cat === 'Mosque' ? 'mosque' : open.cat === 'School' ? 'graduation-cap' : open.cat === 'Organization' ? 'building' : 'users'} size={21} color="#E8C96A" />
+                    </View>
+                    <T v="h3" style={{ fontWeight: '900', fontSize: 17, color: d.text, marginTop: 8 }}>{open.name}</T>
+                    <T v="caption" style={{ fontSize: 10, color: d.subtext, marginTop: 2 }}>{open.cat} group · {open.open ? 'Anyone can join' : 'Join by request'}</T>
+                    <View style={{ flexDirection: 'row', gap: 7, marginTop: 9 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, backgroundColor: isDark ? 'rgba(74,227,143,0.1)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.2)', paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <FontAwesome5 name="users" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{open.memberCount.toLocaleString()} members</T>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <FontAwesome5 name="file-alt" size={9} color="#E8C96A" />
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{open.posts.length} posts</T>
+                      </View>
+                      <Pressable onPress={() => { setOpen(null); onOpenConnections?.(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, backgroundColor: 'rgba(91,200,245,0.1)', borderWidth: 1, borderColor: 'rgba(91,200,245,0.35)', paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <FontAwesome5 name="link" size={9} color="#5BC8F5" />
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#5BC8F5' }}>connections</T>
+                      </Pressable>
+                    </View>
+                  </View>
                 </View>
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
                   <T v="bodyS" style={{ fontSize: 12, lineHeight: 18, color: d.subtext }}>{open.desc}</T>
@@ -171,6 +192,18 @@ export function GroupsRail({ onOpenFeed }: { onOpenFeed?: (text: string) => void
                       {open.joined === 'member' ? 'Leave group' : open.joined === 'requested' ? 'Cancel request' : open.open ? 'Join group' : 'Request to join'}
                     </T>
                   </Pressable>
+
+                  {/* members preview (facebook-style) */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 8 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                      {(open.members.length ? open.members : ['Ibrahim S.', 'Aisha K.', 'Yusuf B.']).slice(0, 4).map((m, i) => (
+                        <View key={m + i} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(212,175,55,0.16)' : 'rgba(140,109,31,0.1)', borderWidth: 2, borderColor: d.card, alignItems: 'center', justifyContent: 'center', marginLeft: i ? -9 : 0 }}>
+                          <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, color: '#E8C96A' }}>{m.slice(0, 1)}</T>
+                        </View>
+                      ))}
+                    </View>
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, flex: 1 }}>{open.members.slice(0, 2).join(', ')}{open.members.length > 2 ? ` +${open.memberCount - 2} others are here` : ' and others are here'}</T>
+                  </View>
 
                   {isMember ? (
                     <View style={{ marginTop: 16 }}>
@@ -274,5 +307,46 @@ function CreateGroupModal({ visible, onClose, onCreate }: { visible: boolean; on
         </Pressable>
       </View>
     </Modal>
+  );
+}
+
+/* ── pass 35 — sample posts from group members, shown in the community feed ── */
+export function GroupFeedPosts({ onOpenGroup }: { onOpenGroup?: () => void }) {
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const SAMPLES = [
+    { group: 'Abuja Jumu\'ah Circle', author: 'Ibrahim S.', text: 'Alhamdulillah, this week\'s tafsir covered Ayat al-Kursi — the virtues mentioned in Sahih al-Bukhari are immense. Audio notes are up in the group files.', at: '2h', cat: 'Mosque' },
+    { group: 'DeenLink Student Halaqah', author: 'Maryam A.', text: 'Reminder for the weekend halaqah: we continue Juz 29 revision. Bring your mushaf and a notebook — new sisters are welcome! 🤍', at: '5h', cat: 'School' },
+  ];
+  return (
+    <View style={{ marginTop: 14 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8 }}>
+        <FontAwesome5 name="users" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+        <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginLeft: 6, flex: 1 }}>FROM YOUR GROUPS</T>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+        {SAMPLES.map((sp) => (
+          <Pressable
+            key={sp.group}
+            onPress={() => { haptic.selection(); onOpenGroup?.(); }}
+            style={{ width: 270, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.18)', backgroundColor: d.card, padding: 13 }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.07)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name={sp.cat === 'Mosque' ? 'mosque' : 'graduation-cap'} size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{sp.group}</T>
+                <T v="caption" style={{ fontSize: 8.5, color: d.faint }}>{sp.author} · {sp.at}</T>
+              </View>
+              <View style={{ borderRadius: 6, backgroundColor: 'rgba(74,227,143,0.12)', paddingHorizontal: 6, paddingVertical: 2 }}>
+                <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>GROUP</T>
+              </View>
+            </View>
+            <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 17.5, color: d.subtext, marginTop: 9 }}>{sp.text}</T>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }

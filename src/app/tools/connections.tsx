@@ -23,19 +23,22 @@ export default function Connections() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const [tab, setTab] = useState<Tab>((['following', 'followers', 'suggested'] as const).includes(tabParam as Tab) ? (tabParam as Tab) : 'following');
+  type Tab2 = Tab | 'groups';
+  const [tab, setTab] = useState<Tab2>((['following', 'followers', 'suggested'] as const).includes(tabParam as Tab) ? (tabParam as Tab) : 'following');
   const [followed, setFollowed] = useState<string[]>(MOCK_FOLLOWED);
 
   const list = useMemo(() => {
+    if (tab === 'groups') return [];
     if (tab === 'following') return MOCK_ACCOUNTS.filter((a) => followed.includes(a.username));
     if (tab === 'followers') return MOCK_ACCOUNTS.filter((a, i) => i % 2 === 1 || followed.includes(a.username));
     return MOCK_ACCOUNTS.filter((a) => !followed.includes(a.username));
   }, [tab, followed]);
 
-  const TABS: Array<{ id: Tab; label: string; icon: string }> = [
+  const TABS: Array<{ id: Tab2; label: string; icon: string }> = [
     { id: 'following', label: 'Following', icon: 'user-check' },
     { id: 'followers', label: 'Followers', icon: 'users' },
     { id: 'suggested', label: 'Suggested', icon: 'user-plus' },
+    { id: 'groups', label: 'Groups', icon: 'users-cog' },
   ];
 
   return (
@@ -69,7 +72,33 @@ export default function Connections() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 6, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {list.length === 0 ? (
+        {tab === 'groups' ? (
+          /* pass 35 — your groups in the connections screen */
+          <View style={{ paddingHorizontal: 16 }}>
+            {[
+              { name: "Abuja Jumu'ah Circle", cat: 'Mosque', members: 1284, icon: 'mosque' },
+              { name: 'DeenLink Student Halaqah', cat: 'School', members: 342, icon: 'graduation-cap' },
+              { name: 'Sisters of Light', cat: 'Community', members: 876, icon: 'users' },
+            ].map((g) => (
+              <Pressable
+                key={g.name}
+                onPress={() => router.push('/(tabs)/community')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 8 }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(74,227,143,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={g.icon as never} size={14} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{g.name}</T>
+                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{g.cat} · {g.members.toLocaleString()} members</T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+              </Pressable>
+            ))}
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 8 }}>Open the Community tab to browse & join groups</T>
+          </View>
+        ) : null}
+        {tab !== 'groups' && list.length === 0 ? (
           <View style={{ alignItems: 'center', gap: 8, marginTop: 50 }}>
             <FontAwesome5 name={tab === 'following' ? 'user-check' : 'users'} size={22} color={d.faint} />
             <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5 }}>{tab === 'following' ? 'You are not following anyone yet.' : 'Nothing here yet.'}</T>

@@ -12,15 +12,30 @@ let loading: Promise<void> | null = null;
 export function ensureQuranCorpus(onProgress?: (done: number) => void): Promise<void> {
   if (corpus) return Promise.resolve();
   if (loading) return loading;
+  /* pass 35 — 8-way parallel load: first ayah search used to stream 114
+   * surahs one-by-one (slow enough to look broken on device) */
   loading = (async () => {
     const out: Array<{ meta: (typeof QURAN)[number]; surah: SurahContent }> = [];
-    for (let i = 1; i <= 114; i++) {
-      try {
-        const s = await loadSurah(i);
-        out.push({ meta: QURAN[i - 1], surah: s });
-      } catch {}
-      onProgress?.(i);
+    let done = 0;
+    const ids = Array.from({ length: 114 }, (_, k) => k + 1);
+    for (let i = 0; i < ids.length; i += 8) {
+      const chunk = ids.slice(i, i + 8);
+      const loaded = await Promise.all(
+        chunk.map(async (n) => {
+          try {
+            return { n, s: await loadSurah(n) as SurahContent | null };
+          } catch {
+            return { n, s: null };
+          }
+        }),
+      );
+      for (const r of loaded) {
+        if (r.s) out.push({ meta: QURAN[r.n - 1], surah: r.s });
+        done++;
+        onProgress?.(done);
+      }
     }
+    out.sort((a, b) => a.meta.number - b.meta.number);
     corpus = out;
   })();
   return loading;

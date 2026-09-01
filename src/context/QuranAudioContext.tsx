@@ -48,9 +48,12 @@ const ayahAudio = (reciter: string, globalAyah: number, surah?: number, ayah?: n
 /* expo-video web: replace() does load()+play() and the play promise silently
  * aborts (its internal `playing` flag stays true, so retries no-op). Ensure
  * the actual <video> element with this src is playing — DOM-level fallback. */
-function domEnsurePlay(uri: string | null, tries = 0) {
+function domEnsurePlay(uri: string | null, tries = 0, wanted: () => boolean = () => true) {
   /* pass 34f: native defines `window` but has no document — bail before touching the DOM */
   if (typeof document === 'undefined' || !uri) return;
+  /* pass 35: NEVER force-play once the engine was paused — the retry loop
+   * used to restart videos the user (or scroll) had just paused */
+  if (!wanted()) return;
   try {
     const doc = window.document;
     const el = [...doc.querySelectorAll('video')].find((v) => v.getAttribute('src') === uri);
@@ -59,7 +62,7 @@ function domEnsurePlay(uri: string | null, tries = 0) {
       else return; /* playing */
     }
   } catch {}
-  if (tries < 14) window.setTimeout(() => domEnsurePlay(uri, tries + 1), 450);
+  if (tries < 14) window.setTimeout(() => domEnsurePlay(uri, tries + 1, wanted), 450);
 }
 
 /** global ayah number (1..6236) from surah:ayah */
@@ -164,7 +167,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         player.playbackRate = rate;
         player.play();
       } catch {}
-      domEnsurePlay(uri);
+      domEnsurePlay(uri, 0, () => wantPlay.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uri, player]);
@@ -195,7 +198,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
           player.play();
         } catch {}
       }
-      domEnsurePlay(activeSrc.current);
+      domEnsurePlay(activeSrc.current, 0, () => wantPlay.current);
       if (tries > 30) clearInterval(iv);
     }, 500);
     return () => clearInterval(iv);
@@ -328,7 +331,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         if (wantMore) {
           ayahPlays.current++;
           try { player.replay(); } catch {}
-          domEnsurePlay(uri, 0);
+          domEnsurePlay(uri, 0, () => wantPlay.current);
           return;
         }
         ayahPlays.current = 1;
@@ -428,7 +431,7 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
           try {
             player.play();
           } catch {}
-          domEnsurePlay(activeSrc.current);
+          domEnsurePlay(activeSrc.current, 0, () => wantPlay.current);
           setPlaying(true);
         }
       },

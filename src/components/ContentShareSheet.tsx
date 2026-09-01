@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Share, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -8,6 +8,8 @@ import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
+import { ShareCardSvg } from '@/components/ShareCardSvg';
+import { saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
 import { addUserPost } from '@/lib/userPosts';
 
 /**
@@ -37,8 +39,12 @@ export function ContentShareSheet({
   const { theme, isDark } = useTheme();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* pass 35 — native share-as-image: the same card rendered as SVG (web keeps the canvas path) */
+  const [svgMode, setSvgMode] = useState(false);
+  const exportRef = useRef<SvgRefHandle>(null);
   const [sent, setSent] = useState<string | null>(null);
 
+  if (!visible && (svgMode || imgUrl)) { setSvgMode(false); setImgUrl(null); }
   if (!visible) return null;
 
   const shareAsPost = async () => {
@@ -53,6 +59,10 @@ export function ContentShareSheet({
   const makeImage = async () => {
     if (busy || !card) return;
     haptic.light();
+    if (Platform.OS !== 'web') {
+      setSvgMode(true);
+      return;
+    }
     setBusy(true);
     try {
       const url = await generateShareCard(card, 'classic');
@@ -124,6 +134,24 @@ export function ContentShareSheet({
             <View style={{ padding: 18, alignItems: 'center' }}>
               <ActivityIndicator color={theme.primary} />
               <T v="caption" style={{ marginTop: 8 }}>Creating your card…</T>
+            </View>
+          ) : null}
+
+          {svgMode && card ? (
+            <View style={{ paddingHorizontal: 16, alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 250, height: 320, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.border }}>
+                <ShareCardSvg input={card} ref={exportRef} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Pressable onPress={() => { shareSvgRef(exportRef, `deenlink-${card.kind}`, `${card.meaning} — ${card.ref}`).catch(() => {}); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: theme.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                  <FontAwesome5 name="share" size={12} color="#fff" />
+                  <T v="button" style={{ fontSize: 12.5 }}>Share</T>
+                </Pressable>
+                <Pressable onPress={() => { saveSvgRefAsJpg(exportRef, `deenlink-${card.kind}`).catch(() => {}); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10 }}>
+                  <FontAwesome5 name="download" size={12} color={theme.text} />
+                  <T v="bodyS" style={{ fontSize: 12.5, color: theme.text }}>Save</T>
+                </Pressable>
+              </View>
             </View>
           ) : null}
 

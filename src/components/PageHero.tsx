@@ -1,4 +1,5 @@
 import { Image, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -31,6 +32,7 @@ export function PageHero({
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const pattern = isDark ? require('../../assets/img/pattern-dark.png') : require('../../assets/img/pattern-light.png');
 
   return (
@@ -45,7 +47,7 @@ export function PageHero({
       />
 
       {/* top bar: back + page title */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingHorizontal: 14 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: Math.max(insets.top, 12) + 6, paddingHorizontal: 14 }}>
         {back ? (
           <Pressable
             onPress={() => router.back()}

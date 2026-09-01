@@ -8,6 +8,11 @@ import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { stopBubble } from '@/lib/press';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
+import { Image } from 'react-native';
+import { fetchNisab } from '@/lib/islamicApi';
+import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
 
 /**
  * Donations (pass 34 — full rebuild):
@@ -96,12 +101,74 @@ Status:       ✓ Completed (simulated)
 JazakAllahu khairan — may Allah accept it from you.`;
 }
 
+/* pass 35 — branded receipt: real logo, watermark, dashed dividers */
+function ReceiptCard({ rcpt, d, isDark, fmtDate }: { rcpt: Dono; d: { text: string; subtext: string; faint: string; card: string; cardBorder: string; bgSoft: string }; isDark: boolean; fmtDate: (t: number) => string }) {
+  const cat = rcpt.cat;
+  const delivered = rcpt.amount - (rcpt.amount * rcpt.feePct) / 100;
+  return (
+    <View style={{ width: '100%', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: d.card }}>
+      {/* gold brand band + logo */}
+      <View style={{ alignItems: 'center', paddingVertical: 18, backgroundColor: isDark ? '#0B1F14' : '#0E7A46' }}>
+        <ExpoImage source={require('../../../assets/img/logo-360.webp')} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
+        <T v="h3" style={{ marginTop: 8, fontSize: 15, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 }}>DEENLINK</T>
+        <T v="caption" style={{ fontSize: 9, letterSpacing: 1.4, color: '#E8C96A', marginTop: 2 }}>DONATION RECEIPT</T>
+      </View>
+      {/* watermark */}
+      <View style={{ position: 'absolute', top: 120, left: 0, right: 0, bottom: 60, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-18deg' }], opacity: 0.05 }} pointerEvents="none">
+        <T v="h1" style={{ fontSize: 44, fontWeight: '900', color: d.text }}>DEENLINK</T>
+      </View>
+      <View style={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6, color: '#E8C96A' }}>REF {rcpt.ref}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, backgroundColor: 'rgba(74,227,143,0.14)', paddingHorizontal: 8, paddingVertical: 3 }}>
+            <FontAwesome5 name="check" size={8} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>PAID</T>
+          </View>
+        </View>
+        {[
+          ['Date', fmtDate(rcpt.at)],
+          ['Category', cat === 'deenlink' ? 'DeenLink — sadaqah jariyah' : cat === 'sadaqah' ? 'Sadaqah' : 'Zakat'],
+          ['Given to', rcpt.recipient],
+        ].map(([k2, v]) => (
+          <View key={k2} style={{ flexDirection: 'row', paddingVertical: 6 }}>
+            <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>{k2}</T>
+            <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: d.text, maxWidth: '62%', textAlign: 'right' }}>{v}</T>
+          </View>
+        ))}
+        {/* dashed divider */}
+        <View style={{ borderStyle: 'dashed', borderWidth: 1, borderColor: d.cardBorder, borderRadius: 1, marginVertical: 8 }} />
+        <View style={{ flexDirection: 'row', paddingVertical: 3 }}>
+          <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Amount given</T>
+          <T v="caption" style={{ fontSize: 11.5, fontWeight: '900', color: d.text }}>{rcpt.currency} {rcpt.amount.toLocaleString()}</T>
+        </View>
+        <View style={{ flexDirection: 'row', paddingVertical: 3 }}>
+          <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Agency + processing ({rcpt.feePct}%)</T>
+          <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#C0392B' }}>−{rcpt.currency} {((rcpt.amount * rcpt.feePct) / 100).toFixed(2)}</T>
+        </View>
+        <View style={{ flexDirection: 'row', paddingVertical: 6, borderTopWidth: 1, borderTopColor: d.cardBorder, marginTop: 4 }}>
+          <T v="caption" style={{ flex: 1, fontSize: 11, fontWeight: '800', color: d.text }}>Delivered to recipient</T>
+          <T v="caption" style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{rcpt.currency} {delivered.toFixed(2)}</T>
+        </View>
+        <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 8, lineHeight: 12 }}>
+          May Allah accept it from you. Simulated payment — no funds moved.\ndeenlink · Strengthen Your Deen, Every Day
+        </T>
+      </View>
+    </View>
+  );
+}
+
 export default function Donations() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
 
   const [view, setView] = useState<'menu' | 'form' | 'paying' | 'done' | 'history'>('menu');
+  const [buyPoints, setBuyPoints] = useState(false);
+  const dp = useDeenPoints();
+  /* pass 35 — zakat calculator sheet */
+  const [calc, setCalc] = useState(false);
+  const [nisab, setNisab] = useState<{ gold: number; silver: number; rate: string; currency: string } | null>(null);
+  const [wealth, setWealth] = useState({ gold: '', silver: '', cash: '', business: '', debts: '' });
   const [cat, setCat] = useState<Cat>('deenlink');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
@@ -169,6 +236,34 @@ export default function Donations() {
 
         {view === 'menu' ? (
           <>
+            {/* pass 35 — hero: the ayah + hadith at the TOP on a brand background */}
+            <View style={{ borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', marginBottom: 14 }}>
+              <ExpoImage source={require('../../../assets/img/mecca.jpg')} style={{ width: '100%', height: 190 }} contentFit="cover" />
+              <LinearGradient colors={['rgba(6,20,13,0.82)', 'rgba(6,20,13,0.94)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 16, justifyContent: 'center' }}>
+                <T v="bodyS" style={{ fontFamily: 'Amiri-Bold', fontSize: 16.5, lineHeight: 30, color: '#E8C96A', textAlign: 'right' }}>
+                  مَّثَلُ الَّذِينَ يُنفِقُونَ أَمْوَالَهُمْ فِي سَبِيلِ اللَّهِ كَمَثَلِ حَبَّةٍ أَنبَتَتْ سَبْعَ سَنَابِلَ فِي كُلِّ سُنبُلَةٍ مِّائَةُ حَبَّةٍ ۗ وَاللَّهُ يُضَاعِفُ لِمَن يَشَاءُ
+                </T>
+                <T v="caption" style={{ fontSize: 10, color: 'rgba(242,247,243,0.85)', marginTop: 8, lineHeight: 15 }}>
+                  “The example of those who spend their wealth in the way of Allah is like a grain that sprouts seven ears; in every ear is a hundred grains. And Allah multiplies for whom He wills.” — Quran 2:261
+                </T>
+                <T v="caption" style={{ fontSize: 10, color: 'rgba(242,247,243,0.7)', marginTop: 6, lineHeight: 15, fontStyle: 'italic' }}>
+                  “When a person dies, his deeds end except three: ongoing charity, beneficial knowledge, or a righteous child who prays for him.” — Muslim 1631
+                </T>
+              </View>
+            </View>
+
+            {/* DeenPoints balance chip → purchase modal */}
+            <Pressable
+              accessibilityLabel="deenpoints balance"
+              onPress={() => { haptic.selection(); setBuyPoints(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 10, marginBottom: 14 }}
+            >
+              <DPIcon size={15} />
+              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 13, color: d.text }}>{dp.points.toLocaleString()} DeenPoints</T>
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>GET MORE · ₦1.5/PT</T>
+            </Pressable>
+
             {CATS.map((c) => (
               <Pressable
                 key={c.id}
@@ -193,19 +288,6 @@ export default function Donations() {
                   </View>
                   <FontAwesome5 name="chevron-right" size={13} color={d.faint} style={{ alignSelf: 'center' }} />
                 </View>
-                {c.id === 'deenlink' ? (
-                  <View style={{ padding: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: d.cardBorder, backgroundColor: d.card }}>
-                    <T v="bodyS" style={{ fontFamily: 'Amiri', fontSize: 15, lineHeight: 25, color: isDark ? '#E8C96A' : '#8C6D1F', textAlign: 'right' }}>
-                      مَّثَلُ الَّذِينَ يُنفِقُونَ أَمْوَالَهُمْ فِي سَبِيلِ اللَّهِ كَمَثَلِ حَبَّةٍ أَنبَتَتْ سَبْعَ سَنَابِلَ فِي كُلِّ سُنبُلَةٍ مِّائَةُ حَبَّةٍ
-                    </T>
-                    <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 6, lineHeight: 16 }}>
-                      “The example of those who spend their wealth in the way of Allah is like a grain that sprouts seven ears; in every ear is a hundred grains.” — Quran 2:261
-                    </T>
-                    <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 6, lineHeight: 16, fontStyle: 'italic' }}>
-                      “When a person dies, his deeds end except three: ongoing charity, beneficial knowledge, or a righteous child who prays for him.” — Muslim 1631
-                    </T>
-                  </View>
-                ) : null}
               </Pressable>
             ))}
 
@@ -243,9 +325,21 @@ export default function Donations() {
             </View>
 
             {cat === 'zakat' ? (
-              <T v="caption" style={{ fontSize: 10.5, color: d.subtext, lineHeight: 16, marginBottom: 14 }}>
-                Zakat purifies your wealth: 2.5% of savings held for a lunar year above nisab. Choose which of the groups Allah named in Quran 9:60 your zakat should reach.
-              </T>
+              <>
+                <T v="caption" style={{ fontSize: 10.5, color: d.subtext, lineHeight: 16, marginBottom: 10 }}>
+                  Zakat purifies your wealth: 2.5% of savings held for a lunar year above nisab. Choose which of the groups Allah named in Quran 9:60 your zakat should reach.
+                </T>
+                {/* pass 35 — zakat calculator (IslamicAPI live nisab) */}
+                <Pressable
+                  accessibilityLabel="calculate my zakat"
+                  onPress={() => { haptic.selection(); setCalc(true); fetchNisab('ngn').then((n) => setNisab({ gold: n.gold.nisab_amount, silver: n.silver.nisab_amount, rate: n.zakat_rate, currency: n.currency })).catch(() => setNisab(null)); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 14 }}
+                >
+                  <FontAwesome5 name="calculator" size={13} color="#E8C96A" />
+                  <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>Calculate my zakat</T>
+                  <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+                </Pressable>
+              </>
             ) : null}
             {cat === 'sadaqah' ? (
               <T v="caption" style={{ fontSize: 10.5, color: d.subtext, lineHeight: 16, marginBottom: 14 }}>
@@ -346,27 +440,8 @@ export default function Donations() {
               Your {cat === 'zakat' ? 'zakat' : cat === 'sadaqah' ? 'sadaqah' : 'contribution'} of {last.currency} {last.amount.toLocaleString()} has been received.
             </T>
 
-            {/* receipt */}
-            <View style={{ width: '100%', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: d.card, padding: 16, marginTop: 18 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <FontAwesome5 name="receipt" size={13} color="#E8C96A" />
-                <T v="caption" style={{ fontWeight: '800', letterSpacing: 0.6, fontSize: 10, color: '#E8C96A' }}>RECEIPT · {last.ref}</T>
-              </View>
-              {[
-                ['Date', fmtDate(last.at)],
-                ['Category', cat === 'deenlink' ? 'DeenLink (sadaqah jariyah)' : cat === 'sadaqah' ? 'Sadaqah' : 'Zakat'],
-                ['Given to', last.recipient],
-                ['Amount', `${last.currency} ${last.amount.toLocaleString()}`],
-                [`Fee (${last.feePct}%)`, `−${last.currency} ${((last.amount * last.feePct) / 100).toFixed(2)}`],
-                ['Delivered', `${last.currency} ${(last.amount - (last.amount * last.feePct) / 100).toFixed(2)}`],
-                ['Status', '✓ Completed (simulated)'],
-              ].map(([k2, v]) => (
-                <View key={k2} style={{ flexDirection: 'row', paddingVertical: 5, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
-                  <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>{k2}</T>
-                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: d.text, maxWidth: '62%', textAlign: 'right' }}>{v}</T>
-                </View>
-              ))}
-            </View>
+            {/* pass 35 — branded receipt */}
+            <ReceiptCard rcpt={last} d={d} isDark={isDark} fmtDate={fmtDate} />
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, width: '100%' }}>
               <Pressable onPress={() => share(last)} style={{ flex: 1, borderRadius: 14, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', alignItems: 'center', paddingVertical: 13 }}>
@@ -418,31 +493,109 @@ export default function Donations() {
 
       {/* receipt detail + report */}
       <Modal visible={openReceipt != null} transparent animationType="slide" onRequestClose={() => setOpenReceipt(null)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }} onPress={() => setOpenReceipt(null)}>
-          <Pressable onPress={(e) => stopBubble(e)} style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: (insets.bottom ?? 0) + 20 }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.6)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setOpenReceipt(null)} />
+          <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: 30, maxHeight: '88%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <FontAwesome5 name="receipt" size={14} color="#E8C96A" />
-              <T v="h3" style={{ fontWeight: '800', flex: 1, marginLeft: 8 }}>Receipt · {openReceipt?.ref}</T>
+              <T v="h3" style={{ fontWeight: '800', flex: 1 }}>Receipt</T>
               <Pressable onPress={() => setOpenReceipt(null)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name="times" size={12} color={d.subtext} />
               </Pressable>
             </View>
-            {openReceipt ? <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 19, color: d.subtext, fontFamily: 'Poppins-Regular' }}>{receiptText(openReceipt).split('\n').slice(1, -1).join('\n')}</T> : null}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <Pressable onPress={() => openReceipt && share(openReceipt)} style={{ flex: 1, borderRadius: 13, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', alignItems: 'center', paddingVertical: 12 }}>
-                <T v="bodyS" style={{ fontWeight: '800', fontSize: 12, color: '#fff' }}>Share</T>
-              </Pressable>
-              <Pressable
-                onPress={() => openReceipt && !openReceipt.reported && report(openReceipt)}
-                disabled={openReceipt?.reported}
-                style={{ flex: 1, borderRadius: 13, borderWidth: 1, borderColor: openReceipt?.reported ? d.cardBorder : 'rgba(224,160,82,0.5)', backgroundColor: openReceipt?.reported ? 'transparent' : 'rgba(224,160,82,0.1)', alignItems: 'center', paddingVertical: 12 }}
-              >
-                <T v="bodyS" style={{ fontWeight: '800', fontSize: 12, color: openReceipt?.reported ? d.faint : '#E0A052' }}>{openReceipt?.reported ? 'Reported' : 'Report payment'}</T>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {openReceipt ? <ReceiptCard rcpt={openReceipt} d={d} isDark={isDark} fmtDate={fmtDate} /> : null}
+              {openReceipt?.reported ? (
+                <T v="caption" style={{ fontSize: 10, color: '#C0392B', marginTop: 10, textAlign: 'center' }}>You flagged this payment for review — our team will look into it.</T>
+              ) : null}
+              {openReceipt && !openReceipt.reported ? (
+                <Pressable onPress={() => { haptic.selection(); report(openReceipt); }} style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 14 }}>
+                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#C0392B' }}>Report this payment</T>
+                </Pressable>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* pass 35 — zakat calculator (live nisab via IslamicAPI) */}
+      <Modal visible={calc} transparent animationType="slide" onRequestClose={() => setCalc(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setCalc(false)} />
+          <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: 30 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <FontAwesome5 name="balance-scale" size={14} color="#E8C96A" />
+              <T v="h3" style={{ fontWeight: '800', flex: 1, marginLeft: 8 }}>Zakat calculator</T>
+              <Pressable onPress={() => setCalc(false)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={12} color={d.subtext} />
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginBottom: 12, lineHeight: 16 }}>
+                {nisab
+                  ? `Live nisab (IslamicAPI): silver ₦${nisab.silver.toLocaleString(undefined, { maximumFractionDigits: 0 })} · gold ₦${nisab.gold.toLocaleString(undefined, { maximumFractionDigits: 0 })} — rate ${nisab.rate}. Most scholars use the LOWER (silver) nisab.`
+                  : 'Enter your wealth in naira. Fetching live nisab from IslamicAPI… (offline: silver nisab ≈ ₦520,000)'}
+              </T>
+              {([
+                ['cash', 'Cash & bank savings', 'money-bill-wave'],
+                ['gold', 'Gold value (₦)', 'coins'],
+                ['silver', 'Silver value (₦)', 'circle-notch'],
+                ['business', 'Business goods & stock', 'store'],
+                ['debts', 'Debts owed (−)', 'minus-circle'],
+              ] as const).map(([k2, label, icon]) => (
+                <View key={k2} style={{ marginBottom: 10 }}>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 5 }}>{label.toUpperCase()}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, height: 46 }}>
+                    <FontAwesome5 name={icon} size={12} color={d.faint} />
+                    <TextInput
+                      value={wealth[k2]}
+                      onChangeText={(v) => setWealth((w) => ({ ...w, [k2]: v.replace(/[^0-9.]/g, '') }))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={d.faint}
+                      style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 15, color: d.text, paddingVertical: 0 }}
+                    />
+                  </View>
+                </View>
+              ))}
+              {(() => {
+                const num = (x: string) => parseFloat(x) || 0;
+                const total = num(wealth.cash) + num(wealth.gold) + num(wealth.silver) + num(wealth.business) - num(wealth.debts);
+                const nis = nisab ? nisab.silver : 520000;
+                const due = total >= nis ? total * 0.025 : 0;
+                return (
+                  <View style={{ borderRadius: 16, borderWidth: 1, borderColor: due > 0 ? 'rgba(74,227,143,0.4)' : d.cardBorder, backgroundColor: due > 0 ? (isDark ? 'rgba(74,227,143,0.08)' : 'rgba(29,111,66,0.05)') : d.bgSoft, padding: 14, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                      <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Net wealth</T>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>₦{total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</T>
+                    </View>
+                    <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                      <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Nisab (silver)</T>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: d.subtext }}>₦{nis.toLocaleString(undefined, { maximumFractionDigits: 0 })}</T>
+                    </View>
+                    <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                      <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Zakat due (2.5%)</T>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '900', color: due > 0 ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>₦{due.toLocaleString(undefined, { maximumFractionDigits: 0 })}</T>
+                    </View>
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 8, lineHeight: 14 }}>
+                      {due > 0 ? 'Your wealth is above nisab — pay 2.5% after one lunar year of ownership.' : total <= 0 ? 'Enter your assets above to calculate.' : 'Below nisab — no zakat is due yet. Alhamdulillah.'}
+                    </T>
+                    {due > 0 ? (
+                      <Pressable
+                        onPress={() => { haptic.success(); setAmount(String(Math.round(due))); setCalc(false); }}
+                        style={{ marginTop: 12, borderRadius: 13, height: 44, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12.5 }}>Pay ₦{Math.round(due).toLocaleString()} zakat now</T>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })()}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
+
+      <DeenPointsBuyModal visible={buyPoints} onClose={() => setBuyPoints(false)} />
     </View>
   );
 }

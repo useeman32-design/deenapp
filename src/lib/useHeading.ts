@@ -45,51 +45,82 @@ export function useHeading(): HeadingState {
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // ---- native: tilt-compensated magnetometer ----
+      // ---- native (pass 35): OS-fused compass heading first — far more
+      // accurate than our raw tilt-compensated magnetometer math (the OS
+      // sensor fusion already handles hard-iron calibration + rotation
+      // vector). Falls back to the magnetometer if heading is unavailable.
       const subs: Array<{ remove: () => void }> = [];
-      import('expo-sensors')
-        .then(({ Magnetometer, Accelerometer }) => {
-          Magnetometer.setUpdateInterval(100);
-          Accelerometer.setUpdateInterval(100);
-          let mag = { x: 0, y: 0, z: 0 };
-          let acc = { x: 0, y: 0, z: 0 };
-          const gotMag = { v: false };
-          const gotAcc = { v: false };
-
-          const recompute = () => {
-            if (!gotMag.v || !gotAcc.v) return;
-            // tilt compensation (roll/pitch from gravity, then rotate the mag vector)
-            const roll = Math.atan2(acc.y, acc.z);
-            const pitch = Math.atan(-acc.x / (acc.y * Math.sin(roll) + acc.z * Math.cos(roll) || 1e-9));
-            const by = mag.y * Math.cos(roll) - mag.z * Math.sin(roll);
-            const bx = mag.x * Math.cos(pitch) + mag.y * Math.sin(pitch) * Math.sin(roll) + mag.z * Math.sin(pitch) * Math.cos(roll);
-            let h = (Math.atan2(by, bx) * 180) / Math.PI;
-            h = wrap(-h + 180); // sensor axes → compass convention (top of phone)
-            if (!isFinite(h)) return;
-            smooth.current = smooth.current == null ? h : smooth.current + ((((h - smooth.current + 540) % 360) - 180) * 0.3);
-            setHeading(wrap(smooth.current));
-            setSource('magnetometer');
-          };
-
-          subs.push(
-            Magnetometer.addListener((m) => {
-              mag = m;
-              gotMag.v = true;
-              recompute();
-            }),
-          );
-          subs.push(
-            Accelerometer.addListener((a) => {
-              acc = a;
-              gotAcc.v = true;
-              recompute();
-            }),
-          );
+      let headingSub: { remove: () => void } | null = null;
+      import('expo-location')
+        .then(async (loc) => {
+          const Location = loc.default ?? loc;
+          try {
+            const perm: { granted: boolean } = await Location.getForegroundPermissionsAsync();
+            if (!perm.granted) {
+              const req = await Location.requestForegroundPermissionsAsync().catch(() => null);
+              if (!req || !req.granted) throw new Error('no location permission');
+            }
+            headingSub = await Location.watchHeadingAsync((hd: { trueHeading: number; magHeading: number }) => {
+              /* trueHeading < 0 when unavailable (e.g. Android without geolocation) → magnetic */
+              let h = hd.trueHeading >= 0 ? hd.trueHeading : hd.magHeading;
+              if (h == null || !isFinite(h) || h < 0) return;
+              smooth.current = smooth.current == null ? h : smooth.current + ((((h - smooth.current + 540) % 360) - 180) * 0.45);
+              setHeading(wrap(smooth.current));
+              setSource('magnetometer');
+            });
+            return;
+          } catch {
+            /* heading service unavailable → magnetometer fallback below */
+          }
+          throw new Error('heading unavailable');
         })
         .catch(() => {
-          /* sensors unavailable → manual mode */
+          // ---- native fallback: tilt-compensated magnetometer ----
+          import('expo-sensors')
+            .then(({ Magnetometer, Accelerometer }) => {
+              Magnetometer.setUpdateInterval(100);
+              Accelerometer.setUpdateInterval(100);
+              let mag = { x: 0, y: 0, z: 0 };
+              let acc = { x: 0, y: 0, z: 0 };
+              const gotMag = { v: false };
+              const gotAcc = { v: false };
+
+              const recompute = () => {
+                if (!gotMag.v || !gotAcc.v) return;
+                // tilt compensation (roll/pitch from gravity, then rotate the mag vector)
+                const roll = Math.atan2(acc.y, acc.z);
+                const pitch = Math.atan(-acc.x / (acc.y * Math.sin(roll) + acc.z * Math.cos(roll) || 1e-9));
+                const by = mag.y * Math.cos(roll) - mag.z * Math.sin(roll);
+                const bx = mag.x * Math.cos(pitch) + mag.y * Math.sin(pitch) * Math.sin(roll) + mag.z * Math.sin(pitch) * Math.cos(roll);
+                let h = (Math.atan2(by, bx) * 180) / Math.PI;
+                h = wrap(-h + 180); // sensor axes → compass convention (top of phone)
+                if (!isFinite(h)) return;
+                smooth.current = smooth.current == null ? h : smooth.current + ((((h - smooth.current + 540) % 360) - 180) * 0.3);
+                setHeading(wrap(smooth.current));
+                setSource('magnetometer');
+              };
+
+              subs.push(
+                Magnetometer.addListener((m) => {
+                  mag = m;
+                  gotMag.v = true;
+                  recompute();
+                }),
+              );
+              subs.push(
+                Accelerometer.addListener((a) => {
+                  acc = a;
+                  gotAcc.v = true;
+                  recompute();
+                }),
+              );
+            })
+            .catch(() => {
+              /* sensors unavailable → manual mode */
+            });
         });
       return () => {
+        if (headingSub) headingSub.remove();
         subs.forEach((s) => s.remove());
       };
     }

@@ -160,6 +160,8 @@ export const METHODS: Array<{ id: MethodId; label: string; region: string }> = [
 
 export type PrayerSettings = {
   method: MethodId;
+  /** pass 35: IslamicAPI calculation-method id (1-23); used when online */
+  apiMethod?: number;
   madhab: 'shafi' | 'hanafi';
   /** per-prayer minute adjustments (index matches PRAYER_NAMES) */
   adjustments: number[];

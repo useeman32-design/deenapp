@@ -8,6 +8,7 @@ import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { MOCK_SCHOLARS } from '@/api/mocks';
+import { DPIcon } from '@/components/DeenPoints';
 
 /**
  * Ask Scholars (pass 34):
@@ -19,6 +20,20 @@ import { MOCK_SCHOLARS } from '@/api/mocks';
  */
 
 const FIELDS = ['Fiqh', 'Aqeedah', 'Hadith', 'Tafsir', 'Taharah', 'Salah', 'Zakah', 'Marriage', 'Inheritance'];
+/* pass 35 — every category gets an icon (browse grid + ask multi-select) */
+const CAT_META: Record<string, { icon: string; tint: string }> = {
+  Fiqh: { icon: 'balance-scale', tint: '#5BC8F5' },
+  Aqeedah: { icon: 'landmark', tint: '#E8C96A' },
+  Hadith: { icon: 'scroll', tint: '#4AE38F' },
+  Tafsir: { icon: 'book-open', tint: '#D4A5F5' },
+  Taharah: { icon: 'tint', tint: '#7FD8F5' },
+  Salah: { icon: 'mosque', tint: '#4AE38F' },
+  Zakah: { icon: 'hand-holding-heart', tint: '#E8C96A' },
+  Marriage: { icon: 'heart', tint: '#F58FB0' },
+  Inheritance: { icon: 'sitemap', tint: '#F5B971' },
+  Youth: { icon: 'user-friends', tint: '#7FD86F' },
+  Other: { icon: 'ellipsis-h', tint: '#9AA8A0' },
+};
 const QCATS = ['Aqeedah', 'Fiqh', 'Hadith', 'Tafsir', 'Zakah', 'Marriage', 'Inheritance', 'Youth', 'Other'];
 const POINTS_KEY = 'dl.scholars.questions.v1';
 const AV = ['https://i.pravatar.cc/120?img=11', 'https://i.pravatar.cc/120?img=12', 'https://i.pravatar.cc/120?img=32'];
@@ -59,6 +74,7 @@ export default function Scholars() {
   const [tab, setTab] = useState<'browse' | 'mine' | 'public'>('browse');
   const [q, setQ] = useState('');
   const [field, setField] = useState<string | null>(null);
+  const [catScreen, setCatScreen] = useState<string | null>(null);
   const [asking, setAsking] = useState<number | null>(null); /* scholar id */
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [points, setPoints] = useState(1250);
@@ -81,11 +97,12 @@ export default function Scholars() {
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return MOCK_SCHOLARS.filter((s) => {
-      if (field && !(s.fields_of_knowledge ?? '').includes(field)) return false;
+      const f = field ?? catScreen;
+      if (f && !(s.fields_of_knowledge ?? '').includes(f)) return false;
       if (!needle) return true;
       return ((s.display_name ?? '') + (s.institute ?? '') + (s.fields_of_knowledge ?? '') + (s.madhhab ?? '')).toLowerCase().includes(needle);
     });
-  }, [q, field]);
+  }, [q, field, catScreen]);
 
   const publicQs = useMemo(
     () => [...(questions ?? []).filter((x) => x.isPublic && x.status === 'answered'), ...SEED_PUBLIC].sort((a, b) => b.at - a.at),
@@ -117,16 +134,38 @@ export default function Scholars() {
               <FontAwesome5 name="search" size={12} color={d.faint} />
               <TextInput value={q} onChangeText={setQ} placeholder="Search scholars, institutes, specialties…" placeholderTextColor={d.faint} style={{ flex: 1, paddingVertical: 11, fontSize: 15, fontFamily: 'Poppins-Medium', color: d.text }} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, marginBottom: 12 }}>
-              {[null, ...FIELDS].map((f) => {
-                const on = field === f;
-                return (
-                  <Pressable key={f ?? 'all'} onPress={() => { haptic.selection(); setField(f); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 12, paddingVertical: 6 }}>
-                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{f ?? 'All fields'}</T>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {/* pass 35 — categories are a dedicated screen: tap a card → its scholars */}
+            {!catScreen ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 14 }}>
+                {[null, ...FIELDS].map((f) => {
+                  const meta = f ? (CAT_META[f] ?? { icon: 'ellipsis-h', tint: '#9AA8A0' }) : { icon: 'globe-africa', tint: '#E8C96A' };
+                  return (
+                    <Pressable
+                      key={f ?? 'all'}
+                      accessibilityLabel={f ? `category ${f}` : 'all fields'}
+                      onPress={() => { haptic.selection(); setCatScreen(f); }}
+                      style={{ width: '31%', flexGrow: 1, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', paddingVertical: 13, paddingHorizontal: 6, gap: 7 }}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: `${meta.tint}18`, alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name={meta.icon as never} size={13} color={meta.tint} />
+                      </View>
+                      <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: d.subtext, textAlign: 'center' }}>{f ?? 'All fields'}</T>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Pressable onPress={() => { haptic.selection(); setCatScreen(null); }} hitSlop={10}>
+                  <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '700' }}>‹ Categories</T>
+                </Pressable>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <FontAwesome5 name={(CAT_META[catScreen]?.icon ?? 'globe-africa') as never} size={11} color={CAT_META[catScreen]?.tint ?? '#E8C96A'} />
+                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{catScreen}</T>
+                </View>
+                <View style={{ width: 60 }} />
+              </View>
+            )}
 
             {list.map((s) => (
               <Pressable
@@ -269,7 +308,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [cat, setCat] = useState(QCATS[0]);
+  const [cats, setCats] = useState<string[]>([]);
   const [urgency, setUrgency] = useState('0');
   const [isPublic, setIsPublic] = useState(true);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -291,7 +330,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
 
       {/* deenpoints balance */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.07)' : 'rgba(212,175,55,0.05)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
-        <FontAwesome5 name="coins" size={13} color="#E8C96A" />
+        <DPIcon size={13} />
         <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>{points.toLocaleString()} DeenPoints</T>
         <T v="caption" style={{ fontSize: 9, color: d.faint }}>balance</T>
       </View>
@@ -302,23 +341,31 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
       <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>YOUR QUESTION</T>
       <TextInput value={body} onChangeText={setBody} placeholder="Describe your situation with the details that affect the ruling…" placeholderTextColor={d.faint} multiline style={{ borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, padding: 12, fontSize: 13.5, minHeight: 110, textAlignVertical: 'top', fontFamily: 'Poppins-Regular', color: d.text, marginBottom: 12 }} />
 
-      <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>CATEGORY</T>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, marginBottom: 12 }}>
+      <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>CATEGORY — PICK UP TO 3</T>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
         {QCATS.map((c) => {
-          const on = cat === c;
+          const on = cats.includes(c);
+          const meta = CAT_META[c] ?? CAT_META.Other;
           return (
-            <Pressable key={c} onPress={() => { haptic.selection(); setCat(c); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 11, paddingVertical: 6 }}>
+            <Pressable
+              key={c}
+              accessibilityLabel={`category ${c}`}
+              onPress={() => { haptic.selection(); setCats((cur) => cur.includes(c) ? cur.filter((x) => x !== c) : cur.length >= 3 ? cur : [...cur, c]); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingHorizontal: 11, paddingVertical: 7 }}
+            >
+              <FontAwesome5 name={meta.icon as never} size={10} color={on ? (isDark ? '#4AE38F' : '#1D6F42') : meta.tint} />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{c}</T>
+              {on ? <FontAwesome5 name="check" size={8} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>URGENCY — PAY DEENPOINTS TO PRIORITIZE</T>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, marginBottom: 4 }}>
         <FontAwesome5 name="bolt" size={12} color="#E8C96A" />
         <TextInput value={urgency} onChangeText={(t) => setUrgency(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={{ flex: 1, paddingVertical: 11, fontSize: 14, fontWeight: '700', fontFamily: 'Poppins-Medium', color: d.text }} placeholder="0" placeholderTextColor={d.faint} />
-        <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {points.toLocaleString()}</T>
+        <DPIcon size={10} color="#E8C96A" /><T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {points.toLocaleString()}</T>
       </View>
       <T v="caption" style={{ fontSize: 9, color: d.faint, marginBottom: 12 }}>Paying DeenPoints only moves your question up the queue — it never changes the answer. {pledged ? `${pledged.toLocaleString()} DP will be pledged.` : ''}</T>
 
@@ -342,7 +389,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
 
       <Pressable
         accessibilityLabel="send question"
-        onPress={() => { if (valid) { haptic.success(); onSubmit({ scholarName, title: title.trim(), body: body.trim(), cat, urgency: pledged, isPublic, photo: photo ?? undefined }); } }}
+        onPress={() => { if (valid) { haptic.success(); onSubmit({ scholarName, title: title.trim(), body: body.trim(), cat: cats.join(' · ') || 'Other', urgency: pledged, isPublic, photo: photo ?? undefined }); } }}
         disabled={!valid}
         style={({ pressed }) => ({ borderRadius: 14, backgroundColor: valid ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, alignItems: 'center', paddingVertical: 14, opacity: pressed ? 0.85 : 1 })}
       >

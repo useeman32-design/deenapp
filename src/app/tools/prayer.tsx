@@ -22,6 +22,8 @@ import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
 import { ADHAN_VOICES, isAdhanPlaying, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
+import { useRouter } from 'expo-router';
 import { stopBubble } from '@/lib/press';
 
 /**
@@ -39,11 +41,14 @@ export default function PrayerTimes() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loc, setLoc] = useState<Loc | null>(null);
   const [settings, setSettings] = useState<PrayerSettings>(DEFAULT_SETTINGS);
   const [offset, setOffset] = useState(0);
   const [now, setNow] = useState(new Date());
   const [sheet, setSheet] = useState(false);
+  const [methodPicker, setMethodPicker] = useState(false);
+  const [adhanLoading, setAdhanLoading] = useState(false);
   /* pass 33: adhan — plays when a prayer time arrives while the app is open */
   const [adhanFor, setAdhanFor] = useState<string | null>(null);
   const playedRef = useRef<string | null>(null);
@@ -70,6 +75,8 @@ export default function PrayerTimes() {
     loadPrayerSettings().then(setSettings);
   }, []);
 
+
+
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(iv);
@@ -92,6 +99,36 @@ export default function PrayerTimes() {
     return arr;
   }, []);
 
+  /* pass 35 — IslamicAPI times (primary). Falls back to the built-in
+   * offline engine whenever the API is unreachable (revoked key, offline). */
+  const [apiTimes, setApiTimes] = useState<Date[] | null>(null);
+  const [apiSrc, setApiSrc] = useState<'loading' | 'live' | 'off'>('loading');
+  const apiMethodId = settings.apiMethod ?? 3;
+  useEffect(() => {
+    if (!loc) return;
+    let dead = false;
+    setApiSrc('loading');
+    fetchPrayerDay({
+      lat: loc.latitude, lon: loc.longitude, method: apiMethodId,
+      school: settings.madhab === 'hanafi' ? 2 : 1,
+      date: selDate.toISOString().slice(0, 10),
+    })
+      .then((r) => {
+        if (dead) return;
+        const t = r.times;
+        const arr = [t.Fajr, t.Sunrise, t.Dhuhr, t.Asr, t.Maghrib, t.Isha].map((hh, i) => {
+          const [H, M] = hh.split(':').map((x) => parseInt(x, 10));
+          const dd = new Date(selDate);
+          dd.setHours(H, M + (settings.adjustments[i] ?? 0), 0, 0);
+          return dd;
+        });
+        setApiTimes(arr);
+        setApiSrc('live');
+      })
+      .catch(() => { if (!dead) { setApiTimes(null); setApiSrc('off'); } });
+    return () => { dead = true; };
+  }, [loc, selDate, apiMethodId, settings.madhab, settings.adjustments]);
+
   if (!loc) {
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -101,7 +138,7 @@ export default function PrayerTimes() {
     );
   }
 
-  const times = computePrayerTimesWith(selDate, loc, settings);
+  const times = apiTimes ?? computePrayerTimesWith(selDate, loc, settings);
   const isToday = offset === 0;
   const np = isToday ? nextPrayer(now, times) : null;
   const fmt = (t: Date) => t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -136,7 +173,7 @@ export default function PrayerTimes() {
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Prayer Times</T>
             <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
-              {loc.name} · {METHODS.find((m) => m.id === settings.method)?.label ?? ''}
+              {loc.name} · {PRAYER_METHODS.find((m) => m.id === apiMethodId)?.label ?? METHODS.find((m) => m.id === settings.method)?.label ?? ''}
             </T>
           </View>
           <Pressable accessibilityLabel="Settings"  onPress={() => { haptic.selection(); setSheet(true); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
@@ -162,6 +199,18 @@ export default function PrayerTimes() {
             );
           })}
         </ScrollView>
+
+        {/* pass 35 — full month table entry */}
+        <Pressable
+          accessibilityLabel="month prayer table"
+          onPress={() => { haptic.selection(); router.push('/tools/prayer-month'); }}
+          style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.28)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.05)', paddingHorizontal: 13, paddingVertical: 10 }}
+        >
+          <FontAwesome5 name="table" size={13} color="#E8C96A" />
+          <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Full month timetable</T>
+          <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>{apiSrc === 'live' ? 'ISLAMICAPI' : 'OFFLINE CALC'} · SAVE / SHARE</T>
+          <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+        </Pressable>
 
         {/* hero — next prayer (pass 29: same background + sun-walk arc as the home hero) */}
         <View style={{ marginHorizontal: 16, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: '#0E241A', padding: 18, overflow: 'hidden' }}>
@@ -308,25 +357,21 @@ export default function PrayerTimes() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
-              {/* method */}
+              {/* method — pass 35: select row → full 23-method picker (IslamicAPI) */}
               <View>
                 <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6, marginBottom: 8 }}>CALCULATION METHOD</T>
-                {METHODS.map((m) => {
-                  const on = settings.method === m.id;
-                  return (
-                    <Pressable
-                      key={m.id}
-                      onPress={() => { haptic.selection(); const nx = { ...settings, method: m.id }; setSettings(nx); savePrayerSettings(nx); }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 11, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <T v="bodyS" style={{ fontWeight: '700', fontSize: 12.5, color: d.text }}>{m.label}</T>
-                        <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 0.5 }}>{m.region}</T>
-                      </View>
-                      {on ? <FontAwesome5 name="check-circle" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
-                    </Pressable>
-                  );
-                })}
+                <Pressable
+                  accessibilityLabel="calculation method select"
+                  onPress={() => { haptic.selection(); setMethodPicker(true); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)' }}
+                >
+                  <FontAwesome5 name="list-ul" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  <View style={{ flex: 1 }}>
+                    <T v="bodyS" style={{ fontWeight: '700', fontSize: 12.5, color: d.text }}>{PRAYER_METHODS.find((m) => m.id === apiMethodId)?.label ?? 'Muslim World League'}</T>
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Tap to change · 23 methods (IslamicAPI)</T>
+                  </View>
+                  <FontAwesome5 name="chevron-down" size={11} color={d.faint} />
+                </Pressable>
               </View>
 
               {/* madhab (asr) */}
@@ -394,10 +439,17 @@ export default function PrayerTimes() {
                         <FontAwesome5 name="speaker" size={12} color={on ? '#E8C96A' : d.faint} />
                         <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{v.label}</T>
                         <Pressable
-                          onPress={(e) => { stopBubble(e); haptic.selection(); if (isAdhanPlaying()) { stopAdhan(); setAdhanFor(null); } else playAdhan(v.id); }}
-                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)', alignItems: 'center', justifyContent: 'center' }}
+                          accessibilityLabel={`preview adhan ${v.label}`}
+                          onPress={(e) => { stopBubble(e); haptic.selection(); if (isAdhanPlaying() || adhanLoading) { stopAdhan(); setAdhanFor(null); setAdhanLoading(false); } else { setAdhanLoading(true); playAdhan(v.id); setTimeout(() => setAdhanLoading(false), 1400); } }}
+                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: (isAdhanPlaying() || adhanLoading) ? 'rgba(212,175,55,0.18)' : (isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)'), alignItems: 'center', justifyContent: 'center' }}
                         >
-                          <FontAwesome5 name="play" size={9} color={d.subtext} />
+                          {adhanLoading ? (
+                            <ActivityIndicator size="small" color="#E8C96A" />
+                          ) : isAdhanPlaying() ? (
+                            <FontAwesome5 name="pause" size={9} color="#E8C96A" />
+                          ) : (
+                            <FontAwesome5 name="play" size={9} color={d.subtext} />
+                          )}
                         </Pressable>
                         {on ? <FontAwesome5 name="check-circle" size={15} color="#E8C96A" /> : null}
                       </Pressable>
@@ -406,6 +458,42 @@ export default function PrayerTimes() {
                   <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>The adhan plays from your device when a prayer time enters while the app is open.</T>
                 </View>
               ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* pass 35 — calculation method picker (23 methods, IslamicAPI) */}
+      <Modal visible={methodPicker} transparent animationType="slide" onRequestClose={() => setMethodPicker(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setMethodPicker(false)} />
+          <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: 30, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <T v="h3" style={{ fontWeight: '800', flex: 1 }}>Calculation method</T>
+              <Pressable onPress={() => setMethodPicker(false)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={12} color={d.subtext} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {PRAYER_METHODS.map((m) => {
+                const on = apiMethodId === m.id;
+                return (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => {
+                      haptic.selection();
+                      /* keep the closest local method for offline fallback */
+                      const localMap: Record<number, string> = { 1: 'Karachi', 2: 'NorthAmerica', 3: 'MWL', 4: 'UmmAlQura', 5: 'Egyptian', 7: 'Tehran', 8: 'Dubai', 9: 'Kuwait', 10: 'Qatar', 11: 'Singapore', 13: 'Turkey', 15: 'Moonsighting' };
+                      const nx = { ...settings, apiMethod: m.id, method: (localMap[m.id] ?? 'MWL') as typeof settings.method };
+                      setSettings(nx); savePrayerSettings(nx); setMethodPicker(false);
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}
+                  >
+                    <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{m.label}</T>
+                    {on ? <FontAwesome5 name="check-circle" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </View>
         </View>

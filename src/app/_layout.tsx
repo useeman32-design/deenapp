@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { UIScaleProvider } from '@/context/UIScale';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
@@ -79,9 +80,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
+        <UIScaleProvider>
         <AuthProvider>
           <Root />
         </AuthProvider>
+        </UIScaleProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

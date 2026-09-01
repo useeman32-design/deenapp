@@ -218,15 +218,17 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
               {expanded ? <VideoLoader player={player} /> : null}
             </View>
           </Pressable>
-          <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={{ position: 'absolute', top: 48, right: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="times" size={15} color="#fff" />
-          </Pressable>
           <Pressable onPress={() => setPaused((v) => !v)} style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
             {paused ? (
               <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name="play" size={21} color="#fff" />
               </View>
             ) : null}
+          </Pressable>
+          {/* pass 35: cancel rendered AFTER the full-screen pause overlay —
+              it used to sit UNDER it (z-order) and never received taps */}
+          <Pressable onPress={() => setExpanded(false)} hitSlop={14} style={{ position: 'absolute', top: 48, right: 18, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 30, elevation: 30 }}>
+            <FontAwesome5 name="times" size={15} color="#fff" />
           </Pressable>
           {/* pass 23: seek + time INSIDE fullscreen (it used to vanish) */}
           <View

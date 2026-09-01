@@ -16,6 +16,9 @@ import { AvatarImage } from '@/components/FeedCard';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
+import { Platform } from 'react-native';
+import { UI_SCALES, useUIScale, useSetUIScale } from '@/context/UIScale';
+import { RewardModal, useDeenPoints } from '@/components/DeenPoints';
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 import { useSaved } from '@/lib/savedPosts';
 
@@ -30,6 +33,8 @@ type Tab = 'posts' | 'videos' | 'saved';
  */
 export default function Profile() {
   const { theme, mode, setMode, isDark } = useTheme();
+  const uiScale = useUIScale();
+  const setUiScale = useSetUIScale();
   const d = theme.dash;
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -39,6 +44,8 @@ export default function Profile() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
+  const [reward, setReward] = useState(false);
+  const dp = useDeenPoints();
 
   useEffect(() => {
     api.userPosts().then(setPosts);
@@ -66,7 +73,9 @@ export default function Profile() {
     await api.dailyCheckin().catch(() => {});
     markActive();
     markGoal('checkin');
+    dp.add(5); /* pass 35 — daily check-in reward */
     setCheckin('done');
+    setReward(true);
   };
 
   const like = (id: number) =>
@@ -288,6 +297,28 @@ export default function Profile() {
           })}
         </View>
 
+        {/* pass 35 — display size (native): the OS font scale no longer shrinks the app */}
+        {Platform.OS !== 'web' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+            <FontAwesome5 name="text-height" size={11} color={d.faint} />
+            <T v="caption" style={{ fontSize: 10.5, color: d.faint, fontWeight: '700' }}>Display size</T>
+            <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+              {UI_SCALES.map((o) => {
+                const on = Math.abs(uiScale - o.id) < 0.001;
+                return (
+                  <Pressable
+                    key={o.label}
+                    onPress={() => { haptic.selection(); setUiScale(o.id); }}
+                    style={{ width: 34, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.55)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.14)' : d.card }}
+                  >
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#E8C96A' : '#8C6D1F') : d.faint }}>{o.label}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {tab === 'posts' ? (
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {posts.map((p) => (
@@ -325,6 +356,8 @@ export default function Profile() {
           </View>
         )}
       </ScrollView>
+      <RewardModal visible={reward} onClose={() => setReward(false)} amount={5} />
+
     </View>
   );
 }

@@ -153,6 +153,8 @@ export type TileTint = { from: string; to: string; icon: string };
  */
 export const tiles = {
   askquestion: { from: '#E3F2FD', to: '#BBDEFB', icon: '#1565C0' },
+  learning: { from: '#EDE7F6', to: '#D1C4E9', icon: '#4527A0' },
+  ruqyah: { from: '#FFF8E1', to: '#FFE082', icon: '#B8860B' },
   videos: { from: '#FFE5EC', to: '#FFB6C1', icon: '#C2185B' },
   deenai: { from: '#E8F5E9', to: '#C8E6C9', icon: '#1D6F42' },
   shop: { from: '#FFF8E1', to: '#FFECB3', icon: '#F9A825' },
@@ -172,6 +174,8 @@ export const tiles = {
 /** Dark-theme tile pairs (theme.css dark vars). */
 export const tilesDark: Record<keyof typeof tiles, { from: string; to: string }> = {
   askquestion: { from: '#1A2526', to: '#0D1A1A' },
+  learning: { from: '#1E1A26', to: '#100D1A' },
+  ruqyah: { from: '#262016', to: '#1A150C' },
   videos: { from: '#261A26', to: '#1A0D1A' },
   deenai: { from: '#26261A', to: '#1A1A0D' },
   shop: { from: '#26261A', to: '#1A1A0D' },

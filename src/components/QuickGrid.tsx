@@ -57,6 +57,8 @@ export const QUICK_ITEMS: QuickItem[] = [
   { key: 'names', label: 'Names of Allah', icon: StarCrescentIcon, action: { type: 'route', href: '/tools/names' } },
   { key: 'shop', label: 'Islamic Poster', icon: ImageIcon, action: { type: 'web', url: 'https://deenlink.org/poster/' } },
   { key: 'quiz', label: 'Quiz', icon: BrainIcon, action: { type: 'route', href: '/tools/quiz' } },
+  { key: 'learning', label: 'Learning Hub', icon: (p: any) => <FontAwesome5 name="graduation-cap" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/learning' } },
+  { key: 'ruqyah', label: 'Ruqyah', icon: (p: any) => <FontAwesome5 name="shield-alt" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/ruqyah' } },
 ];
 
 export function QuickGrid({ onOpenPost }: { onOpenPost?: () => void }) {

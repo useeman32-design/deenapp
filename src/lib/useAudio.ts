@@ -4,7 +4,9 @@ import { probeAdvancing } from '@/lib/mediaProbe';
 
 /* expo-video web play() can silently abort after replace() — make sure the
  * actual <video> element carrying this src plays (DOM-level fallback). */
-function domEnsurePlay(uri: string | null, tries = 0) {
+function domEnsurePlay(uri: string | null, tries = 0, wanted: () => boolean = () => true) {
+  /* pass 35: stop retrying the moment playback is no longer wanted */
+  if (!wanted()) return;
   /* pass 34f: native defines `window` but has no document — bail before touching the DOM */
   if (typeof document === 'undefined' || !uri) return;
   try {
@@ -15,7 +17,7 @@ function domEnsurePlay(uri: string | null, tries = 0) {
       else return;
     }
   } catch {}
-  if (tries < 14) window.setTimeout(() => domEnsurePlay(uri, tries + 1), 450);
+  if (tries < 14) window.setTimeout(() => domEnsurePlay(uri, tries + 1, wanted), 450);
 }
 
 /**
@@ -61,7 +63,7 @@ export function useAudio() {
       setPlaying(true);
       setLoading(true);
     } catch {}
-    domEnsurePlay(url);
+    domEnsurePlay(url, 0, () => wantPlay.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
@@ -91,7 +93,7 @@ export function useAudio() {
           player.play();
         } catch {}
       }
-      domEnsurePlay(url);
+      domEnsurePlay(url, 0, () => wantPlay.current);
       if (tries > 30) clearInterval(iv);
     }, 500);
     return () => clearInterval(iv);
@@ -164,7 +166,7 @@ export function useAudio() {
         try {
           player.play();
         } catch {}
-        domEnsurePlay(url);
+        domEnsurePlay(url, 0, () => wantPlay.current);
         setPlaying(true);
       }
     },
