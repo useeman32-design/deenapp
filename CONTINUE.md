@@ -1,83 +1,78 @@
-# CONTINUE — pass 36 handoff (2026-09-01)
+# CONTINUE — pass 37 handoff (2026-09-01)
 
-## Pass 36 SHIPPED (master 64a91a3, gh-pages f0899b4, probe35 ALL PASS, android .hbc OK)
+## Pass 37 SHIPPED (master 683cbe7, gh-pages 26d78fb, probe35 ALL PASS, android .hbc OK)
 
-### User-reported bugs FIXED this pass
-1. **Misbaha restored** — user wanted the BACKGROUND removed, not the misbaha.
-   `assets/img/misbaha-transparent.png` = original photo with the dark-green bg
-   flood-filled out from the borders (bead shading preserved, feathered alpha).
-   BEAD_PATH re-fitted to the beads ACTUALLY in the photo (29 bead centroids
-   extracted from the alpha channel → ellipse fit cx .500 cy .499 rx .434
-   ry .415, 33 beads arc-length-spaced, bead 0 at −100°). Glow layer renders
-   UNDER the image; lit-bead dots + pulsing halo on the active bead.
-2. **Month timetable page-death** — ROOT CAUSE: a local `function G` (React
-   fragment wrapper) was used as a child INSIDE `<Svg>`; react-native-svg
-   cannot take arbitrary components → crash on mount (the export SVG mounts
-   immediately, so the whole page died). Fixed: import `G` from
-   react-native-svg, delete the alias. VERIFIED at runtime (60 rows incl. the
-   hidden export surface, hijri column populated).
-3. **Hijri in the month table** — API hijri_date when present, else device
-   Intl 'en-GB-u-ca-islamic-umalqura' (localHijri helper, works on Hermes).
-4. **Fatwa "only a few"** — list was hard-capped at 30. Now ALL 1,325 load
-   incrementally (pages of 40, auto-triggered 420px before scroll end +
-   "Load more" fallback + "all N loaded" footer). Counter shows the real count.
-5. **Splash logo tall-narrow** — both splash configs now use square 512px
-   assets generated from logo-360.webp: `splash-icon.png` (transparent, 86%
-   art) + `splash-full.png` (opaque brand bg); plugin imageWidth 76→220.
-6. **Adhan preview buttons all lit** — was global isAdhanPlaying(); now
-   per-voice `preview` state, only the playing voice shows pause; switching
-   voices stops the previous; a real adhan firing resets preview.
+### Splash — square + animated
+- SplashGate REBUILT: explicit square logo card (width=height=148, no
+  aspectRatio), glow bloom → breathing halo behind logo, spring+rotate-in,
+  "DeenLink / STRENGTHEN YOUR DEEN…" wordmark fade-up, shimmer sweep over the
+  loader bar. Verified on web: logo box 146×146 (square), wordmark shows.
+- OS splash unified: classic splash AND expo-splash-screen plugin both use
+  assets/images/splash-icon.png (square 512 transparent, plugin imageWidth 200).
+  splash-full.png still exists but unused. **If user still reports a wide OS
+  splash in Expo Go, ask for a screenshot — in-app gate is verified square.**
 
-### Groups (redesigned per user's sketch)
-- **`/tools/group?id=…` — full-screen group profile** like a user profile:
-  cover + medallion header, member/post chips, join/leave, 3 tabs —
-  Posts (member posts as FeedCards + composer), Members (avatar stack +
-  Connect), About (desc + info rows). GroupsRail cards push here (modal gone).
-- Groups.tsx exports shared helpers: `loadGroups/saveGroups/SEED/gradFor/
-  catIcon/GROUP_KEY/ME/groupPostAsFeed` — rail, screen and connections
-  Groups tab all use them (stay in sync via dl.groups.v1).
-- **Feed group posts are normal FeedCards** with a new `groupLabel` chip
-  (emerald users-icon chip in the header row) — GroupFeedPosts in community.
-- Create-group sheet upgraded: live card preview, 4 cover styles, category
-  picker, open/by-request toggle.
+### Prophets — complete 25 + themed + bilingual + progress
+- 6 NEW chapters in public/prophets/: lut, shuayb, harun, sulaiman, ilyas,
+  al-yasa (Quran-based, 6-11 paras each). index.json rebuilt: 25 chapters in
+  canonical order (Yaqub inside ishaq's chapter; daniel extra). ALL 25
+  Quran-named prophets now covered.
+- src/data/prophetThemes.ts: per-slug { g:[colors], icon, motif, ar (arabic
+  name), ayah {ar,en,ref}, ha:[hausa paragraphs] } — drives everything.
+- Reader redesigned: themed gradient hero (icon medallion + motif + arabic
+  name), key-ayah quote card, drop-cap first paragraph, progress bar card,
+  EN/HA pill (HA = "Tausayin Labari" Hausa summary), skeleton loader.
+- Hub: hero CONTINUE card (last opened via dl.prophets.last.v1 + % progress,
+  themed like the Qur'an reader) + "Your journey: X of 25" row + per-chapter
+  progress bars + themed icon chips + skeleton.
+- Storage: dl.prophets.read.v1 (existing, paragraph counts) + NEW
+  dl.prophets.last.v1 (last slug).
 
-### Loaders (slow-network pass)
-- community feed: pages in 3 at a time with loader footer + auto-trigger
-  (feedLimit state, resets on tab change)
-- CommentsModal: 3-row shimmer + spinner on open (550ms)
-- courses: 4-card skeleton + spinner while api.courses() resolves
-- prayer-month: skeleton rows + "Building the month timetable…"
-- fatwa: skeleton on first load + paging loader
-- scholars/ruqyah already had spinners (verified)
+### Prayer-month — the REAL native crash fix
+- Previous fragment-G fix was NOT the whole story. Pass 37:
+  1. The 1240×1754 export SVG now mounts ONLY while exporting (exportOn state,
+     450ms settle, unmount after) — it no longer lives offscreen forever.
+  2. ZERO toLocale*/Intl in render: static MONTHS/MONTHS_LONG arrays, fmtHM
+     hand-rolled AM/PM, localHijri = tabular (arithmetic) Islamic calendar —
+     no Intl dependency on Hermes at all.
+  3. Offline fallback computes per-day in try/catch (bad day skipped).
+- Verified web: 30 rows + hijri column + export surface hidden until export.
+  **Needs user confirm in Expo Go.**
 
-### Learning hub — REDESIGNED (learning.tsx rewrite)
-mecca hero banner w/ gradient + stat pills → QUICK PLAY gradient rail
-(Quiz/Riddles/Jokes) → THE LIBRARY compact rows (Courses/Seerah/Prophets/
-Articles/Fatwa) → gold About box.
+### Share — native sheet for all, save is a privilege
+- svgExport.canSaveImages(): native = MediaLibrary.getPermissionsAsync()
+  already granted; web = false. ContentShareSheet hides the Save button unless
+  canSave; Share always available (expo-sharing native sheet / web
+  navigator.share→download). Wallpapers/prayer-month still request permission
+  on first Save tap (native dialog).
 
-### STILL OPEN (device verification, Expo Go)
-- ~80% zoom fix + Display size S/M/L/XL (pass 35) — needs user confirm
-- qibla, fullscreen cancel, adhan pause, video restart (pass 35 fixes)
-- wallpapers save, share-card SVG export, prayer-month JPG export on device
-- mic features stay Expo Go typed-fallback (hard limit)
+### SunPath glitch — fixed
+- Cause: mounted at default w=338, then onLayout snapped to real width on every
+  remount (navigate back → adjust+snap). Fix: module-level `cachedW` — remounts
+  start at the last measured width.
 
-### Standing facts
-- Storage keys: + dl.ui.scale, dl.fatwa.saved. Groups = dl.groups.v1
-  (SEED default g1/g2/g3; joined state lives inside the group objects).
-- FeedCard new optional prop: `groupLabel` (chip next to username row).
-- Onboarding sits BETWEEN auth and the app on first run — test flows must
-  Sign In → Skip onboarding → Sign In again (probe35 handles it; raw dbg
-  scripts must too).
-- Sandbox reset notes: node_modules + playwright browser + apt libs are wiped
-  — restore with `npm ci`, `node node_modules/playwright-core/cli.js install
-  chromium-headless-shell`, `apt-get install -y libnspr4 libnss3
-  libasound2t64 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2
-  libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1
-  libpango-1.0-0 libcairo2`. Also .git remote is dropped → re-add with token
-  from `.token`. Kill the pages server with `fuser -k 3996/tcp` (pkill -f
-  matches your own shell).
-- Deploy: bash scripts/export-web.sh → depth-1 clone gh-pages → wipe → cp
-  dist/. . → commit → push. Local gate: pages-server on dist, port 3996,
-  prefix /deenapp, then `node scripts/probe35.mjs` (ALL PASS at 64a91a3).
-- scripts/ prune: dbg-learn.mjs + dbg36*.mjs deleted; diagNN.mjs + probe32-35
-  remain (harmless).
+### Sandbox-reset survival notes (IMPORTANT — hit twice this pass)
+- Resets wipe: node_modules, /home/user/.cache (playwright browser), apt libs,
+  .git/config (remote + user identity). Restore:
+  `npm ci` · `node node_modules/playwright-core/cli.js install chromium-headless-shell`
+  · `apt-get install -y libnspr4 libnss3 libasound2t64 libatk1.0-0
+  libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1
+  libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2`
+  · re-add remote with .token + `git config user.name/email`.
+- The LOCAL .git can ALSO roll back commits (snapshot of .git is not
+  guaranteed current). Recovery used this pass: fetch origin → reset --soft
+  origin/master (worktree keeps the real state) → commit → if history
+  diverged, rebase onto origin/master resolving conflicts with
+  `git checkout --theirs` (theirs = the new work).
+
+### Standing facts (unchanged unless noted)
+- Deploy: bash scripts/export-web.sh → clone gh-pages → wipe → cp dist/. . →
+  commit → push. Local gate: pages-server on dist (port 3996, prefix
+  /deenapp; kill with `fuser -k 3996/tcp`), then `node scripts/probe35.mjs`.
+- dbg37.mjs deleted after use. probe32-35 + diagNN still in scripts/ (harmless).
+- Still open for device verification: ~80% zoom + Display size, qibla,
+  fullscreen cancel, adhan pause, video restart, wallpapers/share-card/month
+  JPG exports on device, NEW: month screen in Expo Go, splash in Expo Go.
+- IslamicAPI key: EXPO_PUBLIC_ISLAMIC_API_KEY in .env (revocable, public).
+- DeenPoints ₦1.5/pt; donations CATS DeenLink→Zakat→Sadaqah (probe-locked);
+  never buy fatwas.
