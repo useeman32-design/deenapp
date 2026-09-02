@@ -21,7 +21,8 @@ export const QUICK_CATALOG: QuickItem[] = [
   { key: 'zakatcalc', label: 'Zakat Calc', icon: { fa: 'balance-scale' }, accent: 'emerald', href: '/tools/zakat' },
   { key: 'wallpapers', label: 'Wallpapers', icon: { fa: 'image' }, accent: 'emerald', href: '/tools/wallpapers' },
   { key: 'courses', label: 'Courses', icon: { fa: 'graduation-cap' }, accent: 'emerald', href: '/tools/learning' },
-  { key: 'learning', label: 'Learning', icon: { fa: 'book-open' }, accent: 'gold', href: '/tools/learning' },
+  /* pass 44 — renamed per user: the learning shortcut now reads Learning Hub */
+  { key: 'learning', label: 'Learning Hub', icon: { fa: 'book-open' }, accent: 'gold', href: '/tools/learning' },
   { key: 'videos', label: 'Videos', icon: { fa: 'play-circle' }, accent: 'gold', href: '/videos' },
   { key: 'quiz', label: 'Quiz', icon: { fa: 'question-circle' }, accent: 'emerald', href: '/tools/quiz' },
   { key: 'scholars', label: 'Scholars', icon: { fa: 'user-graduate' }, accent: 'gold', href: '/tools/scholars' },

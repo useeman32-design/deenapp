@@ -52,7 +52,7 @@ const patternLight = require('../../../assets/img/pattern-light.png');
 const campaignQuran = require('../../../assets/img/campaign-quran.jpg');
 const campaignRamadan = require('../../../assets/img/campaign-ramadan.jpg');
 const campaignScholars = require('../../../assets/img/campaign-scholars.jpg');
-const campaignVideos = require('../../../assets/img/campaign-videos.jpg');
+const campaignLearning = require('../../../assets/img/campaign-learning.jpg');
 const scholarAvatar1 = require('../../../assets/img/scholar-1.jpg');
 const scholarAvatar2 = require('../../../assets/img/scholar-2.jpg');
 const scholarAvatar3 = require('../../../assets/img/scholar-3.jpg');
@@ -83,13 +83,15 @@ function useQuickAccess(): QuickItem[] {
 
 /* ------------------------------ Campaigns ------------------------------ */
 
+/* pass 44 — campaign order per user: Learning Hub NEW and first,
+ * Finish the Qur'an SECOND, then Ramadan, then scholars. Videos removed. */
 const CAMPAIGNS = [
   {
-    key: 'videos',
-    image: campaignVideos,
-    title: 'DeenLink Videos',
-    sub: 'Watch, learn and grow — swipe the feed.',
-    href: '/videos',
+    key: 'learning',
+    image: campaignLearning,
+    title: 'Learning Hub',
+    sub: 'Courses, tafsir and short lessons — grow your deen.',
+    href: '/tools/learning',
   },
   {
     key: 'quran',
