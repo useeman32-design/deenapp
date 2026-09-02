@@ -40,12 +40,43 @@ export async function markActive(): Promise<void> {
   }
 }
 
-const GOALS = [
-  { key: 'surah', label: 'Read a surah' },
-  { key: 'checkin', label: 'Daily check-in' },
-  { key: 'dua', label: 'Make a dua' },
-  { key: 'dhikr', label: 'Dhikr (33×)' },
-] as const;
+/* pass 44 — Today's Goal is now AUTO-DETECTED, not manually tappable.
+ * Each goal key maps to a real action the app already records via markGoal()
+ * (see call sites: surah reader, profile check-in, dua, tasbeeh/zikr, quiz,
+ * hadith, names, charity). The home modal only DISPLAYS state; it never writes.
+ *
+ * And the 4 fixed goals became 8 rotating SETS: a deterministic hash of the
+ * calendar day picks one set, so every day a different combination appears but
+ * the same day always shows the same set (stable across reloads). */
+const GOAL_META: Record<string, string> = {
+  surah: 'Read a surah',
+  checkin: 'Daily check-in',
+  dua: 'Make a dua',
+  dhikr: 'Dhikr (33×)',
+  quiz: 'Play a quiz',
+  hadith: 'Read a hadith',
+  names: 'Read the Names',
+  charity: 'Give in charity',
+};
+
+const GOAL_SETS: string[][] = [
+  ['surah', 'checkin', 'dua', 'dhikr'],
+  ['surah', 'hadith', 'dhikr', 'dua'],
+  ['surah', 'quiz', 'checkin', 'dua'],
+  ['hadith', 'names', 'dhikr', 'checkin'],
+  ['surah', 'names', 'dua', 'dhikr'],
+  ['surah', 'checkin', 'quiz', 'dhikr'],
+  ['hadith', 'charity', 'dua', 'checkin'],
+  ['surah', 'hadith', 'names', 'dua'],
+];
+
+/** Stable per-day pick: same date -> same set, next day -> rotates. */
+function daySet(): string[] {
+  const s = dayKey();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return GOAL_SETS[h % GOAL_SETS.length];
+}
 
 export async function getGoal(): Promise<{
   done: number;
@@ -64,10 +95,14 @@ export async function getGoal(): Promise<{
   if (empty && !isLive()) {
     rec = { surah: true, checkin: true };
   }
-  const items = GOALS.map((g) => ({ ...g, done: !!rec[g.key] }));
+  const items = daySet().map((key) => ({
+    key,
+    label: GOAL_META[key] ?? key,
+    done: !!rec[key],
+  }));
   return {
     done: items.filter((i) => i.done).length,
-    total: GOALS.length,
+    total: items.length,
     items,
     demo: empty && !isLive(),
   };

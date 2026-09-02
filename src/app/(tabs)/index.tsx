@@ -9,7 +9,7 @@ import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGr
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getGoal as fetchGoal, getStreak, setGoal as setGoalItem, markActive } from '@/lib/routine';
+import { getGoal as fetchGoal, getStreak, markActive } from '@/lib/routine';
 import { haptic } from '@/lib/haptics';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
@@ -1383,24 +1383,18 @@ export default function Home() {
               {(goal.items.length ? goal.items : [{ key: 'surah', label: 'Read a surah', done: false }, { key: 'checkin', label: 'Daily check-in', done: false }, { key: 'dua', label: 'Make a dua', done: false }, { key: 'dhikr', label: 'Dhikr (33×)', done: false }]).map((it) => {
                 const on = it.done;
                 return (
-                  <Pressable
+                  /* pass 44 — read-only. Goals complete AUTOMATICALLY when the
+                   * app records the action (markGoal); tapping no longer writes. */
+                  <View
                     key={it.key}
-                    onPress={async () => {
-                      haptic.selection();
-                      const nextItems = goal.items.map((x) => (x.key === it.key ? { ...x, done: !on } : x));
-                      const done = nextItems.filter((x) => x.done).length;
-                      setGoal({ ...goal, items: nextItems, done });
-                      await setGoalItem(it.key, !on);
-                      if (!on) { markActive(); refreshProgress(); }
-                    }}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13, opacity: pressed ? 0.85 : 1 })}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13 }}
                   >
                     <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.7)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.18)' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                       <FontAwesome5 name="check" size={11} color={on ? (isDark ? d.goldBright : d.gold) : 'transparent'} />
                     </View>
                     <T v="bodyS" style={{ flex: 1, fontSize: 13, fontWeight: '700', color: on ? d.subtext : d.text, textDecorationLine: on ? 'line-through' : 'none' }}>{it.label}</T>
-                    <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: on ? 'rgba(212,175,55,0.9)' : d.faint }}>{on ? 'DONE' : 'MARK'}</T>
-                  </Pressable>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: on ? 'rgba(212,175,55,0.9)' : d.faint }}>{on ? 'DONE' : 'AUTO'}</T>
+                  </View>
                 );
               })}
             </View>

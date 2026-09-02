@@ -13,6 +13,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { markGoal } from '@/lib/routine';
 
 /**
  * 99 Names of Allah (pass 22) — now driven by the USER'S dataset (content
@@ -25,6 +26,9 @@ type NameEntry = { number: number; arabic: string; transliteration: string; tran
 const audioUrl = (a: string) => (a.startsWith('http') ? a.replace(/^http:/, 'https:') : `https://islamicapi.com${a}`);
 
 export default function Names() {
+  /* pass 44 — Today's Goal auto-detect */
+  useEffect(() => { markGoal('names'); }, []);
+
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

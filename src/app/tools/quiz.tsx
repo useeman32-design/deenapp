@@ -15,6 +15,7 @@ import { QUIZ_POOL, QUIZ_POOL_EXTRA, type QuizQ } from '@/data/quiz';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { markGoal } from '@/lib/routine';
 
 const CATS = ['All', 'Quran', 'Hadith', 'Fiqh', 'Seerah', 'Aqidah'] as const;
 const COUNTS = [5, 10, 20, 0] as const; // 0 = all
@@ -116,6 +117,7 @@ export default function Quiz() {
       const score = answers.filter((a) => a.correct).length;
       setBest((b) => Math.max(b, score));
       void recordQuiz({ cat, score, total: deck.length, pct: deck.length ? Math.round((score / deck.length) * 100) : 0 });
+      markGoal('quiz'); // pass 44 — Today's Goal auto-detect
       setPhase('results');
       return;
     }

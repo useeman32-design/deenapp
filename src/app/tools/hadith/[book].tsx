@@ -23,12 +23,16 @@ const enOf = (e: unknown): string => {
   return '';
 };
 import { ContentShareSheet } from '@/components/ContentShareSheet';
+import { markGoal } from '@/lib/routine';
 
 /**
  * A hadith book (pass 18): REAL chapters from the user's dataset, and the
  * reader streams the book's full text file (filtered by chapter).
  */
 export default function HadithBookScreen() {
+  /* pass 44 — Today's Goal auto-detect */
+  useEffect(() => { markGoal('hadith'); }, []);
+
   const { book: bookId, chapter: chapterParam, h: hParam } = useLocalSearchParams<{ book: string; chapter?: string; h?: string }>();
   /* pass 32: AI/deep links carry the EXACT hadith (?h=number) — open its
    * chapter, scroll to it and highlight it (the old link just opened the book

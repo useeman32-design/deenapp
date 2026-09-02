@@ -13,6 +13,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Image } from 'react-native';
 import { fetchNisab } from '@/lib/islamicApi';
 import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
+import { markGoal } from '@/lib/routine';
 
 /**
  * Donations (pass 34 — full rebuild):
@@ -213,6 +214,7 @@ export default function Donations() {
   };
 
   const pay = () => {
+    markGoal('charity'); // pass 44 — Today's Goal auto-detect
     if (!valid) return;
     haptic.success();
     setView('paying');
