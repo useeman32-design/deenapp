@@ -46,9 +46,6 @@ export default function Events() {
             </View>
           </Card>
         ))}
-        <Text style={{ color: theme.subtext, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>
-          Sample data — connects to your /events endpoint when wired.
-        </Text>
       </ScrollView>
     </View>
   );

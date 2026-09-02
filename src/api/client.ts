@@ -17,6 +17,7 @@ import { storage } from '@/lib/storage';
 import {
   MOCK_COURSES,
   MOCK_EVENTS,
+  type EventItem,
   MOCK_FEED,
   MOCK_SCHOLARS,
   MOCK_USER,
@@ -354,8 +355,10 @@ export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> 
   return { ok: false };
 }
 
-export async function events() {
-  return MOCK_EVENTS;
+export async function events(): Promise<EventItem[]> {
+  const r = await request<{ status?: string; events?: EventItem[] }>('/api/events/list.php');
+  if (r.ok && Array.isArray(r.data.events) && r.data.events.length > 0) return r.data.events;
+  return MOCK_EVENTS; // Slice 3 — admin-managed events; sample list is the fallback
 }
 
 export async function wallpapers() {
