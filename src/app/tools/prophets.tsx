@@ -9,6 +9,7 @@ import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { themeFor } from '@/data/prophetThemes';
+import { prophetChapters, prophetFull } from '@/api/client';
 
 /**
  * Story of the Prophets — pass 37 redesign.
@@ -44,7 +45,24 @@ export default function ProphetsStories() {
 
   useEffect(() => {
     const { publicBase } = require('@/lib/gzio') as typeof import('@/lib/gzio');
-    fetch(`${publicBase()}/prophets/index.json`).then((r) => r.json()).then(setChapters).catch(() => setChapters([]));
+    Promise.all([
+      fetch(`${publicBase()}/prophets/index.json`).then((r) => r.json()).catch(() => []),
+      prophetChapters().catch(() => null),
+    ])
+      .then(([base, admin]) => {
+        const b: Ch[] = Array.isArray(base) ? base : [];
+        if (admin && admin.length) {
+          const bySlug = new Map(admin.map((a) => [a.slug, a]));
+          const overridden = b.map((c) => {
+            const a = bySlug.get(c.slug);
+            return a ? { ...c, name: a.name, n: a.n } : c;
+          });
+          const have = new Set(b.map((c) => c.slug));
+          const appended = admin.filter((a) => !have.has(a.slug)).map((a) => ({ slug: a.slug, name: a.name, n: a.n }));
+          setChapters([...overridden, ...appended]);
+        } else setChapters(b);
+      })
+      .catch(() => setChapters([]));
     storage.getItem(READ_KEY).then((r) => {
       try { setRead(JSON.parse(r ?? '{}')); } catch {}
     }).catch(() => {});
@@ -60,7 +78,13 @@ export default function ProphetsStories() {
     storage.setItem(LAST_KEY, c.slug).catch(() => {});
     setLast(c.slug);
     const { publicBase } = require('@/lib/gzio') as typeof import('@/lib/gzio');
-    fetch(`${publicBase()}/prophets/${c.slug}.json`).then((r) => r.json()).then(setFull).catch(() => setFull(null)).finally(() => setLoading(false));
+    const fromFile = () =>
+      fetch(`${publicBase()}/prophets/${c.slug}.json`).then((r) => r.json()).then(setFull).catch(() => setFull(null)).finally(() => setLoading(false));
+    prophetFull(c.slug).then((adm) => {
+      if (adm && Array.isArray(adm.paras) && adm.paras.length) setFull(adm);
+      else fromFile();
+      setLoading(false);
+    }).catch(fromFile);
   };
 
   const shown = useMemo(() => (full ? Math.min(full.paras.length, Math.max(8, read[full.slug] ?? 8)) : 0), [full, read]);

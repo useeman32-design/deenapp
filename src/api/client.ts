@@ -430,6 +430,19 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
   return r.ok && r.data.times ? r.data : null;
 }
 
+/* Slice 7 — admin-managed Prophets stories chapters; null when offline/empty so the bundled files stay. */
+export type AdminProphetChapter = { slug: string; name: string; n: number; source: string; paras: string[]; summary_ha: string };
+export async function prophetChapters(): Promise<AdminProphetChapter[] | null> {
+  const r = await request<{ status?: string; chapters?: AdminProphetChapter[] }>('/api/prophets/list.php');
+  if (r.ok && Array.isArray(r.data.chapters) && r.data.chapters.length > 0) return r.data.chapters;
+  return null;
+}
+export async function prophetFull(slug: string): Promise<AdminProphetChapter | null> {
+  const r = await request<{ status?: string; chapter?: AdminProphetChapter }>(`/api/prophets/get.php?slug=${encodeURIComponent(slug)}`);
+  if (r.ok && r.data.chapter) return r.data.chapter;
+  return null;
+}
+
 /* Slice 6 — admin-managed Names of Allah additions; null when offline/empty so the bundled set stays. */
 export type AdminName = { number: number; name: string; transliteration: string; translation: string; meaning: string };
 export async function namesOfAllah(): Promise<AdminName[] | null> {
