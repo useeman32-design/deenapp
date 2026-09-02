@@ -19,7 +19,7 @@ import * as api from '@/api/client';
 import type { Post, Scholar, Video } from '@/api/types';
 import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
-import { DEFAULT_QUICK, QUICK_STORAGE_KEY, quickItems, type QuickItem } from '@/lib/quick-access';
+import { DEFAULT_QUICK, QUICK_STORAGE_KEY, loadQuickDefaults, quickItems, type QuickItem } from '@/lib/quick-access';
 import { dailyAyah, dailyHadith } from '@/lib/daily';
 import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
@@ -65,8 +65,9 @@ function useQuickAccess(): QuickItem[] {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      storage.getItem(QUICK_STORAGE_KEY).then((raw) => {
-        if (!alive || !raw) return;
+      storage.getItem(QUICK_STORAGE_KEY).then(async (raw) => {
+        if (!alive) return;
+        if (!raw) { const def = await loadQuickDefaults(); if (alive) setKeys(def); return; }
         try {
           const arr = JSON.parse(raw) as string[];
           const items = quickItems(arr);

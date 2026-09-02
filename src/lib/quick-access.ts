@@ -1,4 +1,5 @@
 /** Shared Quick-Access catalog + persistence contract (home screen + editor). */
+import { appDefaults } from '@/api/client';
 
 export type QuickItem = {
   key: string;
@@ -41,4 +42,15 @@ export function quickItems(keys: string[]): QuickItem[] {
   return keys
     .map((k) => QUICK_CATALOG.find((c) => c.key === k))
     .filter((c): c is QuickItem => Boolean(c));
+}
+
+/* pass 44 — admin-set default shortcuts (Slice 4); cached, bundled DEFAULT_QUICK fallback. */
+let liveQuick: string[] | null = null;
+export async function loadQuickDefaults(): Promise<string[]> {
+  if (liveQuick) return liveQuick;
+  try {
+    const d = await appDefaults();
+    if (d && Array.isArray(d.quick_defaults) && d.quick_defaults.length) liveQuick = d.quick_defaults.slice(0, QUICK_MAX);
+  } catch { /* offline — keep bundled */ }
+  return liveQuick ?? DEFAULT_QUICK;
 }

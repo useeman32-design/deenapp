@@ -412,6 +412,14 @@ export async function learningSections(): Promise<LearningSection[] | null> {
   return null;
 }
 
+/* pass 44 — admin-managed app defaults (Slice 4): rotating goal sets + quick-access defaults */
+export type AppDefaults = { goal_sets?: string[][]; quick_defaults?: string[] };
+export async function appDefaults(): Promise<AppDefaults | null> {
+  const r = await request<{ status?: string; goal_sets?: string[][]; quick_defaults?: string[] }>('/api/defaults/get.php');
+  if (r.ok && (Array.isArray(r.data.goal_sets) || Array.isArray(r.data.quick_defaults))) return r.data;
+  return null;
+}
+
 export async function prayerTimesCached(locationHash: string): Promise<PrayerTimesResponse | null> {
   const r = await request<PrayerTimesResponse>(`/api/get_prayer_times.php?locationHash=${encodeURIComponent(locationHash)}`);
   return r.ok && r.data.times ? r.data : null;

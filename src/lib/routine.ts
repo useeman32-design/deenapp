@@ -4,7 +4,7 @@
  * these to render the "Daily Progress" cards.
  */
 import { storage } from '@/lib/storage';
-import { isLive } from '@/api/client';
+import { appDefaults, isLive } from '@/api/client';
 
 const dayKey = (d: Date = new Date()) => d.toDateString();
 
@@ -70,12 +70,32 @@ const GOAL_SETS: string[][] = [
   ['surah', 'hadith', 'names', 'dua'],
 ];
 
+/* pass 44 — admin can override the rotating sets (api/defaults/get.php); bundled
+ * GOAL_SETS remain the fallback. Fetched once and cached for the session. */
+let setsCache: string[][] | null = null;
+let setsPromise: Promise<void> | null = null;
+function ensureSets(): Promise<void> {
+  if (setsCache) return Promise.resolve();
+  if (!setsPromise) {
+    setsPromise = appDefaults()
+      .then((d) => {
+        if (d && Array.isArray(d.goal_sets)) {
+          const s = d.goal_sets.filter((x) => Array.isArray(x) && x.length > 0);
+          if (s.length) setsCache = s;
+        }
+      })
+      .catch(() => {});
+  }
+  return setsPromise;
+}
+
 /** Stable per-day pick: same date -> same set, next day -> rotates. */
 function daySet(): string[] {
+  const sets = setsCache && setsCache.length ? setsCache : GOAL_SETS;
   const s = dayKey();
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return GOAL_SETS[h % GOAL_SETS.length];
+  return sets[h % sets.length];
 }
 
 export async function getGoal(): Promise<{
@@ -84,6 +104,7 @@ export async function getGoal(): Promise<{
   items: { key: string; label: string; done: boolean }[];
   demo: boolean;
 }> {
+  await ensureSets();
   const raw = await storage.getItem(`dl.goal.${dayKey()}`);
   let rec: Record<string, boolean> = {};
   try {
