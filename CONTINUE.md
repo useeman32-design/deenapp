@@ -1,5 +1,81 @@
 # CONTINUE — pass 39 handoff (2026-09-01)
 
+# ── pass 40 SHIPPED (master 11bce73, gh-pages 3dcbae8, probe35 ALL PASS, ios+android .hbc OK, live entry 200) ──
+
+All 24 user items. Highlights future passes must know:
+
+- ScoreShareSheet REWORK: 5 palettes (emerald/midnight/royal/cream/maroon) with
+  distinct motifs, QR bottom-LEFT + label under it, footer right (collision fix),
+  parametric LogoMark (evenodd crescent + star), Save photo primary (web download
+  via svgWebDownload on nativeID dl-score-preview; native gallery), optional
+  `friends` prop → ShareWithFriends multi-select picker delivering into inbox
+  threads (dl.inbox.v2). Metric auto-shrinks for arabic/long text.
+- ShareWithFriends.tsx (new): shared friend picker + deliverShareToFriends().
+- CrescentLoader.tsx (new): animated crescent+star; used in quiz/exports/video
+  buffering/zakat/mirath.
+- BackButton.tsx (new, onDark prop): used by TopBar, PageHero, dua, tasbeeh,
+  calendar, quiz (setup+results). Old "‹" glyphs gone.
+- MIRATH ENGINE REWRITTEN (verified against 14 classical cases in-node):
+  correct spouse shares (husband ½/¼, wife ¼/⅛ — old code had ¼/⅛ and ⅛/1/16),
+  father residuary when no son (father-only = 100%; was the reported bug),
+  umariyyatan mother, radd to non-spouse sharers, sisters as pure residuaries,
+  hajb blocked at selection time (husband↔wife exclusive, son/father exclude
+  siblings) with on-chip explanations. Fields start EMPTY. Shares bold.
+  Report image (ReportSvg, nativeID dl-mirath-report) + An-Nisa 4:11/4:12/4:176
+  modal. AI: mirath system prompt + NAV route + navAnswer keywords.
+- 99 Names: language dropdown modal, ScoreShareSheet square share (arabic name
+  as metric), play button ALWAYS visible (no-audio entries use expo-speech TTS
+  ar → transliteration fallback; expo-speech added to package.json).
+- Prayer month: fixed-width swipable table (minWidth 660), bigger fonts, export
+  has DeenLink logo mark + QR bottom-right (both SVG and canvas paths), label
+  "Share as image" (no A4).
+- Adhan modal (prayer.tsx): praying.png illustration, crescent loader, Go to
+  Prayer (scrolls top) / Cancel; preview button opens it too.
+- Calendar: occasions have desc; gold days + upcoming rows open a detail modal;
+  "About these dates" note (tabular calendar, auto month roll, no moon-sighting
+  wait — confirm Ramadan/Eid locally); back button.
+- Compass: per-design needles (thin/glow/diamond/dashed/tech) + faint compass
+  watermark on the selected design chip.
+- Zakat: islamicapi label gone; "which metal drives the calc" reflective line;
+  gold+silver gram inputs moved under Trade goods; Calculate shows crescent
+  loader then scrolls to result.
+- Charity: Support DeenLink card is BACK (probe asserts it now; the pass-39
+  "no DeenLink card" check was obsolete and updated); history screen guarded
+  against unknown old categories (white-screen fix); receipt header = dark
+  green gradient + star lattice texture.
+- AI chat: user bubble paragraphs/bullets now inherit white (were theme-black
+  on green in light mode); streamLLM paces deltas every 70ms.
+- Community: GroupsSuggestStrip interleaved every 3rd card (accounts strip
+  every 5th); FeedCard carries its own marginBottom 14 (cards can never touch);
+  composer shows real image/video PREVIEW cards (video: web <video> + play
+  badge) instead of chips; CreateGroupModal has gallery photo pickers for
+  avatar + cover (photos win over emoji/style; group page already editable).
+- audioBus.ts (new): registerAudioStop/claimExclusiveAudio — ruqyah, adhan and
+  every useAudio instance are mutually exclusive (playing one stops others).
+- Ruqyah: full-program card = our player (play/pause, seekable progress bar,
+  time labels) + ruqyahPosition/seekRuqyahFrac; program + entry share use
+  ShareWithFriends (no image generation).
+- Learning hub: TOPICS rail with 8 real written lessons (tawhid, salah, wudu,
+  ramadan, halal earnings, dua, hijri, janazah) opening an in-app sheet.
+- Riddles/Jokes:Friends + image (ScoreShareSheet) buttons alongside post.
+- Home: hijri+gregorian in ONE pill top-right above hero (compact gregorian,
+  single occurrence; old inline dates removed from greeting).
+- SunPath: night RETRACES the arc from Isha back to Fajr (no more walking past
+  Subh + snap). location.ts re-geocodes cached placeholder names ("Your
+  location"/coordinates) once — that was the incognito-vs-normal discrepancy.
+- CommentsModal: @DeenLink (or leading @ai) in a comment → AI replies in-thread
+  (keyed: streamLLM grounded on retrieveLocal ctx; fallback composeLocalAnswer),
+  badge green, ~90 words, verify-then-answer prompt.
+
+Gotchas hit this pass:
+- pages-server.mjs signature is `<dir> <port>` — starting it with just the port
+  serves a dir named "3996" and every probe fails with 500s. Always:
+  `node scripts/pages-server.mjs dist 3996`.
+- react-native-svg web toDataURL returns BARE base64 (svgRefToPng now re-adds
+  the data: prefix) and its viewBox math uses viewport size — that's why web
+  "save photo" rasterizes the DOM node itself (svgWebDownload).
+- expo-speech added (works in Expo Go; not in the old module audit).
+
 ## Pass 39 SHIPPED (master 021cc4e, gh-pages 896c4db, probe35 ALL PASS 16/16, android .hbc OK, live entry bundle 200)
 
 ### WORKSPACE BUDGET (2026-09-02) — READ THIS BEFORE BIG BUILDS
