@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
+import { OtpVerify } from '@/components/OtpVerify';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -257,6 +258,8 @@ export default function Register() {
   const [gmailName, setGmailName] = useState('Demo User');
   const [gmailEmail, setGmailEmail] = useState('demo@gmail.com');
   const [busy, setBusy] = useState(false);
+  /* pass 44 — email OTP step shown after the account is created */
+  const [otpEmail, setOtpEmail] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   /* shared fields */
@@ -324,7 +327,7 @@ export default function Register() {
     setBusy(true); setError('');
     /* DB enum: 'male'/'female' lowercase */
     const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined });
-    if (res.ok) router.replace('/(tabs)');
+    if (res.ok) { setBusy(false); setOtpEmail(data.email); } // pass 44 — show the 6-digit OTP step
     else { setError(res.message || 'Something went wrong'); setBusy(false); }
   };
 
@@ -682,8 +685,19 @@ export default function Register() {
   );
 
   return (
-    <AuthShell>
-      {screen === 'choose' ? ChooseScreen : screen === 'gmail' ? GmailScreen : accountType === 'scholar' ? ScholarForm : UserForm}
-    </AuthShell>
+    <>
+      <AuthShell>
+        {screen === 'choose' ? ChooseScreen : screen === 'gmail' ? GmailScreen : accountType === 'scholar' ? ScholarForm : UserForm}
+      </AuthShell>
+      {otpEmail ? (
+        <Modal visible transparent animationType="fade">
+          <OtpVerify
+            email={otpEmail}
+            onVerified={() => { setOtpEmail(null); router.replace('/(tabs)'); }}
+            onCancel={() => { setOtpEmail(null); router.replace('/(tabs)'); }}
+          />
+        </Modal>
+      ) : null}
+    </>
   );
 }

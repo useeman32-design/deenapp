@@ -373,8 +373,15 @@ export async function announcement(): Promise<string | null> {
   return null;
 }
 
-/* pass 44 — homepage campaigns are admin-managed (api/campaigns/list.php).
- * Returns null when unreachable/empty so the app keeps its bundled banners. */
+/* pass 44 — 6-digit email OTP for registration (api/auth/send_otp.php + verify_otp.php). */
+export async function sendOtp(email: string): Promise<{ ok: boolean; message?: string; already?: boolean; networkError?: boolean }> {
+  const r = await request<{ status?: string; message?: string; already?: boolean }>('/api/auth/send_otp.php', { body: { email } });
+  return { ok: r.ok, message: r.data.message, already: !!r.data.already, networkError: r.networkError };
+}
+export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean }> {
+  const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean }>('/api/auth/verify_otp.php', { body: { email, code } });
+  return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
+}
 export type Campaign = { key: string; title: string; subtitle?: string; imageUrl?: string; href?: string };
 export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>('/api/campaigns/list.php');
