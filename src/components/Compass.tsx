@@ -299,10 +299,78 @@ export function Compass({
                   </G>
                 );
               })()}
-              <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={P.label} strokeWidth={1.6} strokeLinecap="round" opacity={0.45} strokeDasharray="4 3" />
-              <G transform={`translate(${bx} ${by}) rotate(${(backA * 180) / Math.PI})`} opacity={0.5}>
-                <Polygon points="0,-7 5.5,5.5 0,2.2 -5.5,5.5" fill="none" stroke={P.label} strokeWidth={1.2} />
-              </G>
+              {/* pass 44 — the BACK pointer (qibla behind you) now has its own
+               * shape per design, matching the front needle's family language.
+               * Before, all six designs shared one generic dashed line +
+               * hollow triangle. Kept deliberately dimmer/thinner than the
+               * front needle so the qibla direction still reads first. */}
+              {(() => {
+                const backRot = (backA * 180) / Math.PI;
+                const bc = P.label;
+                const ns: NeedleStyle = P.needle ?? 'arrow';
+                if (ns === 'thin') {
+                  return (
+                    <G opacity={0.5}>
+                      <Line x1={c + 6 * Math.sin(backA)} y1={c - 6 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={1.1} strokeLinecap="round" />
+                      <Circle cx={bx} cy={by} r={2.6} fill={bc} />
+                    </G>
+                  );
+                }
+                if (ns === 'glow') {
+                  return (
+                    <G>
+                      <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={5} strokeLinecap="round" opacity={0.14} />
+                      <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
+                      <G transform={`translate(${bx} ${by}) rotate(${backRot})`} opacity={0.55}>
+                        <Polygon points="0,-8 5,4 0,1.5 -5,4" fill={bc} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'diamond') {
+                  return (
+                    <G>
+                      <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={1.3} strokeLinecap="round" opacity={0.5} />
+                      <G transform={`translate(${(c + bx) / 2} ${(c + by) / 2}) rotate(${backRot})`} opacity={0.45}>
+                        <Polygon points="0,-4 3,0 0,4 -3,0" fill="none" stroke={bc} strokeWidth={1.2} />
+                      </G>
+                      <G transform={`translate(${bx} ${by}) rotate(${backRot})`} opacity={0.5}>
+                        <Polygon points="0,-7 4,0 0,7 -4,0" fill="none" stroke={bc} strokeWidth={1.3} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'dashed') {
+                  return (
+                    <G opacity={0.5}>
+                      <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={2} strokeLinecap="round" strokeDasharray="6 4" />
+                      <G transform={`translate(${bx} ${by}) rotate(${backRot})`}>
+                        <Polygon points="0,-7 6,4.5 0,1.8 -6,4.5" fill={bc} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'tech') {
+                  return (
+                    <G opacity={0.5}>
+                      <Line x1={c + 10 * Math.sin(backA)} y1={c - 10 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={1.2} strokeLinecap="round" strokeDasharray="2 3" />
+                      <G transform={`translate(${bx} ${by}) rotate(${backRot})`}>
+                        <Rect x={-4} y={-4} width={8} height={8} fill="none" stroke={bc} strokeWidth={1.4} />
+                        <Circle r={1.4} fill={bc} />
+                      </G>
+                    </G>
+                  );
+                }
+                /* classic */
+                return (
+                  <G opacity={0.5}>
+                    <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={bc} strokeWidth={1.8} strokeLinecap="round" />
+                    <G transform={`translate(${bx} ${by}) rotate(${backRot})`}>
+                      <Polygon points="0,-7.5 6,5.5 0,2.4 -6,5.5" fill={bc} />
+                    </G>
+                  </G>
+                );
+              })()}
             </Svg>
           </>
         );

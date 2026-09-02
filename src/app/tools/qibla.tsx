@@ -133,16 +133,43 @@ export default function Qibla() {
           <Compass bearing={bearing} heading={h} delta={delta} size={252} design={design} />
         </View>
 
-        {/* pass 39 — one button opens the compass-style modal */}
-        <Pressable
-          accessibilityLabel="change compass"
-          onPress={() => { haptic.selection(); setDesignPicker(true); }}
-          style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, borderWidth: 1.5, borderColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)', paddingHorizontal: 14, paddingVertical: 8 }}
-        >
-          <FontAwesome5 name="palette" size={11} color="#E8C96A" />
-          <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#E8C96A' : '#8C6D1F' }}>Change compass</T>
-          <FontAwesome5 name="chevron-right" size={9} color={isDark ? '#E8C96A' : '#8C6D1F'} />
-        </Pressable>
+        {/* pass 39 — one button opens the compass-style modal.
+         * pass 44 — reworked: it used a `palette` icon (wrong metaphor for a
+         * compass), hardcoded #E8C96A for the icon in BOTH themes so it all but
+         * disappeared on the light background, and sat left-aligned under a
+         * centered compass. Now: compass icon, one theme-aware colour shared by
+         * icon/label/chevron, centred, taller tap target, and it names the
+         * active design so the button tells you what it will change. */}
+        {(() => {
+          const gold = isDark ? '#E8C96A' : '#8C6D1F';
+          const cur = QIBLA_DESIGNS.find((x) => x.id === design) ?? QIBLA_DESIGNS[0];
+          return (
+            <Pressable
+              accessibilityLabel="change compass"
+              onPress={() => { haptic.selection(); setDesignPicker(true); }}
+              style={({ pressed }) => ({
+                alignSelf: 'center',
+                marginTop: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 9,
+                borderRadius: 999,
+                borderWidth: 1.5,
+                borderColor: isDark ? 'rgba(212,175,55,0.5)' : 'rgba(184,134,11,0.45)',
+                backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)',
+                paddingHorizontal: 18,
+                paddingVertical: 11,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <FontAwesome5 name="compass" size={13} color={gold} />
+              <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: gold }}>Change compass</T>
+              <View style={{ width: 1, height: 12, backgroundColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.3)' }} />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '600', color: isDark ? 'rgba(232,201,106,0.75)' : 'rgba(140,109,31,0.8)' }}>{cur.label}</T>
+              <FontAwesome5 name="chevron-right" size={9} color={gold} />
+            </Pressable>
+          );
+        })()}
 
         {heading.needsPermission ? (
           <Pressable

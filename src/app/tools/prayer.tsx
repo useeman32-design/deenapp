@@ -465,7 +465,7 @@ export default function PrayerTimes() {
                         <T v="arabic" style={{ fontSize: 30, color: 'rgba(245,248,245,0.9)' }}>{arName}</T>
                         <T v="display" style={{ fontSize: 40, fontWeight: '900', color: '#FFFFFF', marginTop: 4, textAlign: 'center' }}>{name}</T>
                         <T v="caption" style={{ fontSize: 11.5, color: 'rgba(245,248,245,0.7)', textAlign: 'center', marginTop: 8, lineHeight: 17 }}>
-                          حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ\nCome to prayer, come to success · {reciter}
+                          حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ{'\n'}Come to prayer, come to success · {reciter}
                         </T>
                       </View>
                       <View>
@@ -499,7 +499,7 @@ export default function PrayerTimes() {
                       <T v="arabic" style={{ fontSize: 17, color: 'rgba(245,248,245,0.7)', marginTop: 1 }}>{arName}</T>
                       <View style={{ height: 1, backgroundColor: `${D.accent}44`, marginVertical: 12 }} />
                       <T v="caption" style={{ fontSize: 10.5, color: 'rgba(245,248,245,0.6)', lineHeight: 16 }}>
-                        حَيَّ عَلَى الصَّلَاةِ — come to prayer, come to success.\nReciter: {reciter}
+                        حَيَّ عَلَى الصَّلَاةِ — come to prayer, come to success.{'\n'}Reciter: {reciter}
                       </T>
                       <View style={{ marginTop: 16, gap: 8 }}>
                         <Pressable accessibilityLabel="go to prayer" onPress={go} style={{ alignItems: 'center', paddingVertical: 13, borderRadius: 12, backgroundColor: D.accent }}>
@@ -560,7 +560,7 @@ export default function PrayerTimes() {
                     </View>
                     <View style={{ padding: 18, alignItems: 'center' }}>
                       <T v="caption" style={{ fontSize: 10.5, color: 'rgba(245,248,245,0.62)', textAlign: 'center', lineHeight: 16, marginBottom: 14 }}>
-                        حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ\nCome to prayer, come to success · {reciter}
+                        حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ{'\n'}Come to prayer, come to success · {reciter}
                       </T>
                       <StyleBtns tint={D.accent} />
                       <StyleSwitch />

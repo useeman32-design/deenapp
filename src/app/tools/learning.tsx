@@ -159,21 +159,28 @@ export default function Learning() {
   const insets = useSafeAreaInsets();
 
   const [topic, setTopic] = useState<Topic | null>(null);
-  /* pass 42 — auto-shuffling discovery banner under QUICK PLAY */
+  /* pass 42 — auto-shuffling discovery banner under QUICK PLAY.
+   * pass 44 — three fixes:
+   *  (1) FIXED height on the card, so a short desc and a long one no longer
+   *      make the banner grow/shrink between slides (it visibly jumped).
+   *  (2) real cross-fade: fade OUT -> swap content while invisible -> fade IN.
+   *      Before it only faded out and snapped the new copy in at full opacity.
+   *  (3) dots count off the actual pool, so they stopped desyncing past 5.
+   * useNativeDriver: true — opacity is the only animated prop, so the whole
+   * transition now runs on the UI thread instead of dropping JS frames. */
   const [slide, setSlide] = useState(0);
   const BANNER_POOL = useMemo(() => [...QUICK, ...LIBRARY], []);
   const banner = BANNER_POOL[slide % BANNER_POOL.length];
-  const bannerAnim = useRef(new Animated.Value(0)).current;
+  const BANNER_DOTS = Math.min(BANNER_POOL.length, 6);
+  const bannerAnim = useRef(new Animated.Value(1)).current; // 1 = fully visible
   useEffect(() => {
     const iv = setInterval(() => {
-      setSlide((i) => {
-        Animated.timing(bannerAnim, { toValue: 1, duration: 260, easing: Easing.in(Easing.quad), useNativeDriver: false }).start(({ finished }) => {
-          if (!finished) return;
-          bannerAnim.setValue(0);
-        });
-        return i + 1;
+      Animated.timing(bannerAnim, { toValue: 0, duration: 220, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(({ finished }) => {
+        if (!finished) return;
+        setSlide((i) => i + 1); // swap while invisible — no visible pop
+        Animated.timing(bannerAnim, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
       });
-    }, 4200);
+    }, 4600);
     return () => clearInterval(iv);
   }, [bannerAnim]);
 
@@ -250,8 +257,8 @@ export default function Learning() {
           onPress={() => open(banner.href)}
           style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}
         >
-          <Animated.View style={{ opacity: bannerAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
-            <LinearGradient colors={banner.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 15, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+          <Animated.View style={{ opacity: bannerAnim }}>
+            <LinearGradient colors={banner.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 96, padding: 15, paddingRight: 30, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
               <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
                 <BannerIcon icon={banner.icon} size={20} color="#FFFFFF" />
               </View>
@@ -259,16 +266,16 @@ export default function Learning() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 1, color: 'rgba(255,255,255,0.75)' }}>DISCOVER · {banner.chip.toUpperCase()}</T>
                 </View>
-                <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '900', color: '#FFFFFF', marginTop: 2 }}>{banner.title}</T>
+                <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '900', color: '#FFFFFF', marginTop: 2 }} numberOfLines={1}>{banner.title}</T>
                 <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.85)', lineHeight: 13.5, marginTop: 2 }} numberOfLines={2}>{banner.desc}</T>
               </View>
               <FontAwesome5 name="arrow-right" size={13} color="#FFFFFF" />
             </LinearGradient>
           </Animated.View>
-          {/* progress dots — 5 slots */}
+          {/* progress dots — one per pool item (capped at 6) */}
           <View style={{ position: 'absolute', top: 9, right: 11, flexDirection: 'row', gap: 3 }}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: i === slide % 5 ? '#FFFFFF' : 'rgba(255,255,255,0.35)' }} />
+            {Array.from({ length: BANNER_DOTS }, (_, i) => (
+              <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: i === slide % BANNER_POOL.length ? '#FFFFFF' : 'rgba(255,255,255,0.35)' }} />
             ))}
           </View>
         </Pressable>
@@ -277,7 +284,7 @@ export default function Learning() {
         <Pressable
           accessibilityLabel="short lessons library"
           onPress={() => { haptic.selection(); router.push('/tools/lessons' as never); }}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(76,175,80,0.4)', backgroundColor: 'rgba(76,175,80,0.08)', padding: 14, marginTop: 4, opacity: pressed ? 0.82 : 1 })}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(76,175,80,0.4)', backgroundColor: 'rgba(76,175,80,0.08)', padding: 14, marginTop: 10, opacity: pressed ? 0.82 : 1 })}
         >
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(76,175,80,0.16)', borderWidth: 1, borderColor: 'rgba(76,175,80,0.5)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="lightbulb" size={17} color="#4CAF50" />
