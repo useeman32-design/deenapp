@@ -35,7 +35,12 @@ import type {
   Video,
 } from '@/api/types';
 
-const BASE = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org';
+/* pass 44 — when the web app is self-hosted on app.deenlink.org it talks to its
+   SAME origin (no CORS); anywhere else (gh-pages, native) use the env/prod API. */
+const BASE =
+  typeof window !== 'undefined' && /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin)
+    ? window.location.origin
+    : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
 const TIMEOUT = 9000;
 
 /**

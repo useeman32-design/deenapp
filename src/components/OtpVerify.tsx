@@ -7,12 +7,13 @@ import { haptic } from '@/lib/haptics';
 import { isLive, sendOtp, verifyOtp } from '@/api/client';
 
 /**
- * pass 44 — 6-digit email OTP.
- *  · success: the six entered boxes fly OUT of the row and arrange themselves
- *    into a RING (circle), fade into a solid ring, a padlock appears INSIDE,
- *    UNLOCKS (lock → lock-open) and the ring turns green, then a check springs in.
- *    One progress timeline (0→1) drives every phase so it stays smooth.
- *  · wrong:   the row shakes, a red hint appears, focus returns to box 1.
+ * pass 44 — 6-digit email OTP, cinematic verify sequence:
+ *  · the six entered boxes fly out of the row and arrange into a RING,
+ *  · the ring of boxes ROTATES (spins) as it transforms into a solid circle,
+ *  · a padlock appears INSIDE and UNLOCKS (lock → lock-open),
+ *  · a green checkmark springs in, then "Welcome to DeenLink" fades in,
+ *  · and the whole card slowly FADES OUT, revealing the home screen.
+ *  · wrong: the row shakes, red hint, focus returns to box 1.
  * In demo (no live API) the accepted code is 123456 so the flow is testable.
  */
 const R = 58; // ring radius the boxes fly to
@@ -29,8 +30,10 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   const live = isLive();
 
   const shake = useRef(new Animated.Value(0)).current;
-  const progress = useRef(new Animated.Value(0)).current; // 0→1 success timeline
+  const progress = useRef(new Animated.Value(0)).current; // 0→1 success timeline (3s)
+  const spin = useRef(new Animated.Value(0)).current;     // ring-of-boxes rotation
   const lockTilt = useRef(new Animated.Value(0)).current; // wiggle on unlock
+  const fade = useRef(new Animated.Value(1)).current;     // final slow fade-out
 
   const send = () => {
     setCooldown(30);
@@ -70,10 +73,12 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
     setHint('');
     setUnlocked(false);
     progress.setValue(0);
-    /* JS-driven: this timeline also interpolates a colour, which the native
-       driver can't do. ~2.6s: boxes→ring (0–.45), padlock (.55–.7),
-       unlock (~.74), check (.88–1). */
-    Animated.timing(progress, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.ease), useNativeDriver: false }).start();
+    spin.setValue(0);
+    fade.setValue(1);
+    /* One 3s timeline drives float→ring; a separate 1.4s spin rotates the ring
+       of boxes; then unlock, check, welcome, and finally a slow fade-out. */
+    Animated.timing(progress, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }).start();
+    Animated.timing(spin, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), delay: 950, useNativeDriver: true }).start();
     setTimeout(() => {
       setUnlocked(true);
       haptic.selection();
@@ -82,9 +87,10 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
         Animated.timing(lockTilt, { toValue: -1, duration: 110, useNativeDriver: true }),
         Animated.timing(lockTilt, { toValue: 0, duration: 110, useNativeDriver: true }),
       ]).start();
-    }, 1900);
-    setTimeout(() => haptic.success(), 2350);
-    setTimeout(onVerified, 3200);
+    }, 2100);
+    setTimeout(() => haptic.success(), 2700);
+    setTimeout(() => Animated.timing(fade, { toValue: 0, duration: 700, easing: Easing.ease, useNativeDriver: true }).start(), 3700);
+    setTimeout(onVerified, 4400);
   };
 
   const verify = () => {
@@ -100,15 +106,17 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   const gold = d.gold;
   const green = '#2FA866';
 
-  /* ── shared success-timeline interpolations ── */
-  const ringOpacity = progress.interpolate({ inputRange: [0.5, 0.64], outputRange: [0, 1], extrapolate: 'clamp' });
-  const ringScale = progress.interpolate({ inputRange: [0.5, 0.64], outputRange: [0.82, 1], extrapolate: 'clamp' });
-  const ringColor = progress.interpolate({ inputRange: [0.78, 0.92], outputRange: [gold, green], extrapolate: 'clamp' });
-  const lockScale = progress.interpolate({ inputRange: [0.56, 0.7], outputRange: [0.2, 1], extrapolate: 'clamp' });
-  const lockOpacity = progress.interpolate({ inputRange: [0.56, 0.64, 0.86, 0.94], outputRange: [0, 1, 1, 0], extrapolate: 'clamp' });
+  /* ── success timeline interpolations (fractions of the 3s timeline) ── */
+  const ringOpacity = progress.interpolate({ inputRange: [0.52, 0.66], outputRange: [0, 1], extrapolate: 'clamp' });
+  const ringScale = progress.interpolate({ inputRange: [0.52, 0.66], outputRange: [0.82, 1], extrapolate: 'clamp' });
+  const ringColor = progress.interpolate({ inputRange: [0.8, 0.94], outputRange: [gold, green], extrapolate: 'clamp' });
+  const lockScale = progress.interpolate({ inputRange: [0.58, 0.7], outputRange: [0.2, 1], extrapolate: 'clamp' });
+  const lockOpacity = progress.interpolate({ inputRange: [0.58, 0.66, 0.86, 0.94], outputRange: [0, 1, 1, 0], extrapolate: 'clamp' });
   const lockTiltDeg = lockTilt.interpolate({ inputRange: [-1, 1], outputRange: ['-16deg', '16deg'] });
-  const checkScale = progress.interpolate({ inputRange: [0.9, 1], outputRange: [0.2, 1], extrapolate: 'clamp' });
-  const checkOpacity = progress.interpolate({ inputRange: [0.9, 0.97], outputRange: [0, 1], extrapolate: 'clamp' });
+  const checkScale = progress.interpolate({ inputRange: [0.88, 1], outputRange: [0.2, 1], extrapolate: 'clamp' });
+  const checkOpacity = progress.interpolate({ inputRange: [0.88, 0.96], outputRange: [0, 1], extrapolate: 'clamp' });
+  const welcomeOpacity = progress.interpolate({ inputRange: [0.94, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  const spinDeg = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   /* per-box flight from the row into the ring */
   const boxAnim = (i: number) => {
@@ -117,40 +125,42 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
     const endY = R * Math.sin(ang);
     const startX = (i - 2.5) * 48;
     return {
-      translateX: progress.interpolate({ inputRange: [0, 0.45], outputRange: [startX, endX], extrapolate: 'clamp' }),
-      translateY: progress.interpolate({ inputRange: [0, 0.45], outputRange: [0, endY], extrapolate: 'clamp' }),
-      scale: progress.interpolate({ inputRange: [0, 0.45], outputRange: [1, 0.58], extrapolate: 'clamp' }),
-      rotate: progress.interpolate({ inputRange: [0, 0.45], outputRange: ['0deg', `${i % 2 ? 20 : -20}deg`], extrapolate: 'clamp' }),
-      opacity: progress.interpolate({ inputRange: [0.46, 0.62], outputRange: [1, 0], extrapolate: 'clamp' }),
+      translateX: progress.interpolate({ inputRange: [0, 0.42], outputRange: [startX, endX], extrapolate: 'clamp' }),
+      translateY: progress.interpolate({ inputRange: [0, 0.42], outputRange: [0, endY], extrapolate: 'clamp' }),
+      scale: progress.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0.55], extrapolate: 'clamp' }),
+      rotate: progress.interpolate({ inputRange: [0, 0.5], outputRange: ['0deg', `${i % 2 ? 20 : -20}deg`], extrapolate: 'clamp' }),
+      opacity: progress.interpolate({ inputRange: [0.5, 0.68], outputRange: [1, 0], extrapolate: 'clamp' }),
     };
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'rgba(4,10,7,0.86)', alignItems: 'center', justifyContent: 'center', padding: 22 }}>
+    <Animated.View style={{ flex: 1, backgroundColor: 'rgba(4,10,7,0.86)', alignItems: 'center', justifyContent: 'center', padding: 22, opacity: fade }}>
       <View style={{ width: '100%', maxWidth: 400, borderRadius: 24, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 22 }}>
         {status === 'success' ? (
           <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-            {/* the six boxes fly from the row into a ring, then the padlock unlocks inside */}
             <View style={{ width: 220, height: 200, alignItems: 'center', justifyContent: 'center' }}>
               {/* solid ring the boxes resolve into */}
               <Animated.View style={{ position: 'absolute', width: R * 2 + 14, height: R * 2 + 14, borderRadius: R + 7, borderWidth: 5, borderColor: ringColor, backgroundColor: 'rgba(47,168,102,0.05)', opacity: ringOpacity, transform: [{ scale: ringScale }] }} />
-              {/* the boxes themselves */}
-              {digits.map((v, i) => {
-                const a = boxAnim(i);
-                return (
-                  <Animated.View
-                    key={i}
-                    style={{
-                      position: 'absolute', width: 44, height: 52, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: d.bg, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)',
-                      opacity: a.opacity,
-                      transform: [{ translateX: a.translateX }, { translateY: a.translateY }, { scale: a.scale }, { rotate: a.rotate }],
-                    }}
-                  >
-                    <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>{v}</T>
-                  </Animated.View>
-                );
-              })}
+              {/* the boxes themselves — the whole ring of boxes spins as it forms */}
+              <Animated.View style={{ position: 'absolute', width: '100%', height: '100%', transform: [{ rotate: spinDeg }] }}>
+                {digits.map((v, i) => {
+                  const a = boxAnim(i);
+                  return (
+                    <Animated.View
+                      key={i}
+                      style={{
+                        position: 'absolute', left: '50%', top: '50%', marginLeft: -22, marginTop: -26,
+                        width: 44, height: 52, alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: d.bg, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)',
+                        opacity: a.opacity,
+                        transform: [{ translateX: a.translateX }, { translateY: a.translateY }, { scale: a.scale }, { rotate: a.rotate }],
+                      }}
+                    >
+                      <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>{v}</T>
+                    </Animated.View>
+                  );
+                })}
+              </Animated.View>
               {/* padlock appears inside the ring, then unlocks */}
               <Animated.View style={{ position: 'absolute', opacity: lockOpacity, transform: [{ scale: lockScale }, { rotate: lockTiltDeg }] }}>
                 <FontAwesome5 name={unlocked ? 'lock-open' : 'lock'} size={42} color={unlocked ? green : gold} solid />
@@ -161,8 +171,11 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
               </Animated.View>
             </View>
 
-            <T v="bodyS" style={{ color: green, fontWeight: '800', marginTop: 4 }}>{unlocked ? 'Email verified 🎉' : 'Verifying…'}</T>
-            <T v="caption" style={{ color: d.subtext, fontSize: 12, marginTop: 2 }}>Taking you in…</T>
+            {/* welcome appears after the check, before the fade-out */}
+            <Animated.View style={{ opacity: welcomeOpacity, alignItems: 'center', marginTop: 4 }}>
+              <T v="display" style={{ color: d.text, fontWeight: '800', fontSize: 20, textAlign: 'center' }}>Welcome to DeenLink 🌙</T>
+              <T v="caption" style={{ color: d.subtext, fontSize: 12, marginTop: 2 }}>Taking you home…</T>
+            </Animated.View>
           </View>
         ) : (
           <>
@@ -202,6 +215,6 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
           </>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
