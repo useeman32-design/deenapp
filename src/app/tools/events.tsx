@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { api } from '@/api/client';
+import { events as fetchEvents } from '@/api/client';
 import type { EventItem } from '@/api/mocks';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
@@ -17,7 +17,7 @@ export default function Events() {
   const { theme } = useTheme();
   const [items, setItems] = useState<EventItem[]>([]);
   useEffect(() => {
-    api.events().then(setItems);
+    fetchEvents().then(setItems);
   }, []);
 
   return (

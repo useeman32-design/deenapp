@@ -451,7 +451,6 @@ export const api = {
   submitQuestion,
   updateProfile,
   dailyCheckin,
-  events,
   wallpapers,
   unreadNotifications,
   announcement,
