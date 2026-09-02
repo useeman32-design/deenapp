@@ -314,7 +314,7 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
       <Rect x="0" y="0" width={A4W} height={HDR} fill="url(#hdr)" />
       <Rect x="0" y={HDR - 6} width={A4W} height="6" fill={GOLD} />
       {/* pass 41 — the REAL DeenLink logo image (crescent is the loader, never the logo) */}
-      <SvgImage href={require('../../../assets/img/logo-badge.png')} x="46" y="58" width="144" height="144" preserveAspectRatio="xMidYMid meet" />
+      <SvgImage href={require('../../../assets/img/logo-export.png')} x="46" y="58" width="144" height="144" preserveAspectRatio="xMidYMid meet" />
       <SvgText x="214" y="112" fontSize="34" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800" letterSpacing="5">DEENLINK</SvgText>
       <SvgText x="214" y="156" fontSize="46" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800">Prayer Times</SvgText>
       <SvgText x="214" y="194" fontSize="27" fill="#E8C96A" fontFamily="Poppins-Medium">{monthLabel}{location ? ` · ${location}` : ''}</SvgText>
@@ -386,7 +386,7 @@ async function monthCanvasDataUrl(days: Day[], monthLabel: string, location: str
       const im = new Image();
       im.onload = () => res(im);
       im.onerror = () => res(null);
-      im.src = require('../../../assets/img/logo-badge.png') as unknown as string;
+      im.src = require('../../../assets/img/logo-export.png') as unknown as string;
     });
   } catch { logo = null; }
 

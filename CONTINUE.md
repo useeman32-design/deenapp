@@ -1,6 +1,38 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
-# ── pass 43 — IN PROGRESS: infra recovery + backup (NOT a feature pass) ──
+# ── pass 44 (2026-09-02) — 13-item user pass + safe-area + real tsc gate ──
+All pushed to master (b19735e safe-area/tsc; then 44b/44c/44d; final batch
+after). Gates: tsc --noEmit exit 0 (REAL this time), export-web.sh exit 0.
+
+- SAFE AREA: TopBar hardcoded paddingTop: 12 -> Math.max(insets.top, 12)
+  (fixes 13 screens; none double-applied). qibla.tsx header same.
+- ADHAN: 3 designs rendered a literal backslash-n (JSX text \n) -> {'\n'}.
+- LEARNING HUB: banner fixed-height 96 + real cross-fade (fade out/swap/fade in,
+  useNativeDriver) + dots per pool; Short-Lessons card got marginHorizontal 16.
+- QIBLA: back (rear) needle now per-design; "Change compass" button reworked
+  (compass icon, theme-aware colour, centred, shows active design).
+- HOME CAMPAIGNS: Learning Hub NEW + first (assets/img/campaign-learning.jpg),
+  Finish-Qur'an second, Videos removed.
+- QUICK ACCESS: 'Learning'->'Learning Hub'; editor add-row plus was a nested
+  Pressable with no handler (swallowed taps) -> pointerEvents=none circle.
+- TODAY'S GOAL: auto-detected only (modal read-only); 8 rotating sets picked by
+  day hash; wired markGoal into quiz/charity/hadith/names.
+- EMOJIS: added ﷺ and سُبْحَانَهُ وَتَعَالَى to post + comment pickers (adaptive font).
+- AI: system prompt now answers capability/general questions directly (no
+  "no source in library" preface) + conservative anti-hallucination (cross-check
+  specific claims vs library; say "not certain" instead of inventing).
+- PRAYER MONTH export: logo swapped logo-badge.png (old) -> logo-export.png
+  (288px PNG converted from the current logo.webp) in both SVG + canvas paths.
+
+INFRA (pass 43-44): deenapp-backup (private, full mirror + pack), deenlink-api
+(private, empty), gh-pages content/content.zip restored (fresh clones self-heal),
+HANDOFF-PROMPT.md de-tokened (reads .token). tsc gate was silently never running
+before (typescript absent from node_modules) — fixed 4 pre-existing TS2488.
+KNOWN: deenapp CANNOT go private on Free plan (Pages 422). Expo Go users may see
+stale bundles (misbaha complaint was a stale cache, not code). pages-cap-test
+empty repo needs manual deletion.
+
+# ── pass 43 — infra recovery + backup (DONE, pushed) ──
 Local only, UNPUSHED — the GitHub PAT in HANDOFF-PROMPT.md is DEAD (see below),
 so nothing in this section has reached origin yet.
 
