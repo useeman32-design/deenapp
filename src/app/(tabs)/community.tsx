@@ -4,6 +4,7 @@ import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, A
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail } from '@/components/Groups';
@@ -701,7 +702,7 @@ export default function CommunityScreen() {
                   </T>
                 </View>
               </View>
-              <View style={{ gap: 12 }}>
+              <View style={{ gap: 4 }}>
                 {visiblePosts.length === 0 ? (
                   <View
                     style={{
@@ -739,8 +740,10 @@ export default function CommunityScreen() {
                         })
                       }
                     />
-                      {/* every 5th card — suggested accounts while you scroll (pass 22) */}
+                      {/* every 5th card — suggested accounts; every 3rd — suggested
+                       * groups (pass 40), like the accounts strip */}
                       {(pi + 1) % 5 === 0 ? <SuggestStrip dash={d} /> : null}
+                      {(pi + 1) % 3 === 0 && (pi + 1) % 5 !== 0 ? <GroupsSuggestStrip dash={d} /> : null}
                     </View>
                   ))
                 )}
@@ -1187,6 +1190,63 @@ export default function CommunityScreen() {
   );
 }
 
+
+
+
+/* pass 40 — groups surfaced as suggestions in the feed */
+const GROUP_SEEDS = [
+  { id: 'g1', name: "Abuja Jumu'ah Circle", avatar: '🕌', members: 1284, cat: 'Mosque' },
+  { id: 'g2', name: 'DeenLink Student Halaqah', avatar: '📖', members: 342, cat: 'School' },
+  { id: 'g3', name: 'Sisters of Light', avatar: '🌙', members: 876, cat: 'Community' },
+  { id: 'g4', name: 'Quran Memorization 30', avatar: '🕋', members: 2210, cat: 'Quran' },
+  { id: 'g5', name: 'New Muslims Support', avatar: '🤝', members: 508, cat: 'Community' },
+];
+
+/* pass 40 — SUGGESTED GROUPS strip, interleaved like the accounts strip. */
+function GroupsSuggestStrip({ dash }: { dash: any }) {
+  const { isDark } = useTheme();
+  const router = useRouter();
+  const [joined, setJoined] = useState<string[]>([]);
+  const picks = useMemo(() => GROUP_SEEDS.slice().sort(() => Math.random() - 0.5).slice(0, 3), []);
+  return (
+    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: dash.faint }}>SUGGESTED GROUPS FOR YOU</T>
+        <Pressable onPress={() => { haptic.selection(); router.push('/tools/suggestions'); }} hitSlop={8}>
+          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
+        </Pressable>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+        {picks.map((g) => {
+          const on = joined.includes(g.id);
+          return (
+            <View key={g.id} style={{ width: 132, borderRadius: 18, backgroundColor: dash.bgSoft, borderWidth: 1, borderColor: dash.cardBorder, padding: 13, alignItems: 'center', gap: 6 }}>
+              <Pressable onPress={() => router.push({ pathname: '/tools/group', params: { id: g.id } } as never)}>
+                <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                  <T v="h3" style={{ fontSize: 20 }}>{g.avatar}</T>
+                </View>
+              </Pressable>
+              <T v="caption" numberOfLines={2} style={{ fontWeight: '800', fontSize: 10.5, color: dash.text, textAlign: 'center', minHeight: 26 }}>
+                {g.name}
+              </T>
+              <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, color: dash.faint, marginTop: -2 }}>
+                {g.members} members · {g.cat}
+              </T>
+              <Pressable
+                onPress={() => { haptic.light(); setJoined((f) => (on ? f.filter((x) => x !== g.id) : [...f, g.id])); }}
+                style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: on ? dash.cardBorder : 'transparent', backgroundColor: on ? 'transparent' : '#1F8F5C', marginTop: 2 }}
+              >
+                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: on ? dash.subtext : '#FFFFFF' }}>
+                  {on ? 'Joined' : 'Join'}
+                </T>
+              </Pressable>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
 
 /* Suggested accounts card — interleaved into the community feed (pass 22). */
 function SuggestStrip({ dash }: { dash: any }) {

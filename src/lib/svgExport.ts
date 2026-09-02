@@ -22,7 +22,8 @@ export async function svgRefToPng(ref: React.RefObject<SvgRefHandle>): Promise<s
     try {
       node.toDataURL((data: string) => {
         if (!data) reject(new Error('svg export: empty'));
-        else resolve(data);
+        /* the WEB implementation of toDataURL strips the data-url prefix */
+        else resolve(data.startsWith('data:') ? data : `data:image/png;base64,${data}`);
       });
     } catch (e) {
       reject(e as Error);
@@ -115,6 +116,51 @@ export async function saveSvgRefAsJpg(ref: React.RefObject<SvgRefHandle>, fileNa
   if (Platform.OS === 'web') return false;
   const jpg = await pngDataUrlToJpegFile(png, fileName);
   return saveToGallery(jpg);
+}
+
+/**
+ * pass 40 — WEB "save photo": rasterize the live SVG DOM node (found inside a
+ * container with a known nativeID → DOM id on react-native-web) to a 2×-scale
+ * PNG and trigger a browser download. Deterministic — no reliance on the lib's
+ * web toDataURL quirk (bare base64 + viewport maths).
+ */
+export async function svgWebDownload(
+  _ref: React.RefObject<SvgRefHandle>,
+  fileName: string,
+  containerId = 'dl-score-preview',
+  scale = 1080,
+): Promise<boolean> {
+  if (Platform.OS !== 'web') return false;
+  try {
+    const doc = document as any;
+    const host = doc.getElementById(containerId);
+    const svgEl: SVGSVGElement | null = host?.querySelector?.('svg') ?? null;
+    if (!svgEl) return false;
+    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', String(scale));
+    clone.setAttribute('height', String(scale));
+    const markup = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error('raster fail'));
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = scale; canvas.height = scale;
+    canvas.getContext('2d')?.drawImage(img, 0, 0, scale, scale);
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* last-save marker so screens can toast "saved" */

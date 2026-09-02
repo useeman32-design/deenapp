@@ -43,6 +43,16 @@ void K;
 /* pass 39 — "Donate to DeenLink" removed per user; Zakat → Sadaqah */
 const CATS: Array<{ id: Cat; icon: string; title: string; sub: string; tint: string; grad: [string, string] }> = [
   {
+    /* pass 40 — the Support DeenLink card is BACK (it never should have
+     * left; only the inner purpose selector was removed) */
+    id: 'deenlink',
+    icon: 'seedling',
+    title: 'Support DeenLink',
+    sub: 'Sadaqah jariyah — keep the app free for every Muslim',
+    tint: '#4AE38F',
+    grad: ['#0E3B26', '#06140D'],
+  },
+  {
     id: 'zakat',
     icon: 'balance-scale',
     title: 'Zakat',
@@ -100,8 +110,16 @@ function ReceiptCard({ rcpt, d, isDark, fmtDate }: { rcpt: Dono; d: { text: stri
   const delivered = rcpt.amount - (rcpt.amount * rcpt.feePct) / 100;
   return (
     <View style={{ width: '100%', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: d.card }}>
-      {/* gold brand band + logo */}
-      <View style={{ alignItems: 'center', paddingVertical: 18, backgroundColor: isDark ? '#0B1F14' : '#0E7A46' }}>
+      {/* pass 40 — dark-green gradient band + subtle 8-point star texture behind the logo */}
+      <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+        <LinearGradient colors={['#14532D', '#0B1F14', '#06140D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.10, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+          {[0, 1].map((r) =>
+            [0, 1, 2, 3, 4, 5].map((c) => (
+              <View key={`${r}-${c}`} style={{ position: 'absolute', left: 14 + c * 62, top: 8 + r * 44, width: 26, height: 26, borderWidth: 1.4, borderColor: '#E8C96A', transform: [{ rotate: '45deg' }] }} />
+            )),
+          )}
+        </View>
         <ExpoImage source={require('../../../assets/img/logo-360.webp')} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
         <T v="h3" style={{ marginTop: 8, fontSize: 15, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 }}>DEENLINK</T>
         <T v="caption" style={{ fontSize: 9, letterSpacing: 1.4, color: '#E8C96A', marginTop: 2 }}>DONATION RECEIPT</T>
@@ -501,7 +519,10 @@ export default function Donations() {
               <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 40 }}>No payments yet — your receipts will appear here.</T>
             ) : (
               history.map((h) => {
-                const c2 = CATS.find((x) => x.id === h.cat)!;
+                /* pass 40 — guard: old donations may have a category that is
+                 * no longer listed; undefined here crashed the history screen
+                 * (the "white screen"). */
+                const c2 = CATS.find((x) => x.id === h.cat) ?? { icon: 'hand-holding-heart', title: 'Donation', tint: '#E8C96A' };
                 return (
                   <Pressable
                     key={h.id}

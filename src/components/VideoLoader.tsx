@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { CrescentLoader } from '@/components/CrescentLoader';
 import { netBus } from '@/lib/net';
 
 /**
  * pass 28 — buffering overlay for expo-video players (web).
- * Polls player.status: shows a spinner (+ "Loading video…") while the media
+ * Polls player.status: shows the crescent+star loader ("Loading video…") while the media
  * buffers and reports the global slow-network pill. Renders null when idle.
  */
 export function VideoLoader({ player, label = 'Loading video…' }: { player: any; label?: string }) {
@@ -31,10 +32,11 @@ export function VideoLoader({ player, label = 'Loading video…' }: { player: an
   }, [player]);
 
   if (!loading || !player) return null;
+  /* pass 40 — animated crescent + star replaces the plain spinner */
   return (
     <View pointerEvents="none" style={S.wrap}>
       <View style={S.pill}>
-        <ActivityIndicator size="small" color="#E8C96A" />
+        <CrescentLoader size={26} color="#E8C96A" />
         <Text style={S.txt}>{label}</Text>
       </View>
     </View>

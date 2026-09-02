@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { BackButton } from '@/components/BackButton';
 import type { ComponentType } from 'react';
 import type { IconProps } from '@/components/Icons';
 
@@ -48,17 +49,7 @@ export function PageHero({
 
       {/* top bar: back + page title */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: Math.max(insets.top, 12) + 6, paddingHorizontal: 14 }}>
-        {back ? (
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
-          >
-            <T v="h2" style={{ color: '#FFFFFF', fontSize: 17, lineHeight: 22 }}>
-              ‹
-            </T>
-          </Pressable>
-        ) : null}
+        {back ? <View style={{ marginRight: 10 }}><BackButton onDark /></View> : null}
         {Icon ? <Icon size={19} color="#E8C96A" /> : null}
         <T v="caption" style={{ marginLeft: Icon ? 8 : 0, color: 'rgba(255,255,255,0.75)', fontWeight: '800', fontSize: 11, letterSpacing: 1 }}>
           {title.toUpperCase()}

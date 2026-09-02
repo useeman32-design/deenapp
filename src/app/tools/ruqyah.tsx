@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -7,7 +7,8 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahEntry } from '@/lib/islamicApi';
-import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, stopRuqyahAudio } from '@/lib/ruqyahAudio';
+import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, ruqyahPosition, seekRuqyahFrac, stopRuqyahAudio } from '@/lib/ruqyahAudio';
+import { ShareWithFriends } from '@/components/ShareWithFriends';
 
 /**
  * pass 35 — Ruqyah Shariah (islamicapi.com):
@@ -34,7 +35,18 @@ export default function Ruqyah() {
   const [topicArts, setTopicArts] = useState<RuqyahEntry[] | null>(null);
   /* pass 39 — ruqyah AUDIO (static MP3s from the API docs) */
   const [playing, setPlaying] = useState<string | null>(null);
+  /* pass 40 — full-program player progress + our send-to-users share */
+  const [prog, setProg] = useState<{ pos: number; dur: number } | null>(null);
+  const [friendsShare, setFriendsShare] = useState<{ title: string; preview?: string } | null>(null);
+  const trackRef = useRef<View>(null);
   useEffect(() => onRuqyahAudio((k) => setPlaying(k)), []);
+  /* poll position while the full program plays */
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setProg(playing?.startsWith('full:') ? ruqyahPosition() : null);
+    }, 400);
+    return () => clearInterval(iv);
+  }, [playing]);
 
   useEffect(() => {
     setEntries(null); setErr(false);
@@ -129,24 +141,66 @@ export default function Ruqyah() {
               })}
             </View>
 
-            {/* pass 39 — listen to the COMPLETE program while you recite */}
+            {/* pass 40 — OUR player card for the COMPLETE program: play/pause,
+             * progress bar with seek, time labels, and a send-to-friends share */}
             {(() => {
               const full = audioForProgram(program);
               const key = `full:${program}`;
               const isOn = playing === key;
+              const fmtT = (sec: number) => {
+                if (!Number.isFinite(sec) || sec < 0) sec = 0;
+                const m = Math.floor(sec / 60);
+                const ss = Math.floor(sec % 60);
+                return `${m}:${String(ss).padStart(2, '0')}`;
+              };
               return full ? (
-                <Pressable
-                  accessibilityLabel="play full ruqyah program"
-                  onPress={() => { haptic.medium(); if (isOn) stopRuqyahAudio(); else playRuqyahAudio(key, full.url); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isOn ? 'rgba(74,227,143,0.5)' : 'rgba(212,175,55,0.45)', backgroundColor: isOn ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)') : isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 11, marginHorizontal: 16, marginBottom: 12 }}
-                >
-                  <FontAwesome5 name={isOn ? 'pause' : 'headphones'} size={13} color={isOn ? (isDark ? '#4AE38F' : '#1D6F42') : '#E8C96A'} />
-                  <View style={{ flex: 1 }}>
-                    <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{isOn ? 'Playing full program…' : 'Listen — full program audio'}</T>
-                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{full.label} · downloaded as you listen</T>
+                <View style={{ borderRadius: 16, borderWidth: 1, borderColor: isOn ? 'rgba(74,227,143,0.5)' : 'rgba(212,175,55,0.45)', backgroundColor: isOn ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)') : isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 11, marginHorizontal: 16, marginBottom: 12, gap: 9 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Pressable
+                      accessibilityLabel="play full ruqyah program"
+                      onPress={() => { haptic.medium(); if (isOn) stopRuqyahAudio(); else playRuqyahAudio(key, full.url); }}
+                      style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isOn ? (isDark ? '#1F8F5C' : '#1D6F42') : 'rgba(212,175,55,0.2)', borderWidth: 1, borderColor: isOn ? 'transparent' : 'rgba(212,175,55,0.55)', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <FontAwesome5 name={isOn ? 'pause' : 'play'} size={13} color={isOn ? '#FFFFFF' : '#E8C96A'} />
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{isOn ? 'Playing full program' : 'Listen — full program audio'}</T>
+                      <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{full.label} · downloaded as you listen</T>
+                    </View>
+                    <Pressable
+                      accessibilityLabel="share program with friends"
+                      onPress={() => { haptic.light(); setFriendsShare({ title: `Ruqyah Shariah — ${full.label}`, preview: 'Listen along in DeenLink · tools/ruqyah' }); }}
+                      style={{ width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <FontAwesome5 name="paper-plane" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                    </Pressable>
                   </View>
-                  {isOn ? <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} /> : <FontAwesome5 name="chevron-right" size={10} color={d.faint} />}
-                </Pressable>
+                  {isOn ? (
+                    <View>
+                      {/* seek track */}
+                      <Pressable
+                        accessibilityLabel="seek program audio"
+                        onPress={(e) => {
+                          const { locationX } = e.nativeEvent as unknown as { locationX?: number };
+                          const w = 300; /* approximate track; clamp handles the rest */
+                          const node = trackRef.current as unknown as { measure?: (cb: (x: number, y: number, w: number) => void) => void } | null;
+                          const use = (frac: number) => seekRuqyahFrac(Math.max(0, Math.min(1, frac)));
+                          if (locationX != null && node?.measure) node.measure((_x, _y, width) => use(locationX / width));
+                          else if (locationX != null) use(locationX / w);
+                        }}
+                        style={{ paddingVertical: 6 }}
+                      >
+                        <View ref={trackRef as never} style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.12)', overflow: 'hidden' }} pointerEvents="none">
+                          <View style={{ width: `${Math.min(100, prog && prog.dur > 0 ? (prog.pos / prog.dur) * 100 : 0)}%`, height: 6, borderRadius: 3, backgroundColor: isDark ? '#4AE38F' : '#1D6F42' }} />
+                        </View>
+                      </Pressable>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{fmtT(prog?.pos ?? 0)}</T>
+                        <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{prog && prog.dur > 0 ? fmtT(prog.dur) : 'live'}</T>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
               ) : null;
             })()}
 
@@ -264,7 +318,7 @@ export default function Ruqyah() {
               })()}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable
-                  onPress={() => { if (!open) return; haptic.success(); setReadSet((s) => new Set(s).add(`${program}:${source}:${open.id}`)); Share.share({ message: `${open.title}\n\n${open.arabic}\n\n${open.translation ?? ''}\n\n— ${open.reference ?? 'Ruqyah Shariah'} · DeenLink` }).catch(() => {}); }}
+                  onPress={() => { if (!open) return; haptic.success(); setReadSet((s) => new Set(s).add(`${program}:${source}:${open.id}`)); setFriendsShare({ title: `${open.title} — Ruqyah Shariah`, preview: `${(open.translation ?? '').slice(0, 80)} · DeenLink` }); }}
                   style={{ flex: 1, borderRadius: 13, backgroundColor: '#1F8F5C', alignItems: 'center', paddingVertical: 12 }}
                 >
                   <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Read & share</T>
@@ -277,6 +331,7 @@ export default function Ruqyah() {
           </View>
         </View>
       </Modal>
+      <ShareWithFriends visible={!!friendsShare} onClose={() => setFriendsShare(null)} title={friendsShare?.title ?? ''} preview={friendsShare?.preview} />
     </View>
   );
 }

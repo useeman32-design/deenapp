@@ -23,6 +23,7 @@ import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
 import { ADHAN_VOICES, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { CrescentLoader } from '@/components/CrescentLoader';
 import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
 import { useRouter } from 'expo-router';
 import { stopBubble } from '@/lib/press';
@@ -58,6 +59,7 @@ export default function PrayerTimes() {
   /* pass 38 — "new location detected" prompt candidate */
   const [moved, setMoved] = useState<Loc | null>(null);
   const playedRef = useRef<string | null>(null);
+  const scroller = useRef<ScrollView>(null);
   useEffect(() => {
     /* computed here (not from render scope) so hook order is stable even
      * before the location resolves */
@@ -174,7 +176,7 @@ export default function PrayerTimes() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scroller} contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18 }}>
           <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
@@ -366,21 +368,50 @@ export default function PrayerTimes() {
           })}
         </View>
 
-        {/* adhan banner */}
-        {adhanFor ? (
-          <View style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.08)', padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(212,175,55,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="volume-up" size={13} color="#E8C96A" />
+        {/* pass 40 — ADHAN MODAL (was an inline banner). Plays the adhan and
+         * offers Go to Prayer / Cancel. praying.png is a generated illustration. */}
+        <Modal visible={!!adhanFor} transparent animationType="fade" onRequestClose={() => { stopAdhan(); setAdhanFor(null); }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(4,10,7,0.82)', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+            <View style={{ width: '100%', maxWidth: 340, borderRadius: 24, overflow: 'hidden', backgroundColor: '#0B1811', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)' }}>
+              {/* illustration with gradient wash */}
+              <View style={{ height: 148, justifyContent: 'flex-end' }}>
+                <Image source={require('../../../assets/img/praying.png')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }} resizeMode="cover" />
+                <LinearGradient colors={['rgba(11,24,17,0.15)', 'rgba(11,24,17,0.92)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+              </View>
+              <View style={{ paddingHorizontal: 22, paddingBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <CrescentLoader size={34} color="#E8C96A" />
+                  <View style={{ flex: 1 }}>
+                    <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.6, color: '#E8C96A' }}>THE ADHAN IS BEING CALLED</T>
+                    <T v="h2" style={{ fontSize: 19, fontWeight: '800', color: '#F5F8F5', marginTop: 2 }}>
+                      {adhanFor ? `It’s time for ${adhanFor.split('·')[0]}` : ''}
+                    </T>
+                    <T v="arabic" style={{ fontSize: 15, color: 'rgba(245,248,245,0.75)', marginTop: 1 }}>{adhanFor ? AR_NAMES[adhanFor.split('·')[0]] : ''}</T>
+                  </View>
+                </View>
+                <T v="caption" style={{ fontSize: 10.5, color: 'rgba(245,248,245,0.6)', lineHeight: 16, marginBottom: 16 }}>
+                  حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ — Come to prayer, come to success. Reciter: {ADHAN_VOICES.find((v) => v.id === settings.adhanVoice)?.label}
+                </T>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    accessibilityLabel="go to prayer"
+                    onPress={() => { haptic.medium(); stopAdhan(); setAdhanFor(null); scroller.current?.scrollTo({ y: 0, animated: true }); }}
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 13, backgroundColor: '#1F8F5C' }}
+                  >
+                    <T v="button" style={{ fontSize: 12 }}>Go to Prayer</T>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="cancel adhan"
+                    onPress={() => { haptic.light(); stopAdhan(); setAdhanFor(null); }}
+                    style={{ alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' }}
+                  >
+                    <T v="button" style={{ fontSize: 12, color: 'rgba(245,248,245,0.8)' }}>Cancel</T>
+                  </Pressable>
+                </View>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>It{'\u2019'}s time for {adhanFor.split('·')[0]}</T>
-              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Adhan playing — {ADHAN_VOICES.find((v) => v.id === settings.adhanVoice)?.label}</T>
-            </View>
-            <Pressable accessibilityLabel="stop adhan" onPress={() => { haptic.selection(); stopAdhan(); setAdhanFor(null); }} style={{ borderRadius: 999, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingHorizontal: 12, paddingVertical: 7 }}>
-              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Stop</T>
-            </Pressable>
           </View>
-        ) : null}
+        </Modal>
 
         <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 12, marginHorizontal: 30, lineHeight: 15 }}>
           Times are calculated for your exact location with the {METHODS.find((m) => m.id === settings.method)?.label} method. Adjust minutes or change the method in settings — always confirm with your local mosque.

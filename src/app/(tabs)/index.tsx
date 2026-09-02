@@ -285,12 +285,6 @@ export default function Home() {
             <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
               May Allah bless your day
             </T>
-            <T v="caption" style={{ color: d.text, fontSize: 11.5, fontWeight: '700', marginTop: 3 }}>
-              {formatHijri(new Date())}
-            </T>
-            <T v="caption" style={{ color: d.faint, fontSize: 10, marginTop: 0 }}>
-              {formatGregorian(new Date())}
-            </T>
           </View>
           <Pressable
             onPress={() => router.push('/tools/notifications')}
@@ -339,6 +333,26 @@ export default function Home() {
           >
             <FontAwesome5 name="search" size={15} color={d.text} />
           </Pressable>
+        </View>
+
+        {/* pass 40 — hijri + gregorian dates in ONE pill, top-right above the hero */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, marginBottom: 8 }} pointerEvents="none">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.07)', paddingHorizontal: 11, paddingVertical: 5 }}>
+            <FontAwesome5 name="moon" size={9} color="#E8C96A" />
+            <T v="caption" numberOfLines={1} style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#E8C96A' : '#8C6D1F' }}>
+              {formatHijri(new Date())}
+            </T>
+            <View style={{ width: 1, height: 10, backgroundColor: 'rgba(212,175,55,0.4)' }} />
+            <T v="caption" numberOfLines={1} style={{ fontSize: 10, fontWeight: '600', color: d.subtext }}>
+              {(() => {
+                /* compact form so the pill fits narrow screens too */
+                const d2 = new Date();
+                const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const W = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return `${W[d2.getDay()]}, ${M[d2.getMonth()]} ${d2.getDate()}, ${d2.getFullYear()}`;
+              })()}
+            </T>
+          </View>
         </View>
 
         {/* 2 ─ Prayer times hero card */}

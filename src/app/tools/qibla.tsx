@@ -180,8 +180,10 @@ export default function Qibla() {
                     key={ds.id}
                     accessibilityLabel={`compass design ${ds.label}`}
                     onPress={() => { pickDesign(ds.id); setDesignPicker(false); }}
-                    style={{ width: '31%', aspectRatio: 1, borderRadius: 16, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.border, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.05)') : theme.background, alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    style={{ width: '31%', aspectRatio: 1, borderRadius: 16, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.border, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.05)') : theme.background, alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden' }}
                   >
+                    {/* pass 40 — selected chip: faint compass mark behind the label */}
+                    {on ? <FontAwesome5 name="compass" size={76} color={isDark ? '#4AE38F' : '#1D6F42'} style={{ position: 'absolute', opacity: 0.14 }} /> : null}
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: ds.dot[0], borderWidth: 2.5, borderColor: ds.dot[1], alignItems: 'center', justifyContent: 'center' }}>
                       {on ? <FontAwesome5 name="check" size={13} color="#FFFFFF" /> : null}
                     </View>

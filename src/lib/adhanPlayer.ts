@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { claimExclusiveAudio, registerAudioStop } from '@/lib/audioBus';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { publicBase } from '@/lib/gzio';
 
@@ -19,7 +20,11 @@ export const ADHAN_VOICES: Array<{ id: 'v1' | 'v2' | 'v3'; label: string; file: 
 let el: HTMLAudioElement | null = null;
 let nativePlayer: VideoPlayer | null = null;
 
+/* pass 40 — global exclusivity across all audio players */
+registerAudioStop('adhan', () => stopAdhan());
+
 export function playAdhan(voice: 'v1' | 'v2' | 'v3' = 'v1'): boolean {
+  claimExclusiveAudio('adhan');
   stopAdhan();
   const v = ADHAN_VOICES.find((x) => x.id === voice) ?? ADHAN_VOICES[0];
   try {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { probeAdvancing } from '@/lib/mediaProbe';
+import { claimExclusiveAudio, registerAudioStop } from '@/lib/audioBus';
 
 /* expo-video web play() can silently abort after replace() — make sure the
  * actual <video> element carrying this src plays (DOM-level fallback). */
@@ -27,6 +28,7 @@ function domEnsurePlay(uri: string | null, tries = 0, wanted: () => boolean = ()
  * Render <GlassPlayerBar> (it mounts the hidden VideoView the web engine needs).
  */
 export function useAudio() {
+  /* pass 40 — this instance can be stopped by any other player starting */
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,6 +36,19 @@ export function useAudio() {
   const [duration, setDuration] = useState(0);
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
+  });
+
+  /* pass 40 — global exclusivity: any other player starting pauses this one */
+  const instanceId = useRef(`au${Math.random().toString(36).slice(2, 8)}`).current;
+  const stopRef = useRef<() => void>(() => {});
+  useEffect(() => registerAudioStop(instanceId, () => stopRef.current()), []);
+
+  useEffect(() => {
+    stopRef.current = () => {
+      wantPlay.current = false;
+      try { player.pause(); } catch {}
+      setPlaying(false);
+    };
   });
 
   /* honest loading/playing from the real media element (web) */
@@ -154,9 +169,11 @@ export function useAudio() {
     },
     toggle: (u: string) => {
       if (u !== url) {
+        claimExclusiveAudio(`content:${u.slice(-40)}`);
         setUrl(u);
         return;
       }
+      if (!playing) claimExclusiveAudio(`content:${url.slice(-40)}`);
       if (playing) {
         wantPlay.current = false;
         player.pause();

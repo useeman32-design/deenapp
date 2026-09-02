@@ -17,7 +17,21 @@ export async function resolveLocation(): Promise<Loc> {
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Loc;
-      if (parsed.latitude && parsed.longitude) return parsed;
+      if (parsed.latitude && parsed.longitude) {
+        /* pass 40 — caches saved before real geocoding (or from a failed
+         * lookup) carry a placeholder name; re-resolve it once, in place.
+         * This is why a NORMAL browser said "Your location" while an
+         * incognito window (empty cache) showed the real place name. */
+        if (!parsed.name || /^(your location|current location|unknown)$/i.test(parsed.name.trim()) || /^-?\d/.test(parsed.name.trim())) {
+          const fresh = await cityName(parsed.latitude, parsed.longitude);
+          if (fresh && fresh !== parsed.name) {
+            const updated = { ...parsed, name: fresh };
+            await storage.setItem(KEY, JSON.stringify(updated));
+            return updated;
+          }
+        }
+        return parsed;
+      }
     } catch {
       // ignore corrupt storage
     }

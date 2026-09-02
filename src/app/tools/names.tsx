@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { loadNames99 } from '@/lib/content';
 import { NAMES_99 as FALLBACK_NAMES } from '@/data/names99';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
 import { VideoView } from 'expo-video';
-import { ContentShareSheet } from '@/components/ContentShareSheet';
+import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
+import * as Speech from 'expo-speech';
 import { useAudio } from '@/lib/useAudio';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -31,7 +32,11 @@ export default function Names() {
   const [pack, setPack] = useState<NameEntry[] | null>(null);
   const [openNo, setOpenNo] = useState<number | null>(null);
   const [lang, setLang] = useState<'en' | 'ar'>('en');
+  /* pass 40 — proper language dropdown + square share card */
+  const [langOpen, setLangOpen] = useState(false);
+  const [ttsNo, setTtsNo] = useState<number | null>(null);
   const [shareName, setShareName] = useState<NameEntry | null>(null);
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
   const audio = useAudio();
 
   useEffect(() => {
@@ -72,13 +77,13 @@ export default function Names() {
       <TopBar showBack title="99 Names of Allah" subtitle={pack ? `${list.length} of ${pack.length} names · audio` : `${list.length} names · offline list`} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
         <Pressable
-          onPress={() => { haptic.selection(); setLang((l) => (l === 'en' ? 'ar' : 'en')); }}
+          onPress={() => { haptic.selection(); setLangOpen(true); }}
+          accessibilityLabel="choose language"
           style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card }}
         >
           <FontAwesome5 name="language" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
-          <T v="caption" style={{ color: lang === 'en' ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext, fontWeight: '800', fontSize: 10.5 }}>EN</T>
-          <T v="caption" style={{ color: theme.subtext, fontWeight: '800', fontSize: 10.5 }}>|</T>
-          <T v="caption" style={{ color: lang === 'ar' ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext, fontWeight: '800', fontSize: 10.5 }}>AR</T>
+          <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, color: theme.text }}>{lang === 'en' ? 'English' : 'العربية'}</T>
+          <FontAwesome5 name="chevron-down" size={8} color={theme.subtext} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <TextInput
@@ -129,25 +134,45 @@ export default function Names() {
                     </>
                   )}
                 </Pressable>
-                <Pressable onPress={() => { haptic.selection(); setShareName(n); }} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 11, marginLeft: 6, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}>
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    setScoreCard({ kind: 'name', metric: n.arabic, title: n.transliteration, subtitle: `${n.translation} · Name ${n.number} of 99`, link: 'https://deenlink.org/tools/names' });
+                  }}
+                  hitSlop={8}
+                  style={{ width: 32, height: 32, borderRadius: 11, marginLeft: 6, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}
+                >
                   <FontAwesome5 name="share-alt" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
                 </Pressable>
-                {n.audio ? (
-                  <Pressable
-                    onPress={() => {
-                      haptic.light();
+                {/* pass 40 — the play button is ALWAYS shown; entries without
+                 * an audio file are spoken with the device TTS (arabic). */}
+                <Pressable
+                  onPress={() => {
+                    haptic.light();
+                    if (n.audio) {
+                      if (ttsNo != null) { Speech.stop(); setTtsNo(null); }
                       audio.toggle(audioUrl(n.audio));
-                    }}
-                    hitSlop={8}
-                    style={{ width: 36, height: 36, borderRadius: 18, marginLeft: 8, backgroundColor: isPlaying ? 'rgba(46,204,113,0.22)' : isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)', borderWidth: 1, borderColor: isPlaying ? 'rgba(74,227,143,0.6)' : d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
-                    ) : (
-                      <FontAwesome5 name={isPlaying ? 'pause' : 'volume-up'} size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                    )}
-                  </Pressable>
-                ) : null}
+                    } else if (ttsNo === n.number) {
+                      Speech.stop();
+                      setTtsNo(null);
+                    } else {
+                      if (audio.url) audio.toggle(audio.url);
+                      Speech.stop();
+                      setTtsNo(n.number);
+                      Speech.speak(n.arabic, { language: 'ar', rate: 0.85, onDone: () => setTtsNo(null), onError: () => {
+                        Speech.speak(n.transliteration, { rate: 0.85, onDone: () => setTtsNo(null) });
+                      } });
+                    }
+                  }}
+                  hitSlop={8}
+                  style={{ width: 36, height: 36, borderRadius: 18, marginLeft: 8, backgroundColor: isPlaying || ttsNo === n.number ? 'rgba(46,204,113,0.22)' : isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)', borderWidth: 1, borderColor: isPlaying || ttsNo === n.number ? 'rgba(74,227,143,0.6)' : d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  ) : (
+                    <FontAwesome5 name={isPlaying || ttsNo === n.number ? 'pause' : 'volume-up'} size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  )}
+                </Pressable>
                 <Pressable onPress={() => { haptic.selection(); setOpenNo(isOpen ? null : n.number); }} hitSlop={8} style={{ padding: 6 }}>
                   <Text style={{ fontFamily: 'Amiri', color: theme.primary, fontSize: 24, marginLeft: 6 }}>{n.arabic}</Text>
                 </Pressable>
@@ -172,12 +197,40 @@ export default function Names() {
       <View style={{ position: 'absolute', width: 2, height: 2, opacity: 0.01 }} pointerEvents="none">
         <VideoView player={audio.player} style={{ width: 2, height: 2 }} contentFit="contain" nativeControls={false} />
       </View>
-      <ContentShareSheet
-        visible={shareName != null}
-        onClose={() => setShareName(null)}
-        card={shareName ? { kind: 'post', arabic: shareName.arabic, meaning: `${shareName.transliteration} — ${shareName.translation}. ${shareName.meaning}`.slice(0, 400), ref: `99 Names of Allah · No. ${shareName.number}` } : null}
-        link="https://deenlink.org/tools/names"
+      <ScoreShareSheet
+        visible={scoreCard != null}
+        onClose={() => setScoreCard(null)}
+        card={scoreCard}
+        friends={scoreCard ? { title: `99 Names of Allah — ${scoreCard.title} (${scoreCard.subtitle})`, preview: 'deenlink.org/tools/names' } : undefined}
       />
+
+      {/* language dropdown — a proper list */}
+      <Modal visible={langOpen} transparent animationType="fade" onRequestClose={() => setLangOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,10,7,0.55)', alignItems: 'center', justifyContent: 'center', padding: 40 }} onPress={() => setLangOpen(false)}>
+          <Pressable onPress={(e) => { e.stopPropagation(); }} style={{ width: '100%', maxWidth: 280, borderRadius: 18, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, padding: 8 }}>
+            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 1, color: theme.subtext, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 6 }}>DISPLAY LANGUAGE</T>
+            {([
+              { id: 'en' as const, label: 'English', sub: 'Transliteration first' },
+              { id: 'ar' as const, label: 'العربية', sub: 'Arabic script first' },
+            ]).map((o) => {
+              const on = lang === o.id;
+              return (
+                <Pressable
+                  key={o.id}
+                  onPress={() => { haptic.selection(); setLang(o.id); setLangOpen(false); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <T v="bodyS" style={{ fontSize: 13, fontWeight: '700', color: theme.text }}>{o.label}</T>
+                    <T v="caption" style={{ fontSize: 9.5, color: theme.subtext, marginTop: 1 }}>{o.sub}</T>
+                  </View>
+                  {on ? <FontAwesome5 name="check-circle" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

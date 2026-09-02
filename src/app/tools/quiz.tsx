@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Easing, Pressable, ScrollView, Share, View } from 'react-native';
+import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
+import { ShareWithFriends } from '@/components/ShareWithFriends';
+import { CrescentLoader } from '@/components/CrescentLoader';
+import { BackButton } from '@/components/BackButton';
 import { addUserPost } from '@/lib/userPosts';
 import { recordQuiz, listQuizzes, agoOf, type QuizAttempt } from '@/lib/quizHistory';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -30,6 +34,7 @@ const correctOf = (q: QuizQ, picked: number | null, multi: number[] | undefined)
  */
 export default function Quiz() {
   const { theme, isDark } = useTheme();
+  const router = useRouter();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<Phase>('setup');
@@ -42,6 +47,7 @@ export default function Quiz() {
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [count, setCount] = useState<number>(10);
   const [deck, setDeck] = useState<QuizQ[]>([]);
   const [i, setI] = useState(0);
@@ -124,6 +130,7 @@ export default function Quiz() {
       <View style={{ flex: 1, backgroundColor: d.bg }}>
         <View style={{ paddingTop: insets.top + 18, paddingHorizontal: 20, paddingBottom: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <BackButton />
             <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: isDark ? 'rgba(212,175,55,0.14)' : 'rgba(212,175,55,0.1)', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.5)', alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5 name="brain" size={18} color="#E8C96A" />
             </View>
@@ -315,7 +322,10 @@ export default function Quiz() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 20, padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <View style={{ paddingTop: insets.top + 10, paddingLeft: 14, flexDirection: 'row' }}>
+        <BackButton />
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* trophy — always shown on results; confetti when ALL correct */}
         <Confetti fire={allCorrect} />
         <View style={{ alignItems: 'center', marginBottom: 22 }}>
@@ -373,18 +383,19 @@ export default function Quiz() {
         <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>SHARE YOUR SCORE</T>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 22 }}>
           {[
-            { icon: 'edit', label: 'As post', tint: '#4AE38F', act: async () => { await addUserPost(`I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me? 🏆`, 'quiz'); setShareToast('Posted to your feed ✓'); } },
-            { icon: 'paper-plane', label: 'To friends', tint: '#5BC8F5', act: async () => { setShareBusy(true); Share.share({ message: `I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me?` }).catch(() => {}).finally(() => setShareBusy(false)); } },
-            { icon: 'palette', label: 'Share art', tint: '#E8C96A', act: async () => { setScoreCard({ kind: 'quiz', metric: `${pct}%`, title: 'Islamic Quiz', subtitle: `${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, link: 'https://deenlink.org/tools/quiz' }); } },
+            { icon: 'edit', label: 'As post', tint: '#4AE38F', act: async () => { setShareBusy(true); await addUserPost(`I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me? 🏆`, 'quiz'); await new Promise((r) => setTimeout(r, 650)); setShareBusy(false); setShareToast('Posted to your feed ✓'); } },
+            { icon: 'paper-plane', label: 'To friends', tint: '#5BC8F5', act: async () => { setFriendsOpen(true); } },
+            { icon: 'image', label: 'Save photo', tint: '#E8C96A', act: async () => { setScoreCard({ kind: 'quiz', metric: `${pct}%`, title: 'Islamic Quiz', subtitle: `${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, link: 'https://deenlink.org/tools/quiz' }); } },
           ].map((b) => (
             <Pressable key={b.label} onPress={() => { haptic.light(); b.act(); }} style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: `${b.tint}55`, backgroundColor: `${b.tint}14`, opacity: pressed ? 0.8 : 1 })}>
-              {shareBusy ? <ActivityIndicator size="small" color={b.tint} /> : <FontAwesome5 name={b.icon as never} size={13} color={b.tint} />}
+              {shareBusy ? <CrescentLoader size={22} /> : <FontAwesome5 name={b.icon as never} size={13} color={b.tint} />}
               <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: b.tint }}>{b.label}</T>
             </Pressable>
           ))}
         </View>
         {shareToast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', marginBottom: 16, textAlign: 'center' }}>{shareToast}</T> : null}
         <ScoreShareSheet visible={!!scoreCard} onClose={() => setScoreCard(null)} card={scoreCard} />
+        <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} onSent={() => setShareToast('Sent to your friends ✓')} title={`Islamic Quiz — I scored ${pct}% (${score}/${answers.length})${cat !== 'All' ? ` · ${cat}` : ''}`} preview="Can you beat me? · deenlink.org/tools/quiz" />
 
         {/* review */}
         <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>REVIEW ANSWERS</T>

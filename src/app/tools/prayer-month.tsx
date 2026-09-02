@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import Svg, { Circle, Defs, G, Line, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import { create as createQR } from 'qrcode';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { PageHero } from '@/components/PageHero';
+import { CrescentLoader } from '@/components/CrescentLoader';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 import { resolveLocation, type Loc } from '@/lib/location';
@@ -190,8 +192,8 @@ export default function PrayerMonth() {
 
         <View style={{ paddingHorizontal: 16, paddingTop: 14, flexDirection: 'row', gap: 9 }}>
           <Pressable accessibilityLabel="share month table" onPress={doShare} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, height: 46, backgroundColor: '#1F8F5C' }}>
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="share-alt" size={13} color="#fff" />}
-            <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Share as image (A4)</T>
+            {exporting ? <CrescentLoader size={22} /> : <FontAwesome5 name="share-alt" size={13} color="#fff" />}
+            <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Share as image</T>
           </Pressable>
           <Pressable accessibilityLabel="save month table" onPress={doSave} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, height: 46, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
             <FontAwesome5 name="download" size={13} color="#E8C96A" />
@@ -199,12 +201,16 @@ export default function PrayerMonth() {
           </Pressable>
         </View>
 
+        {/* pass 40 — balanced, swipable table: fixed column widths so every
+         * column gets the room it needs; swipe sideways on narrow phones. */}
         <View style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, overflow: 'hidden' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ minWidth: 660 }}>
           {/* header row */}
-          <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#0E241A' : '#0E7A46', paddingVertical: 10 }}>
+          <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#0E241A' : '#0E7A46', paddingVertical: 11, borderStartWidth: 0 }}>
             {COLS.map((c, i) => (
-              <View key={c} style={{ flex: i < 2 ? 1.3 : 1, alignItems: 'center' }}>
-                <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: i === 0 ? '#E8C96A' : '#FFFFFF', letterSpacing: 0.4 }}>{c.toUpperCase()}</T>
+              <View key={c} style={{ width: i === 0 ? 96 : i === 1 ? 104 : 76.6, alignItems: 'center' }}>
+                <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: i === 0 ? '#E8C96A' : '#FFFFFF', letterSpacing: 0.4 }}>{c.toUpperCase()}</T>
               </View>
             ))}
           </View>
@@ -226,23 +232,26 @@ export default function PrayerMonth() {
             const dt = new Date(`${dy.date}T12:00:00`);
             const isToday = dy.date === todayIso;
             return (
-              <View key={dy.date} style={{ flexDirection: 'row', paddingVertical: 8, backgroundColor: isToday ? (isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.08)') : 'transparent', borderBottomWidth: 1, borderBottomColor: d.cardBorder }}>
-                <View style={{ flex: 1.3, alignItems: 'center', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
-                  <T v="bodyS" style={{ fontSize: 11, fontWeight: isToday ? '900' : '700', color: isToday ? '#D4AF37' : d.text }}>
+              <View key={dy.date} style={{ flexDirection: 'row', paddingVertical: 9, backgroundColor: isToday ? (isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.08)') : 'transparent', borderBottomWidth: 1, borderBottomColor: d.cardBorder }}>
+                <View style={{ width: 96, alignItems: 'center', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+                  <T v="bodyS" style={{ fontSize: 12, fontWeight: isToday ? '900' : '700', color: isToday ? '#D4AF37' : d.text }}>
                     {shortDate(dy.date)}
                   </T>
                 </View>
-                <View style={{ flex: 1.3, alignItems: 'center' }}>
-                  <T v="caption" style={{ fontSize: 9.5, color: d.subtext }}>{dy.hijri ?? '—'}</T>
+                <View style={{ width: 104, alignItems: 'center' }}>
+                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext }}>{dy.hijri ?? '—'}</T>
                 </View>
                 {dy.t.map((t, i) => (
-                  <View key={i} style={{ flex: 1, alignItems: 'center' }}>
-                    <T v="caption" style={{ fontSize: 10, fontWeight: i === 1 ? '400' : '600', color: i === 1 ? d.faint : d.text }}>{t}</T>
+                  <View key={i} style={{ width: 76.6, alignItems: 'center' }}>
+                    <T v="caption" style={{ fontSize: 11, fontWeight: i === 1 ? '400' : '600', color: i === 1 ? d.faint : d.text }}>{t}</T>
                   </View>
                 ))}
               </View>
             );
           })}
+          </View>
+          </ScrollView>
+          <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', paddingVertical: 6 }}>Swipe sideways to see all columns</T>
         </View>
       </ScrollView>
 
@@ -264,7 +273,22 @@ export default function PrayerMonth() {
   );
 }
 
-/* ── the A4 export sheet (1240×1754) — logo, watermark, table ── */
+
+/* pass 40 — QR cells for the export (deep link to the app) */
+const APP_LINK = 'https://deenlink.org';
+function qrCells(url: string): Array<{ x: number; y: number; s: number }> {
+  try {
+    const qr = createQR(url, { margin: 0 });
+    const m = qr.modules as unknown as { size: number; data: Uint8Array };
+    const cells: Array<{ x: number; y: number; s: number }> = [];
+    for (let y = 0; y < m.size; y++) for (let x = 0; x < m.size; x++) if (m.data[y * m.size + x]) cells.push({ x, y, s: m.size });
+    return cells;
+  } catch { return []; }
+}
+/* 5-point star, unit radius 1, centred (0,0) */
+const STAR_UNIT = 'M 0 -1 L 0.224 -0.309 L 0.951 -0.309 L 0.363 0.118 L 0.588 0.809 L 0 0.382 L -0.588 0.809 L -0.363 0.118 L -0.951 -0.309 L -0.224 -0.309 Z';
+
+/* ── the A4 export sheet (1240×1754) — logo + QR, watermark, table ── */
 function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: React.RefObject<SvgRefHandle>; days: Day[]; monthLabel: string; location: string; methodLabel: string }) {
   const rows = days.slice(0, 31);
   const top = 300;
@@ -284,12 +308,18 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
       {/* header band */}
       <Rect x="0" y="0" width={A4W} height="230" fill="url(#hdr)" />
       <Rect x="0" y="226" width={A4W} height="6" fill={GOLD} />
-      {/* logo medallion */}
-      <Circle cx="110" cy="115" r="52" fill="#06140D" stroke={GOLD} strokeWidth="3" />
-      <SvgText x="110" y="132" textAnchor="middle" fontSize="40" fill={GOLD} fontFamily="Poppins-Bold">ﷲ</SvgText>
-      <SvgText x="190" y="98" fontSize="42" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800">Prayer Times</SvgText>
-      <SvgText x="190" y="140" fontSize="26" fill="#E8C96A" fontFamily="Poppins-Medium">{monthLabel}{location ? ` · ${location}` : ''}</SvgText>
-      <SvgText x="190" y="176" fontSize="18" fill="rgba(255,255,255,0.66)" fontFamily="Poppins">{methodLabel || 'Calculated with the Muslim World League method'} · deenlink</SvgText>
+      {/* DeenLink logo mark: ring + crescent (evenodd punch) + star */}
+      <Circle cx="110" cy="115" r="54" fill="#06140D" stroke={GOLD} strokeWidth="3" />
+      <G transform={`translate(110 115)`}>
+        <Path fillRule="evenodd" d="M 0 -42 A 42 42 0 0 1 0 42 A 42 42 0 0 1 0 -42 Z M 10 -30 A 30 30 0 0 1 10 30 A 30 30 0 0 1 10 -30 Z" fill={GOLD} />
+        <G transform={`translate(24 0) scale(15)`}>
+          <Path d={STAR_UNIT} fill={GOLD} />
+        </G>
+      </G>
+      <SvgText x="190" y="86" fontSize="30" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800" letterSpacing="5">DEENLINK</SvgText>
+      <SvgText x="190" y="124" fontSize="40" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800">Prayer Times</SvgText>
+      <SvgText x="190" y="160" fontSize="26" fill="#E8C96A" fontFamily="Poppins-Medium">{monthLabel}{location ? ` · ${location}` : ''}</SvgText>
+      <SvgText x="190" y="192" fontSize="18" fill="rgba(255,255,255,0.66)" fontFamily="Poppins">{methodLabel || 'Calculated for your location'} · deenlink.org</SvgText>
       {/* column headers */}
       <Rect x={x0} y="252" width={A4W - x0 * 2} height="40" fill="#0E7A46" />
       {COLS.map((c, i) => (
@@ -313,6 +343,21 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
           </G>
         );
       })}
+      {/* QR deep link — bottom right, clear of the centred footer text */}
+      {(() => {
+        const cells = qrCells(APP_LINK);
+        const size = 118; const c = cells.length ? size / cells[0].s : 0;
+        const qx = A4W - 70 - size; const qy = A4H - 200;
+        return (
+          <G transform={`translate(${qx} ${qy})`}>
+            <Rect x={-10} y={-10} width={size + 20} height={size + 20} rx={10} fill="#FFFFFF" stroke={EMERALD} strokeWidth={2} />
+            {cells.map((cl, i) => (
+              <Rect key={i} x={cl.x * c} y={cl.y * c} width={c} height={c} fill="#14241C" />
+            ))}
+            <SvgText x={size / 2} y={size + 34} textAnchor="middle" fontSize="15" fontWeight="700" fill={EMERALD} fontFamily="Poppins-SemiBold">Scan for DeenLink</SvgText>
+          </G>
+        );
+      })()}
       {/* footer + watermark */}
       <SvgText x={A4W / 2} y={A4H - 62} textAnchor="middle" fontSize="18" fill={EMERALD} fontFamily="Poppins-SemiBold" fontWeight="700">Generated by DeenLink — Strengthen Your Deen, Every Day</SvgText>
       <SvgText x={A4W / 2} y={A4H - 34} textAnchor="middle" fontSize="13" fill="rgba(20,36,28,0.45)" fontFamily="Poppins">Times are estimates — always confirm with your local mosque.</SvgText>
@@ -352,29 +397,42 @@ function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): 
   ctx.fillRect(0, 0, A4W, 230);
   ctx.fillStyle = GOLD;
   ctx.fillRect(0, 226, A4W, 6);
-  /* medallion */
+  /* DeenLink logo mark: ring + crescent (evenodd) + star */
   ctx.beginPath();
-  ctx.arc(110, 115, 52, 0, Math.PI * 2);
+  ctx.arc(110, 115, 54, 0, Math.PI * 2);
   ctx.fillStyle = '#06140D';
   ctx.fill();
   ctx.lineWidth = 3;
   ctx.strokeStyle = GOLD;
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(110, 115, 42, 0, Math.PI * 2);
+  ctx.arc(120, 115, 30, 0, Math.PI * 2);
   ctx.fillStyle = GOLD;
-  ctx.font = '40px "Poppins-Bold", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('ﷲ', 110, 130);
+  ctx.fill('evenodd');
+  ctx.save();
+  ctx.translate(134, 115);
+  ctx.scale(15, 15);
+  ctx.beginPath();
+  const SU = [0, -1, 0.224, -0.309, 0.951, -0.309, 0.363, 0.118, 0.588, 0.809, 0, 0.382, -0.588, 0.809, -0.363, 0.118, -0.951, -0.309, -0.224, -0.309];
+  ctx.moveTo(SU[0], SU[1]);
+  for (let k = 2; k < SU.length; k += 2) ctx.lineTo(SU[k], SU[k + 1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
   /* titles */
   ctx.textAlign = 'left';
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '800 42px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
-  ctx.fillText('Prayer Times', 190, 100);
+  ctx.font = '800 30px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
+  ctx.fillText('D E E N L I N K', 190, 88);
+  ctx.font = '800 40px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
+  ctx.fillText('Prayer Times', 190, 128);
   ctx.fillStyle = '#E8C96A';
   ctx.font = '26px "Poppins-Medium", sans-serif';
-  ctx.fillText(`${monthLabel}${location ? ` · ${location}` : ''}`, 190, 140);
+  ctx.fillText(`${monthLabel}${location ? ` · ${location}` : ''}`, 190, 162);
   ctx.fillStyle = 'rgba(255,255,255,0.66)';
   ctx.font = '18px "Poppins", sans-serif';
-  ctx.fillText('Calculated for your location · deenlink', 190, 176);
+  ctx.fillText('Calculated for your location · deenlink.org', 190, 194);
 
   /* column headers */
   ctx.fillStyle = '#0E7A46';
@@ -422,6 +480,27 @@ function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): 
   ctx.textAlign = 'center';
   ctx.fillText('DEENLINK', 0, 0);
   ctx.restore();
+
+  /* QR deep link — bottom right (mirrors the SVG export) */
+  try {
+    const cells = qrCells(APP_LINK);
+    if (cells.length) {
+      const size = 118; const c = size / cells[0].s;
+      const qx = A4W - 70 - size; const qy = A4H - 200;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = EMERALD;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(qx - 10, qy - 10, size + 20, size + 20, 10);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#14241C';
+      cells.forEach((cl) => ctx.fillRect(qx + cl.x * c, qy + cl.y * c, c, c));
+      ctx.fillStyle = EMERALD;
+      ctx.font = '700 15px "Poppins-SemiBold", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Scan for DeenLink', qx + size / 2, qy + size + 34);
+    }
+  } catch {}
 
   /* footer */
   ctx.textAlign = 'center';

@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import {ImageBackground,  Pressable, ScrollView, View } from 'react-native';
+import { ImageBackground, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { formatGregorian, HIJRI_MONTHS, hijriDate } from '@/lib/prayer';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { stopBubble } from '@/lib/press';
+import { BackButton } from '@/components/BackButton';
 
 /**
  * Hijri calendar (pass 23 — full redesign): a real month GRID — each day shows
@@ -16,28 +19,32 @@ import { haptic } from '@/lib/haptics';
 
 const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/* fixed-date islamic occasions (hijri month/day) */
-const OCCASIONS: Array<{ m: number; d: number; label: string; icon: string }> = [
-  { m: 1, d: 1, label: 'Hijri New Year', icon: 'star' },
-  { m: 1, d: 10, label: 'Day of Ashura', icon: 'moon' },
-  { m: 3, d: 12, label: 'Mawlid an-Nabi', icon:'star-and-crescent' },
-  { m: 7, d: 27, label: 'Isra & Miraj', icon: 'moon' },
-  { m: 8, d: 15, label: 'Laylat al-Bara\'ah', icon: 'moon' },
-  { m: 9, d: 1, label: 'First of Ramadan', icon: 'moon' },
-  { m: 9, d: 27, label: 'Laylat al-Qadr (est.)', icon: 'moon' },
-  { m: 10, d: 1, label: 'Eid al-Fitr', icon: 'star-and-crescent' },
-  { m: 12, d: 9, label: 'Day of Arafah', icon: 'star-and-crescent' },
-  { m: 12, d: 10, label: 'Eid al-Adha', icon: 'star-and-crescent' },
+/* fixed-date islamic occasions (hijri month/day) + descriptions for the
+ * pass-40 occasion modal */
+const OCCASIONS: Array<{ m: number; d: number; label: string; icon: string; desc: string }> = [
+  { m: 1, d: 1, label: 'Hijri New Year', icon: 'star', desc: 'Start of the hijri year, counting from the Prophet’s ﷺ migration (hijrah) from Makkah to Madinah in 622 CE. A time for reflection on new beginnings and sincere intention.' },
+  { m: 1, d: 10, label: 'Day of Ashura', icon: 'moon', desc: 'The 10th of Muharram. Fasting is highly encouraged — the Prophet ﷺ said it wipes away the sins of the previous year. It also marks the day Allah saved Musa (as) and the Children of Israel.' },
+  { m: 3, d: 12, label: 'Mawlid an-Nabi', icon: 'star-and-crescent', desc: 'Remembering the birth of the Prophet Muhammad ﷺ. Muslims mark it with recitation of his life story, praise poetry and extra charity. Its observance varies between communities.' },
+  { m: 7, d: 27, label: 'Isra & Miraj', icon: 'moon', desc: 'The night journey and ascension, when the Prophet ﷺ was taken from Makkah to Jerusalem and then through the heavens, where the five daily prayers were gifted to the ummah.' },
+  { m: 8, d: 15, label: 'Laylat al-Bara\'ah', icon: 'moon', desc: 'The night of the 15th of Sha’ban, when many seek forgiveness and reflect on the year’s deeds that are raised to Allah. Fasting the following day is practised by many.' },
+  { m: 9, d: 1, label: 'First of Ramadan', icon: 'moon', desc: 'The beginning of the month of fasting: dawn-to-sunset abstinence, extra prayer at night, more Quran and generosity. The exact start follows the sighting of the new moon.' },
+  { m: 9, d: 27, label: 'Laylat al-Qadr (est.)', icon: 'moon', desc: 'Better than a thousand months — the night the Quran began to be revealed. Its exact date is unknown; the last ten odd nights of Ramadan are all candidates for seeking it.' },
+  { m: 10, d: 1, label: 'Eid al-Fitr', icon: 'star-and-crescent', desc: 'The festival of breaking the fast after Ramadan: the Eid prayer in congregation, zakat al-fitr before it, new clothes, sweets and visiting family and the needy.' },
+  { m: 12, d: 9, label: 'Day of Arafah', icon: 'star-and-crescent', desc: 'The greatest day of hajj, when pilgrims stand on the plain of Arafah. For others, fasting this day removes the sins of the past and coming year.' },
+  { m: 12, d: 10, label: 'Eid al-Adha', icon: 'star-and-crescent', desc: 'The festival of the sacrifice, remembering Ibrahim’s (as) willingness to sacrifice for Allah: the Eid prayer, udhiyah/qurbani, and sharing the meat with family and the poor.' },
 ];
 
 export default function CalendarScreen() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const todayH = hijriDate(today);
   /* anchor = any date inside the month being viewed */
   const [anchor, setAnchor] = useState<Date>(today);
+  /* pass 40 — occasion detail modal */
+  const [occDetail, setOccDetail] = useState<{ label: string; icon: string; desc: string; when: string } | null>(null);
 
   /* walk to the 1st of the current hijri month, then build the month */
   const grid = useMemo(() => {
@@ -109,6 +116,7 @@ export default function CalendarScreen() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18 }}>
+          <BackButton />
           <Pressable onPress={() => { haptic.selection(); setAnchor(today); }} style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(184,134,11,0.08)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="calendar-alt" size={15} color="#E8C96A" />
           </Pressable>
@@ -171,23 +179,17 @@ export default function CalendarScreen() {
               const isToday = day.g.toDateString() === today.toDateString();
               const hasOcc = !!day.occasion;
               return (
-                <View key={day.g.toISOString()} style={{ width: '14.28%', height: 52, alignItems: 'center', justifyContent: 'center', padding: 1.5 }}>
-                  <View
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: 11,
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                <View key={day.g.toISOString()} style={{ width: '14.28%', height: 54, alignItems: 'center', justifyContent: 'center', padding: 1.5 }}>
+                  <Pressable
+                    disabled={!hasOcc}
+                    onPress={() => { haptic.light(); setOccDetail({ label: day.occasion as string, icon: day.icon ?? 'star', desc: OCCASIONS.find((o) => o.label === day.occasion)?.desc ?? '', when: `${day.hd} ${HIJRI_MONTHS[day.hm - 1]} ${day.hy} AH · ${day.g.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}` }); }}
+                    style={{ width: '100%', height: '100%', borderRadius: 11, alignItems: 'center', justifyContent: 'center',
                       backgroundColor: isToday ? (isDark ? '#1F8F5C' : '#1D6F42') : hasOcc ? (isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.1)') : d.bgSoft,
-                      borderWidth: hasOcc && !isToday ? 1 : 0,
-                      borderColor: 'rgba(212,175,55,0.45)',
-                    }}
-                  >
+                      borderWidth: hasOcc && !isToday ? 1 : 0, borderColor: 'rgba(212,175,55,0.45)' }}>
                     <T v="body" style={{ fontSize: 13, fontWeight: '800', color: isToday ? '#FFFFFF' : d.text }}>{day.hd}</T>
                     <T v="caption" style={{ fontSize: 7.5, color: isToday ? 'rgba(255,255,255,0.8)' : d.faint }}>{day.g.getDate()}/{day.g.getMonth() + 1}</T>
-                    {hasOcc ? <FontAwesome5 name={(day.icon ?? 'star') as never} size={6} color={isToday ? '#FFFFFF' : '#E8C96A'} style={{ marginTop: 0.5 }} /> : null}
-                  </View>
+                    {hasOcc ? <FontAwesome5 name={(day.icon ?? 'star') as never} size={6.5} color={isToday ? '#FFFFFF' : '#E8C96A'} style={{ marginTop: 0.5 }} /> : null}
+                  </Pressable>
                 </View>
               );
             })}
@@ -202,7 +204,7 @@ export default function CalendarScreen() {
         {upcoming.map((o) => {
           const days = Math.ceil(((o.date as Date).getTime() - today.getTime()) / 864e5);
           return (
-            <View key={o.label} style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12 }}>
+            <Pressable key={o.label} onPress={() => { haptic.light(); setOccDetail({ label: o.label, icon: o.icon, desc: o.desc, when: `${o.d} ${HIJRI_MONTHS[o.m - 1]} · ${(o.date as Date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}` }); }} style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12 }}>
               <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name={o.icon as never} size={13} color="#E8C96A" />
               </View>
@@ -215,10 +217,43 @@ export default function CalendarScreen() {
               <View style={{ borderRadius: 999, backgroundColor: isDark ? 'rgba(46,204,113,0.14)' : 'rgba(29,111,66,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 10, paddingVertical: 4 }}>
                 <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{days === 0 ? 'Today' : `${days}d`}</T>
               </View>
-            </View>
+            </Pressable>
           );
         })}
+
+        {/* pass 40 — where the hijri dates + occasions come from */}
+        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 15, borderWidth: 1, borderColor: isDark ? 'rgba(91,200,245,0.35)' : 'rgba(91,200,245,0.3)', backgroundColor: isDark ? 'rgba(91,200,245,0.07)' : 'rgba(91,200,245,0.05)', padding: 13 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <FontAwesome5 name="info-circle" size={13} color="#5BC8F5" />
+            <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>About these dates</T>
+          </View>
+          <T v="caption" style={{ fontSize: 10, color: d.subtext, lineHeight: 15.5 }}>
+            Hijri dates are computed locally with the tabular Islamic calendar (an arithmetic approximation of the Umm al-Qura calendar, usually within ±1 day). Islamic occasions are fixed hijri dates compiled from widely-accepted lists. The month rolls over automatically at each calculated 1st — it does NOT wait for a physical moon sighting, so for Ramadan, Shawwal (Eid al-Fitr) and Dhul-Hijjah always confirm with your local mosque or moon-sighting committee.
+          </T>
+        </View>
+
       </ScrollView>
+
+      {/* occasion detail modal */}
+      <Modal visible={!!occDetail} transparent animationType="fade" onRequestClose={() => setOccDetail(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,10,7,0.72)', alignItems: 'center', justifyContent: 'center', padding: 26 }} onPress={() => setOccDetail(null)}>
+          <Pressable onPress={(e) => stopBubble(e)} style={{ width: '100%', maxWidth: 360, borderRadius: 22, backgroundColor: isDark ? '#0C1712' : '#FFFFFF', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name={(occDetail?.icon ?? 'star') as never} size={16} color="#E8C96A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: d.text }}>{occDetail?.label}</T>
+                <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>{occDetail?.when}</T>
+              </View>
+              <Pressable onPress={() => setOccDetail(null)} accessibilityLabel="close" style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={11} color={d.subtext} />
+              </Pressable>
+            </View>
+            <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext, lineHeight: 19 }}>{occDetail?.desc}</T>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

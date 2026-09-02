@@ -5,6 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import type { SampleComment } from '@/api/mocks';
+import { SYSTEM_PROMPT, composeLocalAnswer, detectProvider, getApiKey, getModel, retrieveLocal, streamLLM } from '@/lib/ai';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
@@ -210,6 +211,8 @@ export function CommentsModal({
   const [likedMap, setLikedMap] = useState<Record<number, boolean>>({});
   const [openReplies, setOpenReplies] = useState<Set<number>>(new Set());
   const [draft, setDraft] = useState('');
+  /* pass 40 — @DeenLink AI: mentions get an in-thread AI reply (like Grok on X) */
+  const [aiTyping, setAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [gifOpen, setGifOpen] = useState(false);
@@ -380,6 +383,58 @@ export function CommentsModal({
     const nc: SampleComment = { id: Date.now(), name: ME.name, handle: ME.handle, avatar: null, text: t, time: 'now', likes: 0 };
     pushComment(nc);
     setDraft('');
+    /* pass 40 — mention @DeenLink (or @deenlink ai / @ai) → the AI answers
+     * in-thread: it VERIFIES the post's claims against our library and
+     * answers the question, grounded in what it can actually retrieve. */
+    if (/@deenlink\b/i.test(t) || /^@ai\b/i.test(t)) void answerAsDeenLinkAI(t, post);
+  };
+
+  const answerAsDeenLinkAI = async (question: string, forPost: Post | null) => {
+    setAiTyping(true);
+    const postText = (forPost?.content_text ?? '').slice(0, 500);
+    const q = question.replace(/@deenlink\b/i, '').replace(/^@ai\b/i, '').trim() || 'Is this post accurate?';
+    let answer = '';
+    try {
+      const key = await getApiKey();
+      if (key && detectProvider(key)) {
+        /* keyed mode — full reasoning, then a single inserted reply */
+        const sources = await retrieveLocal(`${q} ${postText.slice(0, 160)}`).catch(() => []);
+        const ctx = sources.slice(0, 5).map((x) => `[${x.label}] ${x.excerpt.slice(0, 220)}`).join('\n');
+        const model = await getModel();
+        answer = await new Promise<string>((resolve) => {
+          let acc = '';
+          streamLLM(key, model, [
+            { role: 'system', content: `${SYSTEM_PROMPT}\nYou are replying INLINE as a comment under a community post. In at most 90 words: (1) one line on whether the post's claims are supported by the provided context — cite what matches, flag what you cannot verify; (2) answer the user's question. No markdown headings.` },
+            { role: 'user', content: `Post: "${postText}"\nUser asked: "${q}"\n\nLibrary context:\n${ctx || '(nothing directly on-topic retrieved)'}` },
+          ], false, (e: { delta?: string; done?: boolean; error?: string }) => {
+            if (e.delta) acc += e.delta;
+            if (e.done || e.error) resolve(acc.trim() || 'I could not complete that check — please try again.');
+          }).catch(() => resolve(''));
+        });
+      }
+      if (!answer) {
+        /* on-device fallback — grounded in the offline library */
+        const sources = await retrieveLocal(`${q} ${postText.slice(0, 160)}`).catch(() => [] as never[]);
+        answer = composeLocalAnswer(q, sources);
+      }
+    } catch {
+      answer = 'I could not check this right now — please try again in a moment.';
+    }
+    /* let the typing dots breathe, then post the reply */
+    await new Promise((r) => setTimeout(r, Math.max(0, 1100)));
+    setAiTyping(false);
+    const ai: SampleComment = {
+      id: Date.now() + 1,
+      name: 'DeenLink AI',
+      handle: 'deenlink',
+      avatar: null,
+      badge: 'green',
+      text: `✅ ${answer}`,
+      time: 'now',
+      likes: 0,
+    };
+    pushComment(ai);
+    haptic.success();
   };
 
   const total = (list: SampleComment[]) => list.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0);

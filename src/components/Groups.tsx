@@ -315,6 +315,9 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
   const [cat, setCat] = useState<Group['cat']>('Community');
   const [cover, setCover] = useState('emerald');
   const [avatar, setAvatar] = useState<string>('🕌');
+  /* pass 40 — real PICTURE pickers during creation (photo wins over emoji/style) */
+  const [avatarPhoto, setAvatarPhoto] = useState<string | null>(null);
+  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [openJoin, setOpenJoin] = useState(true);
   const valid = name.trim().length >= 3;
   const cg = COVER_STYLES.find((c) => c.id === cover) ?? COVER_STYLES[0];
@@ -340,11 +343,16 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
 
             {/* live preview */}
             <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, marginBottom: 16 }}>
-              <LinearGradient colors={cg.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 64, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1.5, borderColor: 'rgba(232,201,102,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                  {avatar ? <T v="h2" style={{ fontSize: 17 }}>{avatar}</T> : <FontAwesome5 name={catIcon(cat)} size={13} color="#E8C96A" />}
+              {coverPhoto ? (
+                <ExpoImage source={{ uri: coverPhoto }} style={{ height: 64, width: '100%' }} contentFit="cover" />
+              ) : (
+                <LinearGradient colors={cg.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 64, alignItems: 'center', justifyContent: 'center' }} />
+              )}
+              <View style={{ position: 'absolute', left: 0, right: 0, top: 13, alignItems: 'center' }}>
+                <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1.5, borderColor: 'rgba(232,201,102,0.7)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {avatarPhoto ? <ExpoImage source={{ uri: avatarPhoto }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : avatar ? <T v="h2" style={{ fontSize: 17 }}>{avatar}</T> : <FontAwesome5 name={catIcon(cat)} size={13} color="#E8C96A" />}
                 </View>
-              </LinearGradient>
+              </View>
               <View style={{ padding: 11, backgroundColor: d.card }}>
                 <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }} numberOfLines={1}>{name.trim() || 'Your group name'}</T>
                 <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>{cat} · {openJoin ? 'Anyone can join' : 'Join by request'}</T>
@@ -382,7 +390,26 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, marginBottom: 14 }}
             />
 
-            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>PROFILE PICTURE</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+              <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint }}>PROFILE PICTURE</T>
+              <Pressable
+                accessibilityLabel="upload group profile photo"
+                onPress={async () => { const uri = await pickGroupPhoto([1, 1]); if (uri) { haptic.success(); setAvatarPhoto(uri); } }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)', paddingHorizontal: 9, paddingVertical: 5 }}
+              >
+                <FontAwesome5 name="camera" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{avatarPhoto ? 'Change photo' : 'Pick photo'}</T>
+              </Pressable>
+            </View>
+            {avatarPhoto ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)', paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
+                <ExpoImage source={{ uri: avatarPhoto }} style={{ width: 34, height: 34, borderRadius: 10 }} contentFit="cover" />
+                <T v="caption" style={{ flex: 1, fontSize: 10, color: d.subtext }}>Custom profile photo — used instead of the emoji</T>
+                <Pressable onPress={() => { haptic.selection(); setAvatarPhoto(null); }} hitSlop={8}>
+                  <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                </Pressable>
+              </View>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {AVATARS.map((a) => {
                 const on = avatar === a;
@@ -407,7 +434,27 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               })}
             </View>
 
-            <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>COVER STYLE</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+              <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6, color: d.faint }}>COVER</T>
+              <Pressable
+                accessibilityLabel="upload group cover photo"
+                onPress={async () => { const uri = await pickGroupPhoto([16, 9]); if (uri) { haptic.success(); setCoverPhoto(uri); } }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.08)' : 'rgba(91,200,245,0.05)', paddingHorizontal: 9, paddingVertical: 5 }}
+              >
+                <FontAwesome5 name="images" size={9} color="#5BC8F5" />
+                <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: '#5BC8F5' }}>{coverPhoto ? 'Change photo' : 'Pick photo'}</T>
+              </Pressable>
+            </View>
+            {coverPhoto ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.08)' : 'rgba(91,200,245,0.05)', paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
+                <FontAwesome5 name="image" size={14} color="#5BC8F5" />
+                <T v="caption" style={{ flex: 1, fontSize: 10, color: d.subtext }}>Custom cover photo — used instead of the style</T>
+                <Pressable onPress={() => { haptic.selection(); setCoverPhoto(null); }} hitSlop={8}>
+                  <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                </Pressable>
+              </View>
+            ) : null}
+            <T v="caption" style={{ fontWeight: '800', fontSize: 9, letterSpacing: 0.6, color: d.faint, marginBottom: 7 }}>OR PICK A COVER STYLE</T>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {COVER_STYLES.map((c) => {
                 const on = cover === c.id;
@@ -437,7 +484,7 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               onPress={() => {
                 if (!valid) return;
                 haptic.success();
-                onCreate({ id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover, avatar, roles: { [ME]: 'owner' }, following: [] });
+                onCreate({ id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover: coverPhoto ?? cover, avatar: avatarPhoto ?? avatar, roles: { [ME]: 'owner' }, following: [] });
               }}
               style={{ borderRadius: 14, backgroundColor: valid ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', paddingVertical: 14 }}
             >

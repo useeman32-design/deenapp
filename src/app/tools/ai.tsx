@@ -189,7 +189,7 @@ function AnswerText({ text, color, accent, onNav }: { text: string; color: strin
             <View key={i} style={{ flexDirection: 'row', gap: 7, marginTop: 3 }}>
               <T v="bodyS" style={{ fontSize: 13.5, lineHeight: 20, fontWeight: '900', color: '#E8C96A' }}>{bl.marker}</T>
               <View style={{ flex: 1 }}>
-                <T v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21 }}>
+                <T v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21, color }}>
                   {inlineFormat(bl.s, color, onNav, `b${i}`)}
                 </T>
               </View>

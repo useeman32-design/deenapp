@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { claimExclusiveAudio, registerAudioStop } from '@/lib/audioBus';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 
 /**
@@ -69,7 +70,12 @@ export const onRuqyahAudio = (fn: Listen) => {
 };
 const emit = () => { listeners.forEach((l) => { try { l(currentKey); } catch {} }); };
 
+/* pass 40 — global exclusivity: starting ruqyah stops every other player,
+ * and vice versa */
+registerAudioStop('ruqyah', () => stopRuqyahAudio());
+
 export function playRuqyahAudio(key: string, url: string): boolean {
+  claimExclusiveAudio('ruqyah');
   stopRuqyahAudio();
   try {
     if (Platform.OS !== 'web') {
@@ -108,4 +114,35 @@ export function stopRuqyahAudio() {
 export function playingKey(): string | null {
   if (nativePlayer) return currentKey;
   return el != null && !el.paused ? currentKey : null;
+}
+
+/* pass 40 — progress + seek for the full-program player UI */
+export function ruqyahPosition(): { pos: number; dur: number } | null {
+  try {
+    if (nativePlayer) {
+      const pos = nativePlayer.currentTime ?? 0;
+      const dur = nativePlayer.duration ?? 0;
+      return Number.isFinite(dur) && dur > 0 ? { pos, dur } : null;
+    }
+    if (el && !el.paused) {
+      const dur = Number.isFinite(el.duration) ? el.duration : 0;
+      return dur > 0 ? { pos: el.currentTime, dur } : { pos: el.currentTime, dur: 0 };
+    }
+  } catch {}
+  return null;
+}
+
+export function seekRuqyahFrac(f: number): void {
+  const clamped = Math.max(0, Math.min(1, f));
+  try {
+    if (nativePlayer) {
+      const dur = nativePlayer.duration ?? 0;
+      if (dur > 0) nativePlayer.currentTime = clamped * dur;
+      return;
+    }
+    if (el) {
+      const dur = Number.isFinite(el.duration) ? el.duration : 0;
+      if (dur > 0) el.currentTime = clamped * dur;
+    }
+  } catch {}
 }

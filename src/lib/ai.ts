@@ -333,8 +333,10 @@ export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the Deen
 - STYLE (the app renders your formatting — users never want to see raw * or # symbols): use **bold** for key terms and short bold labels instead of markdown headings; use "- " bullets for lists; NEVER use #, ## headings or tables; no asterisk art.
 - When you quote the Qur'an, ALWAYS include the full Arabic text of the ayah first (with diacritics), then the English translation, then cite [Quran S:A]. When you cite a hadith, quote its English text and cite like [Bukhari · Faith #8].
 - NAVIGATION MAP: you know the app's screens. When the user asks WHERE to find something (a surah reader, mushaf, prayer times, qibla compass, zakat calculator, tasbeeh, hijri calendar, duas, athkar, 99 names, hadith collections, quizzes, videos/community, AI chat, settings), answer briefly and end your reply with ONE final line of the exact form:
-NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/quiz | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
-The app turns that line into a button that opens the screen. Only add it when it genuinely helps.`;
+NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/quiz | /tools/mirath | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
+The app turns that line into a button that opens the screen. Only add it when it genuinely helps.
+- MIRATH (inheritance): whenever the user describes an estate, heirs, or asks who inherits what, give the ruling briefly and ALWAYS finish with the NAV line to the calculator so they can compute exact shares and save the report:
+NAV: /tools/mirath`;
 
 /** pretty names for NAV: routes (used for the "Open …" button) */
 export const NAV_LABELS: Record<string, string> = {
@@ -344,6 +346,7 @@ export const NAV_LABELS: Record<string, string> = {
   '/tools/quiz': 'Quiz', '/tools/ai': 'DeenLink AI', '/videos': 'Videos & reels',
   '/(tabs)/community': 'Community', '(tabs)/community': 'Community', '/(tabs)/quran/surah': 'Quran · surah list',
   '/tools/charity': 'Sadaqah', '/tools/seerah': 'Seerah timeline', '/tools/courses': 'Courses',
+  '/tools/mirath': 'Mirath — inheritance calculator',
 };
 
 /** on-device "where is…" router — answers navigation questions without a key */
@@ -355,6 +358,7 @@ export function navAnswer(q: string): { text: string; route?: string } | null {
     [['prayer time', 'salah time', 'prayer schedule', 'adhan'], '/tools/prayer', 'Prayer times'],
     [['qibla', 'compass', 'kaaba direction', 'makkah direction'], '/tools/qibla', 'Qibla compass'],
     [['zakat', 'nisab'], '/tools/zakat', 'Zakat calculator'],
+    [['mirath', 'inherit', 'estate', 'heirs', 'faraid', 'fara id', 'division after death'], '/tools/mirath', 'the Mirath inheritance calculator'],
     [['tasbeeh', 'tasbih', 'counter'], '/tools/tasbeeh', 'Digital tasbeeh'],
     [['calendar', 'hijri', 'islamic month'], '/tools/calendar', 'Hijri calendar'],
     [['athkar', 'adhkar', 'morning and evening'], '/tools/athkar', 'Athkar'],
@@ -414,6 +418,11 @@ export async function streamLLM(
     const dec = new TextDecoder();
     let buf = '';
     let citations: string[] = [];
+    /* pass 40 — gentle pacing: deltas are buffered and flushed every ~70ms
+     * so the answer types a little slower and reads calmer (was token-fast). */
+    let pending = '';
+    const flush = () => { if (pending) { const t = pending; pending = ''; onEvent({ delta: t }); } };
+    const pacer = setInterval(flush, 70);
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -424,11 +433,11 @@ export async function streamLLM(
         const l = line.trim();
         if (!l.startsWith('data:')) continue;
         const payload = l.slice(5).trim();
-        if (payload === '[DONE]') { onEvent({ done: true, citations }); return null; }
+        if (payload === '[DONE]') { clearInterval(pacer); flush(); onEvent({ done: true, citations }); return null; }
         try {
           const j = JSON.parse(payload);
           const delta = j?.choices?.[0]?.delta;
-          if (typeof delta?.content === 'string' && delta.content) onEvent({ delta: delta.content });
+          if (typeof delta?.content === 'string' && delta.content) pending += delta.content;
           /* gpt-oss reasoning channel (Groq) — surfaced as "thinking" */
           if (typeof delta?.reasoning === 'string' && delta.reasoning) onEvent({ reason: delta.reasoning });
           const cit = j?.citations ?? j?.x_groq?.citations ?? undefined;
@@ -436,6 +445,8 @@ export async function streamLLM(
         } catch {}
       }
     }
+    clearInterval(pacer);
+    flush();
     onEvent({ done: true, citations });
     return null;
   };

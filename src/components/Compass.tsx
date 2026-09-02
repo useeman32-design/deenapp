@@ -22,18 +22,20 @@ export const QIBLA_DESIGNS: Array<{ id: QiblaDesign; label: string; dot: [string
   { id: 'digital', label: 'Digital', dot: ['#04120A', '#39FF9C'] },
 ];
 
+type NeedleStyle = 'arrow' | 'thin' | 'glow' | 'diamond' | 'dashed' | 'tech';
 type Palette = {
   dial: string; ring: string; tickMaj: string; tickMin: string; north: string;
   label: string; accent: string; ok: string; dots?: boolean; degrees?: boolean; cross?: boolean; ornate?: boolean; dashed?: boolean;
+  needle?: NeedleStyle;
 };
 
 const PALETTES: Record<QiblaDesign, Palette> = {
   classic: { dial: '#FFFFFF', ring: 'rgba(127,140,130,0.35)', tickMaj: '#7F8C82', tickMin: 'rgba(127,140,130,0.35)', north: '#E05B5B', label: '#1F2A24', accent: '#D4AF37', ok: '#4AE38F' },
-  minimal: { dial: '#F7F9FA', ring: 'rgba(95,107,122,0.25)', tickMaj: '#8B98A5', tickMin: 'rgba(139,152,165,0.3)', north: '#D9646E', label: '#3E4A56', accent: '#5F6B7A', ok: '#2FAE72', dots: true },
-  night: { dial: '#0A1220', ring: 'rgba(53,224,255,0.28)', tickMaj: '#35E0FF', tickMin: 'rgba(53,224,255,0.28)', north: '#FF6B7A', label: '#CFE9F5', accent: '#35E0FF', ok: '#39FF9C' },
-  royal: { dial: '#1C1230', ring: 'rgba(212,175,55,0.4)', tickMaj: '#E8C96A', tickMin: 'rgba(212,175,55,0.3)', north: '#E05B5B', label: '#F0E6F5', accent: '#D4AF37', ok: '#4AE38F', ornate: true },
-  bedouin: { dial: '#F7EFDD', ring: 'rgba(192,122,42,0.4)', tickMaj: '#8A5A2B', tickMin: 'rgba(138,90,43,0.35)', north: '#C0392B', label: '#4A321F', accent: '#C07A2A', ok: '#2E8B57', dashed: true },
-  digital: { dial: '#04120A', ring: 'rgba(57,255,156,0.3)', tickMaj: '#39FF9C', tickMin: 'rgba(57,255,156,0.25)', north: '#FF7A7A', label: '#BFFFE3', accent: '#39FF9C', ok: '#FFE066', degrees: true, cross: true },
+  minimal: { needle: 'thin', dial: '#F7F9FA', ring: 'rgba(95,107,122,0.25)', tickMaj: '#8B98A5', tickMin: 'rgba(139,152,165,0.3)', north: '#D9646E', label: '#3E4A56', accent: '#5F6B7A', ok: '#2FAE72', dots: true },
+  night: { needle: 'glow', dial: '#0A1220', ring: 'rgba(53,224,255,0.28)', tickMaj: '#35E0FF', tickMin: 'rgba(53,224,255,0.28)', north: '#FF6B7A', label: '#CFE9F5', accent: '#35E0FF', ok: '#39FF9C' },
+  royal: { needle: 'diamond', dial: '#1C1230', ring: 'rgba(212,175,55,0.4)', tickMaj: '#E8C96A', tickMin: 'rgba(212,175,55,0.3)', north: '#E05B5B', label: '#F0E6F5', accent: '#D4AF37', ok: '#4AE38F', ornate: true },
+  bedouin: { needle: 'dashed', dial: '#F7EFDD', ring: 'rgba(192,122,42,0.4)', tickMaj: '#8A5A2B', tickMin: 'rgba(138,90,43,0.35)', north: '#C0392B', label: '#4A321F', accent: '#C07A2A', ok: '#2E8B57', dashed: true },
+  digital: { needle: 'tech', dial: '#04120A', ring: 'rgba(57,255,156,0.3)', tickMaj: '#39FF9C', tickMin: 'rgba(57,255,156,0.25)', north: '#FF7A7A', label: '#BFFFE3', accent: '#39FF9C', ok: '#FFE066', degrees: true, cross: true },
 };
 
 export function Compass({
@@ -226,10 +228,77 @@ export function Compass({
               {/* pass 33: the needles START AT THE CENTER DOT — a bold gold
                * one pointing at the Kaaba (front) and a dim one pointing the
                * exact opposite way (qibla behind you). */}
-              <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={mx - 26 * Math.sin(a)} y2={my + 26 * Math.cos(a)} stroke={aligned ? P.ok : P.accent} strokeWidth={2.6} strokeLinecap="round" />
-              <G transform={`translate(${mx - 26 * Math.sin(a)} ${my + 26 * Math.cos(a)}) rotate(${(a * 180) / Math.PI})`}>
-                <Polygon points="0,-10 8,8 0,3.5 -8,8" fill={aligned ? P.ok : P.accent} stroke="none" strokeWidth={0.7} />
-              </G>
+              {(() => {
+                /* pass 40 — each design family gets its OWN needle */
+                const col = aligned ? P.ok : P.accent;
+                const ns: NeedleStyle = P.needle ?? 'arrow';
+                const tipX = mx - 26 * Math.sin(a); const tipY = my + 26 * Math.cos(a);
+                const rot = (a * 180) / Math.PI;
+                if (ns === 'thin') {
+                  return (
+                    <G>
+                      <Line x1={c + 6 * Math.sin(a)} y1={c - 6 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={1.6} strokeLinecap="round" />
+                      <Circle cx={tipX} cy={tipY} r={4} fill={col} />
+                    </G>
+                  );
+                }
+                if (ns === 'glow') {
+                  return (
+                    <G>
+                      <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={6} strokeLinecap="round" opacity={0.22} />
+                      <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={2.2} strokeLinecap="round" />
+                      <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                        <Polygon points="0,-11 7,7 0,3 -7,7" fill={col} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'diamond') {
+                  return (
+                    <G>
+                      <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={2} strokeLinecap="round" />
+                      <G transform={`translate(${(c + tipX) / 2} ${(c + tipY) / 2}) rotate(${rot})`}>
+                        <Polygon points="0,-6 4.5,0 0,6 -4.5,0" fill="none" stroke={col} strokeWidth={1.6} />
+                      </G>
+                      <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                        <Polygon points="0,-13 9,9 0,4 -9,9" fill={col} />
+                        <Circle cy={-16} r={2.2} fill={col} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'dashed') {
+                  return (
+                    <G>
+                      <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={2.8} strokeLinecap="round" strokeDasharray="7 4" />
+                      <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                        <Polygon points="0,-10 9,6 0,2.5 -9,6" fill={col} />
+                      </G>
+                    </G>
+                  );
+                }
+                if (ns === 'tech') {
+                  return (
+                    <G>
+                      <Line x1={c + 10 * Math.sin(a)} y1={c - 10 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={1.4} strokeLinecap="round" strokeDasharray="2 3" />
+                      <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                        <Polygon points="0,-9 5,0 0,9 -5,0" fill="none" stroke={col} strokeWidth={2} />
+                      </G>
+                      <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                        <Circle r={2} fill={col} />
+                      </G>
+                    </G>
+                  );
+                }
+                return (
+                  <G>
+                    <Line x1={c + 8 * Math.sin(a)} y1={c - 8 * Math.cos(a)} x2={tipX} y2={tipY} stroke={col} strokeWidth={2.6} strokeLinecap="round" />
+                    <G transform={`translate(${tipX} ${tipY}) rotate(${rot})`}>
+                      <Polygon points="0,-10 8,8 0,3.5 -8,8" fill={col} stroke="none" strokeWidth={0.7} />
+                    </G>
+                  </G>
+                );
+              })()}
               <Line x1={c + 8 * Math.sin(backA)} y1={c - 8 * Math.cos(backA)} x2={bx} y2={by} stroke={P.label} strokeWidth={1.6} strokeLinecap="round" opacity={0.45} strokeDasharray="4 3" />
               <G transform={`translate(${bx} ${by}) rotate(${(backA * 180) / Math.PI})`} opacity={0.5}>
                 <Polygon points="0,-7 5.5,5.5 0,2.2 -5.5,5.5" fill="none" stroke={P.label} strokeWidth={1.2} />

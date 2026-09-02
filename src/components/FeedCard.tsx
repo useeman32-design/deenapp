@@ -457,6 +457,7 @@ export function FeedCard({
         borderWidth: 1,
         borderColor: hairline,
         padding: 14,
+        marginBottom: 14, /* pass 40 — cards always carry their own spacing */
         shadowColor: '#000',
         shadowOpacity: isDark ? 0.22 : 0.05,
         shadowRadius: 16,

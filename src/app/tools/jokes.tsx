@@ -9,6 +9,8 @@ import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { JOKES } from '@/data/learn';
 import { addUserPost } from '@/lib/userPosts';
+import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
+import { ShareWithFriends } from '@/components/ShareWithFriends';
 
 /** Learning — clean Islamic jokes (pass 29): one at a time, next / share. */
 export default function Jokes() {
@@ -19,6 +21,8 @@ export default function Jokes() {
   const j = JOKES[i % JOKES.length];
   const [shown, setShown] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
+  const [friendsOpen, setFriendsOpen] = useState(false);
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -45,7 +49,15 @@ export default function Jokes() {
             </Pressable>
             <Pressable onPress={() => { haptic.success(); addUserPost(`${j.setup}\n\n${j.punch} 😄`, 'joke').then(() => setToast('Posted to your feed ✓')); setTimeout(() => setToast(null), 2200); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 14, paddingVertical: 9 }}>
               <FontAwesome5 name="share-alt" size={10} color="#B8870B" />
-              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B' }}>SHARE</T>
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B' }}>POST</T>
+            </Pressable>
+            <Pressable onPress={() => { haptic.light(); setFriendsOpen(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
+              <FontAwesome5 name="paper-plane" size={10} color="#5BC8F5" />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#5BC8F5' }}>FRIENDS</T>
+            </Pressable>
+            <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'joke', metric: '😄', title: 'Halal Humor', subtitle: j.setup.slice(0, 60) + (j.setup.length > 60 ? '…' : ''), link: 'https://deenlink.org/tools/jokes' }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
+              <FontAwesome5 name="image" size={10} color="#E8C96A" />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#E8C96A' }}>PHOTO</T>
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 16, lineHeight: 14 }}>
@@ -54,6 +66,8 @@ export default function Jokes() {
         </View>
         {toast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', textAlign: 'center', marginTop: 10 }}>{toast}</T> : null}
       </ScrollView>
+      <ScoreShareSheet visible={scoreCard != null} onClose={() => setScoreCard(null)} card={scoreCard} friends={{ title: `Halal humor — ${j.setup.slice(0, 60)}`, preview: 'deenlink.org/tools/jokes' }} />
+      <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} onSent={() => { setToast('Sent to your friends ✓'); setTimeout(() => setToast(null), 2200); }} title={`${j.setup} — ${j.punch}`} preview="Halal humor · DeenLink" />
     </View>
   );
 }

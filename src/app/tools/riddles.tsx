@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, Share, View } from 'react-native';
+import { Animated, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -8,6 +8,8 @@ import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { RIDDLES } from '@/data/learn';
 import { addUserPost } from '@/lib/userPosts';
+import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
+import { ShareWithFriends } from '@/components/ShareWithFriends';
 
 /**
  * Learning — Islamic riddles (pass 32 redesign): one riddle in focus on a
@@ -23,6 +25,9 @@ export default function Riddles() {
   const [shown, setShown] = useState(false);
   const [hintOn, setHintOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /* pass 40 — image share + send to friends */
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const pop = useRef(new Animated.Value(0.85)).current;
 
   const list = useMemo(() => {
@@ -116,8 +121,11 @@ export default function Riddles() {
             <FontAwesome5 name="edit" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
             <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>SHARE AS POST</T>
           </Pressable>
-          <Pressable onPress={() => Share.share({ message: `🧠 Riddle: ${r.q}${shown ? `\n\n✅ ${r.a}` : ''}\n\n— DeenLink` }).catch(() => {})} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', opacity: pressed ? 0.8 : 1 })}>
+          <Pressable onPress={() => { haptic.light(); setFriendsOpen(true); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', opacity: pressed ? 0.8 : 1 })}>
             <FontAwesome5 name="paper-plane" size={12} color="#5BC8F5" />
+          </Pressable>
+          <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'riddle', metric: shown ? 'Solved' : '?', title: 'Islamic Riddle', subtitle: r.q.slice(0, 60) + (r.q.length > 60 ? '…' : ''), link: 'https://deenlink.org/tools/riddles' }); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', opacity: pressed ? 0.8 : 1 })}>
+            <FontAwesome5 name="image" size={14} color="#E8C96A" />
           </Pressable>
           <Pressable onPress={() => go(1)} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>
             <FontAwesome5 name="chevron-right" size={13} color="#fff" />
@@ -128,6 +136,8 @@ export default function Riddles() {
           <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>🔀 SHUFFLE RIDDLES</T>
         </Pressable>
       </ScrollView>
+      <ScoreShareSheet visible={scoreCard != null} onClose={() => setScoreCard(null)} card={scoreCard} friends={{ title: `Islamic Riddle — ${r.q.slice(0, 60)}`, preview: shown ? `Answer: ${r.a.slice(0, 50)}` : 'Can you solve it? · deenlink.org/tools/riddles' }} />
+      <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} onSent={() => { setToast('Sent to your friends ✓'); setTimeout(() => setToast(null), 2200); }} title={`Islamic Riddle — ${r.q}`} preview={shown ? `Answer: ${r.a}` : 'Can you solve it? · DeenLink'} />
     </View>
   );
 }

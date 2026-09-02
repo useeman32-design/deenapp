@@ -76,8 +76,9 @@ await ensureAuth();
 await go('/tools/charity', 6500);
 {
   let t = await page.evaluate(() => document.body.innerText);
-  /* pass 39 — Donate to DeenLink removed; Zakat → Sadaqah, hero ayah + hadith */
-  ok('donations: 2 categories + history (Zakat → Sadaqah, no DeenLink card)', !/Donate to DeenLink/i.test(t) && /Sadaqah/i.test(t) && /Zakat/i.test(t) && /History/i.test(t) && t.indexOf('Zakat') < t.indexOf('Sadaqah'));
+  /* pass 40 — Support DeenLink card is BACK (user order; only the inner
+   * purpose selector stays removed): Support DeenLink → Zakat → Sadaqah */
+  ok('donations: 3 categories + history (Support DeenLink first, no purpose selector)', /Support DeenLink/i.test(t) && /Sadaqah/i.test(t) && /Zakat/i.test(t) && /History/i.test(t) && t.indexOf('Support DeenLink') < t.indexOf('Zakat') && !/SELECT ALL THAT APPLY/i.test(t.split('History')[0]));
   ok('donations: hero ayah + hadith (rearranged + icon)', /Quran 2:261/.test(t) && /Muslim 1631/.test(t) && /Give for the sake of Allah/i.test(t));
   const b = await tap('donate Zakat');
   if (b) {

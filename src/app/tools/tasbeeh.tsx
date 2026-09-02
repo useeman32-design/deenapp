@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
+import { BackButton } from '@/components/BackButton';
 
 /**
  * Tasbeeh / Dhikr (pass 30 — full premium rebuild):
@@ -16,7 +17,7 @@ import { stopBubble } from '@/lib/press';
  *  · HERO: a photoreal misbaha render (33 polished beads + gold-collared silk
  *    tassel) — the bead you are on glows; passed beads keep a faint green dot
  *  · tap the beads or swipe along them to count; +1 floats up on every tap
- *  · mood, target number (33/66/99/100/custom), tours counter
+ *  · target number (33/66/99/100/custom), tours counter
  *  · stats: today's hasanat · this week · best streak (persisted history)
  *  · settings gear: switch dhikr, vibration, reset today
  */
@@ -42,35 +43,29 @@ const PRESETS: Preset[] = [
   { id: 'salawat', label: 'Salawat', arabic: 'ٱللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ', target: 11 },
 ];
 
-const MOODS = [
-  { id: 'grateful', emoji: '😊', label: 'Grateful' },
-  { id: 'peaceful', emoji: '💧', label: 'Peaceful' },
-  { id: 'hopeful', emoji: '🙂', label: 'Hopeful' },
-  { id: 'stressed', emoji: '😣', label: 'Stressed' },
-  { id: 'sad', emoji: '😔', label: 'Sad' },
-];
 
 /* ── misbaha glow geometry — pass 33: re-traced from the ACTUAL render.
  *   The strand is an oval loop (tassel at the top): 33 points sampled
  *   evenly by arc length from the detected bead centres, bead 0 = top. */
 /* pass 36 — misbaha RESTORED: the original photo with its background keyed
  * out (misbaha-transparent.png, flood-filled from the borders so shading on
- * the beads survives). BEAD_PATH is fitted to the beads ACTUALLY in the photo
- * (extracted from the alpha channel), 33 beads evenly spaced by arc length. */
+ * the beads survives). pass 40: BEAD_PATH re-fitted from the ACTUAL bead
+ * centroids (connected-component analysis of the alpha channel) — the ring
+ * is a true circle centred (0.446, 0.539), radius 0.381 of width. */
 const MISBAHA_AR = 1.662;
 const BEAD_W = 0.025;
 const BEAD_PATH: Array<{ x: number; y: number }> = [
-  { x: 0.9340, y: 0.4990 }, { x: 0.9258, y: 0.5793 }, { x: 0.9015, y: 0.6566 },
-  { x: 0.8620, y: 0.7279 }, { x: 0.8107, y: 0.7887 }, { x: 0.7473, y: 0.8400 },
-  { x: 0.6761, y: 0.8783 }, { x: 0.6000, y: 0.9028 }, { x: 0.5191, y: 0.9136 },
-  { x: 0.4388, y: 0.9099 }, { x: 0.3607, y: 0.8920 }, { x: 0.2862, y: 0.8601 },
-  { x: 0.2192, y: 0.8154 }, { x: 0.1613, y: 0.7585 }, { x: 0.1158, y: 0.6920 },
-  { x: 0.0840, y: 0.6173 }, { x: 0.0679, y: 0.5381 }, { x: 0.0681, y: 0.4586 },
-  { x: 0.0844, y: 0.3795 }, { x: 0.1164, y: 0.3048 }, { x: 0.1621, y: 0.2385 },
-  { x: 0.2202, y: 0.1817 }, { x: 0.2873, y: 0.1372 }, { x: 0.3620, y: 0.1055 },
-  { x: 0.4402, y: 0.0880 }, { x: 0.5204, y: 0.0845 }, { x: 0.6013, y: 0.0955 },
-  { x: 0.6774, y: 0.1202 }, { x: 0.7484, y: 0.1587 }, { x: 0.8117, y: 0.2102 },
-  { x: 0.8627, y: 0.2712 }, { x: 0.9020, y: 0.3426 }, { x: 0.9261, y: 0.4200 },
+  { x: 0.8126, y: 0.4365 }, { x: 0.8254, y: 0.5076 }, { x: 0.8244, y: 0.5798 },
+  { x: 0.8098, y: 0.6506 }, { x: 0.7820, y: 0.7173 }, { x: 0.7421, y: 0.7776 },
+  { x: 0.6915, y: 0.8292 }, { x: 0.6320, y: 0.8704 }, { x: 0.5658, y: 0.8995 },
+  { x: 0.4953, y: 0.9156 }, { x: 0.4230, y: 0.9181 }, { x: 0.3515, y: 0.9069 },
+  { x: 0.2834, y: 0.8824 }, { x: 0.2212, y: 0.8455 }, { x: 0.1672, y: 0.7974 },
+  { x: 0.1232, y: 0.7401 }, { x: 0.0909, y: 0.6754 }, { x: 0.0714, y: 0.6058 },
+  { x: 0.0654, y: 0.5338 }, { x: 0.0733, y: 0.4620 }, { x: 0.0945, y: 0.3929 },
+  { x: 0.1285, y: 0.3292 }, { x: 0.1740, y: 0.2730 }, { x: 0.2293, y: 0.2264 },
+  { x: 0.2924, y: 0.1910 }, { x: 0.3611, y: 0.1683 }, { x: 0.4329, y: 0.1590 },
+  { x: 0.5051, y: 0.1633 }, { x: 0.5752, y: 0.1813 }, { x: 0.6406, y: 0.2122 },
+  { x: 0.6990, y: 0.2548 }, { x: 0.7482, y: 0.3078 }, { x: 0.7866, y: 0.3690 },
 ];
 const beadAt = (i: number): { x: number; y: number } => BEAD_PATH[((i % BEADS) + BEADS) % BEADS];
 
@@ -92,7 +87,6 @@ export default function Tasbeeh() {
   const [target, setTarget] = useState(99);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<Record<string, number>>({});
-  const [mood, setMood] = useState<string | null>(null);
   const [vibrate, setVibrate] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -131,10 +125,6 @@ export default function Tasbeeh() {
         if (p.presetId && PRESETS.some((x) => x.id === p.presetId)) setPresetId(p.presetId);
         if (typeof p.target === 'number' && p.target > 0) setTarget(p.target);
         if (typeof p.vibrate === 'boolean') setVibrate(p.vibrate);
-      } catch {}
-      try {
-        const m = JSON.parse((await storage.getItem('dl.tasbeeh.mood')) ?? '{}');
-        if (m.date === todayKey()) setMood(m.mood);
       } catch {}
     })();
   }, []);
@@ -203,12 +193,6 @@ export default function Tasbeeh() {
     savePrefs({ presetId: id, target: p.target });
   };
 
-  const pickMood = (id: string) => {
-    buzz(() => haptic.selection());
-    setMood(id);
-    storage.setItem('dl.tasbeeh.mood', JSON.stringify({ date: todayKey(), mood: id })).catch(() => {});
-  };
-
   const pickTarget = (n: number) => {
     buzz(() => haptic.selection());
     setTarget(n);
@@ -250,9 +234,7 @@ export default function Tasbeeh() {
 
       {/* ── header: logo · Tasbeeh · gear ── */}
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center' }}>
-        <Pressable onPress={() => { buzz(() => haptic.selection()); router.back(); }} accessibilityLabel="close tasbeeh" style={{ width: 42, height: 42, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: GLASS_BR, alignItems: 'center', justifyContent: 'center' }}>
-          <Image source={require('../../../assets/img/logo.webp')} style={{ width: 26, height: 26, borderRadius: 7 }} />
-        </Pressable>
+        <BackButton onDark />
         <View style={{ flex: 1, alignItems: 'center' }}>
           <T v="h2" style={{ fontWeight: '800', fontSize: 20, color: INK, letterSpacing: 0.3 }}>Tasbeeh</T>
           <T v="caption" style={{ fontSize: 10.5, color: INK_FAINT, marginTop: 2 }}>Dhikr brings peace to the heart ♡</T>
@@ -372,41 +354,6 @@ export default function Tasbeeh() {
           </View>
         </Pressable>
 
-        {/* ── mood ── */}
-        <View style={{ ...glass, marginHorizontal: 16, marginTop: 16, padding: 15 }}>
-          <T v="caption" style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1, color: 'rgba(242,247,243,0.45)', marginBottom: 11 }}>HOW ARE YOU FEELING?</T>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            {MOODS.map((m) => {
-              const on = mood === m.id;
-              return (
-                <Pressable
-                  key={m.id}
-                  onPress={() => pickMood(m.id)}
-                  style={{
-                    alignItems: 'center',
-                    gap: 5,
-                    borderRadius: 15,
-                    borderWidth: 1,
-                    borderColor: on ? 'rgba(74,227,143,0.65)' : 'rgba(255,255,255,0.07)',
-                    backgroundColor: on ? 'rgba(74,227,143,0.10)' : 'rgba(255,255,255,0.03)',
-                    paddingHorizontal: 9,
-                    paddingVertical: 9,
-                    shadowColor: NEON,
-                    shadowOpacity: on ? 0.35 : 0,
-                    shadowRadius: 12,
-                    shadowOffset: { width: 0, height: 0 },
-                    flex: 1,
-                    marginHorizontal: 2,
-                  }}
-                >
-                  <T v="caption" style={{ fontSize: 17 }}>{m.emoji}</T>
-                  <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: on ? NEON : INK_FAINT }}>{m.label}</T>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
         {/* ── target number ── */}
         <View style={{ ...glass, marginHorizontal: 16, marginTop: 12, padding: 15 }}>
           <T v="caption" style={{ fontSize: 10, fontWeight: '800', letterSpacing: 1, color: 'rgba(242,247,243,0.45)', marginBottom: 11 }}>TARGET NUMBER</T>
@@ -472,8 +419,8 @@ export default function Tasbeeh() {
 
       {/* ── settings sheet ── */}
       <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.75)', justifyContent: 'flex-end' }} onPress={() => setSettingsOpen(false)}>
-          <Pressable style={{ backgroundColor: '#081209', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: insets.bottom + 18, paddingTop: 16 }} onPress={(e) => stopBubble(e)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.75)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={() => setSettingsOpen(false)}>
+          <Pressable style={{ backgroundColor: '#081209', borderRadius: 22, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: 18, paddingTop: 16, width: '100%', maxWidth: 360, maxHeight: '62%' }} onPress={(e) => stopBubble(e)}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.16)', alignSelf: 'center', marginBottom: 14 }} />
             <T v="h3" style={{ fontSize: 15, fontWeight: '800', color: INK, marginHorizontal: 18, marginBottom: 4 }}>Settings</T>
             <T v="caption" style={{ fontSize: 10.5, color: INK_FAINT, marginHorizontal: 18, marginBottom: 12 }}>Choose your dhikr — counts are kept per dhikr, every day.</T>

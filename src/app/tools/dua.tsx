@@ -7,6 +7,7 @@ import { loadDuas, type ContentDua } from '@/lib/content';
 import { markGoal } from '@/lib/routine';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { BackButton } from '@/components/BackButton';
 import { haptic } from '@/lib/haptics';
 import { DUA_SECTIONS, groupBySection, type DuaSectionId } from '@/lib/duaSections';
 import { ContentSearchOverlay, type SearchHit } from '@/components/ContentSearchOverlay';
@@ -51,6 +52,7 @@ export default function Duas() {
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <BackButton />
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20 }}>
               Duas & Adhkar
