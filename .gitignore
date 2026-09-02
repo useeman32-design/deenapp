@@ -46,7 +46,9 @@ content/
 .token
 
 # assets/content (the user's dataset pack) is EXTRACTED at build time from
-# assets/content.zip — the extracted tree must not be committed (88MB).
+# assets/content.zip — the extracted tree must not be committed.
+# Size: 20MB since the pass-33 gz corpus (hadith/*.txt.gz). It was 88MB when
+# hadith shipped as plain .txt — old notes may still quote the larger figure.
 
 # content pack downloaded at install time (pass 34d)
 assets/content.zip

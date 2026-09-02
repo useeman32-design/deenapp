@@ -1,5 +1,76 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
+# ── pass 43 — IN PROGRESS: infra recovery + backup (NOT a feature pass) ──
+Local only, UNPUSHED — the GitHub PAT in HANDOFF-PROMPT.md is DEAD (see below),
+so nothing in this section has reached origin yet.
+
+## BLOCKER — the push token is dead
+`ghp_E3OyMu…5ens` (in HANDOFF-PROMPT.md) returns **401 Bad credentials** from
+BOTH `GET /user` and `GET /rate_limit` (no scope needed → conclusive), as
+`token` and as `Bearer`. It is exactly 40 chars, correct classic-PAT shape.
+Anonymous clone still works (repo is public), so `git ls-remote` "succeeding"
+does NOT prove write access — do not be fooled by that.
+=> Need a fresh token before ANY push (master, gh-pages, or backup).
+=> Upside: the token leaked into a PUBLIC repo is already inert.
+
+## Root-cause found: the content pack was unrecoverable on a fresh clone
+- `assets/content.zip` is gitignored AND absent; its only documented source
+  `https://useeman32-design.github.io/deenapp/content/content.zip` returns **404**
+  (verified; gh-pages has no `content/` dir at all).
+- `src/lib/content.ts` hard-requires **147** files under `assets/content/**`,
+  **29 of them `hadith/*.txt.gz`**.
+- `npm ci` → `postinstall` → `unpack-content.mjs` → `packPresent()` false →
+  `downloadPack()` → 404 → `process.exit(1)`.
+  **The HANDOFF-PROMPT setup instructions fail at `npm ci`.** Reproduced.
+
+## Recovery performed
+Recovered the pack from git history (needs a FULL clone — the shallow repo
+cannot see these blobs):
+| blob | path | bytes | hadith | verdict |
+|---|---|---|---|---|
+| `162e59f35e978a359547642ddd4e0e5ad7756f95` | content/content.zip | 17188371 | .txt.gz | **CORRECT (pass 42 master)** |
+| `9fbd4e7c0456c8bce8ecdc4221b8d7d5de73bc71` | assets/content.zip | 17182745 | .txt | WRONG — pre-pass-33 |
+| `2a105ad28461574d825c9eef051a77a926ad0ba9` | deenlink-content-pack.zip | 18454421 | — | 161 entries, different |
+TRAP: `9fbd4e7` extracts 147 files too and LOOKS right. Grepping require paths
+with a pattern ending in `\.txt` silently truncates `.txt.gz` and reports a
+false "all present". Match `require\('\.\./\.\./assets/content/[^']+'\)` instead.
+
+## Fixes made this pass
+- `scripts/unpack-content.mjs`: header comment no longer claims the zip is
+  tracked in git (it is not — `.gitignore:52`); `PACK_URL` → `PACK_URLS`
+  fallback LIST (gh-pages, then `deenapp-backup/content-pack/content.zip`);
+  `downloadPack` tries each and on total failure prints both 404s + the exact
+  `git cat-file blob <sha>` recovery recipe. Verified: normal path exit 0
+  ("pack already present — ok"), failure path exit 1 with the new message.
+- `.gitignore:49`: extracted pack is **20MB** since the pass-33 gz corpus, not
+  88MB. (The 88MB figure lived in .gitignore, NOT CONTINUE.md.)
+- `scripts/backup-and-upload.sh` NEW: idempotent 6-step script that creates the
+  PRIVATE `deenapp-backup` repo, `push --mirror`s full history + gh-pages +
+  tags, archives `content-pack/content.zip` there, and restores
+  `content/content.zip` on gh-pages. Token comes from `$DL_TOKEN` or `.token`
+  (gitignored) — never hardcoded. Guards verified: exit 2 no token, exit 3 dead
+  token. NOT YET RUN (needs a live token).
+
+## Workspace budget, corrected numbers
+Full clone `.git` = 157MB → breached the 128MB cap on its own. Re-cloned
+`--depth 1` (`.git` = 29MB), carrying the pack across.
+Eligible set now ≈ **108MB** (79MB worktree + 29MB .git). node_modules 647MB and
+dist 59MB are snapshot-excluded. `assets/content` is 20MB, not 88MB — the old
+budget notes are calibrated to the wrong figure.
+
+## Gates re-run after the fixes
+`npm ci` → 632 packages, postinstall short-circuits · `npx tsc --noEmit` →
+exit 0 · `bash scripts/export-web.sh` → exit 0, all routes bundled.
+NOTE: `tsc` does NOT validate the content requires (`require()` types as `any`)
+— the export is the only gate that proves the pack resolves.
+
+## TODO for pass 43 (all blocked on a live token)
+1. `bash scripts/backup-and-upload.sh` (with `DL_TOKEN=`) → creates the private
+   backup, mirrors everything, uploads the zip to gh-pages AND to the backup.
+2. Verify: gh-pages `content/content.zip` → 200; `deenapp-backup` → 404
+   anonymously (proves private); live app entry → 200.
+3. Then and only then: safe to start pass 44 feature work.
+
 # ── pass 42 SHIPPED (master bc6634e, gh-pages efbc94b, probe35 24/24 + probe42 11/11 ALL PASS, live entry 200) ──
 
 # ── pass 42 — 10-item UI/feature pass ──

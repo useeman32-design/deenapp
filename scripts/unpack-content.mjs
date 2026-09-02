@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /* Unpack assets/content.zip -> assets/content/** (the user's dataset pack).
  * Pure Node (works on Windows/macOS/Linux — no python/unzip needed).
- * The zip is tracked in git; the extracted .txt files are what Metro bundles.
+ * NOTE: the zip is NOT tracked in git (.gitignore line "assets/content.zip").
+ * It is fetched on demand, or recovered from git history — see PACK_URLS below.
+ * The extracted files are what Metro bundles (src/lib/content.ts requires 147
+ * of them, 29 as hadith/*.txt.gz).
  * Runs automatically via `npm install` (postinstall) and export-web.sh. */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
@@ -10,8 +13,16 @@ import { dirname, join } from 'node:path';
 const ZIP = process.env.DL_CONTENT_ZIP ?? "assets/content.zip"; // zip dropped from the repo (size) — re-download the pack if rebuilding from scratch
 const OUT = 'assets/content';
 /* pass 34d: stable home of the content pack (gh-pages, served verbatim).
+ * pass 43: the gh-pages copy 404'd, so this is now a FALLBACK LIST — first 200 wins.
  * npm install downloads it automatically on a fresh clone. */
-const PACK_URL = process.env.DL_CONTENT_URL ?? 'https://useeman32-design.github.io/deenapp/content/content.zip';
+const PACK_URLS = (process.env.DL_CONTENT_URL ?? [
+  'https://useeman32-design.github.io/deenapp/content/content.zip',
+  'https://raw.githubusercontent.com/useeman32-design/deenapp-backup/master/content-pack/content.zip',
+].join(',')).split(',').map((u) => u.trim()).filter(Boolean);
+
+/* The pack also survives as a git blob in deenapp history (full clone only).
+ * This is the last-resort recovery path — printed when every URL fails. */
+const PACK_BLOB = '162e59f35e978a359547642ddd4e0e5ad7756f95'; // content/content.zip, 17188371 B, hadith as .txt.gz
 
 /* markers: if all exist the pack is already in place — nothing to do */
 const MARKERS = [
@@ -27,12 +38,28 @@ const packPresent = () => MARKERS.every((m) => existsSync(join(OUT, m)));
 
 /* download the pack (Node 18+ fetch, works on Windows/macOS/Linux) */
 async function downloadPack(dest) {
-  const res = await fetch(PACK_URL);
-  if (!res.ok) throw new Error(`unpack-content: download failed (${res.status}) ${PACK_URL}`);
-  const total = +(res.headers.get('content-length') ?? 0);
-  const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(dest, buf);
-  console.log(`unpack-content: downloaded pack ${buf.length} bytes${total ? ` / ${total}` : ''} <- ${PACK_URL}`);
+  const tried = [];
+  for (const url of PACK_URLS) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) { tried.push(`${url} -> ${res.status}`); continue; }
+      const total = +(res.headers.get('content-length') ?? 0);
+      const buf = Buffer.from(await res.arrayBuffer());
+      writeFileSync(dest, buf);
+      console.log(`unpack-content: downloaded pack ${buf.length} bytes${total ? ` / ${total}` : ''} <- ${url}`);
+      return;
+    } catch (e) {
+      tried.push(`${url} -> ${e?.message ?? e}`);
+    }
+  }
+  throw new Error(
+    `unpack-content: content pack unavailable.\n` +
+    `  tried:\n    ${tried.join('\n    ')}\n` +
+    `  RECOVER FROM GIT HISTORY (requires a FULL, non-shallow clone):\n` +
+    `    git cat-file blob ${PACK_BLOB} > ${ZIP}\n` +
+    `    node scripts/unpack-content.mjs\n` +
+    `  or drop the pack at ${ZIP} manually and re-run.`
+  );
 }
 
 /* minimal zip reader: walk the central directory (deterministic, no python) */
