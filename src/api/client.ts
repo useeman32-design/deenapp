@@ -383,9 +383,29 @@ export async function verifyOtp(email: string, code: string): Promise<{ ok: bool
   return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
 }
 export type Campaign = { key: string; title: string; subtitle?: string; imageUrl?: string; href?: string };
+
+/* pass 44 — Learning Hub sections managed by the admin (api/learning/list.php) */
+export type LearningSection = {
+  kind: 'quick' | 'library';
+  title: string;
+  subtitle?: string | null;
+  iconKey?: string | null;
+  gradFrom?: string | null;
+  gradTo?: string | null;
+  chip?: string | null;
+  cta?: string | null;
+  href?: string | null;
+};
 export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>('/api/campaigns/list.php');
   if (r.ok && Array.isArray(r.data.campaigns) && r.data.campaigns.length > 0) return r.data.campaigns;
+  return null;
+}
+
+/** Admin-managed Learning Hub sections; null when offline/empty so the bundled list stays. */
+export async function learningSections(): Promise<LearningSection[] | null> {
+  const r = await request<{ status?: string; sections?: LearningSection[] }>('/api/learning/list.php');
+  if (r.ok && Array.isArray(r.data.sections) && r.data.sections.length > 0) return r.data.sections;
   return null;
 }
 

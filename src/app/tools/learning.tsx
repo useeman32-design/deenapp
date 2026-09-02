@@ -24,6 +24,7 @@ import {
   SmileIcon,
   type IconProps,
 } from '@/components/Icons';
+import { learningSections, type LearningSection } from '@/api/client';
 
 /**
  * Learning Hub — pass 36 redesign.
@@ -70,6 +71,26 @@ const LIBRARY: Section[] = [
   { title: 'Daily Zikr Challenge', desc: 'Interactive tasbeeh, istighfar and salawat counters — counts toward your daily goals.', icon: InfoIcon, grad: ['#00838F', '#26C6DA'], chip: 'daily routine', cta: 'Start', href: '/tools/zikr-challenge' },
   { title: 'Names of Allah', desc: 'The 99 beautiful names with meanings and evidence.', icon: MosqueIcon, grad: ['#B8860B', '#FFD54F'], chip: '99 names', cta: 'Learn', href: '/tools/names' },
 ];
+
+/* pass 44 — map an admin iconKey to a bundled icon component (fallback: book) */
+const ICONS: Record<string, ComponentType<IconProps>> = {
+  brain: BrainIcon, book: BookIcon, graduation: GraduationCapIcon, help: HelpIcon,
+  info: InfoIcon, landmark: LandmarkIcon, mosque: MosqueIcon, newspaper: NewspaperIcon,
+  scale: ScaleIcon, smile: SmileIcon,
+};
+
+/* pass 44 — turn an admin LearningSection row into the local Section shape */
+function toSection(s: LearningSection): Section {
+  return {
+    title: s.title,
+    desc: s.subtitle || '',
+    icon: ICONS[s.iconKey || ''] || BookIcon,
+    grad: [s.gradFrom || '#00796B', s.gradTo || '#26A69A'],
+    chip: s.chip || '',
+    cta: s.cta || 'Open',
+    href: s.href || undefined,
+  };
+}
 
 
 /* pass 40 — TOPICS with REAL contents (was an empty placeholder): short
@@ -159,6 +180,23 @@ export default function Learning() {
   const insets = useSafeAreaInsets();
 
   const [topic, setTopic] = useState<Topic | null>(null);
+  /* pass 44 — Learning Hub sections from the admin API; bundled list is the fallback */
+  const [liveSections, setLiveSections] = useState<LearningSection[] | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    learningSections().then((s) => { if (mounted && s) setLiveSections(s); }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+  const quickList = useMemo<Section[]>(() => {
+    if (!liveSections) return QUICK;
+    const q = liveSections.filter((s) => s.kind === 'quick').map(toSection);
+    return q.length ? q : QUICK;
+  }, [liveSections]);
+  const libraryList = useMemo<Section[]>(() => {
+    if (!liveSections) return LIBRARY;
+    const l = liveSections.filter((s) => s.kind === 'library').map(toSection);
+    return l.length ? l : LIBRARY;
+  }, [liveSections]);
   /* pass 42 — auto-shuffling discovery banner under QUICK PLAY.
    * pass 44 — three fixes:
    *  (1) FIXED height on the card, so a short desc and a long one no longer
@@ -169,7 +207,7 @@ export default function Learning() {
    * useNativeDriver: true — opacity is the only animated prop, so the whole
    * transition now runs on the UI thread instead of dropping JS frames. */
   const [slide, setSlide] = useState(0);
-  const BANNER_POOL = useMemo(() => [...QUICK, ...LIBRARY], []);
+  const BANNER_POOL = useMemo(() => [...quickList, ...libraryList], [quickList, libraryList]);
   const banner = BANNER_POOL[slide % BANNER_POOL.length];
   const BANNER_DOTS = Math.min(BANNER_POOL.length, 6);
   const bannerAnim = useRef(new Animated.Value(1)).current; // 1 = fully visible
@@ -225,7 +263,7 @@ export default function Learning() {
           <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: d.faint }}>QUICK PLAY</T>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 11 }}>
-          {QUICK.map((c) => {
+          {quickList.map((c) => {
             const Icon = c.icon;
             return (
               <Pressable
@@ -302,7 +340,7 @@ export default function Learning() {
           <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: d.faint }}>THE LIBRARY</T>
         </View>
         <View style={{ paddingHorizontal: 16, gap: 9 }}>
-          {LIBRARY.map((c) => {
+          {libraryList.map((c) => {
             const Icon = c.icon;
             return (
               <Pressable
