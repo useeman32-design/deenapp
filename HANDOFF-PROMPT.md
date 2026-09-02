@@ -11,21 +11,43 @@ Latest (pass 42, master `bc6634e` / gh-pages `efbc94b`): tafsir tool, daily zikr
 ## 1. Clone & environment
 
 - Repo: `https://github.com/useeman32-design/deenapp` (default branch `master`; the web build deploys from the `gh-pages` branch to https://useeman32-design.github.io/deenapp/)
-- GitHub push token (private — never commit it, it's gitignored as `.token`):
-
-```
-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
-```
+- **Repo inventory (pass 43):**
+  | repo | visibility | purpose |
+  |---|---|---|
+  | `deenapp` | **public** (must stay — GitHub Pages needs it on the Free plan; making it private returns 422 and kills the live site) | the app |
+  | `deenapp-backup` | private | full mirror (master + gh-pages) + `content-pack/content.zip`. Re-run `scripts/backup-and-upload.sh` after each pass |
+  | `deenlink-api` | private | the user's PHP + MySQL backend. Upload there; never into `deenapp` |
+- `pages-cap-test` is a leftover empty private repo from a Pages-capability
+  probe — delete it manually (the PAT has no `delete_repo` scope).
+- **GitHub push token: NOT stored in this repo.** This file is committed to a
+  PUBLIC repo, so any token pasted here is exposed (a previous one was — it is
+  now revoked). Keep it out of git entirely:
+  ```bash
+  echo -n 'ghp_yourTokenHere' > .token   # .token is gitignored (see .gitignore)
+  chmod 600 .token
+  ```
+  Required scopes: `repo` (full). `delete_repo` is optional — only needed to
+  delete repos. Then read it as `$(cat .token)` or `export DL_TOKEN=$(cat .token)`.
 
 Setup:
 
 ```bash
 # shallow keeps the workspace under the 128 MB snapshot cap — do NOT unshallow
-git clone --depth 1 --single-branch -b master https://useeman32-design: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@github.com/useeman32-design/deenapp.git
+git clone --depth 1 --single-branch -b master https://github.com/useeman32-design/deenapp.git
 cd deenapp
 git config user.name "useeman32-design" && git config user.email "useeman32-design@users.noreply.github.com"
-npm ci
+npm ci                      # postinstall auto-fetches the content pack (see below)
+
+# for pushing, add the tokened remote locally (never committed):
+git remote set-url origin "https://useeman32-design:$(cat .token)@github.com/useeman32-design/deenapp.git"
 ```
+
+**Content pack (pass 43):** `src/lib/content.ts` hard-requires 147 files under
+`assets/content/**` (29 of them `hadith/*.txt.gz`). They are gitignored and
+fetched on `npm ci` from `gh-pages:/content/content.zip`, with
+`deenapp-backup:/content-pack/content.zip` as fallback. If both 404, the error
+prints the `git cat-file blob` recovery recipe — blob
+`162e59f35e978a359547642ddd4e0e5ad7756f95` (needs a FULL clone to see it).
 
 ## 2. Verify before changing anything (all must pass)
 
@@ -75,9 +97,10 @@ CI=1 npx expo export --platform ios       # → dist/_expo/static/js/ios/entry-*
 # master
 git add -A && git commit -m "pass N: <summary>" && git push origin master
 
-# gh-pages (web build)
+# gh-pages (web build) — token read from gitignored .token, never inlined
+TOK=$(cat /path/to/deenapp/.token)
 cd /tmp && rm -rf gh-pages-tmp
-git clone --depth 1 -b gh-pages https://useeman32-design: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@github.com/useeman32-design/deenapp.git gh-pages-tmp
+git clone --depth 1 -b gh-pages "https://useeman32-design:$TOK@github.com/useeman32-design/deenapp.git" gh-pages-tmp
 cd gh-pages-tmp
 git config user.name "useeman32-design" && git config user.email "useeman32-design@users.noreply.github.com"
 find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +

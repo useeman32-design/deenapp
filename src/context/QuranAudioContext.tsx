@@ -56,7 +56,7 @@ function domEnsurePlay(uri: string | null, tries = 0, wanted: () => boolean = ()
   if (!wanted()) return;
   try {
     const doc = window.document;
-    const el = [...doc.querySelectorAll('video')].find((v) => v.getAttribute('src') === uri);
+    const el = Array.from(doc.querySelectorAll('video')).find((v) => v.getAttribute('src') === uri);
     if (el) {
       if (el.paused) void (el as HTMLVideoElement).play().catch(() => {});
       else return; /* playing */

@@ -12,7 +12,7 @@ export type MediaState = 'playing' | 'paused' | 'none';
 export function probeMedia(uri: string | null | undefined): MediaState {
   if (Platform.OS !== 'web' || !uri || typeof window === 'undefined') return 'none';
   try {
-    const el = [...window.document.querySelectorAll('video')].find((v) => v.getAttribute('src') === uri) as HTMLVideoElement | undefined;
+    const el = Array.from(window.document.querySelectorAll('video')).find((v) => v.getAttribute('src') === uri) as HTMLVideoElement | undefined;
     if (!el) return 'none';
     if (!el.paused && !el.ended) return 'playing';
     return 'paused';
@@ -25,7 +25,7 @@ export function probeMedia(uri: string | null | undefined): MediaState {
 export function probeAdvancing(uri: string | null | undefined, minTime = 0.05): boolean {
   if (Platform.OS !== 'web' || !uri || typeof window === 'undefined') return false;
   try {
-    const el = [...window.document.querySelectorAll('video')].find((v) => v.getAttribute('src') === uri) as HTMLVideoElement | undefined;
+    const el = Array.from(window.document.querySelectorAll('video')).find((v) => v.getAttribute('src') === uri) as HTMLVideoElement | undefined;
     return !!el && !el.paused && !el.ended && el.currentTime > minTime;
   } catch {
     return false;

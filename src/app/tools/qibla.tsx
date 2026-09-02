@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Modal, Platform, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { KAABA, distanceKm, qiblaDirection } from '@/lib/prayer';
@@ -24,6 +25,7 @@ import { ScrollView } from 'react-native';
  */
 export default function Qibla() {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets(); // pass 44 — header row was hardcoded paddingTop: 12
   const router = useRouter();
   const [loc, setLoc] = useState<Loc | null>(null);
   const heading = useHeading();
@@ -72,7 +74,7 @@ export default function Qibla() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       {/* pass 42 — each compass design gets its OWN back arrow: unique shape, icon, fill and glow per design */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: Math.max(insets.top, 12), paddingBottom: 6 }}>
       {(() => {
         const ds = QIBLA_DESIGNS.find((x) => x.id === design) ?? QIBLA_DESIGNS[0];
         /* per-design identity: [shape, icon, radius, fill mode] */
