@@ -373,6 +373,15 @@ export async function announcement(): Promise<string | null> {
   return null;
 }
 
+/* pass 44 — homepage campaigns are admin-managed (api/campaigns/list.php).
+ * Returns null when unreachable/empty so the app keeps its bundled banners. */
+export type Campaign = { key: string; title: string; subtitle?: string; imageUrl?: string; href?: string };
+export async function campaigns(): Promise<Campaign[] | null> {
+  const r = await request<{ status?: string; campaigns?: Campaign[] }>('/api/campaigns/list.php');
+  if (r.ok && Array.isArray(r.data.campaigns) && r.data.campaigns.length > 0) return r.data.campaigns;
+  return null;
+}
+
 export async function prayerTimesCached(locationHash: string): Promise<PrayerTimesResponse | null> {
   const r = await request<PrayerTimesResponse>(`/api/get_prayer_times.php?locationHash=${encodeURIComponent(locationHash)}`);
   return r.ok && r.data.times ? r.data : null;

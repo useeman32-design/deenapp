@@ -117,6 +117,16 @@ const CAMPAIGNS = [
   },
 ];
 
+/* pass 44 — campaigns come from the admin API when reachable. `key` maps to a
+ * bundled artwork so native keeps working offline; an admin-set imageUrl wins
+ * when the key has no bundled art. */
+const BUNDLED_CAMPAIGN_ART: Record<string, ReturnType<typeof require>> = {
+  learning: campaignLearning,
+  quran: campaignQuran,
+  ramadan: campaignRamadan,
+  scholars: campaignScholars,
+};
+
 const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh', 107: 'Sunni · Mufti', 108: 'Sufi', 109: 'Sunni' };
 const SCHOLAR_AVATARS: Record<number, number> = { 1: scholarAvatar1, 2: scholarAvatar2, 3: scholarAvatar3 };
 
@@ -152,6 +162,20 @@ export default function Home() {
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean }[] }>({ done: 0, total: 4, demo: true, items: [] });
   /* pass 42 — Today's Goal modal */
   const [goalOpen, setGoalOpen] = useState(false);
+  /* pass 44 — admin-managed home campaigns (falls back to bundled CAMPAIGNS) */
+  const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
+  useEffect(() => {
+    api.campaigns().then((c) => { if (c) setLiveCampaigns(c); }).catch(() => {});
+  }, []);
+  const campaignList = liveCampaigns
+    ? liveCampaigns.map((c) => ({
+        key: c.key,
+        title: c.title,
+        sub: c.subtitle ?? '',
+        href: c.href,
+        image: BUNDLED_CAMPAIGN_ART[c.key] ?? (c.imageUrl ? { uri: c.imageUrl } : campaignLearning),
+      }))
+    : CAMPAIGNS;
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -572,7 +596,7 @@ export default function Home() {
             </T>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
-            {CAMPAIGNS.map((c) => (
+            {campaignList.map((c) => (
               <Pressable
                 key={c.key}
                 onPress={() => router.push(c.href as never)}
