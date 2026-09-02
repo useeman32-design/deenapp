@@ -37,6 +37,7 @@ import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { addUserReel, subscribeUserReels, userReels } from '@/lib/reelStore';
+import { addUserPost, listUserPosts } from '@/lib/userPosts';
 
 const { height: VH, width: VW } = Dimensions.get('window');
 
@@ -526,6 +527,35 @@ export default function VideosFeed() {
 
   useEffect(() => subscribeUserReels(() => setStoreTick((t) => t + 1)), []);
 
+  /* pass 42 — UNIVERSAL VIDEOS: community video posts flow INTO the reel feed
+   * (only those NOT cross-posted from this composer — those are already here). */
+  const [commReels, setCommReels] = useState<MockReel[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listUserPosts().then((ups) => {
+      if (!alive) return;
+      setCommReels(
+        ups
+          .filter((u) => u.kind === 'video' && u.video && u.reelId == null)
+          .map((u) => ({
+            id: 1_000_000 + (u.at % 1_000_000),
+            src: { uri: u.video! },
+            poster: { uri: u.video! },
+            username: 'abdalrahman',
+            caption: u.text || 'Community video 🎬',
+            likes: 0,
+            comments: 0,
+            saves: 0,
+            views: 0,
+            music: 'Original audio — community',
+          })),
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, [storeTick]);
+
   useEffect(() => {
     storage.getItem(SAVES_KEY).then((raw) => {
       if (raw) {
@@ -549,7 +579,7 @@ export default function VideosFeed() {
 
   const reels = useMemo(() => {
     void storeTick;
-    const mine: MockReel[] = [...userReels];
+    const mine: MockReel[] = [...userReels, ...commReels];
     if (feedTab === 'following') {
       return [...mine.filter((r) => r.username === 'abdalrahman'), ...MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username))];
     }
@@ -557,7 +587,7 @@ export default function VideosFeed() {
       return MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username) || r.repostedBy != null);
     }
     return [...mine, ...MOCK_REELS];
-  }, [feedTab, storeTick]);
+  }, [feedTab, storeTick, commReels]);
 
   useEffect(() => {
     if (params.start) {
@@ -1396,13 +1426,18 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
     haptic.medium();
     setPosting(true);
     setTimeout(() => {
-      addUserReel({
+      const reel = addUserReel({
         src: picked.src,
         poster: picked.poster,
         username: 'abdalrahman',
         caption: caption.trim() || 'New video on DeenLink 🎬',
         music: 'Original audio — Abdulrahman',
       });
+      /* pass 42 — UNIVERSAL VIDEOS: a new reel ALSO lands in the community feed */
+      addUserPost(reel.caption, 'video', {
+        video: typeof reel.src === 'object' ? reel.src.uri : undefined,
+        reelId: reel.id,
+      }).catch(() => {});
       setPosting(false);
       setPicked(null);
       setCaption('');

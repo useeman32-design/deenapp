@@ -51,13 +51,19 @@ type Question = {
   at: number;
   status: 'processing' | 'answered' | 'rejected';
   answer?: string;
+  asker?: { name: string; av: string };
 };
 
 /* a couple of seeded public answers so the tab is never empty */
 const SEED_PUBLIC: Question[] = [
-  { id: 'seed1', scholarId: 1, scholarName: 'Sheikh Abdurrahman Al-Ameen', title: 'Is my wudu valid if I wash quickly?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 3, status: 'answered', answer: 'Wudu is valid as long as each limb is washed completely once — thoroughness is sunnah, speed does not invalidate it. Allahu a\'lam.' },
-  { id: 'seed2', scholarId: 2, scholarName: 'Ustadh Usman Ahmad', title: 'Can I combine prayers while travelling?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 6, status: 'answered', answer: 'Yes — a traveller may combine Dhuhr with Asr and Maghrib with Isha according to the majority. Allahu a\'lam.' },
+  { id: 'seed1', asker: { name: 'Musa Idris', av: 'https://i.pravatar.cc/120?img=15' }, scholarId: 1, scholarName: 'Sheikh Abdurrahman Al-Ameen', title: 'Is my wudu valid if I wash quickly?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 3, status: 'answered', answer: 'Wudu is valid as long as each limb is washed completely once — thoroughness is sunnah, speed does not invalidate it. Allahu a\'lam.' },
+  { id: 'seed2', asker: { name: 'Fatima Sani', av: 'https://i.pravatar.cc/120?img=45' }, scholarId: 2, scholarName: 'Ustadh Usman Ahmad', title: 'Can I combine prayers while travelling?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 6, status: 'answered', answer: 'Yes — a traveller may combine Dhuhr with Asr and Maghrib with Isha according to the majority. Allahu a\'lam.' },
 ];
+/* pass 42 — Q&A identity helpers: avatars + info for BOTH sides of every
+ * answered exchange (asker row + scholar row with title · madhhab · institute) */
+const scholarAv = (id: number) => AV[(id - 1) % AV.length] ?? AV[0];
+const scholarOf = (id: number) => MOCK_SCHOLARS.find((m) => m.id === id) ?? null;
+
 
 const timeAgo = (t: number) => {
   const s = (Date.now() - t) / 1000;
@@ -266,12 +272,32 @@ export default function Scholars() {
                 </View>
                 <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text, marginTop: 8 }}>{x.title}</T>
                 <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }}>to {x.scholarName} · {x.cat}{x.urgency ? ` · ⚡ ${x.urgency} DP priority` : ''}</T>
-                {x.status === 'answered' && x.answer ? (
-                  <View style={{ marginTop: 9, borderRadius: 12, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
-                    <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: isDark ? '#4AE38F' : '#1D6F42' }}>ANSWER</T>
-                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 4 }}>{x.answer}</T>
-                  </View>
-                ) : null}
+                {x.status === 'answered' && x.answer ? (() => {
+                  const sc = scholarOf(x.scholarId);
+                  return (
+                    <View style={{ marginTop: 10, gap: 8 }}>
+                      {/* pass 42 — asker (you): avatar + info */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Image source={{ uri: 'https://i.pravatar.cc/120?img=68' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
+                        <View style={{ flex: 1 }}>
+                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>You</T>
+                          <T v="caption" style={{ fontSize: 9, color: d.faint }}>{x.isPublic ? 'asked publicly' : 'asked privately'} · {timeAgo(x.at)}</T>
+                        </View>
+                      </View>
+                      {/* pass 42 — scholar: avatar + credentials + the answer */}
+                      <View style={{ borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Image source={{ uri: scholarAv(x.scholarId) }} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.55)' }} />
+                          <View style={{ flex: 1 }}>
+                            <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
+                            <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>
+                          </View>
+                        </View>
+                        <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
+                      </View>
+                    </View>
+                  );
+                })() : null}
                 {x.status === 'processing' ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 9 }}>
                     <ActivityIndicator size="small" color="#E8C96A" />
@@ -287,13 +313,34 @@ export default function Scholars() {
         {picked != null && tab === 'public' ? (
           publicQs.map((x) => (
             <View key={x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
-              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>{x.cat.toUpperCase()} · {timeAgo(x.at)}</T>
-              <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
-              <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 3 }}>asked by a community member · answered by {x.scholarName}</T>
-              <View style={{ marginTop: 9, borderRadius: 12, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
-                <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: isDark ? '#4AE38F' : '#1D6F42' }}>ANSWER</T>
-                <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 4 }}>{x.answer}</T>
-              </View>
+              {(() => {
+                const sc = scholarOf(x.scholarId);
+                return (
+                  <View>
+                    <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>{x.cat.toUpperCase()} · {timeAgo(x.at)}</T>
+                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
+                    {/* pass 42 — asker: avatar + info */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <Image source={{ uri: x.asker?.av ?? 'https://i.pravatar.cc/120?img=33' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
+                      <View style={{ flex: 1 }}>
+                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.asker?.name ?? 'Community member'}</T>
+                        <T v="caption" style={{ fontSize: 9, color: d.faint }}>asked · {x.isPublic ? 'public question' : 'private question'}</T>
+                      </View>
+                    </View>
+                    {/* pass 42 — scholar: avatar + credentials + the answer */}
+                    <View style={{ marginTop: 8, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Image source={{ uri: scholarAv(x.scholarId) }} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.55)' }} />
+                        <View style={{ flex: 1 }}>
+                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
+                          <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>
+                        </View>
+                      </View>
+                      <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
           ))
         ) : null}

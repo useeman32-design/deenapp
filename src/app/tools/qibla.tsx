@@ -71,31 +71,45 @@ export default function Qibla() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* pass 41 — back button follows the SELECTED compass design (was the same generic arrow for every design) */}
+      {/* pass 42 — each compass design gets its OWN back arrow: unique shape, icon, fill and glow per design */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6 }}>
-        {(() => {
-          const ds = QIBLA_DESIGNS.find((x) => x.id === design) ?? QIBLA_DESIGNS[0];
-          const round = design === 'classic' || design === 'royal';
-          return (
-            <Pressable
-              accessibilityLabel="back"
-              onPress={() => { haptic.light(); router.back(); }}
-              hitSlop={10}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: round ? 19 : 13,
-                backgroundColor: ds.dot[0],
-                borderWidth: 1.5,
-                borderColor: ds.dot[1],
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FontAwesome5 name="chevron-left" size={14} color={ds.dot[1]} />
-            </Pressable>
-          );
-        })()}
+      {(() => {
+        const ds = QIBLA_DESIGNS.find((x) => x.id === design) ?? QIBLA_DESIGNS[0];
+        /* per-design identity: [shape, icon, radius, fill mode] */
+        const spec: Record<string, { r: number; icon: string; solid: boolean; glow: boolean; size: number }> = {
+          classic: { r: 19, icon: 'chevron-left', solid: false, glow: false, size: 15 },
+          minimal: { r: 8, icon: 'arrow-left', solid: false, glow: false, size: 14 },
+          night: { r: 16, icon: 'angle-double-left', solid: true, glow: true, size: 14 },
+          royal: { r: 6, icon: 'arrow-left', solid: true, glow: false, size: 13 },
+          bedouin: { r: 13, icon: 'chevron-left', solid: true, glow: false, size: 14 },
+          digital: { r: 4, icon: 'chevron-left', solid: false, glow: true, size: 15 },
+        };
+        const sp = spec[design] ?? spec.classic;
+        return (
+          <Pressable
+            accessibilityLabel="back"
+            onPress={() => { haptic.light(); router.back(); }}
+            hitSlop={10}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: sp.r,
+              backgroundColor: sp.solid ? ds.dot[1] : `${ds.dot[1]}1A`,
+              borderWidth: 1.5,
+              borderColor: ds.dot[1],
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: ds.dot[1],
+              shadowOpacity: sp.glow ? 0.8 : 0,
+              shadowRadius: sp.glow ? 12 : 0,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: sp.glow ? 6 : 0,
+            }}
+          >
+            <FontAwesome5 name={sp.icon as never} size={sp.size} color={sp.solid ? ds.dot[0] : ds.dot[1]} />
+          </Pressable>
+        );
+      })()}
         <T v="h1" style={{ flex: 1, color: theme.text, fontWeight: '800', fontSize: 21 }}>Qibla finder</T>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>

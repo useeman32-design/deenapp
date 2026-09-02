@@ -11,6 +11,7 @@ import { loadSurah } from '@/lib/content';
 import { netBus } from '@/lib/net';
 import { QURAN } from '@/data/quran';
 import { stopBubble } from '@/lib/press';
+import { tafsirContextFor } from '@/lib/tafsir';
 import { mentionedSources, 
  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
@@ -62,6 +63,9 @@ function refRoute(ref: string): string | null {
 }
 
 const NAV_LINE = /^NAV:\s*(\/[^\s]+)\s*$/m;
+/* pass 42 — strip EVERY nav directive (multiple lines, leading spaces, and the
+ * lowercase variant some models emit) so "NAV: /tools/..." never reaches the screen */
+const NAV_STRIP = /^\s*nav:\s*\/?[a-z0-9/()\-]*.*$/gim;
 /* card mirrors — VerseCards sits outside the component tree */
 let isDarkStatic = false;
 let textColStatic = '#14241C';
@@ -410,7 +414,17 @@ export default function DeenLinkAI() {
     if (apiKey) {
       setPhase('thinking');
       const history = [...msgs.filter((m) => m.text), userMsg].slice(-8).map((m) => ({ role: m.role, content: m.text }) as { role: 'user' | 'assistant'; content: string });
-      const sys = SYSTEM_PROMPT + (sources.length ? '\n\n' + buildContext(sources) : '') + (webRef.current ? '\n\nWeb search is enabled — verify current facts and cite [web].' : '');
+      /* pass 42 — feed the REAL tafsir (Ibn Kathir) into the context when the
+       * question references a verse (e.g. "explain 2:255" / "tafsir of 55:13") */
+      const vm = q.match(/\b(\d{1,3})\s*[:.]\s*(\d{1,3})\b/);
+      let tafsirCtx = '';
+      if (vm) {
+        const sn = Math.min(114, Math.max(1, parseInt(vm[1], 10)));
+        const an = Math.min(286, Math.max(1, parseInt(vm[2], 10)));
+        const t = await tafsirContextFor(sn, an, 1200).catch(() => null);
+        if (t) tafsirCtx = `\n\n[Tafsir Ibn Kathir — ${sn}:${an}] ${t}`;
+      }
+      const sys = SYSTEM_PROMPT + tafsirCtx + (sources.length ? '\n\n' + buildContext(sources) : '') + (webRef.current ? '\n\nWeb search is enabled — verify current facts and cite [web].' : '');
       let acc = '';
       let reasoning = '';
       const thinkStart = Date.now();
@@ -478,7 +492,7 @@ export default function DeenLinkAI() {
   const bubble = (m: AiMsg, i: number) => {
     const mine = m.role === 'user';
     const thinkingHere = !mine && busy && i === msgs.length - 1 && (m.text.trim() === '' || researching(m.text));
-    const body = cleanAI(m.text).replace(NAV_LINE, '').trim();
+    const body = cleanAI(m.text).replace(NAV_LINE, '').replace(NAV_STRIP, '').replace(/\n{3,}/g, '\n\n').trim();
     const nav = m.nav;
     return (
       <View key={i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '88%', marginBottom: 12 }}>
@@ -694,7 +708,7 @@ export default function DeenLinkAI() {
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>
-            {apiKey ? 'References like [Quran 2:255] are tappable · verify rulings with a scholar' : 'On-device mode · open History ⟶ Settings to add an API key'} · {webToggle ? 'web ON' : 'web off'}
+            {apiKey ? 'References like [Quran 2:255] are tappable · verify rulings with a scholar' : 'On-device mode · open History ⟶ Settings to add an API key'}
           </T>
         </View>
       </KeyboardAvoidingView>

@@ -5,7 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import type { SampleComment } from '@/api/mocks';
-import { SYSTEM_PROMPT, composeLocalAnswer, detectProvider, getApiKey, getModel, retrieveLocal, streamLLM } from '@/lib/ai';
+import { NAV_LABELS, SYSTEM_PROMPT, composeLocalAnswer, detectProvider, getApiKey, getModel, navAnswer, retrieveLocal, streamLLM } from '@/lib/ai';
 import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
@@ -76,6 +76,22 @@ function MentionText({ text, base, mention }: { text: string; base: object; ment
   );
 }
 
+/* pass 42 — tappable "Open <place>" chip rendered under AI comment answers */
+function NavChip({ route }: { route: string }) {
+  const router = useRouter();
+  const label = NAV_LABELS[route.replace(/^\/+/, '/')] ?? NAV_LABELS['/' + route.replace(/^\/+/, '')] ?? 'Open in the app';
+  return (
+    <Pressable
+      accessibilityLabel={`open ${label}`}
+      onPress={() => { haptic.medium(); router.push(route as never); }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 7, borderRadius: 11, backgroundColor: 'rgba(46,204,113,0.12)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', paddingHorizontal: 10, paddingVertical: 6 }}
+    >
+      <FontAwesome5 name="location-arrow" size={9} color="#4AE38F" />
+      <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#4AE38F' }}>Open {label}</T>
+    </Pressable>
+  );
+}
+
 /**
  * Comment row — MODULE-LEVEL on purpose: defining it inside the modal
  * component remounted every row (and glitched the avatars) on each like tap.
@@ -136,6 +152,8 @@ function CommentRow({
             />
           ) : null}
           {c.gif ? <Image source={c.gif} style={{ width: 96, height: 96, marginTop: 6, borderRadius: 12 }} contentFit="contain" /> : null}
+          {/* pass 42 — AI answers get a DIRECT open button for the place it described */}
+          {c.nav ? <NavChip route={c.nav} /> : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 }}>
           <T v="caption" style={{ fontSize: 9.5, color: colors.faint, fontWeight: '600' }}>
@@ -446,7 +464,7 @@ export function CommentsModal({
         answer = await new Promise<string>((resolve) => {
           let acc = '';
           streamLLM(key, model, [
-            { role: 'system', content: `${SYSTEM_PROMPT}\nYou are replying INLINE as a comment under a community post. In at most 90 words: (1) one line on whether the post's claims are supported by the provided context — cite what matches, flag what you cannot verify; (2) answer the user's question. No markdown headings.` },
+            { role: 'system', content: `${SYSTEM_PROMPT}\nYou are replying INLINE as a comment under a community post. In at most 90 words: (1) one line on whether the post's claims are supported by the provided context — cite what matches, flag what you cannot verify; (2) answer the user's question. No markdown headings. If the user asks WHERE something is in the app or how to do it in DeenLink, give short numbered steps and end with a final line exactly: NAV: /route (one of the routes you know).` },
             { role: 'user', content: `Post: "${postText}"\nUser asked: "${q}"\n\nLibrary context:\n${ctx || '(nothing directly on-topic retrieved)'}` },
           ], false, (e: { delta?: string; done?: boolean; error?: string }) => {
             if (e.delta) acc += e.delta;
@@ -465,13 +483,23 @@ export function CommentsModal({
     /* let the typing dots breathe, then post the reply */
     await new Promise((r) => setTimeout(r, Math.max(0, 1100)));
     setAiTyping(false);
+    /* pass 42 — pull the NAV directive OUT of the text; it becomes a button,
+     * and on-device nav questions get real steps + a route too */
+    const navMatch = answer.match(/^\s*NAV:\s*(\/[^\s]+)\s*$/im);
+    let navRoute = navMatch?.[1];
+    let clean = answer.replace(/^\s*NAV:\s*\/?[a-z0-9/()\-]*.*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
+    if (!navRoute) {
+      const nav = navAnswer(question);
+      if (nav) { navRoute = nav.route; clean = `${clean}\n\n${nav.text}`.trim(); }
+    }
     const ai: SampleComment = {
       id: Date.now() + 1,
       name: 'DeenLink AI',
       handle: 'deenlink',
       avatar: null,
       badge: 'green',
-      text: `✅ ${answer}`,
+      text: `✅ ${clean}`,
+      nav: navRoute,
       time: 'now',
       likes: 0,
     };

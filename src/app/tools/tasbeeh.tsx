@@ -3,6 +3,7 @@ import { Animated, Dimensions, Easing, Modal, PanResponder, Pressable, ScrollVie
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle as SvgCircle, Defs as SvgDefs, G as SvgG, LinearGradient as SvgGrad, Path as SvgPath, RadialGradient as SvgRad, Rect as SvgRect, Stop as SvgStop } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
@@ -44,30 +45,18 @@ const PRESETS: Preset[] = [
 ];
 
 
-/* ── misbaha glow geometry — pass 33: re-traced from the ACTUAL render.
- *   The strand is an oval loop (tassel at the top): 33 points sampled
- *   evenly by arc length from the detected bead centres, bead 0 = top. */
-/* pass 36 — misbaha RESTORED: the original photo with its background keyed
- * out (misbaha-transparent.png, flood-filled from the borders so shading on
- * the beads survives). pass 40: BEAD_PATH re-fitted from the ACTUAL bead
- * centroids (connected-component analysis of the alpha channel) — the ring
- * is a true circle centred (0.446, 0.539), radius 0.381 of width. */
-const MISBAHA_AR = 1.662;
-const BEAD_W = 0.025;
-const BEAD_PATH: Array<{ x: number; y: number }> = [
-  { x: 0.8126, y: 0.4365 }, { x: 0.8254, y: 0.5076 }, { x: 0.8244, y: 0.5798 },
-  { x: 0.8098, y: 0.6506 }, { x: 0.7820, y: 0.7173 }, { x: 0.7421, y: 0.7776 },
-  { x: 0.6915, y: 0.8292 }, { x: 0.6320, y: 0.8704 }, { x: 0.5658, y: 0.8995 },
-  { x: 0.4953, y: 0.9156 }, { x: 0.4230, y: 0.9181 }, { x: 0.3515, y: 0.9069 },
-  { x: 0.2834, y: 0.8824 }, { x: 0.2212, y: 0.8455 }, { x: 0.1672, y: 0.7974 },
-  { x: 0.1232, y: 0.7401 }, { x: 0.0909, y: 0.6754 }, { x: 0.0714, y: 0.6058 },
-  { x: 0.0654, y: 0.5338 }, { x: 0.0733, y: 0.4620 }, { x: 0.0945, y: 0.3929 },
-  { x: 0.1285, y: 0.3292 }, { x: 0.1740, y: 0.2730 }, { x: 0.2293, y: 0.2264 },
-  { x: 0.2924, y: 0.1910 }, { x: 0.3611, y: 0.1683 }, { x: 0.4329, y: 0.1590 },
-  { x: 0.5051, y: 0.1633 }, { x: 0.5752, y: 0.1813 }, { x: 0.6406, y: 0.2122 },
-  { x: 0.6990, y: 0.2548 }, { x: 0.7482, y: 0.3078 }, { x: 0.7866, y: 0.3690 },
-];
-const beadAt = (i: number): { x: number; y: number } => BEAD_PATH[((i % BEADS) + BEADS) % BEADS];
+/* ── pass 42 — the misbaha is now DRAWN (SVG), not a photo: 33 beads on a
+ *   true circle centred in the view, so the counting glow sits EXACTLY on each
+ *   bead by construction (the old hand-fitted path drifted out of alignment).
+ *   Bead 0 sits just right of the top; a gold tassel hangs above the ring. */
+const MISBAHA_AR = 1.44;
+const beadCenter = (i: number, w: number, h: number) => {
+  const cx = w / 2;
+  const cy = h * 0.55;
+  const r = Math.min(w, h) * 0.335;
+  const a = -Math.PI / 2 + (i / BEADS) * Math.PI * 2;
+  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: Math.min(w, h) * 0.0315 };
+};
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const dayOffset = (n: number) => {
@@ -306,41 +295,58 @@ export default function Tasbeeh() {
         {/* ── HERO: the physical misbaha — tap / swipe to count ── */}
         <Pressable accessibilityLabel="tasbeeh-deck" accessibilityRole="button" onPress={bump} {...deckPan.panHandlers} style={{ marginHorizontal: 12, marginTop: 10 }}>
           <View style={{ borderRadius: 26, overflow: 'hidden' }}>
-            {/* the REAL misbaha — background keyed out, glow renders UNDER it */}
-            <Image source={require('../../../assets/img/misbaha-transparent.png')} style={{ width: imgW, height: imgH }} resizeMode="contain" />
-            <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, width: imgW, height: imgH }}>
-              {Array.from({ length: BEADS }).map((_, i) =>
-                i < activeBead ? (
-                  <View
-                    key={i}
-                    style={{
-                      position: 'absolute',
-                      left: beadAt(i).x * imgW - 3.4,
-                      top: beadAt(i).y * imgH - 3.4,
-                      width: 6.8,
-                      height: 6.8,
-                      borderRadius: 3.4,
-                      backgroundColor: NEON,
-                      opacity: 0.5,
-                    }}
+            {/* pass 42 — the DRAWN misbaha: beads, thread, tassel and glow in one SVG */}
+            <Svg width={imgW} height={imgH} viewBox={`0 0 ${imgW} ${imgH}`}>
+              <SvgDefs>
+                <SvgRad id="beadG" cx="35%" cy="30%" r="80%">
+                  <SvgStop offset="0%" stopColor="#7B8A78" />
+                  <SvgStop offset="45%" stopColor="#33403A" />
+                  <SvgStop offset="100%" stopColor="#101713" />
+                </SvgRad>
+                <SvgRad id="beadDoneG" cx="35%" cy="30%" r="80%">
+                  <SvgStop offset="0%" stopColor="#7CE8A8" />
+                  <SvgStop offset="55%" stopColor="#2FA866" />
+                  <SvgStop offset="100%" stopColor="#0C4E2C" />
+                </SvgRad>
+                <SvgRad id="beadActiveG" cx="50%" cy="50%" r="70%">
+                  <SvgStop offset="0%" stopColor="#EAFFF2" />
+                  <SvgStop offset="60%" stopColor="#4AE38F" />
+                  <SvgStop offset="100%" stopColor="#149052" />
+                </SvgRad>
+                <SvgGrad id="silk" x1="0" y1="0" x2="0" y2="1">
+                  <SvgStop offset="0%" stopColor="#E8C96A" />
+                  <SvgStop offset="100%" stopColor="#8C6D1F" />
+                </SvgGrad>
+              </SvgDefs>
+              {/* silk thread ring the beads sit on */}
+              <SvgCircle cx={imgW / 2} cy={imgH * 0.55} r={Math.min(imgW, imgH) * 0.335} fill="none" stroke="rgba(232,201,106,0.22)" strokeWidth={1.6} />
+              {/* the 33 beads — passed ones green, the active one glowing */}
+              {Array.from({ length: BEADS }).map((_, i) => {
+                const b = beadCenter(i, imgW, imgH);
+                const active = i === activeBead;
+                const done = i < activeBead;
+                return (
+                  <SvgG key={i}>
+                    {active ? <SvgCircle cx={b.x} cy={b.y} r={b.r * 1.9} fill="rgba(74,227,143,0.18)" /> : null}
+                    <SvgCircle cx={b.x} cy={b.y} r={b.r} fill={active ? 'url(#beadActiveG)' : done ? 'url(#beadDoneG)' : 'url(#beadG)'} stroke={active ? '#4AE38F' : done ? 'rgba(74,227,143,0.55)' : 'rgba(255,255,255,0.14)'} strokeWidth={active ? 1.6 : 0.9} />
+                    <SvgCircle cx={b.x - b.r * 0.3} cy={b.y - b.r * 0.35} r={b.r * 0.3} fill={active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)'} />
+                  </SvgG>
+                );
+              })}
+              {/* gold tassel above the ring: collar + silk threads */}
+              <SvgG>
+                <SvgRect x={imgW / 2 - 7} y={imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 36} width={14} height={17} rx={4} fill="url(#silk)" />
+                {[0, 1, 2, 3, 4].map((k) => (
+                  <SvgPath
+                    key={k}
+                    d={`M ${imgW / 2 - 6 + k * 3} ${imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 19} q ${(k - 2) * 5} 26 ${(k - 2) * 7} 46`}
+                    stroke={k % 2 ? 'rgba(232,201,106,0.6)' : '#E8C96A'}
+                    strokeWidth={k === 2 ? 2.2 : 1.4}
+                    fill="none"
                   />
-                ) : null,
-              )}
-              <Animated.View
-                style={{
-                  position: 'absolute',
-                  left: beadAt(activeBead).x * imgW,
-                  top: beadAt(activeBead).y * imgH,
-                  width: 0,
-                  height: 0,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transform: [{ scale: glowPulse }],
-                }}
-              >
-                <View style={{ position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(74,227,143,0.35)', shadowColor: NEON, shadowOpacity: 0.95, shadowRadius: 20, shadowOffset: { width: 0, height: 0 }, elevation: 8 }} />
-              </Animated.View>
-            </View>
+                ))}
+              </SvgG>
+            </Svg>
             {/* soft blend into the screen bg */}
             <LinearGradient colors={['rgba(5,13,9,0.55)', 'rgba(5,13,9,0)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54 }} pointerEvents="none" />
             <LinearGradient colors={['rgba(5,13,9,0)', 'rgba(5,13,9,0.6)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60 }} pointerEvents="none" />

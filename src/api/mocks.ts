@@ -214,6 +214,8 @@ export type SampleComment = {
   text: string;
   /** bundled animated sticker (pass 20 GIF comments) */
   gif?: number;
+  /** pass 42 — in-app route for AI comment answers ("Open" button) */
+  nav?: string;
   time: string;
   likes: number;
   liked?: boolean;

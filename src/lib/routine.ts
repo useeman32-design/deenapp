@@ -73,6 +73,19 @@ export async function getGoal(): Promise<{
   };
 }
 
+export async function setGoal(key: string, val: boolean): Promise<void> {
+  const k = `dl.goal.${dayKey()}`;
+  const raw = await storage.getItem(k);
+  let rec: Record<string, boolean> = {};
+  try {
+    rec = raw ? JSON.parse(raw) : {};
+  } catch {
+    rec = {};
+  }
+  rec[key] = val;
+  await storage.setItem(k, JSON.stringify(rec));
+}
+
 export async function markGoal(key: string): Promise<void> {
   const k = `dl.goal.${dayKey()}`;
   const raw = await storage.getItem(k);

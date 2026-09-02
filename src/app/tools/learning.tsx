@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -6,6 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
+import { BackButton } from '@/components/BackButton';
+import { Animated, Easing } from 'react-native';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import {
@@ -40,6 +42,11 @@ type Section = {
   href?: string;
 };
 
+/* pass 42 — renders a library/quick section icon inside the shuffle banner */
+function BannerIcon({ icon: Icon, size, color }: { icon: ComponentType<IconProps>; size: number; color: string }) {
+  return <Icon size={size} color={color} />;
+}
+
 const QUICK: Section[] = [
   { title: 'Islamic Quiz', desc: 'Quran, Hadith, Fiqh & Seerah quizzes with difficulty levels.', icon: HelpIcon, grad: ['#1565C0', '#42A5F5'], chip: '100+ quizzes', cta: 'Start Quiz', href: '/tools/quiz' },
   { title: 'Riddles', desc: 'Islamic riddles that sharpen the mind.', icon: BrainIcon, grad: ['#7B1FA2', '#AB47BC'], chip: '150+ riddles', cta: 'Solve', href: '/tools/riddles' },
@@ -48,6 +55,9 @@ const QUICK: Section[] = [
 
 const LIBRARY: Section[] = [
   { title: 'Courses & Lectures', desc: 'Structured courses on Tafsir, Fiqh, Aqeedah, Arabic and Seerah.', icon: BookIcon, grad: ['#00796B', '#26A69A'], chip: '25+ courses', cta: 'Browse', href: '/tools/courses' },
+  /* pass 42 — Tafsir library (Ibn Kathir · Ma'arif · Tazkirul) + Short Lessons as first-class sections */
+  { title: 'Tafsir Library', desc: "Ibn Kathir, Ma'arif al-Qur'an and Tazkirul Quran — verse by verse.", icon: BookIcon, grad: ['#8D6E15', '#B8962A'], chip: '3 tafsirs', cta: 'Read', href: '/tools/tafsir' },
+  { title: 'Short Lessons', desc: 'Bite-size micro-lessons on tawhid, salah, ramadan and more.', icon: NewspaperIcon, grad: ['#2F6D33', '#4CAF50'], chip: '9 lessons', cta: 'Learn', href: '/tools/lessons' },
   { title: 'Seerah Timeline', desc: 'Key moments from the Prophet\'s life ﷺ and early Islam.', icon: LandmarkIcon, grad: ['#B8860B', '#F39C12'], chip: '40+ milestones', cta: 'Explore', href: '/tools/seerah' },
   { title: 'Stories of the Prophets', desc: 'From Adam to Muhammad (PBUT) — lessons, wisdom, guidance.', icon: MosqueIcon, grad: ['#8D6E63', '#A1887F'], chip: '19 chapters', cta: 'Explore', href: '/tools/prophets' },
   { title: 'Articles', desc: 'Contemporary issues, spirituality and family life.', icon: NewspaperIcon, grad: ['#C62828', '#EF5350'], chip: '300+ articles', cta: 'Read', href: '/tools/articles' },
@@ -56,9 +66,9 @@ const LIBRARY: Section[] = [
   /* pass 39 — the rest of the app's learning content, surfaced here */
   { title: 'Hadith Library', desc: 'Read Sahih al-Bukhari, Muslim and more with translations.', icon: BookIcon, grad: ['#2E7D32', '#66BB6A'], chip: 'major collections', cta: 'Read', href: '/tools/hadith' },
   { title: 'Duas & Adhkar', desc: 'Authentic supplications for every moment of the day.', icon: MosqueIcon, grad: ['#6A1B9A', '#AB47BC'], chip: '100+ duas', cta: 'Open', href: '/tools/dua' },
-  { title: 'Morning & Evening Athkar', desc: 'Daily protection remembrances with counters.', icon: InfoIcon, grad: ['#00838F', '#26C6DA'], chip: 'daily routine', cta: 'Open', href: '/tools/athkar' },
+  /* pass 42 — the plain athkar row REPLACED by the interactive zikr challenge (tasbeeh/zikr/salawat) */
+  { title: 'Daily Zikr Challenge', desc: 'Interactive tasbeeh, istighfar and salawat counters — counts toward your daily goals.', icon: InfoIcon, grad: ['#00838F', '#26C6DA'], chip: 'daily routine', cta: 'Start', href: '/tools/zikr-challenge' },
   { title: 'Names of Allah', desc: 'The 99 beautiful names with meanings and evidence.', icon: MosqueIcon, grad: ['#B8860B', '#FFD54F'], chip: '99 names', cta: 'Learn', href: '/tools/names' },
-  { title: 'Ask a Scholar', desc: 'Browse verified answers or ask qualified scholars.', icon: ScaleIcon, grad: ['#4527A0', '#7E57C2'], chip: '1,300+ answers', cta: 'Ask', href: '/tools/fatwa' },
 ];
 
 
@@ -149,6 +159,23 @@ export default function Learning() {
   const insets = useSafeAreaInsets();
 
   const [topic, setTopic] = useState<Topic | null>(null);
+  /* pass 42 — auto-shuffling discovery banner under QUICK PLAY */
+  const [slide, setSlide] = useState(0);
+  const BANNER_POOL = useMemo(() => [...QUICK, ...LIBRARY], []);
+  const banner = BANNER_POOL[slide % BANNER_POOL.length];
+  const bannerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setSlide((i) => {
+        Animated.timing(bannerAnim, { toValue: 1, duration: 260, easing: Easing.in(Easing.quad), useNativeDriver: false }).start(({ finished }) => {
+          if (!finished) return;
+          bannerAnim.setValue(0);
+        });
+        return i + 1;
+      });
+    }, 4200);
+    return () => clearInterval(iv);
+  }, [bannerAnim]);
 
   const open = (href?: string) => {
     if (!href) return;
@@ -159,8 +186,13 @@ export default function Learning() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {/* pass 42 — back button (page had none) */}
+        <View style={{ paddingHorizontal: 16, paddingTop: Math.max(insets.top, 12) - 4, flexDirection: 'row', alignItems: 'center' }}>
+          <BackButton />
+        </View>
+
         {/* ── hero banner ── */}
-        <View style={{ marginHorizontal: 16, marginTop: Math.max(insets.top, 12) + 8, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
+        <View style={{ marginHorizontal: 16, marginTop: 10, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
           <Image source={require('../../../assets/img/mecca.jpg')} style={{ width: '100%', height: 168 }} contentFit="cover" />
           <LinearGradient colors={['rgba(6,20,13,0.30)', 'rgba(6,20,13,0.86)']} style={{ position: 'absolute', inset: 0 }} />
           <View style={{ position: 'absolute', inset: 0, padding: 18, justifyContent: 'flex-end' }}>
@@ -212,30 +244,50 @@ export default function Learning() {
           })}
         </ScrollView>
 
-        {/* ── topics with real content ── */}
-        <View style={{ marginTop: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-          <FontAwesome5 name="lightbulb" size={11} color={d.faint} />
-          <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: d.faint }}>TOPICS — SHORT LESSONS</T>
-        </View>
-        <View style={{ paddingHorizontal: 16, gap: 9 }}>
-          {TOPICS.map((t) => (
-            <Pressable
-              key={t.id}
-              accessibilityLabel={`topic ${t.title}`}
-              onPress={() => { haptic.selection(); setTopic(t); }}
-              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: `${t.tint}44`, backgroundColor: `${t.tint}0D`, padding: 13, opacity: pressed ? 0.82 : 1 })}
-            >
-              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: `${t.tint}22`, borderWidth: 1, borderColor: `${t.tint}66`, alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name={t.icon as never} size={16} color={t.tint} />
+        {/* ── pass 42 — auto-shuffling discovery banner (5 items cycling through library sections) ── */}
+        <Pressable
+          accessibilityLabel={`discover ${banner.title}`}
+          onPress={() => open(banner.href)}
+          style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}
+        >
+          <Animated.View style={{ opacity: bannerAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+            <LinearGradient colors={banner.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 15, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                <BannerIcon icon={banner.icon} size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{t.title}</T>
-                <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }}>{t.points.length} key points · {t.minutes} min read</T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 1, color: 'rgba(255,255,255,0.75)' }}>DISCOVER · {banner.chip.toUpperCase()}</T>
+                </View>
+                <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '900', color: '#FFFFFF', marginTop: 2 }}>{banner.title}</T>
+                <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.85)', lineHeight: 13.5, marginTop: 2 }} numberOfLines={2}>{banner.desc}</T>
               </View>
-              <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
-            </Pressable>
-          ))}
-        </View>
+              <FontAwesome5 name="arrow-right" size={13} color="#FFFFFF" />
+            </LinearGradient>
+          </Animated.View>
+          {/* progress dots — 5 slots */}
+          <View style={{ position: 'absolute', top: 9, right: 11, flexDirection: 'row', gap: 3 }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: i === slide % 5 ? '#FFFFFF' : 'rgba(255,255,255,0.35)' }} />
+            ))}
+          </View>
+        </Pressable>
+
+        {/* pass 42 — short lessons moved to their OWN screen (see LIBRARY) */}
+        <Pressable
+          accessibilityLabel="short lessons library"
+          onPress={() => { haptic.selection(); router.push('/tools/lessons' as never); }}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(76,175,80,0.4)', backgroundColor: 'rgba(76,175,80,0.08)', padding: 14, marginTop: 4, opacity: pressed ? 0.82 : 1 })}
+        >
+          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(76,175,80,0.16)', borderWidth: 1, borderColor: 'rgba(76,175,80,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="lightbulb" size={17} color="#4CAF50" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Short Lessons — {TOPICS.length} topics</T>
+            <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, lineHeight: 14 }} numberOfLines={2}>Tawhid, Salah, Wudu, Ramadan, Halal earnings, Du’a, Hijri, Janazah and more — open the library</T>
+          </View>
+          <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+        </Pressable>
 
         {/* ── library rows ── */}
         <View style={{ marginTop: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 }}>

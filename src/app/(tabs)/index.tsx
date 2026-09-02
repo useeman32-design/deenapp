@@ -9,7 +9,8 @@ import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGr
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getGoal, getStreak } from '@/lib/routine';
+import { getGoal as fetchGoal, getStreak, setGoal as setGoalItem, markActive } from '@/lib/routine';
+import { haptic } from '@/lib/haptics';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
@@ -146,7 +147,9 @@ export default function Home() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState('');
   const [streak, setStreak] = useState({ days: 0, demo: true });
-  const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean }>({ done: 0, total: 4, demo: true });
+  const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean }[] }>({ done: 0, total: 4, demo: true, items: [] });
+  /* pass 42 — Today's Goal modal */
+  const [goalOpen, setGoalOpen] = useState(false);
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -205,7 +208,7 @@ export default function Home() {
 
   const refreshProgress = useCallback(() => {
     getStreak().then(setStreak);
-    getGoal().then((g) => setGoal({ done: g.done, total: g.total, demo: g.demo }));
+    fetchGoal().then((g) => setGoal({ done: g.done, total: g.total, demo: g.demo, items: g.items }));
   }, []);
 
   useFocusEffect(
@@ -530,13 +533,14 @@ export default function Home() {
               </View>
             </View>
 
-            {/* Today's goal */}
-            <View style={{ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 14 }}>
+            {/* Today's goal — pass 42: taps open the goals modal */}
+            <Pressable accessibilityLabel="today-goal" onPress={() => { haptic.selection(); setGoalOpen(true); }} style={({ pressed }) => ({ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 14, opacity: pressed ? 0.88 : 1 })}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <FontAwesome5 name="bullseye" size={13} color={d.gold} />
-                <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 12.5 }}>
+                <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 12.5, flex: 1 }}>
                   Today’s Goal
                 </T>
+                <FontAwesome5 name="angle-right" size={13} color={d.subtext} />
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -554,11 +558,11 @@ export default function Home() {
                   icon={<FontAwesome5 name="bullseye" size={15} color={isDark ? d.goldBright : d.gold} />}
                 />
               </View>
-            </View>
+            </Pressable>
           </View>
         </View>
 
-        {/* 5 ─ Campaign banners */}
+        {/* pass 42 — TODAY'S GOAL modal: full goals list with live progress */}
         <View style={{ marginHorizontal: 16, marginTop: 26 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
@@ -1343,6 +1347,62 @@ export default function Home() {
               </View>
             );
           })()}
+        </Pressable>
+      </Modal>
+
+      {/* ── pass 42 — TODAY'S GOAL modal ── */}
+      <Modal visible={goalOpen} transparent animationType="fade" onRequestClose={() => setGoalOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setGoalOpen(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 20, paddingBottom: (insets?.bottom ?? 0) + 22, maxHeight: '78%' }}>
+            {/* grabber */}
+            <View style={{ alignSelf: 'center', width: 40, height: 4.5, borderRadius: 3, backgroundColor: d.cardBorder, marginBottom: 15 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(212,175,55,0.13)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="bullseye" size={15} color={isDark ? d.goldBright : d.gold} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="h3" style={{ fontWeight: '800', fontSize: 16 }}>Today’s Goal</T>
+                <T v="caption" style={{ fontSize: 10, marginTop: 1 }}>{goal.done} of {goal.total} tasks completed · resets tomorrow</T>
+              </View>
+              <Pressable onPress={() => { haptic.selection(); setGoalOpen(false); }} style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="times" size={12} color={d.subtext} />
+              </Pressable>
+            </View>
+            {/* big progress */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 16, borderRadius: 16, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder, padding: 14 }}>
+              <ProgressRing size={56} progress={goal.done / goal.total} color={isDark ? d.goldBright : d.gold} icon={<FontAwesome5 name="bullseye" size={16} color={isDark ? d.goldBright : d.gold} />} />
+              <View style={{ flex: 1 }}>
+                <T v="display" style={{ fontSize: 28, fontWeight: '800', color: d.text }}>{Math.round((goal.done / goal.total) * 100)}%</T>
+                <T v="caption" style={{ fontSize: 10, color: d.subtext, marginTop: 2 }}>{goal.done === goal.total ? 'Mashā’Allah — day complete! 🌙' : `${goal.total - goal.done} task${goal.total - goal.done === 1 ? '' : 's'} to go`}</T>
+              </View>
+            </View>
+            {/* the checklist */}
+            <View style={{ marginTop: 12, gap: 8 }}>
+              {(goal.items.length ? goal.items : [{ key: 'surah', label: 'Read a surah', done: false }, { key: 'checkin', label: 'Daily check-in', done: false }, { key: 'dua', label: 'Make a dua', done: false }, { key: 'dhikr', label: 'Dhikr (33×)', done: false }]).map((it) => {
+                const on = it.done;
+                return (
+                  <Pressable
+                    key={it.key}
+                    onPress={async () => {
+                      haptic.selection();
+                      const nextItems = goal.items.map((x) => (x.key === it.key ? { ...x, done: !on } : x));
+                      const done = nextItems.filter((x) => x.done).length;
+                      setGoal({ ...goal, items: nextItems, done });
+                      await setGoalItem(it.key, !on);
+                      if (!on) { markActive(); refreshProgress(); }
+                    }}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13, opacity: pressed ? 0.85 : 1 })}
+                  >
+                    <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.7)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.18)' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                      <FontAwesome5 name="check" size={11} color={on ? (isDark ? d.goldBright : d.gold) : 'transparent'} />
+                    </View>
+                    <T v="bodyS" style={{ flex: 1, fontSize: 13, fontWeight: '700', color: on ? d.subtext : d.text, textDecorationLine: on ? 'line-through' : 'none' }}>{it.label}</T>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: on ? 'rgba(212,175,55,0.9)' : d.faint }}>{on ? 'DONE' : 'MARK'}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
 

@@ -56,6 +56,42 @@ const CURRICULUM: Record<string, Lesson[]> = {
 
 const lessonsFor = (c: Course): Lesson[] => CURRICULUM[c.slug ?? ''] ?? CURRICULUM.default;
 
+/* ── pass 42 — COURSE QUIZZES: 5 questions per curriculum. A quiz session is
+ *   Q→A with instant feedback + explanation, then a score card; best score
+ *   persists per course under dl.courses.quiz.v1. */
+type QuizQ = { q: string; a: string[]; correct: number; why: string };
+const QUIZZES: Record<string, QuizQ[]> = {
+  'tajwid-essentials': [
+    { q: 'How many articulation points (makhārij) do the scholars define?', a: ['10', '14', '17', '21'], correct: 2, why: '17 in total — and the tongue alone carries 10 of them.' },
+    { q: 'Before which letter does noon sākinah turn into a mīm sound (iqlāb)?', a: ['ب', 'م', 'و', 'ن'], correct: 0, why: 'Iqlāb: before ب the noon is converted into a hidden mīm.' },
+    { q: 'Iẓhār applies when noon sākinah meets…', a: ['the letters ي ر م ل و ن', 'the six throat letters', 'ب only', 'any letter'], correct: 1, why: 'With ء ه ع ح غ خ the noon is pronounced clearly, no nasal hold.' },
+    { q: 'How long is the necessary madd (madd lāzim) held?', a: ['2 counts', '4 counts', '5 counts', '6 counts'], correct: 3, why: 'Necessary madd is held steady for six counts.' },
+    { q: 'Idghām WITHOUT ghunnah occurs with which two letters?', a: ['ل ر', 'ي م', 'و ن', 'ب م'], correct: 0, why: 'ل and ر merge with no nasal trace; ي م و ن merge with ghunnah.' },
+  ],
+  'fiqh-worship': [
+    { q: 'What is the zakat rate on qualifying wealth?', a: ['1%', '2.5%', '5%', '10%'], correct: 1, why: '2.5% after a lunar year at or above niṣāb (85g gold or equivalent).' },
+    { q: 'The window of which prayer ends when "the sun yellows"?', a: ['Dhuhr', 'Asr', 'Maghrib', 'Isha'], correct: 1, why: 'Asr lasts until the sun yellows and weakens.' },
+    { q: 'Sujūd is made on how many bones (body parts)?', a: ['5', '6', '7', '8'], correct: 2, why: 'Seven: forehead+nose, two palms, two knees, two toes.' },
+    { q: 'When is Zakat al-Fitr due?', a: ['any day of Ramadan', 'before the Eid prayer', 'on Eid day itself', 'at the next Ramadan'], correct: 1, why: 'A staple measure of food per household member, before the Eid prayer.' },
+    { q: '"Whoever fasts Ramadan with faith and seeking reward…" — his previous sins are…', a: ['lightened', 'doubled in record', 'forgiven', 'awaited'], correct: 2, why: '…his previous sins are forgiven. (Bukhari 38)' },
+  ],
+  seerah: [
+    { q: 'The Prophet ﷺ was born in…', a: ['the Year of the Elephant', 'the Year of Sorrow', 'the Year of the Trench', 'the Year of Delegation'], correct: 0, why: 'The Year the Elephant — Abrahah’s failed march on the Ka’bah.' },
+    { q: 'How many believers fought at Badr?', a: ['313', '700', '1,000', '3,000'], correct: 0, why: '313 against roughly a thousand — victory by Allah’s help.' },
+    { q: 'The "Year of Sorrow" marks the deaths of…', a: ['Hamzah & Ja’far', 'Khadījah & Abū Ṭālib', 'Umm Kulthūm & Ibrāhīm', 'ʿUthmān & ʿUmar'], correct: 1, why: 'Khadījah (RA) and his uncle Abū Ṭālib — the two great supports.' },
+    { q: 'Which event gave the ummah the five daily prayers?', a: ['the Hijrah', 'Isrā’ & Miʿrāj', 'the Farewell Pilgrimage', 'the Conquest of Makkah'], correct: 1, why: 'The Night Journey — a gift from the fifty to the five.' },
+    { q: 'Makkah was opened in which year?', a: ['6 AH', '8 AH', '10 AH', '11 AH'], correct: 1, why: '8 AH — bloodless, with a general amnesty.' },
+  ],
+  default: [
+    { q: 'Every Islamic science begins with…', a: ['memorisation', 'adab', 'debate', 'isnad drawing'], correct: 1, why: 'Adab: intention, respect for the teacher, verified sources.' },
+    { q: 'The Prophet ﷺ said whoever travels a path seeking knowledge, Allah eases for him a path to…', a: ['provision', 'Paradise', 'forgiveness', 'honour'], correct: 1, why: '…a path to Paradise. (Muslim 2699)' },
+    { q: 'Which study habit multiplies retention, per the course?', a: ['re-reading ten times', 'a five-line summary after each lesson', 'listening while walking', 'group chats'], correct: 1, why: 'Write five lines after each lesson — retrieval beats re-reading.' },
+    { q: 'The salaf said knowledge calls to…', a: ['authority', 'action', 'wealth', 'fame'], correct: 1, why: 'It calls to action; if answered it stays, otherwise it departs.' },
+    { q: 'The "Feynman test" of understanding is to…', a: ['read aloud fast', 'explain it in two minutes without notes', 'memorise the headings', 'teach only seniors'], correct: 1, why: 'Explain the lesson aloud in two minutes, notes closed.' },
+  ],
+};
+const quizFor = (c: Course): QuizQ[] => QUIZZES[c.slug ?? ''] ?? QUIZZES.default;
+
 export default function Courses() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -192,21 +228,48 @@ function CoursePlayer({ course, progress, onToggle, onClose }: { course: Course;
   const insets = useSafeAreaInsets();
   const [li, setLi] = useState<number | null>(null);
   const lessons = lessonsFor(course);
+  /* pass 42 — quiz session state */
+  const [quizOn, setQuizOn] = useState(false);
+  const [qi, setQi] = useState(0);
+  const [pick, setPick] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [best, setBest] = useState(0);
+  const quiz = quizFor(course);
+  useEffect(() => {
+    (async () => {
+      try {
+        const all = JSON.parse((await storage.getItem('dl.courses.quiz.v1')) ?? '{}');
+        setBest(all[course.slug ?? course.id.toString()]?.best ?? 0);
+      } catch {}
+    })();
+  }, [course]);
+  const saveQuiz = async (sc: number) => {
+    setBest((b) => Math.max(b, sc));
+    try {
+      const all = JSON.parse((await storage.getItem('dl.courses.quiz.v1')) ?? '{}');
+      const k = course.slug ?? course.id.toString();
+      const cur = all[k] ?? { best: 0, tries: 0 };
+      all[k] = { best: Math.max(cur.best, sc), tries: cur.tries + 1 };
+      await storage.setItem('dl.courses.quiz.v1', JSON.stringify(all));
+    } catch {}
+  };
+  const startQuiz = () => { haptic.selection(); setQuizOn(true); setQi(0); setPick(null); setScore(0); setFinished(false); };
   const done = progress.length;
   const pct = Math.round((done / lessons.length) * 100);
   const nextIdx = lessons.findIndex((_, i) => !progress.includes(i));
 
   return (
-    <Modal visible animationType="slide" onRequestClose={() => (li != null ? setLi(null) : onClose())}>
+    <Modal visible animationType="slide" onRequestClose={() => (quizOn ? setQuizOn(false) : li != null ? setLi(null) : onClose())}>
       <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top + 8 }}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 10 }}>
-          <Pressable onPress={() => { haptic.selection(); if (li != null) setLi(null); else onClose(); }} style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name={li != null ? 'chevron-left' : 'times'} size={13} color={theme.primary} />
+          <Pressable onPress={() => { haptic.selection(); if (quizOn) setQuizOn(false); else if (li != null) setLi(null); else onClose(); }} style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name={quizOn ? 'chevron-left' : li != null ? 'chevron-left' : 'times'} size={13} color={theme.primary} />
           </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T v="h3" numberOfLines={1} style={{ fontWeight: '800' }}>{li != null ? lessons[li].title : course.title}</T>
-            <T v="caption" numberOfLines={1} style={{ marginTop: 1 }}>{li != null ? `${lessons[li].kind === 'lecture' ? 'Lecture' : 'Reading'} · ${lessons[li].minutes} min` : `${done}/${lessons.length} lessons · ${pct}% complete`}</T>
+            <T v="h3" numberOfLines={1} style={{ fontWeight: '800' }}>{quizOn ? (finished ? 'Quiz complete' : `Quiz · Q${qi + 1} of ${quiz.length}`) : li != null ? lessons[li].title : course.title}</T>
+            <T v="caption" numberOfLines={1} style={{ marginTop: 1 }}>{quizOn ? (finished ? `Score ${score}/${quiz.length} · best ${Math.max(best, score)}` : `${course.title} · question ${qi + 1}`) : li != null ? `${lessons[li].kind === 'lecture' ? 'Lecture' : 'Reading'} · ${lessons[li].minutes} min` : `${done}/${lessons.length} lessons · ${pct}% complete`}</T>
           </View>
           <View style={{ minWidth: 44, height: 26, borderRadius: 9, borderWidth: 1.5, borderColor: pct === 100 ? 'rgba(212,175,55,0.6)' : theme.border, backgroundColor: pct === 100 ? 'rgba(212,175,55,0.12)' : theme.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
             <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: pct === 100 ? '#B8870B' : theme.primary }}>{pct}%</T>
@@ -217,7 +280,68 @@ function CoursePlayer({ course, progress, onToggle, onClose }: { course: Course;
           <View style={{ width: `${pct}%`, height: 4, backgroundColor: pct === 100 ? '#D4AF37' : isDark ? '#4AE38F' : '#1D6F42' }} />
         </View>
 
-        {li == null ? (
+        {quizOn ? (
+          <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+            {finished ? (
+              <View style={{ alignItems: 'center', paddingTop: 26 }}>
+                <View style={{ width: 84, height: 84, borderRadius: 42, borderWidth: 2.5, borderColor: score === quiz.length ? 'rgba(212,175,55,0.7)' : isDark ? 'rgba(74,227,143,0.6)' : 'rgba(29,111,66,0.5)', backgroundColor: score === quiz.length ? 'rgba(212,175,55,0.1)' : isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={score === quiz.length ? 'trophy' : 'award'} size={30} color={score === quiz.length ? '#B8870B' : isDark ? '#4AE38F' : '#1D6F42'} />
+                </View>
+                <T v="h2" style={{ marginTop: 16, fontWeight: '900' }}>{score === quiz.length ? 'Perfect score!' : score >= quiz.length - 1 ? 'Well done!' : 'Keep studying'}</T>
+                <T v="body" style={{ marginTop: 5, color: theme.subtext, textAlign: 'center' }}>You scored {score} of {quiz.length}{best > score ? ` · your best is ${best}` : score > best ? ' · a new best!' : ''}</T>
+                <Pressable onPress={startQuiz} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, width: '100%', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: isDark ? '#4AE38F' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>
+                  <FontAwesome5 name="redo" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  <T v="button" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>RETRY QUIZ</T>
+                </Pressable>
+                <Pressable onPress={() => setQuizOn(false)} style={{ marginTop: 10, paddingVertical: 12 }}>
+                  <T v="caption" style={{ fontWeight: '700' }}>Back to lessons</T>
+                </Pressable>
+              </View>
+            ) : (
+              <View>
+                {/* quiz progress dots */}
+                <View style={{ flexDirection: 'row', gap: 5, marginBottom: 16 }}>
+                  {quiz.map((_, k) => (
+                    <View key={k} style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: k < qi ? (isDark ? '#4AE38F' : '#1D6F42') : k === qi ? 'rgba(212,175,55,0.8)' : theme.border }} />
+                  ))}
+                </View>
+                <T v="h3" style={{ fontSize: 17, fontWeight: '800', lineHeight: 25 }}>{quiz[qi].q}</T>
+                <T v="caption" style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.6, marginTop: 14, marginBottom: 9 }}>CHOOSE ONE</T>
+                {quiz[qi].a.map((opt, k) => {
+                  const chosen = pick === k;
+                  const reveal = pick != null;
+                  const isRight = k === quiz[qi].correct;
+                  return (
+                    <Pressable
+                      key={k}
+                      disabled={reveal}
+                      onPress={() => { haptic.selection(); setPick(k); if (isRight) setScore((x) => x + 1); }}
+                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: reveal ? (isRight ? 'rgba(74,227,143,0.75)' : chosen ? 'rgba(239,68,68,0.65)' : theme.border) : chosen ? 'rgba(212,175,55,0.6)' : theme.border, backgroundColor: reveal ? (isRight ? 'rgba(46,204,113,0.1)' : chosen ? 'rgba(239,68,68,0.07)' : theme.card) : theme.card, padding: 13, marginBottom: 9, opacity: pressed ? 0.85 : 1 })}
+                    >
+                      <View style={{ width: 28, height: 28, borderRadius: 9, borderWidth: 1.5, borderColor: reveal ? (isRight ? 'rgba(74,227,143,0.75)' : chosen ? 'rgba(239,68,68,0.65)' : theme.border) : theme.border, alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name={reveal ? (isRight ? 'check' : chosen ? 'times' : 'circle') : 'circle'} size={11} color={reveal ? (isRight ? '#2FA866' : chosen ? '#EF4444' : theme.subtext) : theme.subtext} />
+                      </View>
+                      <T v="bodyS" style={{ flex: 1, fontSize: 13.5, fontWeight: '600', color: reveal && isRight ? (isDark ? '#7CE8A8' : '#166534') : theme.text }}>{opt}</T>
+                    </Pressable>
+                  );
+                })}
+                {pick != null ? (
+                  <View style={{ borderRadius: 13, borderWidth: 1, borderColor: pick === quiz[qi].correct ? 'rgba(74,227,143,0.4)' : 'rgba(239,68,68,0.35)', backgroundColor: pick === quiz[qi].correct ? 'rgba(46,204,113,0.07)' : 'rgba(239,68,68,0.05)', padding: 12, marginTop: 4 }}>
+                    <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 0.5, color: pick === quiz[qi].correct ? (isDark ? '#4AE38F' : '#1D6F42') : '#EF4444' }}>{pick === quiz[qi].correct ? 'CORRECT' : 'NOT QUITE'}</T>
+                    <T v="bodyS" style={{ fontSize: 12.5, marginTop: 4, color: theme.text }}>{quiz[qi].why}</T>
+                    <Pressable
+                      onPress={() => { haptic.selection(); if (qi + 1 < quiz.length) { setQi(qi + 1); setPick(null); } else { setFinished(true); saveQuiz(score); } }}
+                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}
+                    >
+                      <FontAwesome5 name={qi + 1 < quiz.length ? 'arrow-right' : 'flag-checkered'} size={12} color="#fff" />
+                      <T v="button" style={{ fontSize: 12.5, fontWeight: '800' }}>{qi + 1 < quiz.length ? 'NEXT QUESTION' : 'SEE RESULTS'}</T>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          </ScrollView>
+        ) : li == null ? (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 9 }} showsVerticalScrollIndicator={false}>
             {/* continue card */}
             {nextIdx >= 0 && pct > 0 ? (
@@ -230,6 +354,17 @@ function CoursePlayer({ course, progress, onToggle, onClose }: { course: Course;
                 <ChevronRightIcon size={14} color={theme.subtext} />
               </Pressable>
             ) : null}
+            {/* pass 42 — course quiz launcher */}
+            <Pressable onPress={startQuiz} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.09)', padding: 13, opacity: pressed ? 0.85 : 1 })}>
+              <View style={{ width: 34, height: 34, borderRadius: 11, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.55)', backgroundColor: 'rgba(212,175,55,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="graduation-cap" size={14} color="#B8870B" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T v="bodyS" style={{ fontWeight: '800', fontSize: 13 }}>Course quiz</T>
+                <T v="caption" style={{ fontSize: 10, marginTop: 2 }}>{quiz.length} questions{best > 0 ? ` · best ${best}/${quiz.length}` : ' · test yourself'}</T>
+              </View>
+              <ChevronRightIcon size={14} color={theme.subtext} />
+            </Pressable>
             {lessons.map((l, i) => {
               const isDone = progress.includes(i);
               return (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
-import { listUserPosts } from '@/lib/userPosts';
+import { addUserPost, listUserPosts } from '@/lib/userPosts';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -51,6 +51,8 @@ export default function CommunityScreen() {
       const asPosts: Post[] = ups.map((u) => ({
         id: 1e9 + (u.at % 1e8),
         content_text: u.text,
+        /* pass 42 — video posts surface with their playable video */
+        video_url: u.video ?? undefined,
         time_ago: 'now',
         like_count: 0,
         comment_count: 0,
@@ -227,6 +229,8 @@ export default function CommunityScreen() {
       }
       if (videoAttach) {
         np.video_url = videoAttach.uri;
+        /* pass 42 — UNIVERSAL VIDEOS: a community video post is ALSO a reel */
+        addUserPost(t, 'video', { video: videoAttach.uri });
       }
       if (ytOn && ytUrl.trim()) {
         const url = ytUrl.trim();
