@@ -89,8 +89,8 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
       ]).start();
     }, 2100);
     setTimeout(() => haptic.success(), 2700);
-    setTimeout(() => Animated.timing(fade, { toValue: 0, duration: 700, easing: Easing.ease, useNativeDriver: true }).start(), 3700);
-    setTimeout(onVerified, 4400);
+    setTimeout(() => Animated.timing(fade, { toValue: 0, duration: 700, easing: Easing.ease, useNativeDriver: true }).start(), 5200);
+    setTimeout(onVerified, 6000);
   };
 
   const verify = () => {

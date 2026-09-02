@@ -41,7 +41,7 @@ const cardShadow = (isDark: boolean) => ({
 function ImageCard({ img, isDark, d }: { img: any; isDark: boolean; d: any }) {
   return (
     <View style={{ width: '100%', marginTop: 24, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, ...cardShadow(isDark) }}>
-      <Image source={img} style={{ width: '100%', height: 232 }} resizeMode="cover" />
+      <Image source={img} style={{ width: '100%', aspectRatio: 1 }} resizeMode="cover" />
     </View>
   );
 }

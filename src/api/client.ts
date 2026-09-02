@@ -430,6 +430,14 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
   return r.ok && r.data.times ? r.data : null;
 }
 
+/* Slice 6 — admin-managed Names of Allah additions; null when offline/empty so the bundled set stays. */
+export type AdminName = { number: number; name: string; transliteration: string; translation: string; meaning: string };
+export async function namesOfAllah(): Promise<AdminName[] | null> {
+  const r = await request<{ status?: string; names?: AdminName[] }>('/api/names/list.php');
+  if (r.ok && Array.isArray(r.data.names) && r.data.names.length > 0) return r.data.names;
+  return null;
+}
+
 /* Slice 5 — admin-managed Duas & Athkar additions; null when offline/empty so the bundled set stays. */
 export type AdminAthkar = { group: string; name: string; arabic: string; transliteration: string; translation: string; note: string; count: number };
 export type AdminAthkarDuas = { athkar: AdminAthkar[]; duas: AdminAthkar[] };

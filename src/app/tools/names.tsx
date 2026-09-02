@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { loadNames99 } from '@/lib/content';
 import { NAMES_99 as FALLBACK_NAMES } from '@/data/names99';
+import { useAdminNames } from '@/lib/liveNames';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
@@ -59,7 +60,21 @@ export default function Names() {
       .catch(() => {});
   }, []);
 
-  const source = pack ?? FALLBACK_NAMES.map((n) => ({ ...n, audio: '' }));
+  const adminNames = useAdminNames();
+  const source = useMemo(() => {
+    const base = pack ?? FALLBACK_NAMES.map((n) => ({ ...n, audio: '' }));
+    if (!adminNames.length) return base;
+    const byNum = new Map(adminNames.map((a) => [a.number, a]));
+    const overridden = base.map((b) => {
+      const a = byNum.get(b.number);
+      return a ? { ...b, arabic: a.name, transliteration: a.transliteration, translation: a.translation, meaning: a.meaning } : b;
+    });
+    const baseNums = new Set(base.map((b) => b.number));
+    const appended = adminNames
+      .filter((a) => !baseNums.has(a.number))
+      .map((a) => ({ number: a.number, arabic: a.name, transliteration: a.transliteration, translation: a.translation, meaning: a.meaning, audio: '' }));
+    return [...overridden, ...appended];
+  }, [pack, adminNames]);
 
   const list = useMemo(() => {
     const sorted = [...source].sort((a, b) => a.transliteration.localeCompare(b.transliteration));
