@@ -133,20 +133,26 @@ export async function markGoal(key: string): Promise<void> {
   if (!rec[key]) {
     rec[key] = true;
     await storage.setItem(k, JSON.stringify(rec));
-    /* pass 44 — flag a celebration; the home dashboard consumes it on focus */
-    await storage.setItem(`dl.goal.pending.${dayKey()}`, '1');
+    /* pass 44 — record WHICH goal completed; home dashboard consumes on focus */
+    const pk = `dl.goal.pending.${dayKey()}`;
+    let pend: string[] = [];
+    try { const pr = await storage.getItem(pk); const parsed = pr ? JSON.parse(pr) : []; if (Array.isArray(parsed)) pend = parsed; } catch { pend = []; }
+    if (!pend.includes(key)) pend.push(key);
+    await storage.setItem(pk, JSON.stringify(pend));
   }
 }
 
-/** pass 44 — read+clear the "a goal was just completed" flag (home celebration). */
-export async function consumeGoalPending(): Promise<boolean> {
+/** pass 44 — read+clear the just-completed goals; returns their labels for the celebration. */
+export async function consumeGoalPending(): Promise<string[]> {
   const k = `dl.goal.pending.${dayKey()}`;
   const v = await storage.getItem(k);
-  if (v === '1') {
-    await storage.setItem(k, '0');
-    return true;
-  }
-  return false;
+  if (!v) return [];
+  await storage.setItem(k, '[]');
+  try {
+    const arr = JSON.parse(v);
+    if (Array.isArray(arr) && arr.length) return arr.map((key) => GOAL_META[String(key)] ?? String(key));
+  } catch { /* ignore */ }
+  return [];
 }
 
 /** pass 44 — has the all-goals-complete 10 DP reward been granted today? */

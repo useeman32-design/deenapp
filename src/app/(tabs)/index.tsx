@@ -165,7 +165,7 @@ export default function Home() {
   /* pass 42 — Today's Goal modal */
   const [goalOpen, setGoalOpen] = useState(false);
   /* pass 44 — goal-completion celebration */
-  const [goalCelebrate, setGoalCelebrate] = useState<{ open: boolean; all: boolean }>({ open: false, all: false });
+  const [goalCelebrate, setGoalCelebrate] = useState<{ open: boolean; all: boolean; labels: string[] }>({ open: false, all: false, labels: [] });
   const { add: addPoints } = useDeenPoints();
   /* pass 44 — admin-managed home campaigns (falls back to bundled CAMPAIGNS) */
   const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
@@ -242,10 +242,10 @@ export default function Home() {
     fetchGoal().then((g) => {
       setGoal({ done: g.done, total: g.total, demo: g.demo, items: g.items });
       /* pass 44 — celebrate a freshly completed goal (flagged by markGoal elsewhere) */
-      consumeGoalPending().then((pending) => {
-        if (!pending) return;
+      consumeGoalPending().then((labels) => {
+        if (!labels.length) return;
         const all = g.done >= g.total;
-        setGoalCelebrate({ open: true, all });
+        setGoalCelebrate({ open: true, all, labels });
         if (all) claimGoalReward().then((first) => { if (first) addPoints(10); });
       });
     });
@@ -1452,8 +1452,9 @@ export default function Home() {
       <GoalCompleteModal
         visible={goalCelebrate.open}
         allComplete={goalCelebrate.all}
-        onClose={() => setGoalCelebrate({ open: false, all: false })}
-        onExplore={() => { setGoalCelebrate({ open: false, all: false }); setGoalOpen(true); }}
+        completed={goalCelebrate.labels}
+        onClose={() => setGoalCelebrate({ open: false, all: false, labels: [] })}
+        onExplore={() => { setGoalCelebrate({ open: false, all: false, labels: [] }); setGoalOpen(true); }}
       />
     </View>
   );

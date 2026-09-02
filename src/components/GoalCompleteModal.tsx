@@ -16,11 +16,13 @@ import { haptic } from '@/lib/haptics';
 export function GoalCompleteModal({
   visible,
   allComplete,
+  completed,
   onClose,
   onExplore,
 }: {
   visible: boolean;
   allComplete: boolean;
+  completed: string[];
   onClose: () => void;
   onExplore: () => void;
 }) {
@@ -81,9 +83,17 @@ export function GoalCompleteModal({
             </View>
 
             <T v="h3" style={{ fontSize: 19, fontWeight: '900', color: d.text, textAlign: 'center', marginTop: 18 }}>Barakallah! 🌙</T>
-            <T v="caption" style={{ fontSize: 12.5, color: d.subtext, textAlign: 'center', marginTop: 5, lineHeight: 17 }}>
-              {allComplete ? "You've completed all of today's goals — day complete!" : "You've completed one of today's goals."}
-            </T>
+            {completed.length > 0 ? (
+              <View style={{ alignItems: 'center', marginTop: 7 }}>
+                <T v="caption" style={{ fontSize: 12, color: d.subtext }}>{allComplete ? 'Final goal done —' : 'You completed:'}</T>
+                {completed.map((c, i) => (
+                  <T key={i} v="bodyS" style={{ fontSize: 15, fontWeight: '800', color: gold, marginTop: 2, textAlign: 'center' }}>{c}</T>
+                ))}
+              </View>
+            ) : (
+              <T v="caption" style={{ fontSize: 12.5, color: d.subtext, textAlign: 'center', marginTop: 5 }}>You've completed a goal for today.</T>
+            )}
+            {allComplete ? <T v="caption" style={{ fontSize: 12, color: d.subtext, textAlign: 'center', marginTop: 6 }}>Day complete — Mashā'Allah! 🌙</T> : null}
 
             {allComplete ? (
               <Animated.View
