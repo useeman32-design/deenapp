@@ -1,4 +1,64 @@
-# CONTINUE — pass 39 handoff (2026-09-01)
+# CONTINUE — pass 42 handoff (2026-09-02)
+
+# ── pass 42 SHIPPED (master bc6634e, gh-pages efbc94b, probe35 24/24 + probe42 11/11 ALL PASS, live entry 200) ──
+
+# ── pass 42 — 10-item UI/feature pass ──
+Sandbox was RESET at fa46369 (npm ci + chromium + `sudo apt-get libnspr4 libnss3 …`
+needed again — run `bash scripts/browser-env.sh` first if probes fail to launch).
+git identity must be set per-repo after a reset (done): user.name useeman32-design.
+
+What shipped (all 10 items):
+- TAFSIR TOOL /tools/tafsir (NEW src/lib/tafsir.ts + tafsir.tsx): surah picker modal +
+  ayah strip + 3-book selector (Ibn Kathir/Maarif Ul Quran/Tazkirul Quran, persisted
+  dl.tafsir.book); arabic/english from bundled corpus (loadSurah — content.ts ayahs are
+  {ayah, arabic, english, hausa}!); tafsir fetched live from quranapi.pages.dev
+  GET /api/tafsir/{surah}_{ayah}.json → tafsirs[author].content (markdown-lite '## '
+  headings). 'Ask DeenLink AI' link on the screen.
+- DAILY ZIKR CHALLENGE /tools/zikr-challenge (NEW): tasbeeh 99 / istighfar 100 /
+  salawat 100, tap-to-count, 40-dot ring + pulse + '+1' float; persists
+  dl.zikr.<YYYY-MM-DD> {tasbeeh,istighfar,salawat,rewarded}; completing any =
+  markGoal('dhikr')+markActive; all 3 → RewardModal +25 DP once/day.
+- SHORT LESSONS /tools/lessons (NEW): TOPICS extracted from learning.tsx; search +
+  list + bottom-sheet reader. 8 topics · 34 key points.
+- LEARNING HUB REWORK: BackButton; auto-shuffle banner (4.2s, QUICK+LIBRARY pool,
+  5 dots) under QUICK PLAY; 'Ask a Scholar' row REMOVED; 'Athkar' → Daily Zikr
+  Challenge; Tafsir Library + Short Lessons rows in LIBRARY.
+- ADHAN MODAL: 5 UNIQUE designs (praying=card+photo header, mecca=full-bleed 560px
+  centered, kaabah=split row, medina=strip header+overlap avatar, mosque=double
+  frame), maxWidth 396, Style switcher inside the alert.
+- QIBLA: per-design back arrow (spec table: classic ring chevron / minimal square
+  arrow / night glowing pill double-chevron solid / royal soft-square solid arrow /
+  bedouin squircle solid chevron / digital sharp neon-border chevron) from ds.dot.
+- TASBEEH: misbaha now DRAWN in SVG (33 beads true circle cy=0.55h r=0.335min,
+  bead r=0.0315min; passed=green, active=glow+halo, specular dot; silk ring +
+  gold tassel collar/threads). Photo + hand-fitted BEAD_PATH REMOVED (alignment
+  now exact by construction). MISBAHA_AR now 1.44.
+- COURSE QUIZZES: QUIZZES bank 5 Q per curriculum (tajwid/fiqh/seerah/default),
+  launcher card in the player, Q→A with instant correct/incorrect + explanation,
+  dots progress, result card w/ trophy; best score persists dl.courses.quiz.v1
+  {best,tries}. Exit order: quiz → lesson → close.
+- SCHOLARS Q&A IDENTITIES: answered questions now show asker row (avatar + name +
+  asked publicly/privately) AND scholar bubble (gold-ring avatar + title·madhhab·
+  institute from MOCK_SCHOLARS via scholarOf/scholarAv helpers; seeds have asker
+  {name,av}). Both MY + PUBLIC tabs.
+- HOME TODAY'S GOAL MODAL: card (aria today-goal) opens bottom-sheet: big % +
+  ProgressRing + 4-goal checklist (tap toggles, gold done state, strikethrough).
+  routine.ts gained setGoal(key,val) (full toggle; markGoal still exists).
+  NB: routine imports in index.tsx are ALIASED (fetchGoal/setGoalItem) — the
+  useState setter is also called setGoal.
+- UNIVERSAL VIDEOS (community↔reels): UserPost gained {video?, reelId?};
+  community video composer posts ALSO addUserPost(kind 'video'); videos composer
+  cross-posts via addUserPost(..., {video, reelId}); Videos feed injects
+  userPosts video&&!reelId as reels (ids 1_000_000+at%1e6, username abdalrahman).
+  De-dup both directions by reelId.
+- AI: Ibn Kathir tafsir auto-fed to sys prompt on N:N verse matches
+  (tafsirContextFor in src/lib/tafsir.ts, regex /\b(\d{1,3})\s*[:.]\s*(\d{1,3})\b/);
+  NAV leak stripped (ai.tsx bubble NAV strip + CommentsModal extracts NAV: lines
+  into an 'Open …' chip; mocks SampleComment.nav). NAV_LABELS map lives in
+  src/lib/ai.ts.
+- probe42.mjs ADDED (11 checks) — run alongside probe35 (24) after every export.
+- STILL WAITING: user's PRIVATE PHP backend repo was never uploaded (asked every
+  pass since 39). API-key answer repeated in the final reply.
 
 # ── pass 41 SHIPPED (see below for details) ──
 
