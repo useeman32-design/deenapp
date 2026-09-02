@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ATHKAR } from '@/data/athkar';
+import { useAllAthkar } from '@/lib/liveAthkar';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/Card';
 import { TopBar } from '@/components/TopBar';
@@ -21,6 +21,7 @@ export default function Athkar() {
   const { theme } = useTheme();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  const list = useAllAthkar();
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <TopBar showBack
@@ -37,11 +38,11 @@ export default function Athkar() {
         onClose={() => setSearchOpen(false)}
         placeholder="Search athkar — name or text…"
         metaSearch={(q) =>
-          ATHKAR.filter((a) => a.name.toLowerCase().includes(q.toLowerCase()) || a.transliteration.toLowerCase().includes(q.toLowerCase()))
+          list.filter((a) => a.name.toLowerCase().includes(q.toLowerCase()) || a.transliteration.toLowerCase().includes(q.toLowerCase()))
             .map((a) => ({ key: a.id, title: a.name, subtitle: `${a.group} · ×${a.count || '∞'}`, onPress: () => router.push(`/tools/athkar/${a.id}`) }))
         }
         contentSearch={async (q) =>
-          ATHKAR.filter((a) => a.arabic.includes(q.trim()) || (a.note ?? '').toLowerCase().includes(q.toLowerCase()))
+          list.filter((a) => a.arabic.includes(q.trim()) || (a.note ?? '').toLowerCase().includes(q.toLowerCase()))
             .map((a) => ({ key: `c-${a.id}`, title: a.name, arabic: a.arabic.slice(0, 44), subtitle: (a.note ?? '').slice(0, 80), onPress: () => router.push(`/tools/athkar/${a.id}`) }))
         }
         contentLabel="In athkar texts"
@@ -52,7 +53,7 @@ export default function Athkar() {
             <Text style={{ fontSize: 15.5, fontWeight: '800', color: theme.text, marginTop: 14, marginBottom: 10 }}>
               {GROUP_LABEL[g]}
             </Text>
-            {ATHKAR.filter((a) => a.group === g).map((a) => (
+            {list.filter((a) => a.group === g).map((a) => (
               <Card
                 key={a.id}
                 onPress={() => router.push(`/tools/athkar/${a.id}`)}

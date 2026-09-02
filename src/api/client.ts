@@ -430,6 +430,16 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
   return r.ok && r.data.times ? r.data : null;
 }
 
+/* Slice 5 — admin-managed Duas & Athkar additions; null when offline/empty so the bundled set stays. */
+export type AdminAthkar = { group: string; name: string; arabic: string; transliteration: string; translation: string; note: string; count: number };
+export type AdminAthkarDuas = { athkar: AdminAthkar[]; duas: AdminAthkar[] };
+export async function athkarDuas(): Promise<AdminAthkarDuas | null> {
+  const r = await request<{ status?: string; athkar?: AdminAthkar[]; duas?: AdminAthkar[] }>('/api/athkar/list.php');
+  if (r.ok && (Array.isArray(r.data.athkar) || Array.isArray(r.data.duas)))
+    return { athkar: r.data.athkar ?? [], duas: r.data.duas ?? [] };
+  return null;
+}
+
 /* ----------------------------- Persistence ---------------------------- */
 
 export async function persistSession(s: string, c: string | null, user: User) {

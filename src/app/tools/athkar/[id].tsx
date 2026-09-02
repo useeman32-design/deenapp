@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { ATHKAR } from '@/data/athkar';
+import { useAllAthkar } from '@/lib/liveAthkar';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { DhikrCounter } from '@/components/DhikrCounter';
@@ -14,7 +14,8 @@ import { haptic } from '@/lib/haptics';
 
 export default function AtharDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const item = ATHKAR.find((a) => a.id === id);
+  const list = useAllAthkar();
+  const item = list.find((a) => a.id === id);
   const { theme } = useTheme();
   const [count, setCount] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
@@ -36,7 +37,7 @@ export default function AtharDetail() {
   useEffect(() => {
     if (!session) return;
     const iv = setInterval(async () => {
-      const meta = ATHKAR.find((a) => a.id === id);
+      const meta = list.find((a) => a.id === id);
       setCount((c) => {
         const next = c + 1;
         void storage.setItem(`dl.athkar.${id}`, String(next));

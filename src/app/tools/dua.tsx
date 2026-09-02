@@ -11,6 +11,7 @@ import { BackButton } from '@/components/BackButton';
 import { haptic } from '@/lib/haptics';
 import { DUA_SECTIONS, groupBySection, type DuaSectionId } from '@/lib/duaSections';
 import { ContentSearchOverlay, type SearchHit } from '@/components/ContentSearchOverlay';
+import { useAdminDuas } from '@/lib/liveAthkar';
 
 /**
  * Duas (pass 20) — sections list (from the user's dua pack): each section
@@ -23,6 +24,7 @@ export default function Duas() {
   const router = useRouter();
   const [pack, setPack] = useState<Record<string, ContentDua[]> | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const adminDuas = useAdminDuas();
 
   useEffect(() => {
     markGoal('dua');
@@ -69,6 +71,19 @@ export default function Duas() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 10, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {!pack ? <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>Loading duas…</T> : null}
+        {adminDuas.length > 0 && (
+          <View style={{ marginBottom: 14 }}>
+            <T v="body" style={{ color: d.text, fontWeight: '800', fontSize: 15, marginBottom: 8 }}>✨ From DeenLink</T>
+            {adminDuas.map((x, i) => (
+              <View key={i} style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 16, padding: 14, marginBottom: 10 }}>
+                <T v="body" style={{ color: d.text, fontWeight: '700' }}>{x.name}</T>
+                {!!x.arabic && <T v="body" style={{ color: d.text, fontSize: 18, textAlign: 'right', marginTop: 6 }}>{x.arabic}</T>}
+                {!!x.translation && <T v="bodyS" style={{ color: d.faint, marginTop: 6 }}>{x.translation}</T>}
+                {!!x.note && <T v="caption" style={{ color: d.faint, marginTop: 4 }}>{x.note}</T>}
+              </View>
+            ))}
+          </View>
+        )}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {DUA_SECTIONS.filter((s) => grouped[s.id]?.length).map((s) => {
             const count = grouped[s.id].length;
