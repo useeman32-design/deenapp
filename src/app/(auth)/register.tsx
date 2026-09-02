@@ -322,7 +322,8 @@ export default function Register() {
 
   const doRegister = async (data: { full_name: string; username: string; email: string; password: string }) => {
     setBusy(true); setError('');
-    const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ?? undefined });
+    /* DB enum: 'male'/'female' lowercase */
+    const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined });
     if (res.ok) router.replace('/(tabs)');
     else { setError(res.message || 'Something went wrong'); setBusy(false); }
   };
