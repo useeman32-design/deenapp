@@ -133,5 +133,27 @@ export async function markGoal(key: string): Promise<void> {
   if (!rec[key]) {
     rec[key] = true;
     await storage.setItem(k, JSON.stringify(rec));
+    /* pass 44 — flag a celebration; the home dashboard consumes it on focus */
+    await storage.setItem(`dl.goal.pending.${dayKey()}`, '1');
   }
+}
+
+/** pass 44 — read+clear the "a goal was just completed" flag (home celebration). */
+export async function consumeGoalPending(): Promise<boolean> {
+  const k = `dl.goal.pending.${dayKey()}`;
+  const v = await storage.getItem(k);
+  if (v === '1') {
+    await storage.setItem(k, '0');
+    return true;
+  }
+  return false;
+}
+
+/** pass 44 — has the all-goals-complete 10 DP reward been granted today? */
+export async function claimGoalReward(): Promise<boolean> {
+  const k = `dl.goal.rewarded.${dayKey()}`;
+  const v = await storage.getItem(k);
+  if (v === '1') return false;
+  await storage.setItem(k, '1');
+  return true;
 }

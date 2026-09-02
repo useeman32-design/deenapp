@@ -9,7 +9,7 @@ import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGr
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getGoal as fetchGoal, getStreak, markActive } from '@/lib/routine';
+import { getGoal as fetchGoal, getStreak, markActive, consumeGoalPending, claimGoalReward } from '@/lib/routine';
 import { haptic } from '@/lib/haptics';
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
@@ -28,6 +28,8 @@ import { BeadsIcon } from '@/components/Icons';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
+import { GoalCompleteModal } from '@/components/GoalCompleteModal';
+import { useDeenPoints } from '@/components/DeenPoints';
 import { VideoModal } from '@/components/VideoModal';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
 
@@ -162,6 +164,9 @@ export default function Home() {
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean }[] }>({ done: 0, total: 4, demo: true, items: [] });
   /* pass 42 — Today's Goal modal */
   const [goalOpen, setGoalOpen] = useState(false);
+  /* pass 44 — goal-completion celebration */
+  const [goalCelebrate, setGoalCelebrate] = useState<{ open: boolean; all: boolean }>({ open: false, all: false });
+  const { add: addPoints } = useDeenPoints();
   /* pass 44 — admin-managed home campaigns (falls back to bundled CAMPAIGNS) */
   const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
   useEffect(() => {
@@ -234,8 +239,17 @@ export default function Home() {
 
   const refreshProgress = useCallback(() => {
     getStreak().then(setStreak);
-    fetchGoal().then((g) => setGoal({ done: g.done, total: g.total, demo: g.demo, items: g.items }));
-  }, []);
+    fetchGoal().then((g) => {
+      setGoal({ done: g.done, total: g.total, demo: g.demo, items: g.items });
+      /* pass 44 — celebrate a freshly completed goal (flagged by markGoal elsewhere) */
+      consumeGoalPending().then((pending) => {
+        if (!pending) return;
+        const all = g.done >= g.total;
+        setGoalCelebrate({ open: true, all });
+        if (all) claimGoalReward().then((first) => { if (first) addPoints(10); });
+      });
+    });
+  }, [addPoints]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1432,6 +1446,14 @@ export default function Home() {
         post={commentPost}
         seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
         onClose={() => setCommentPost(null)}
+      />
+
+      {/* pass 44 — "Barakallah" goal-completion celebration */}
+      <GoalCompleteModal
+        visible={goalCelebrate.open}
+        allComplete={goalCelebrate.all}
+        onClose={() => setGoalCelebrate({ open: false, all: false })}
+        onExplore={() => { setGoalCelebrate({ open: false, all: false }); setGoalOpen(true); }}
       />
     </View>
   );
