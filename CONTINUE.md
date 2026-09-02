@@ -1,5 +1,69 @@
 # CONTINUE — pass 39 handoff (2026-09-01)
 
+# ── pass 41 SHIPPED (see below for details) ──
+
+# ── pass 41 (2026-09-02) — signup rebuild + 16 UI/data items ──
+
+CRITICAL lesson this pass: ALWAYS build with `bash scripts/export-web.sh`, NEVER raw
+`npx expo export --platform web` — the raw export skips the router base-URL patch, so
+EVERY deep link falls into the catch-all → /login. Symptom: probe fails everything while
+the same dist works on gh-pages.
+
+What shipped (all 17 items):
+- REGISTER REBUILT (register.tsx ~780 lines): choose screen (user/scholar + Google) →
+  USER form (full name, email, USERNAME with live mock availability ['admin','demo',
+  'deenlink','muhammad','ibrahim','aisha','yusuf','maryam','khadijah','usman' are taken],
+  gender chips, CountryPicker modal (27 countries), Nigeria → TRIBE chips Hausa/Igbo/
+  Yoruba/General, aqeedah radio cards w/ descriptions — Sunni desc appends 'Izala and
+  Salafiyya fall under Sunni' ONLY for Nigeria; Sufi 'Tijaniyya and Qadiriyya fall here';
+  Other → manual TextInput maxLength 10 — password + confirm with live checkmark list
+  [≥6 chars / letter / number / match]). SCHOLAR = 3 steps w/ dots (BASIC→QUALIFICATIONS→
+  VERIFICATION): display name, phone, fields-of-knowledge multi-chips + Others manual,
+  madhhab, aqeedah, institute, years chips, teachers (opt); step 3 = proof upload +
+  recommendation upload (expo-image-picker) + dawah links chips + ONE verification method
+  radio (documents/letter/links, chosen method's artifact required) + terms/privacy
+  checkbox; scholar app persisted at dl.scholar.app.<username>. GMAIL flow: 'Demo User /
+  demo@gmail.com' → 'Complete your info' (username+gender+country+tribe+aqeedah, NO
+  password fields, submit uses demo1234).
+- AuthField keyboard prop widened ('phone-pad' ok). probe35 scholars block rewritten for
+  the selection screen + a pass-41 block (10 new checks — 24 total, ALL PASS).
+- Quiz: inspiration card BEFORE the score (58:11 ≥70 / Muslim 2699 40-69 / 20:114 <40);
+  saved image quality: svgRefToPng/shareSvgRef/saveSvgRefAsJpg take opts, native save
+  rasterizes 1080×1080 (was the 216px preview), web download 1440.
+- LOGO RULE enforced: AI empty-state + prayer-month export header use assets/img/
+  logo-badge.png (crescent = loader only). Month image: taller header (320) with REAL
+  logo + QR IN THE HEADER, table fonts up (20/17/19, colH 22, rowH ≤46), both renderers
+  (MonthTableSvg native + monthCanvasDataUrl web, now ASYNC logo preload).
+- Adhan alert: 5 selectable designs (praying/mecca/kaabah/medina/mosque, ADHAN_DESIGNS
+  in prayer.tsx) persisted at dl.adhan.design; bigger modal (maxWidth 392, 204px art);
+  style switcher inside the alert + picker modal with live 'Preview with this style'.
+- Qibla: back button follows the selected compass design (shape+colors from ds.dot).
+- Prayer page: BackButton added (page had none).
+- DeenLink AI: provider/status pill REMOVED from header (header = back/bars/robot/title/
+  plus); settings = bottom of history drawer w/ COG icon + capability sub; MODEL chips →
+  AI CAPABILITY (m.note only: deep/fast reasoning, balanced, flagship); bubble header +
+  footer + sheet label no longer say Groq/xAI; user-bubble paragraph branch now applies
+  the passed color (the black-on-green bug) — VERIFIED live rgb(255,255,255) on green.
+- Zakat: default standard = GOLD (user correction) + hero copy updated.
+- Community: group posts interleaved at pi%4===0 (positions 1,5,9…), 6 sample posts
+  (Groups.tsx SAMPLE_FEED) + GROUP_MEMBERS extended — no top clustering.
+- Videos: videos.tsx FlatList onScroll guard (index=round(y/VH)) + FeedCard
+  VideoPostPlayer measureInWindow poll (450ms) pauses out-of-view video, resumes on
+  return (auto-pause only). 
+- Ruqyah learning: type=topic returns articles {sub_id,title,section_title,content[]
+  blocks header|text|arabic|translation} — RuqyahArticle type + article READER modal
+  (was rendering entry fields → empty). Verified live vs API.
+- Home dates pill CENTERED. Ask Scholars: selection screen (3 cards) → per-view with
+  '‹ Choices' back (content gated on picked != null).
+- DeenPoints: DPIcon = assets/img/deenpoints.png image (all callers auto-covered);
+  buy modal = 2×2 grid, BEST VALUE tag, bonus pills, check badge, coin in success state.
+- CommentsModal: typing '@' → mention picker (DeenLink AI first, then MOCK_ACCOUNTS
+  search); MentionText now renders [Quran x:y]/[Bukhari · n]/[Dua · …] as tappable
+  gold links → /read/n, /tools/hadith, /tools/dua (AI replies' sources are deeplinks).
+- DB: user has NOT added the schema .sql yet (checked again this pass — none in repo).
+  API keys: recommend a PRIVATE GitHub repo + fine-grained PAT; keys fetched at build/
+  runtime, NEVER committed to deenapp (public).
+
 # ── pass 40 SHIPPED (master 11bce73, gh-pages 3dcbae8, probe35 ALL PASS, ios+android .hbc OK, live entry 200) ──
 
 All 24 user items. Highlights future passes must know:

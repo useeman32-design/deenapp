@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, G, Image as SvgImage, Line, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { create as createQR } from 'qrcode';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -146,7 +146,7 @@ export default function PrayerMonth() {
       if (Platform.OS === 'web') {
         /* pass 39 — THE FIX: web Svg refs expose no toDataURL (that is why
          * export "failed" silently). Rasterize the SAME A4 design on a canvas. */
-        const dataUrl = monthCanvasDataUrl(days ?? [], monthLabel, loc?.name ?? '');
+        const dataUrl = await monthCanvasDataUrl(days ?? [], monthLabel, loc?.name ?? '');
         (window as unknown as { __dlMonthExport?: number }).__dlMonthExport = dataUrl.length;
         await shareImage(dataUrl, name, `DeenLink — ${monthLabel} prayer times`);
         setToast(mode === 'save' ? 'Image downloaded — check your files' : 'Opening share / download…');
@@ -288,14 +288,19 @@ function qrCells(url: string): Array<{ x: number; y: number; s: number }> {
 /* 5-point star, unit radius 1, centred (0,0) */
 const STAR_UNIT = 'M 0 -1 L 0.224 -0.309 L 0.951 -0.309 L 0.363 0.118 L 0.588 0.809 L 0 0.382 L -0.588 0.809 L -0.363 0.118 L -0.951 -0.309 L -0.224 -0.309 Z';
 
-/* ── the A4 export sheet (1240×1754) — logo + QR, watermark, table ── */
+/* ── the A4 export sheet (1240×1754) — REAL logo + QR in the header, bigger table ── */
 function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: React.RefObject<SvgRefHandle>; days: Day[]; monthLabel: string; location: string; methodLabel: string }) {
   const rows = days.slice(0, 31);
-  const top = 300;
-  const rowH = Math.min(40, (A4H - top - 120) / Math.max(rows.length, 1));
-  const x0 = 70;
+  const HDR = 320;
+  const top = 402;
+  const rowH = Math.min(46, (A4H - top - 104) / Math.max(rows.length, 1));
+  const x0 = 64;
   const colW = (A4W - x0 * 2) / 8;
   const today = new Date().toISOString().slice(0, 10);
+  const qrCellsList = (() => { try { return qrCells(APP_LINK); } catch { return []; } })();
+  const qrSize = 150;
+  const c = qrCellsList.length ? qrSize / qrCellsList[0].s : 0;
+  const qx = A4W - 70 - qrSize;
   return (
     <Svg ref={ref as never} width={A4W} height={A4H} viewBox={`0 0 ${A4W} ${A4H}`}>
       <Defs>
@@ -305,59 +310,46 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
         </RadialGradient>
       </Defs>
       <Rect x="0" y="0" width={A4W} height={A4H} fill="#FFFFFF" />
-      {/* header band */}
-      <Rect x="0" y="0" width={A4W} height="230" fill="url(#hdr)" />
-      <Rect x="0" y="226" width={A4W} height="6" fill={GOLD} />
-      {/* DeenLink logo mark: ring + crescent (evenodd punch) + star */}
-      <Circle cx="110" cy="115" r="54" fill="#06140D" stroke={GOLD} strokeWidth="3" />
-      <G transform={`translate(110 115)`}>
-        <Path fillRule="evenodd" d="M 0 -42 A 42 42 0 0 1 0 42 A 42 42 0 0 1 0 -42 Z M 10 -30 A 30 30 0 0 1 10 30 A 30 30 0 0 1 10 -30 Z" fill={GOLD} />
-        <G transform={`translate(24 0) scale(15)`}>
-          <Path d={STAR_UNIT} fill={GOLD} />
-        </G>
+      {/* header band (taller — QR lives here now) */}
+      <Rect x="0" y="0" width={A4W} height={HDR} fill="url(#hdr)" />
+      <Rect x="0" y={HDR - 6} width={A4W} height="6" fill={GOLD} />
+      {/* pass 41 — the REAL DeenLink logo image (crescent is the loader, never the logo) */}
+      <SvgImage href={require('../../../assets/img/logo-badge.png')} x="46" y="58" width="144" height="144" preserveAspectRatio="xMidYMid meet" />
+      <SvgText x="214" y="112" fontSize="34" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800" letterSpacing="5">DEENLINK</SvgText>
+      <SvgText x="214" y="156" fontSize="46" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800">Prayer Times</SvgText>
+      <SvgText x="214" y="194" fontSize="27" fill="#E8C96A" fontFamily="Poppins-Medium">{monthLabel}{location ? ` · ${location}` : ''}</SvgText>
+      <SvgText x="214" y="226" fontSize="18" fill="rgba(255,255,255,0.66)" fontFamily="Poppins">{methodLabel || 'Calculated for your location'} · deenlink.org</SvgText>
+      {/* QR deep link — inside the header band (was bottom-right) */}
+      <G transform={`translate(${qx} 64)`}>
+        <Rect x={-10} y={-10} width={qrSize + 20} height={qrSize + 20} rx={12} fill="#FFFFFF" stroke={GOLD} strokeWidth={2} />
+        {qrCellsList.map((cl, i) => (
+          <Rect key={i} x={cl.x * c} y={cl.y * c} width={c} height={c} fill="#14241C" />
+        ))}
+        <SvgText x={qrSize / 2} y={qrSize + 30} textAnchor="middle" fontSize="15" fontWeight="700" fill="#E8C96A" fontFamily="Poppins-SemiBold">Scan for DeenLink</SvgText>
       </G>
-      <SvgText x="190" y="86" fontSize="30" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800" letterSpacing="5">DEENLINK</SvgText>
-      <SvgText x="190" y="124" fontSize="40" fill="#FFFFFF" fontFamily="Poppins-ExtraBold" fontWeight="800">Prayer Times</SvgText>
-      <SvgText x="190" y="160" fontSize="26" fill="#E8C96A" fontFamily="Poppins-Medium">{monthLabel}{location ? ` · ${location}` : ''}</SvgText>
-      <SvgText x="190" y="192" fontSize="18" fill="rgba(255,255,255,0.66)" fontFamily="Poppins">{methodLabel || 'Calculated for your location'} · deenlink.org</SvgText>
-      {/* column headers */}
-      <Rect x={x0} y="252" width={A4W - x0 * 2} height="40" fill="#0E7A46" />
-      {COLS.map((c, i) => (
-        <SvgText key={c} x={x0 + colW * i + colW / 2} y="278" textAnchor="middle" fontSize="19" fontWeight="800" fill={i === 0 ? GOLD : '#FFFFFF'} fontFamily="Poppins-Bold">{c}</SvgText>
+      {/* column headers — bigger */}
+      <Rect x={x0} y={HDR + 28} width={A4W - x0 * 2} height="46" fill="#0E7A46" />
+      {COLS.map((col, i) => (
+        <SvgText key={col} x={x0 + colW * i + colW / 2} y={HDR + 59} textAnchor="middle" fontSize="22" fontWeight="800" fill={i === 0 ? GOLD : '#FFFFFF'} fontFamily="Poppins-Bold">{col}</SvgText>
       ))}
-      {/* rows */}
+      {/* rows — bigger text */}
       {rows.map((dy, r) => {
-        const y = top + 40 + r * rowH;
+        const y = top + r * rowH;
         const isToday = dy.date === today;
         return (
           <G key={dy.date}>
             {isToday ? <Rect x={x0} y={y} width={A4W - x0 * 2} height={rowH} fill="rgba(212,175,55,0.14)" rx="6" /> : null}
             <Line x1={x0} y1={y + rowH} x2={A4W - x0} y2={y + rowH} stroke="rgba(20,36,28,0.10)" strokeWidth="1" />
-            <SvgText x={x0 + colW * 0.5} y={y + rowH * 0.66} textAnchor="middle" fontSize="17" fontWeight={isToday ? '800' : '600'} fill={isToday ? '#8a6d14' : '#14241C'} fontFamily="Poppins">
+            <SvgText x={x0 + colW * 0.5} y={y + rowH * 0.68} textAnchor="middle" fontSize="20" fontWeight={isToday ? '800' : '600'} fill={isToday ? '#8a6d14' : '#14241C'} fontFamily="Poppins">
               {shortDate(dy.date)}
             </SvgText>
-            <SvgText x={x0 + colW * 1.5} y={y + rowH * 0.66} textAnchor="middle" fontSize="15" fill="rgba(20,36,28,0.62)" fontFamily="Poppins">{dy.hijri ?? '—'}</SvgText>
+            <SvgText x={x0 + colW * 1.5} y={y + rowH * 0.68} textAnchor="middle" fontSize="17" fill="rgba(20,36,28,0.62)" fontFamily="Poppins">{dy.hijri ?? '—'}</SvgText>
             {dy.t.map((t, i) => (
-              <SvgText key={i} x={x0 + colW * (i + 2) + colW / 2} y={y + rowH * 0.66} textAnchor="middle" fontSize="16" fontWeight={i === 1 ? '400' : '600'} fill={i === 1 ? 'rgba(20,36,28,0.5)' : '#14241C'} fontFamily="Poppins">{t}</SvgText>
+              <SvgText key={i} x={x0 + colW * (i + 2) + colW / 2} y={y + rowH * 0.68} textAnchor="middle" fontSize="19" fontWeight={i === 1 ? '400' : '600'} fill={i === 1 ? 'rgba(20,36,28,0.5)' : '#14241C'} fontFamily="Poppins">{t}</SvgText>
             ))}
           </G>
         );
       })}
-      {/* QR deep link — bottom right, clear of the centred footer text */}
-      {(() => {
-        const cells = qrCells(APP_LINK);
-        const size = 118; const c = cells.length ? size / cells[0].s : 0;
-        const qx = A4W - 70 - size; const qy = A4H - 200;
-        return (
-          <G transform={`translate(${qx} ${qy})`}>
-            <Rect x={-10} y={-10} width={size + 20} height={size + 20} rx={10} fill="#FFFFFF" stroke={EMERALD} strokeWidth={2} />
-            {cells.map((cl, i) => (
-              <Rect key={i} x={cl.x * c} y={cl.y * c} width={c} height={c} fill="#14241C" />
-            ))}
-            <SvgText x={size / 2} y={size + 34} textAnchor="middle" fontSize="15" fontWeight="700" fill={EMERALD} fontFamily="Poppins-SemiBold">Scan for DeenLink</SvgText>
-          </G>
-        );
-      })()}
       {/* footer + watermark */}
       <SvgText x={A4W / 2} y={A4H - 62} textAnchor="middle" fontSize="18" fill={EMERALD} fontFamily="Poppins-SemiBold" fontWeight="700">Generated by DeenLink — Strengthen Your Deen, Every Day</SvgText>
       <SvgText x={A4W / 2} y={A4H - 34} textAnchor="middle" fontSize="13" fill="rgba(20,36,28,0.45)" fontFamily="Poppins">Times are estimates — always confirm with your local mosque.</SvgText>
@@ -370,7 +362,7 @@ function MonthTableSvg({ ref, days, monthLabel, location, methodLabel }: { ref: 
  * react-native-svg refs have no toDataURL() on web — this is the fix for
  * "the timetable is not generating an image". Mirrors MonthTableSvg 1:1. ── */
 
-function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): string {
+async function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): Promise<string> {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc) throw new Error('no document');
   const canvas = doc.createElement('canvas');
@@ -380,73 +372,85 @@ function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): 
   if (!ctx) throw new Error('no 2d ctx');
 
   const rows = days.slice(0, 31);
-  const top = 300;
-  const rowH = Math.min(40, (A4H - top - 120) / Math.max(rows.length, 1));
-  const x0 = 70;
+  const HDR = 320;
+  const top = 402;
+  const rowH = Math.min(46, (A4H - top - 104) / Math.max(rows.length, 1));
+  const x0 = 64;
   const colW = (A4W - x0 * 2) / 8;
   const today = new Date().toISOString().slice(0, 10);
+
+  /* pass 41 — the REAL logo image, preloaded (crescent mark removed) */
+  let logo: HTMLImageElement | null = null;
+  try {
+    logo = await new Promise<HTMLImageElement | null>((res) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => res(null);
+      im.src = require('../../../assets/img/logo-badge.png') as unknown as string;
+    });
+  } catch { logo = null; }
 
   /* paper */
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, A4W, A4H);
-  /* header band gradient */
-  const g = ctx.createLinearGradient(0, 0, A4W * 0.4, 230);
+  /* header band gradient (taller — QR lives here now) */
+  const g = ctx.createLinearGradient(0, 0, A4W * 0.4, HDR);
   g.addColorStop(0, '#124A30');
   g.addColorStop(1, '#06140D');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, A4W, 230);
+  ctx.fillRect(0, 0, A4W, HDR);
   ctx.fillStyle = GOLD;
-  ctx.fillRect(0, 226, A4W, 6);
-  /* DeenLink logo mark: ring + crescent (evenodd) + star */
-  ctx.beginPath();
-  ctx.arc(110, 115, 54, 0, Math.PI * 2);
-  ctx.fillStyle = '#06140D';
-  ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = GOLD;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(110, 115, 42, 0, Math.PI * 2);
-  ctx.arc(120, 115, 30, 0, Math.PI * 2);
-  ctx.fillStyle = GOLD;
-  ctx.fill('evenodd');
-  ctx.save();
-  ctx.translate(134, 115);
-  ctx.scale(15, 15);
-  ctx.beginPath();
-  const SU = [0, -1, 0.224, -0.309, 0.951, -0.309, 0.363, 0.118, 0.588, 0.809, 0, 0.382, -0.588, 0.809, -0.363, 0.118, -0.951, -0.309, -0.224, -0.309];
-  ctx.moveTo(SU[0], SU[1]);
-  for (let k = 2; k < SU.length; k += 2) ctx.lineTo(SU[k], SU[k + 1]);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  ctx.fillRect(0, HDR - 6, A4W, 6);
+  /* logo */
+  if (logo) ctx.drawImage(logo, 46, 58, 144, 144);
   /* titles */
   ctx.textAlign = 'left';
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '800 30px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
-  ctx.fillText('D E E N L I N K', 190, 88);
-  ctx.font = '800 40px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
-  ctx.fillText('Prayer Times', 190, 128);
+  ctx.font = '800 34px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
+  ctx.fillText('D E E N L I N K', 214, 112);
+  ctx.font = '800 46px "Poppins-ExtraBold", "Poppins-Bold", sans-serif';
+  ctx.fillText('Prayer Times', 214, 156);
   ctx.fillStyle = '#E8C96A';
-  ctx.font = '26px "Poppins-Medium", sans-serif';
-  ctx.fillText(`${monthLabel}${location ? ` · ${location}` : ''}`, 190, 162);
+  ctx.font = '27px "Poppins-Medium", sans-serif';
+  ctx.fillText(`${monthLabel}${location ? ` · ${location}` : ''}`, 214, 194);
   ctx.fillStyle = 'rgba(255,255,255,0.66)';
   ctx.font = '18px "Poppins", sans-serif';
-  ctx.fillText('Calculated for your location · deenlink.org', 190, 194);
+  ctx.fillText('Calculated for your location · deenlink.org', 214, 226);
 
-  /* column headers */
+  /* QR deep link — inside the header band (was bottom-right) */
+  try {
+    const cells = qrCells(APP_LINK);
+    if (cells.length) {
+      const qrSize = 150; const c = cells[0].s ? qrSize / cells[0].s : 0;
+      const qx = A4W - 70 - qrSize; const qy = 64;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = GOLD;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(qx - 10, qy - 10, qrSize + 20, qrSize + 20, 12);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#14241C';
+      cells.forEach((cl) => ctx.fillRect(qx + cl.x * c, qy + cl.y * c, c, c));
+      ctx.fillStyle = '#E8C96A';
+      ctx.font = '700 15px "Poppins-SemiBold", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Scan for DeenLink', qx + qrSize / 2, qy + qrSize + 30);
+    }
+  } catch {}
+
+  /* column headers — bigger */
   ctx.fillStyle = '#0E7A46';
-  ctx.fillRect(x0, 252, A4W - x0 * 2, 40);
+  ctx.fillRect(x0, HDR + 28, A4W - x0 * 2, 46);
   ctx.textAlign = 'center';
-  COLS.forEach((c, i) => {
+  COLS.forEach((c2, i) => {
     ctx.fillStyle = i === 0 ? GOLD : '#FFFFFF';
-    ctx.font = '800 19px "Poppins-Bold", sans-serif';
-    ctx.fillText(c, x0 + colW * i + colW / 2, 279);
+    ctx.font = '800 22px "Poppins-Bold", sans-serif';
+    ctx.fillText(c2, x0 + colW * i + colW / 2, HDR + 59);
   });
 
-  /* rows */
+  /* rows — bigger text */
   rows.forEach((dy, r) => {
-    const y = top + 40 + r * rowH;
+    const y = top + r * rowH;
     const isToday = dy.date === today;
     if (isToday) {
       ctx.fillStyle = 'rgba(212,175,55,0.14)';
@@ -459,15 +463,15 @@ function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): 
     ctx.lineTo(A4W - x0, y + rowH);
     ctx.stroke();
     ctx.fillStyle = isToday ? '#8a6d14' : '#14241C';
-    ctx.font = `${isToday ? '800' : '600'} 17px "Poppins", sans-serif`;
-    ctx.fillText(shortDate(dy.date), x0 + colW * 0.5, y + rowH * 0.66);
+    ctx.font = `${isToday ? '800' : '600'} 20px "Poppins", sans-serif`;
+    ctx.fillText(shortDate(dy.date), x0 + colW * 0.5, y + rowH * 0.68);
     ctx.fillStyle = 'rgba(20,36,28,0.62)';
-    ctx.font = '15px "Poppins", sans-serif';
-    ctx.fillText(dy.hijri ?? '—', x0 + colW * 1.5, y + rowH * 0.66);
+    ctx.font = '17px "Poppins", sans-serif';
+    ctx.fillText(dy.hijri ?? '—', x0 + colW * 1.5, y + rowH * 0.68);
     dy.t.forEach((t, i) => {
       ctx.fillStyle = i === 1 ? 'rgba(20,36,28,0.5)' : '#14241C';
-      ctx.font = `${i === 1 ? '400' : '600'} 16px "Poppins", sans-serif`;
-      ctx.fillText(t, x0 + colW * (i + 2) + colW / 2, y + rowH * 0.66);
+      ctx.font = `${i === 1 ? '400' : '600'} 19px "Poppins", sans-serif`;
+      ctx.fillText(t, x0 + colW * (i + 2) + colW / 2, y + rowH * 0.68);
     });
   });
 
@@ -480,27 +484,6 @@ function monthCanvasDataUrl(days: Day[], monthLabel: string, location: string): 
   ctx.textAlign = 'center';
   ctx.fillText('DEENLINK', 0, 0);
   ctx.restore();
-
-  /* QR deep link — bottom right (mirrors the SVG export) */
-  try {
-    const cells = qrCells(APP_LINK);
-    if (cells.length) {
-      const size = 118; const c = size / cells[0].s;
-      const qx = A4W - 70 - size; const qy = A4H - 200;
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = EMERALD;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(qx - 10, qy - 10, size + 20, size + 20, 10);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#14241C';
-      cells.forEach((cl) => ctx.fillRect(qx + cl.x * c, qy + cl.y * c, c, c));
-      ctx.fillStyle = EMERALD;
-      ctx.font = '700 15px "Poppins-SemiBold", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Scan for DeenLink', qx + size / 2, qy + size + 34);
-    }
-  } catch {}
 
   /* footer */
   ctx.textAlign = 'center';

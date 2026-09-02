@@ -6,7 +6,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
-import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahEntry } from '@/lib/islamicApi';
+import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahArticle, type RuqyahEntry } from '@/lib/islamicApi';
 import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, ruqyahPosition, seekRuqyahFrac, stopRuqyahAudio } from '@/lib/ruqyahAudio';
 import { ShareWithFriends } from '@/components/ShareWithFriends';
 
@@ -32,7 +32,9 @@ export default function Ruqyah() {
   const [open, setOpen] = useState<RuqyahEntry | null>(null);
   const [readSet, setReadSet] = useState<Set<string>>(new Set());
   const [topic, setTopic] = useState<string | null>(null);
-  const [topicArts, setTopicArts] = useState<RuqyahEntry[] | null>(null);
+  const [topicArts, setTopicArts] = useState<RuqyahArticle[] | null>(null);
+  /* pass 41 — topic articles are full structured articles, not entry rows */
+  const [openArt, setOpenArt] = useState<RuqyahArticle | null>(null);
   /* pass 39 — ruqyah AUDIO (static MP3s from the API docs) */
   const [playing, setPlaying] = useState<string | null>(null);
   /* pass 40 — full-program player progress + our send-to-users share */
@@ -237,12 +239,16 @@ export default function Ruqyah() {
             ) : (
               <View style={{ paddingHorizontal: 16 }}>
                 {topicArts.map((a) => (
-                  <Pressable key={String(a.id)} onPress={() => { haptic.selection(); setOpen(a); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 8 }}>
+                  <Pressable key={String(a.sub_id)} onPress={() => { haptic.selection(); setOpenArt(a); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 8 }}>
                     <FontAwesome5 name="file-alt" size={13} color="#E8C96A" />
-                    <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }} numberOfLines={2}>{a.title}</T>
+                    <View style={{ flex: 1 }}>
+                      <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }} numberOfLines={2}>{a.title}</T>
+                      {a.section_title ? <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }} numberOfLines={1}>{a.section_title}</T> : null}
+                    </View>
                     <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
                   </Pressable>
                 ))}
+                {!topicArts.length ? <T v="caption" style={{ textAlign: 'center', color: d.faint, padding: 16 }}>No articles in this topic yet.</T> : null}
               </View>
             )}
           </>
@@ -324,6 +330,68 @@ export default function Ruqyah() {
                   <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Read & share</T>
                 </Pressable>
                 <Pressable onPress={() => setOpen(null)} style={{ flex: 1, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', paddingVertical: 12 }}>
+                  <T v="button" style={{ color: d.subtext, fontWeight: '800', fontSize: 12 }}>Close</T>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* pass 41 — topic ARTICLE reader: structured content blocks from type=topic */}
+      <Modal visible={openArt != null} transparent animationType="slide" onRequestClose={() => setOpenArt(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setOpenArt(null)} />
+          <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, maxHeight: '88%' }} onStartShouldSetResponder={() => true}>
+            <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 30 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <T v="h3" style={{ fontWeight: '800', flex: 1, fontSize: 15, color: d.text }}>{openArt?.title}</T>
+                <Pressable onPress={() => setOpenArt(null)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="times" size={12} color={d.subtext} />
+                </Pressable>
+              </View>
+              {openArt?.section_title ? (
+                <T v="caption" style={{ fontSize: 10, fontWeight: '900', letterSpacing: 0.6, color: '#E8C96A', marginBottom: 12 }}>{openArt.section_title.toUpperCase()}</T>
+              ) : null}
+              {(openArt?.content ?? []).map((b, i) => {
+                if (b.type === 'header') {
+                  return (
+                    <T key={i} v="bodyS" style={{ fontSize: 12.5, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42', marginTop: i === 0 ? 0 : 14, marginBottom: 5 }}>
+                      {b.content}
+                    </T>
+                  );
+                }
+                if (b.type === 'arabic') {
+                  return (
+                    <View key={i} style={{ borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: isDark ? 'rgba(212,175,55,0.05)' : 'rgba(212,175,55,0.04)', padding: 14, marginTop: 10 }}>
+                      <T v="bodyS" style={{ fontFamily: 'Amiri-Bold', fontSize: 20, lineHeight: 38, color: d.text, textAlign: 'right' }}>{b.content}</T>
+                    </View>
+                  );
+                }
+                if (b.type === 'translation') {
+                  return (
+                    <T key={i} v="bodyS" style={{ fontSize: 12, color: d.subtext, fontStyle: 'italic', lineHeight: 19, marginTop: 8 }}>
+                      {b.content}
+                    </T>
+                  );
+                }
+                return (
+                  <T key={i} v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 20, marginTop: i === 0 ? 0 : 8 }}>
+                    {b.content}
+                  </T>
+                );
+              })}
+              {!openArt?.content?.length ? (
+                <T v="caption" style={{ textAlign: 'center', color: d.faint, padding: 16 }}>This article has no content yet.</T>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <Pressable
+                  onPress={() => { if (!openArt) return; haptic.success(); const first = openArt.content.find((b) => b.type === 'text')?.content ?? ''; setFriendsShare({ title: `${openArt.title} — Ruqyah Shariah`, preview: `${first.slice(0, 80)} · DeenLink` }); }}
+                  style={{ flex: 1, borderRadius: 13, backgroundColor: '#1F8F5C', alignItems: 'center', paddingVertical: 12 }}
+                >
+                  <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Read & share</T>
+                </Pressable>
+                <Pressable onPress={() => setOpenArt(null)} style={{ flex: 1, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', paddingVertical: 12 }}>
                   <T v="button" style={{ color: d.subtext, fontWeight: '800', fontSize: 12 }}>Close</T>
                 </Pressable>
               </View>

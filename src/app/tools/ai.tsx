@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -197,7 +198,7 @@ function AnswerText({ text, color, accent, onNav }: { text: string; color: strin
           );
         }
         return (
-          <T key={i} v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21, marginTop: i === 0 ? 0 : 3 }}>
+          <T key={i} v="bodyS" style={{ fontFamily: 'Manrope', fontSize: 13.5, lineHeight: 21, marginTop: i === 0 ? 0 : 3, color }}>
             {inlineFormat(bl.s, color, onNav, `p${i}`)}
           </T>
         );
@@ -486,7 +487,7 @@ export default function DeenLinkAI() {
             <View style={{ width: 20, height: 20, borderRadius: 7, backgroundColor: glass.bg, borderWidth: 1, borderColor: glass.border, alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5 name="robot" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
             </View>
-            <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>DEENLINK {apiKey && provider ? `· ${PROVIDERS[provider].label}` : '· ON-DEVICE'}</T>
+            <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: d.faint }}>DEENLINK {apiKey && provider ? `· ${modelList.find((m) => m.id === model)?.note ?? 'deep reasoning'}` : '· ON-DEVICE'}</T>
             {m.thinkMs != null && m.thinkMs > 800 && m.text ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                 <FontAwesome5 name="bolt" size={7} color="#E8C96A" />
@@ -555,20 +556,14 @@ export default function DeenLinkAI() {
           <FontAwesome5 name="robot" size={14} color={isDark ? '#4AE38F' : '#1D6F42'} />
         </View>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>DeenLink AI</T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: apiKey ? 'rgba(31,143,92,0.12)' : 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: apiKey ? 'rgba(31,143,92,0.4)' : 'rgba(212,175,55,0.4)' }}>
-              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: apiKey ? '#1F8F5C' : '#D4AF37' }} />
-              <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: apiKey ? (isDark ? '#4AE38F' : '#1D6F42') : '#B8870B' }}>{apiKey ? (provider ? PROVIDERS[provider].label : 'LIVE') : 'ON-DEVICE'}</T>
-            </View>
-          </View>
-          <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>
-            {apiKey && provider ? `${modelList.find((m) => m.id === model)?.label ?? model} · library + ${webToggle ? 'web' : 'model'}` : 'Your library · tap ⟶ Settings for full AI'}
+          {/* pass 41 — provider/status pill + header settings button REMOVED (user request); settings now live at the bottom of the history drawer; capability label instead of model name */}
+          <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>DeenLink AI</T>
+          <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>
+            {apiKey && provider
+              ? `${modelList.find((m) => m.id === model)?.note ?? 'deep reasoning'} · library + ${webToggle ? 'web' : 'model'}`
+              : 'Your library · History ⟶ Settings for full AI'}
           </T>
         </View>
-        <Pressable accessibilityLabel="AI settings" onPress={() => { haptic.selection(); setShowSettings(true); }} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(29,111,66,0.06)', borderWidth: 1, borderColor: glass.border, alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesome5 name="sliders-h" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
-        </Pressable>
         <Pressable accessibilityLabel="New chat" onPress={newChat} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="plus" size={13} color="#fff" />
         </Pressable>
@@ -614,6 +609,24 @@ export default function DeenLinkAI() {
             <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#DC5050' }}>Clear all history</T>
           </Pressable>
         ) : null}
+
+        {/* pass 41 — settings at the BOTTOM of the history drawer, gear icon (user request) */}
+        <View style={{ borderTopWidth: 1, borderTopColor: glass.border, paddingTop: 10, paddingHorizontal: 12, paddingBottom: insets.bottom + 12 }}>
+          <Pressable
+            accessibilityLabel="AI settings"
+            onPress={() => { haptic.selection(); setDrawerOpen(false); setShowSettings(true); }}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: glass.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.6)', paddingHorizontal: 12, paddingVertical: 11, opacity: pressed ? 0.8 : 1 })}
+          >
+            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.08)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="cog" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>Settings</T>
+              <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 1 }}>{apiKey ? `${modelList.find((m) => m.id === model)?.note ?? 'deep reasoning'} · web ${webOn ? 'on' : 'off'}` : 'Add an API key for full AI'}</T>
+            </View>
+            <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+          </Pressable>
+        </View>
       </Animated.View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -622,7 +635,8 @@ export default function DeenLinkAI() {
             <View>
               <View style={{ alignItems: 'center', marginTop: 26, marginBottom: 24 }}>
                 <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: glass.bg, borderWidth: 1, borderColor: glass.border, alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name="star-and-crescent" size={26} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  {/* pass 41 — the real DeenLink logo (crescent is the LOADER only, never the logo) */}
+                  <ExpoImage source={require('../../../assets/img/logo-badge.png')} style={{ width: 44, height: 44, borderRadius: 12 }} contentFit="cover" />
                 </View>
                 <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: d.text, marginTop: 14 }}>Assalamu alaikum</T>
                 <T v="caption" style={{ fontSize: 11.5, color: d.faint, marginTop: 4, textAlign: 'center', lineHeight: 17, maxWidth: 280 }}>
@@ -680,7 +694,7 @@ export default function DeenLinkAI() {
             </Pressable>
           </View>
           <T v="caption" style={{ fontSize: 8.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>
-            {apiKey ? 'References like [Quran 2:255] are tappable · verify rulings with a scholar' : 'On-device mode · tap the sliders to add a Groq key'} · {webToggle ? 'web ON' : 'web off'}
+            {apiKey ? 'References like [Quran 2:255] are tappable · verify rulings with a scholar' : 'On-device mode · open History ⟶ Settings to add an API key'} · {webToggle ? 'web ON' : 'web off'}
           </T>
         </View>
       </KeyboardAvoidingView>
@@ -692,7 +706,7 @@ export default function DeenLinkAI() {
             <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>AI Settings</T>
             <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, marginBottom: 14 }}>Your key stays on this device only — never uploaded or committed.</T>
 
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>GROQ / XAI API KEY</T>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>API KEY</T>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, marginBottom: 14 }}>
               <FontAwesome5 name="key" size={11} color={detectProvider(keyDraft) ? '#1F8F5C' : '#B8870B'} />
               <TextInput value={keyDraft} onChangeText={setKeyDraft} placeholder="gsk_… or xai-…" placeholderTextColor={d.faint} autoCapitalize="none" autoCorrect={false} secureTextEntry style={{ flex: 1, paddingVertical: 11, fontSize: 13, color: d.text, fontFamily: 'Poppins-Regular' }} />
@@ -704,14 +718,14 @@ export default function DeenLinkAI() {
               <T v="caption" style={{ fontSize: 9, color: '#DC5050', marginBottom: 10 }}>Unrecognized key — Groq keys start with gsk_ (console.groq.com), xAI keys with xai-.</T>
             ) : null}
 
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>MODEL</T>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>AI CAPABILITY</T>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {modelList.map((m) => {
                 const on = model === m.id;
                 return (
                   <Pressable key={m.id} onPress={() => { haptic.selection(); setModelState(m.id); setModel(m.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 11, borderWidth: 1, borderColor: on ? 'rgba(31,143,92,0.5)' : d.cardBorder, backgroundColor: on ? 'rgba(31,143,92,0.1)' : d.bgSoft }}>
                     <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: on ? '#1F8F5C' : d.faint }} />
-                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{m.label}{m.note ? ` · ${m.note}` : ''}</T>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{m.note ?? m.label}</T>
                   </Pressable>
                 );
               })}

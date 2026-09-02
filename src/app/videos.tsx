@@ -812,6 +812,13 @@ export default function VideosFeed() {
         getItemLayout={(_, i) => ({ length: VH, offset: VH * i, index: i })}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
+        /* pass 41 — scroll-driven active index too: on Expo Go viewability alone
+         * can lag, leaving two reels playing at once (user report) */
+        onScroll={(e) => {
+          const i = Math.max(0, Math.min(reels.length - 1, Math.round(e.nativeEvent.contentOffset.y / VH)));
+          setIndex((cur) => (cur === i ? cur : i));
+        }}
+        scrollEventThrottle={64}
         windowSize={3}
         initialNumToRender={1}
         maxToRenderPerBatch={2}

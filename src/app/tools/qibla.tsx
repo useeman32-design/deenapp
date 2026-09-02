@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Modal, Platform, Pressable, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -7,7 +8,6 @@ import { resolveLocation, type Loc } from '@/lib/location';
 import { angleDelta, useHeading } from '@/lib/useHeading';
 import { Compass, QIBLA_DESIGNS, type QiblaDesign } from '@/components/Compass';
 import { T } from '@/components/T';
-import { TopBar } from '@/components/TopBar';
 import { RouteMap } from '@/components/RouteMap';
 import { KaabaIcon } from '@/components/Icons';
 import { QiblaLeaflet } from '@/components/QiblaLeaflet';
@@ -24,6 +24,7 @@ import { ScrollView } from 'react-native';
  */
 export default function Qibla() {
   const { theme, isDark } = useTheme();
+  const router = useRouter();
   const [loc, setLoc] = useState<Loc | null>(null);
   const heading = useHeading();
   const buzzedFor = useRef(false);
@@ -70,7 +71,33 @@ export default function Qibla() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <TopBar title="Qibla finder" showBack />
+      {/* pass 41 — back button follows the SELECTED compass design (was the same generic arrow for every design) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6 }}>
+        {(() => {
+          const ds = QIBLA_DESIGNS.find((x) => x.id === design) ?? QIBLA_DESIGNS[0];
+          const round = design === 'classic' || design === 'royal';
+          return (
+            <Pressable
+              accessibilityLabel="back"
+              onPress={() => { haptic.light(); router.back(); }}
+              hitSlop={10}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: round ? 19 : 13,
+                backgroundColor: ds.dot[0],
+                borderWidth: 1.5,
+                borderColor: ds.dot[1],
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FontAwesome5 name="chevron-left" size={14} color={ds.dot[1]} />
+            </Pressable>
+          );
+        })()}
+        <T v="h1" style={{ flex: 1, color: theme.text, fontWeight: '800', fontSize: 21 }}>Qibla finder</T>
+      </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
       <View style={{ alignItems: 'center', padding: 18, paddingTop: 10 }}>
         <T v="display" style={{ fontSize: 34, color: aligned ? theme.primary : theme.text }}>

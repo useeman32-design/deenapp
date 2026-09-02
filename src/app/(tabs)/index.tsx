@@ -335,8 +335,8 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {/* pass 40 — hijri + gregorian dates in ONE pill, top-right above the hero */}
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, marginBottom: 8 }} pointerEvents="none">
+        {/* pass 40 — hijri + gregorian dates in ONE pill · pass 41 — CENTERED (was right-aligned) */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 16, marginBottom: 8 }} pointerEvents="none">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.07)', paddingHorizontal: 11, paddingVertical: 5 }}>
             <FontAwesome5 name="moon" size={9} color="#E8C96A" />
             <T v="caption" numberOfLines={1} style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#E8C96A' : '#8C6D1F' }}>

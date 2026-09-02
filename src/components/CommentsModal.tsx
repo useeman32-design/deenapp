@@ -6,6 +6,7 @@ import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import type { SampleComment } from '@/api/mocks';
 import { SYSTEM_PROMPT, composeLocalAnswer, detectProvider, getApiKey, getModel, retrieveLocal, streamLLM } from '@/lib/ai';
+import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
@@ -31,19 +32,46 @@ const GIFS = {
 } as const;
 
 /** Renders @mentions in comment text as colored + bold (IG-style). */
+/** pass 41 — [Quran 2:255] / [Bukhari · #12] / [Dua · …] references in AI
+ * replies become TAPPABLE deeplinks to the in-app source (when we have one). */
+function refRoute(ref: string): string | null {
+  const r = ref.trim();
+  if (/^quran/i.test(r)) {
+    const m = r.match(/(\d+)/);
+    return m ? `/read/${m[1]}` : null;
+  }
+  if (/^dua/i.test(r)) return '/tools/dua';
+  return '/tools/hadith';
+}
+
 function MentionText({ text, base, mention }: { text: string; base: object; mention: object }) {
-  const parts = text.split(/(@[A-Za-z0-9_]+)/g);
+  const router = useRouter();
+  const parts = text.split(/(@[A-Za-z0-9_]+|\[(?:Quran\s+\d+|Bukhari|Muslim|Abu Dawud|Tirmidhi|Nasa['\u2019]?i|Ibn Majah|Dua)[^\]]*\])/g);
   return (
     <T v="bodyS" style={base as object}>
-      {parts.map((part, i) =>
-        part.startsWith('@') ? (
-          <T key={i} style={(mention as object)}>
-            {part}
-          </T>
-        ) : (
-          <T key={i}>{part}</T>
-        ),
-      )}
+      {parts.map((part, i) => {
+        if (part.startsWith('@')) {
+          return (
+            <T key={i} style={(mention as object)}>
+              {part}
+            </T>
+          );
+        }
+        if (part.startsWith('[')) {
+          const rt = refRoute(part.slice(1, -1));
+          return (
+            <T
+              key={i}
+              v="bodyS"
+              style={{ color: '#D4AF37', fontWeight: '800', textDecorationLine: rt ? 'underline' : 'none' }}
+              onPress={rt ? () => router.push(rt as never) : undefined}
+            >
+              {part}
+            </T>
+          );
+        }
+        return <T key={i}>{part}</T>;
+      })}
     </T>
   );
 }
@@ -214,6 +242,20 @@ export function CommentsModal({
   /* pass 40 — @DeenLink AI: mentions get an in-thread AI reply (like Grok on X) */
   const [aiTyping, setAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
+  /* pass 41 — typing "@" opens the mention picker: DeenLink AI first, then friends/search */
+  const mentionMatch = /@([A-Za-z0-9_.]*)$/.exec(draft);
+  const mentionQuery = (mentionMatch?.[1] ?? '').toLowerCase();
+  const mentionCandidates = useMemo(() => {
+    const people = MOCK_ACCOUNTS
+      .filter((a) => !mentionQuery || a.username.toLowerCase().includes(mentionQuery) || a.full_name.toLowerCase().includes(mentionQuery))
+      .slice(0, 6)
+      .map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
+    return [{ handle: 'DeenLink', name: 'DeenLink AI', ai: true }, ...people];
+  }, [mentionQuery]);
+  const pickMention = (handle: string) => {
+    setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, `@${handle} `));
+    haptic.light();
+  };
   const inputRef = useRef<TextInput>(null);
   const [gifOpen, setGifOpen] = useState(false);
   /* pass 28: LIVE drag-to-resize via pointer events (PanResponder was dead on
@@ -575,6 +617,32 @@ export function CommentsModal({
                 <Image source={g} style={{ width: '100%', height: '100%' }} contentFit="cover" />
               </Pressable>
             ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {/* pass 41 — mention picker (DeenLink AI first, then friends/search) */}
+      {mentionMatch ? (
+        <View style={{ maxHeight: 176, borderTopWidth: 1, borderTopColor: hairline, backgroundColor: isDark ? 'rgba(9,16,12,0.98)' : '#FFFFFF' }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 2 }}>
+            <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 0.8, color: faint, paddingVertical: 4 }}>MENTION — DEENLINK AI FIRST</T>
+            {mentionCandidates.map((m) => (
+              <Pressable
+                key={m.handle}
+                onPress={() => pickMention(m.handle)}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: m.ai ? 'rgba(212,175,55,0.09)' : pressed ? bubble : 'transparent', borderWidth: 1, borderColor: m.ai ? 'rgba(212,175,55,0.35)' : 'transparent' })}
+              >
+                <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: m.ai ? 'rgba(212,175,55,0.16)' : isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={m.ai ? 'robot' : 'user'} size={11} color={m.ai ? '#D4AF37' : emerald} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: m.ai ? '#D4AF37' : txt }}>{m.name}</T>
+                  <T v="caption" style={{ fontSize: 9.5, color: faint }}>@{m.handle}{m.ai ? ' · answers from your library' : ''}</T>
+                </View>
+                <FontAwesome5 name="plus" size={9} color={faint} />
+              </Pressable>
+            ))}
+            {!mentionCandidates.length ? <T v="caption" style={{ fontSize: 10.5, color: faint, padding: 8 }}>No matches</T> : null}
           </ScrollView>
         </View>
       ) : null}

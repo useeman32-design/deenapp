@@ -723,9 +723,10 @@ export default function CommunityScreen() {
                 ) : (
                   feedShown.map((p, pi) => (
                     <View key={p.id}>
-                      {/* pass 39 — group posts MIXED into the feed, not separated */}
-                      {pi === 0 || pi === 2 ? (
-                        <GroupFeedInline index={pi === 0 ? 0 : 1} onComments={(pp) => setCommentPost(pp)} />
+                      {/* pass 41 — group posts INTERLEAVED through the whole feed
+                       * (positions 2, 6, 10, …) so they never read as a separate section */}
+                      {pi % 4 === 0 ? (
+                        <GroupFeedInline index={pi / 4} onComments={(pp) => setCommentPost(pp)} />
                       ) : null}
                       <FeedCard
                       dash={d}

@@ -326,6 +326,21 @@ export default function Quiz() {
         <BackButton />
       </View>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {/* pass 41 — inspiration BEFORE the score (user request) */}
+        {(() => {
+          const INSPI = pct >= 70
+            ? { ar: 'يَرْفَعِ اللَّهُ الَّذِينَ آمَنُوا مِنكُمْ وَالَّذِينَ أُوتُوا الْعِلْمَ دَرَجَاتٍ', en: 'Allah will raise those who have believed among you and those who were given knowledge, by degrees.', ref: 'Qur’an 58:11' }
+            : pct >= 40
+              ? { ar: 'مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ طَرِيقًا إِلَى الْجَنَّةِ', en: 'Whoever travels a path seeking knowledge, Allah will make easy for him a path to Paradise.', ref: 'Muslim 2699' }
+              : { ar: 'رَّبِّ زِدْنِي عِلْمًا', en: 'My Lord, increase me in knowledge.', ref: 'Qur’an 20:114' };
+          return (
+            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(212,175,55,0.05)', padding: 14, marginBottom: 16 }}>
+              <T v="bodyS" style={{ fontFamily: 'Amiri-Bold', fontSize: 19, lineHeight: 34, color: d.text, textAlign: 'right' }}>{INSPI.ar}</T>
+              <T v="caption" style={{ fontSize: 11, color: d.subtext, lineHeight: 16.5, marginTop: 8, fontStyle: 'italic' }}>{INSPI.en}</T>
+              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#E8C96A', marginTop: 7 }}>— {INSPI.ref}</T>
+            </View>
+          );
+        })()}
         {/* trophy — always shown on results; confetti when ALL correct */}
         <Confetti fire={allCorrect} />
         <View style={{ alignItems: 'center', marginBottom: 22 }}>

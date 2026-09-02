@@ -118,7 +118,7 @@ export function AuthField({
   icon: string;
   secure?: boolean;
   autoCap?: 'none' | 'sentences' | 'words';
-  keyboard?: 'email-address' | 'default';
+  keyboard?: 'email-address' | 'default' | 'phone-pad' | 'number-pad';
 }) {
   const { isDark } = useTheme();
   const [focus, setFocus] = useState(false);

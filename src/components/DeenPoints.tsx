@@ -20,8 +20,11 @@ export const DP_KEY = 'dl.deenpoints';
 export const DP_DEFAULT = 1250;
 export const DP_PRICE = 1.5; /* naira per point */
 
-export function DPIcon({ size = 13, color = '#E8C96A' }: { size?: number; color?: string }) {
-  return <FontAwesome5 name="coins" size={size} color={color} solid />;
+/* pass 41 — the REAL DeenPoints coin image (assets/img/deenpoints.png, same as
+   the profile balance) everywhere points appear; was a generic FontAwesome coin */
+const DP_IMAGE = require('../../assets/img/deenpoints.png');
+export function DPIcon({ size = 13 }: { size?: number; color?: string }) {
+  return <Image source={DP_IMAGE} style={{ width: size, height: size, borderRadius: (size * 0.2) }} resizeMode="contain" />;
 }
 
 export function useDeenPoints() {
@@ -108,18 +111,54 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
 
             {phase === 'pick' ? (
               <View style={{ marginTop: 16, gap: 9 }}>
-                {PACKS.map((p) => {
-                  const on = pack.pts === p.pts;
-                  return (
-                    <Pressable key={p.pts} onPress={() => { haptic.selection(); setPack(p); }} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 15, borderWidth: 1.5, borderColor: on ? '#D4AF37' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)'), backgroundColor: on ? 'rgba(212,175,55,0.1)' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)'), paddingHorizontal: 13, paddingVertical: 11 }}>
-                      <DPIcon size={15} color={on ? '#D4AF37' : theme.subtext} />
-                      <T v="body" style={{ flex: 1, marginLeft: 9, fontWeight: '700', fontSize: 13.5, color: theme.text }}>
-                        {p.pts.toLocaleString()} points{p.bonus ? ` +${p.bonus} bonus` : ''}
-                      </T>
-                      <T v="caption" style={{ fontWeight: '800', fontSize: 12, color: on ? '#B8860B' : theme.subtext }}>{naira(p.pts)}</T>
-                    </Pressable>
-                  );
-                })}
+                {/* pass 41 — packs as a 2×2 grid of cards with the real coin art, bonus ribbons + best-value tag */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 9 }}>
+                  {PACKS.map((p) => {
+                    const on = pack.pts === p.pts;
+                    const best = p.pts === 5000;
+                    return (
+                      <Pressable
+                        key={p.pts}
+                        onPress={() => { haptic.selection(); setPack(p); setCustom(''); }}
+                        style={({ pressed }) => ({
+                          width: '48.5%',
+                          borderRadius: 18,
+                          borderWidth: 1.5,
+                          borderColor: on ? '#D4AF37' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)'),
+                          backgroundColor: on ? 'rgba(212,175,55,0.1)' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)'),
+                          paddingTop: 20,
+                          paddingBottom: 13,
+                          paddingHorizontal: 10,
+                          alignItems: 'center',
+                          gap: 5,
+                          opacity: pressed ? 0.85 : 1,
+                        })}
+                      >
+                        {best ? (
+                          <View style={{ position: 'absolute', top: -1, right: -1, borderTopRightRadius: 16, borderBottomLeftRadius: 10, backgroundColor: '#1F8F5C', paddingHorizontal: 7, paddingVertical: 2.5 }}>
+                            <T v="caption" style={{ fontSize: 7.5, fontWeight: '900', letterSpacing: 0.5, color: '#FFFFFF' }}>BEST VALUE</T>
+                          </View>
+                        ) : null}
+                        {on ? (
+                          <View style={{ position: 'absolute', top: 7, left: 7, width: 17, height: 17, borderRadius: 9, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}>
+                            <FontAwesome5 name="check" size={8} color="#FFFFFF" />
+                          </View>
+                        ) : null}
+                        <DPIcon size={30} />
+                        <T v="h3" style={{ fontSize: 16, fontWeight: '900', color: on ? '#B8860B' : theme.text }}>{p.pts.toLocaleString()}</T>
+                        {p.bonus ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: 'rgba(74,227,143,0.14)', paddingHorizontal: 7, paddingVertical: 2 }}>
+                            <FontAwesome5 name="plus" size={7} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                            <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{p.bonus.toLocaleString()} bonus</T>
+                          </View>
+                        ) : (
+                          <T v="caption" style={{ fontSize: 9, color: theme.subtext }}>points</T>
+                        )}
+                        <T v="caption" style={{ fontWeight: '800', fontSize: 12, color: on ? '#B8860B' : theme.subtext, marginTop: 2 }}>{naira(p.pts)}</T>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 {/* pass 38 — custom amount */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 15, borderWidth: 1.5, borderColor: customOn ? '#D4AF37' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)'), backgroundColor: customOn ? 'rgba(212,175,55,0.08)' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)'), paddingHorizontal: 13, paddingVertical: 6 }}>
                   <FontAwesome5 name="keyboard" size={13} color={customOn ? '#D4AF37' : theme.subtext} />
@@ -163,8 +202,8 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
               </View>
             ) : (
               <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
-                <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: 'rgba(74,227,143,0.14)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name="check" size={26} color="#4AE38F" />
+                <View style={{ width: 66, height: 66, borderRadius: 33, backgroundColor: 'rgba(74,227,143,0.14)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(74,227,143,0.5)' }}>
+                  <DPIcon size={34} />
                 </View>
                 <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>{(pack.pts + pack.bonus).toLocaleString()} points added</T>
                 <T v="caption" style={{ fontSize: 11, color: theme.subtext }}>New balance {points.toLocaleString()}</T>

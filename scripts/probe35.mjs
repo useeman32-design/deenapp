@@ -95,18 +95,24 @@ await go('/tools/charity', 6500);
   }
 }
 
-/* 5. scholars: tabs + deenpoints note + ask sheet */
+/* 5. scholars: pass 41 SELECTION screen first, then browse + ask sheet */
 await go('/tools/scholars', 6500);
 {
   let t = await page.evaluate(() => document.body.innerText);
-  ok('scholars: browse + search + tabs', /Ask Scholars/i.test(t) && /Scholars/i.test(t) && /My Questions/i.test(t) && /Public/i.test(t));
-  ok('scholars: DeenPoints clarification visible', /DeenPoints do not buy fatwas/i.test(t) && /fairness, respect/i.test(t));
-  const a = await tap('ask Sheikh Abdurrahman Al-Ameen');
-  if (a) {
-    await page.touchscreen.tap(a.x, a.y);
-    await page.waitForTimeout(1200);
+  ok('scholars: selection screen (3 choices)', /Ask Scholars/i.test(t) && /Browse scholars/i.test(t) && /Public questions/i.test(t) && /My questions/i.test(t));
+  const card = await tap('browse scholars');
+  if (card) {
+    await page.touchscreen.tap(card.x, card.y);
+    await page.waitForTimeout(1400);
     t = await page.evaluate(() => document.body.innerText);
-    ok('scholars: ask sheet (title/question/category/urgency/public/points)', /DeenPoints/i.test(t) && /URGENCY/i.test(t) && /(Public|Private) question/i.test(t) && /CATEGORY/i.test(t));
+    ok('scholars: browse list + back-to-choices', /BROWSE SCHOLARS/i.test(t) && /Choices/i.test(t) && /DeenPoints do not buy fatwas/i.test(t) && /fairness, respect/i.test(t));
+    const a = await tap('ask Sheikh Abdurrahman Al-Ameen');
+    if (a) {
+      await page.touchscreen.tap(a.x, a.y);
+      await page.waitForTimeout(1200);
+      t = await page.evaluate(() => document.body.innerText);
+      ok('scholars: ask sheet (title/question/category/urgency/public/points)', /DeenPoints/i.test(t) && /URGENCY/i.test(t) && /(Public|Private) question/i.test(t) && /CATEGORY/i.test(t));
+    }
   }
 }
 
@@ -159,6 +165,75 @@ await go('/tools/hadith/buhari?h=9', 8000);
   const t = await p2.evaluate(() => document.body.innerText);
   ok('onboarding: theme slide has phone-preview labels', /Choose your/i.test(t) && /\bDark\b/.test(t) && /\bLight\b/.test(t) && /Match my phone/i.test(t));
   await fresh.close();
+}
+
+/* 10. pass 41 — signup rebuild + gold nisab + back buttons + AI header */
+{
+  /* signup: choose screen → user form → Nigeria tribe chips */
+  await go('/register', 6000);
+  let t = await page.evaluate(() => document.body.innerText);
+  ok('signup: choose screen (user + scholar cards)', /Join DeenLink/i.test(t) && /User account/i.test(t) && /Scholar account/i.test(t));
+  let el = await tap('continue as user');
+  if (el) {
+    await page.touchscreen.tap(el.x, el.y);
+    await page.waitForTimeout(1200);
+    t = await page.evaluate(() => document.body.innerText);
+    ok('signup: user form fields + password checks', /FULL NAME/i.test(t) && /EMAIL/i.test(t) && /USERNAME/i.test(t) && /GENDER/i.test(t) && /AQEEDAH/i.test(t) && /At least 6 characters/i.test(t) && /Contains a number/i.test(t));
+    ok('signup: aqeedah descriptions + Izala/Salafiyya note is conditional', /righteous predecessors/i.test(t) && !/Izala and Salafiyya/i.test(t));
+    /* pick Nigeria → tribe chips appear */
+    const cp = await tap('country picker');
+    if (cp) {
+      await page.touchscreen.tap(cp.x, cp.y);
+      await page.waitForTimeout(900);
+      const ng = await page.evaluate(() => { const els = [...document.querySelectorAll('div,span')].filter((e) => (e.textContent || '').trim() === 'Nigeria'); const r = els[els.length - 1]?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null; });
+      if (ng) { await page.touchscreen.tap(ng.x, ng.y); await page.waitForTimeout(900); }
+      t = await page.evaluate(() => document.body.innerText);
+      ok('signup: Nigeria → tribe chips + Izala/Salafiyya under Sunni', /Hausa/i.test(t) && /Igbo/i.test(t) && /Yoruba/i.test(t) && /General/i.test(t) && /Izala and Salafiyya fall under Sunni/i.test(t));
+    }
+  }
+  /* scholar wizard */
+  await go('/register', 900);
+  t = await page.evaluate(() => document.body.innerText);
+  const sc = await tap('continue as scholar');
+  if (sc) {
+    await page.touchscreen.tap(sc.x, sc.y);
+    await page.waitForTimeout(1200);
+    t = await page.evaluate(() => document.body.innerText);
+    ok('signup: scholar step 1 (basic + steps header)', /BASIC/i.test(t) && /QUALIFICATIONS/i.test(t) && /VERIFICATION/i.test(t) && /Display name/i.test(t) && /Phone/i.test(t));
+  }
+  /* gmail complete-your-info */
+  await go('/register', 900);
+  t = await page.evaluate(() => document.body.innerText);
+  const gb = await page.evaluate(() => { const els = [...document.querySelectorAll('div,span,button')].filter((e) => /Continue with Google|Google/i.test((e.textContent || '').trim()) && e.getBoundingClientRect().height > 0); const el = els[els.length - 1]; if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: Math.min(Math.max(r.y + r.height / 2, 8), 830) }; });
+  if (gb) {
+    await page.touchscreen.tap(gb.x, gb.y);
+    await page.waitForTimeout(1400);
+    t = await page.evaluate(() => document.body.innerText);
+    ok('signup: Gmail → complete-your-info (no password fields)', /Complete your info/i.test(t) && /USERNAME/i.test(t) && !/CONFIRM PASSWORD/i.test(t));
+  }
+
+  /* zakat: GOLD is the standard now */
+  await go('/tools/zakat', 6000);
+  t = await page.evaluate(() => document.body.innerText);
+  ok('zakat: gold standard is the default', /GOLD/i.test(t) && /gold standard is the DeenLink default/i.test(t));
+
+  /* prayer + qibla: back buttons */
+  await go('/tools/prayer', 6000);
+  {
+    const hasBack = await page.evaluate(() => !!document.querySelector('[aria-label="back"]'));
+    t = await page.evaluate(() => document.body.innerText);
+    ok('prayer: back button + adhan style entry', hasBack && /Preview the adhan alert/i.test(t));
+  }
+  await go('/tools/qibla', 6000);
+  {
+    const hasBack = await page.evaluate(() => !!document.querySelector('[aria-label="back"]'));
+    ok('qibla: back button present', hasBack);
+  }
+
+  /* AI: no provider pill in header, capability words instead of model names */
+  await go('/tools/ai', 6000);
+  t = await page.evaluate(() => document.body.innerText);
+  ok('ai: header has no provider pill, models never named', /DeenLink AI/i.test(t) && !/GROQ\b/i.test(t) && !/gpt-oss/i.test(t) && !/Grok/i.test(t));
 }
 
 console.log(results.join('\n'));

@@ -15,16 +15,17 @@ import { storage } from '@/lib/storage';
 
 export type SvgRefHandle = { toDataURL: (cb: (data: string) => void, opts?: Record<string, unknown>) => void } | null;
 
-export async function svgRefToPng(ref: React.RefObject<SvgRefHandle>): Promise<string> {
+export async function svgRefToPng(ref: React.RefObject<SvgRefHandle>, opts?: Record<string, unknown>): Promise<string> {
   const node = ref.current;
   if (!node?.toDataURL) throw new Error('svg export: no ref');
   return new Promise<string>((resolve, reject) => {
     try {
+      /* pass 41 — opts {width,height} rasterize at FULL size, not the on-screen layout size */
       node.toDataURL((data: string) => {
         if (!data) reject(new Error('svg export: empty'));
         /* the WEB implementation of toDataURL strips the data-url prefix */
         else resolve(data.startsWith('data:') ? data : `data:image/png;base64,${data}`);
-      });
+      }, opts);
     } catch (e) {
       reject(e as Error);
     }
@@ -100,8 +101,8 @@ export async function canSaveImages(): Promise<boolean> {
 }
 
 /** one-shot: rasterize a hidden Svg ref → JPEG file → share (native) */
-export async function shareSvgRef(ref: React.RefObject<SvgRefHandle>, fileName: string, message = ''): Promise<void> {
-  const png = await svgRefToPng(ref);
+export async function shareSvgRef(ref: React.RefObject<SvgRefHandle>, fileName: string, message = '', opts?: Record<string, unknown>): Promise<void> {
+  const png = await svgRefToPng(ref, opts);
   if (Platform.OS === 'web') {
     /* web Svg refs don't expose toDataURL — callers use the canvas path */
     await shareImage(png, fileName, message);
@@ -111,8 +112,8 @@ export async function shareSvgRef(ref: React.RefObject<SvgRefHandle>, fileName: 
   await shareImage(jpg, fileName, message);
 }
 
-export async function saveSvgRefAsJpg(ref: React.RefObject<SvgRefHandle>, fileName: string): Promise<boolean> {
-  const png = await svgRefToPng(ref);
+export async function saveSvgRefAsJpg(ref: React.RefObject<SvgRefHandle>, fileName: string, opts?: Record<string, unknown>): Promise<boolean> {
+  const png = await svgRefToPng(ref, opts);
   if (Platform.OS === 'web') return false;
   const jpg = await pngDataUrlToJpegFile(png, fileName);
   return saveToGallery(jpg);

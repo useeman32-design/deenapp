@@ -165,6 +165,15 @@ export type RuqyahProgram = {
   subcategories: Array<{ subcategory: string; 'subcategory-slug': string; ruqyah: Array<{ id: string; title: string }> }>;
 };
 export type RuqyahTopicCat = { slug?: string; title?: string; articles?: Array<{ id: string | number; title: string }> };
+/* pass 41 — type=topic returns full articles with structured content blocks
+   (verified live: block types are header | text | arabic | translation) */
+export type RuqyahArticle = {
+  sub_id: number | string;
+  title: string;
+  section_title?: string;
+  category?: string;
+  content: Array<{ type: 'header' | 'text' | 'arabic' | 'translation' | string; content: string }>;
+};
 
 export const RUQYAH_PROGRAMS = [
   { id: 'brief-ruqya', label: 'Brief Ruqya', sub: '22 entries — quick daily protection' },
@@ -194,5 +203,5 @@ export const ruqyah = {
     get<{ data: RuqyahEntry[] }>('/ruqyah', { type: 'instant', lang, program, source }).then((r) => r.data),
   topicCategories: (lang = 'en') => get<{ data: RuqyahTopicCat[] }>('/ruqyah', { type: 'topic-category', lang }).then((r) => r.data),
   topic: (topic: string, lang = 'en') =>
-    get<{ data: RuqyahEntry[] }>('/ruqyah', { type: 'topic', lang, topic }).then((r) => r.data),
+    get<{ data: RuqyahArticle[] }>('/ruqyah', { type: 'topic', lang, topic }).then((r) => r.data),
 };

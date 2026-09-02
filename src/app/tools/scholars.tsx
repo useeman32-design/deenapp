@@ -72,6 +72,8 @@ export default function Scholars() {
   const insets = useSafeAreaInsets();
 
   const [tab, setTab] = useState<'browse' | 'mine' | 'public'>('browse');
+  /* pass 41 — SELECTION SCREEN first (user request): browse scholars / public questions / my questions */
+  const [picked, setPicked] = useState<'browse' | 'mine' | 'public' | null>(null);
   const [q, setQ] = useState('');
   const [field, setField] = useState<string | null>(null);
   const [catScreen, setCatScreen] = useState<string | null>(null);
@@ -114,21 +116,47 @@ export default function Scholars() {
       <TopBar showBack title="Ask Scholars" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* tabs */}
-        <View style={{ flexDirection: 'row', gap: 7, marginBottom: 14 }}>
-          {([['browse', 'Scholars', 'user-graduate'], ['mine', 'My Questions', 'inbox'], ['public', 'Public', 'globe-africa']] as const).map(([id, label, icon]) => {
-            const on = tab === id;
-            return (
-              <Pressable key={id} accessibilityLabel={`tab ${label}`} onPress={() => { haptic.selection(); setTab(id); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent', paddingVertical: 9 }}>
-                <FontAwesome5 name={icon} size={11} color={on ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
-                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{label}</T>
+        {picked == null ? (
+          /* pass 41 — the SELECTION screen: three big cards instead of tabs */
+          <View style={{ gap: 12, marginBottom: 14 }}>
+            {([
+              ['browse', 'Browse scholars', 'user-graduate', 'Find a qualified scholar by field of knowledge, madhhab or institute — then ask directly.', '#4AE38F'],
+              ['public', 'Public questions', 'globe-africa', 'Read answered questions from the community — fiqh, taharah, marriage and more.', '#5BC8F5'],
+              ['mine', 'My questions', 'inbox', 'Track everything you asked — processing, answered, or returned.', '#E8C96A'],
+            ] as const).map(([id, label, icon, sub, tint]) => (
+              <Pressable
+                key={id}
+                accessibilityLabel={label}
+                onPress={() => { haptic.medium(); setTab(id); setPicked(id); }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, borderWidth: 1.5, borderColor: `${tint}55`, backgroundColor: `${tint}0F`, padding: 15, opacity: pressed ? 0.85 : 1 })}
+              >
+                <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: `${tint}1E`, borderWidth: 1, borderColor: `${tint}55`, alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={icon} size={17} color={tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T v="h3" style={{ fontSize: 14.5, fontWeight: '800', color: d.text }}>{label}</T>
+                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>{sub}</T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={13} color={d.faint} />
               </Pressable>
-            );
-          })}
-        </View>
+            ))}
+          </View>
+        ) : (
+          /* inside a view — a back pill replaces the tabs */
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+            <Pressable accessibilityLabel="back to choices" onPress={() => { haptic.light(); setPicked(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 11, paddingVertical: 8 }}>
+              <FontAwesome5 name="chevron-left" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Choices</T>
+            </Pressable>
+            <T v="caption" style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: '900', letterSpacing: 0.8, color: d.faint }}>
+              {picked === 'browse' ? 'BROWSE SCHOLARS' : picked === 'mine' ? 'MY QUESTIONS' : 'PUBLIC QUESTIONS'}
+            </T>
+            <View style={{ width: 62 }} />
+          </View>
+        )}
 
         {/* ── BROWSE ── */}
-        {tab === 'browse' ? (
+        {picked != null && tab === 'browse' ? (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 10, marginBottom: 10 }}>
               <FontAwesome5 name="search" size={12} color={d.faint} />
@@ -222,7 +250,7 @@ export default function Scholars() {
         ) : null}
 
         {/* ── MY QUESTIONS ── */}
-        {tab === 'mine' ? (
+        {picked != null && tab === 'mine' ? (
           questions == null ? (
             <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
           ) : !questions.length ? (
@@ -256,7 +284,7 @@ export default function Scholars() {
         ) : null}
 
         {/* ── PUBLIC ── */}
-        {tab === 'public' ? (
+        {picked != null && tab === 'public' ? (
           publicQs.map((x) => (
             <View key={x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>{x.cat.toUpperCase()} · {timeAgo(x.at)}</T>

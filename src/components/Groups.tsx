@@ -90,8 +90,14 @@ const GROUP_MEMBERS: Record<string, Array<{ name: string; user: string; role?: R
     { name: 'Aisha K.', user: 'aisha.k', role: 'admin' },
     { name: 'Yusuf B.', user: 'yusuf.b', role: 'member' },
   ],
-  g2: [{ name: 'Maryam A.', user: 'maryam.a', role: 'owner' }],
-  g3: [{ name: 'Khadijah T.', user: 'khadijah.t', role: 'owner' }],
+  g2: [
+    { name: 'Maryam A.', user: 'maryam.a', role: 'owner' },
+    { name: 'Yusuf B.', user: 'yusuf.b', role: 'member' },
+  ],
+  g3: [
+    { name: 'Khadijah T.', user: 'khadijah.t', role: 'owner' },
+    { name: 'Fatima B.', user: 'fatima.b', role: 'admin' },
+  ],
 };
 
 export function groupPostAsFeed(g: { id: string; name: string }, p: GroupPost): Post {
@@ -117,9 +123,15 @@ export const timeAgo = (t: number) => {
 };
 
 /** sample member posts surfaced in the community feed as normal post cards */
+/* pass 41 — six sample group posts so the mixed feed shows variety instead of
+ * the same two cards clustering at the top (which read as a separate section) */
 const SAMPLE_FEED: Array<{ gid: string; author: string; text: string; ago: string; likes: number; comments: number }> = [
   { gid: 'g1', author: 'Ibrahim S.', text: 'Alhamdulillah, this week\'s tafsir covered Ayat al-Kursi — the virtues mentioned in Sahih al-Bukhari are immense. Audio notes are up in the group files.', ago: '2h', likes: 46, comments: 12 },
   { gid: 'g2', author: 'Maryam A.', text: 'Reminder for the weekend halaqah: we continue Juz 29 revision. Bring your mushaf and a notebook — new sisters are welcome! 🤍', ago: '5h', likes: 31, comments: 6 },
+  { gid: 'g3', author: 'Khadijah T.', text: 'Question of the week for the sisters: what small sunnahs have changed your daily routine the most? Drop yours below so we can all benefit 🌸', ago: '8h', likes: 58, comments: 23 },
+  { gid: 'g1', author: 'Aisha K.', text: 'The circle is hosting a Q&A on raising children upon the Quran next Saturday after Asr. Come with your questions — refreshments provided inshaAllah.', ago: '11h', likes: 39, comments: 9 },
+  { gid: 'g2', author: 'Yusuf B.', text: 'Alhamdulillah — 40 weeks of consistent revision and Juz 29 is finally locked in. Consistency really is the sunnah way. Keep going, everyone!', ago: '14h', likes: 74, comments: 15 },
+  { gid: 'g3', author: 'Fatima B.', text: 'Sharing a short compilation of dua for anxiety from Hisn al-Muslim — may Allah grant everyone peace of mind and a tranquil heart. 🤍', ago: '19h', likes: 66, comments: 11 },
 ];
 
 export function GroupFeedPosts({ onComments }: { onComments?: (p: Post) => void }) {

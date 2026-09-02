@@ -264,10 +264,11 @@ export function ScoreShareSheet({
     setBusy(true);
     try {
       if (Platform.OS === 'web') {
-        const ok = await svgWebDownload(exportRef, `deenlink-${card.kind}`);
+        const ok = await svgWebDownload(exportRef, `deenlink-${card.kind}`, 'dl-score-preview', 1440);
         setToast(ok ? 'Photo downloaded ✓' : 'Could not save — try Share');
       } else {
-        const ok = await saveSvgRefAsJpg(exportRef, `deenlink-${card.kind}`);
+        /* pass 41 — rasterize at 1080×1080 (was the tiny 216px preview size → blurry) */
+        const ok = await saveSvgRefAsJpg(exportRef, `deenlink-${card.kind}`, { width: 1080, height: 1080 });
         setToast(ok ? 'Saved to your gallery ✓' : 'Allow photo permission to save');
       }
     } catch {
@@ -321,7 +322,7 @@ export function ScoreShareSheet({
               <T v="button" style={{ fontSize: 12.5 }}>Save photo</T>
             </Pressable>
             <Pressable
-              onPress={() => { haptic.light(); shareSvgRef(exportRef, `deenlink-${card.kind}`, `${card.title} — ${card.metric}`).catch(() => {}); }}
+              onPress={() => { haptic.light(); shareSvgRef(exportRef, `deenlink-${card.kind}`, `${card.title} — ${card.metric}`, { width: 1080, height: 1080 }).catch(() => {}); }}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 11 }}
             >
               <FontAwesome5 name="share" size={12} color={theme.text} />

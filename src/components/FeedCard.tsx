@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
@@ -138,8 +138,29 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
     });
 
   useEffect(() => {
-    if (started && !paused) player.play();
+    if (started && !paused && !outRef.current) player.play();
     else player.pause();
+  }, [started, paused, player]);
+
+  /* pass 41 — PAUSE when scrolled out of view, resume when back (user request).
+   * measureInWindow works on native AND web, so the poll catches both. */
+  const outRef = useRef(false);
+  useEffect(() => {
+    if (!started) return;
+    const iv = setInterval(() => {
+      try {
+        boxRef.current?.measureInWindow((y: number, _x: number, h: number, _w: number) => {
+          const vh = Dimensions.get('window').height;
+          const out = y + h < 0 || y > vh;
+          if (out !== outRef.current) {
+            outRef.current = out;
+            if (out) player.pause();
+            else if (!paused) player.play();
+          }
+        });
+      } catch {}
+    }, 450);
+    return () => clearInterval(iv);
   }, [started, paused, player]);
 
   useEffect(() => {
@@ -173,8 +194,9 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
 
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
+  const boxRef = useRef<View>(null);
   return (
-    <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
+    <View ref={boxRef} style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
       <View style={{ height: 300 }}>
         {started && !expanded ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>

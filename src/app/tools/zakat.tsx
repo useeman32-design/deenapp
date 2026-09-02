@@ -33,7 +33,8 @@ export default function Zakat() {
   const [v, setV] = useState<Record<string, string>>({});
   const [goldGrams, setGoldGrams] = useState('');
   const [silverGrams, setSilverGrams] = useState('');
-  const [standard, setStandard] = useState<'gold' | 'silver'>('silver');
+  /* pass 41 — user correction: the standard is GOLD (was silver) */
+  const [standard, setStandard] = useState<'gold' | 'silver'>('gold');
   /* pass 39 — LIVE, read-only prices (why edit a realtime price?) */
   const [prices, setPrices] = useState<{ gold: number; silver: number } | null>(null);
   const [live, setLive] = useState<'loading' | 'live' | 'off'>('loading');
@@ -158,7 +159,7 @@ export default function Zakat() {
 
         {/* pass 40 — under the standard: WHICH metal drives the calculation */}
         <T v="caption" style={{ fontSize: 10, color: d.faint, marginHorizontal: 18, marginBottom: 8, lineHeight: 15 }}>
-          Your eligibility is measured against the <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: '#B8860B' }}>{standard === 'gold' ? 'GOLD' : 'SILVER'}</T> nisab ({standard === 'gold' ? '87.48 g of gold' : '612.36 g of silver'} = {money(standard === 'gold' ? draft.goldNisab : draft.silverNisab)} today). Many scholars prefer the silver standard — it is more protective of the poor.
+          Your eligibility is measured against the <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: '#B8860B' }}>{standard === 'gold' ? 'GOLD' : 'SILVER'}</T> nisab ({standard === 'gold' ? '87.48 g of gold' : '612.36 g of silver'} = {money(standard === 'gold' ? draft.goldNisab : draft.silverNisab)} today). The gold standard is the DeenLink default.
         </T>
 
         {/* nisab standard + live metal prices (READ-ONLY) */}
