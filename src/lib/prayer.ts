@@ -237,9 +237,14 @@ export function computePrayerTimesWith(date: Date, coords: { latitude: number; l
 /** hh:mm AA remaining e.g. "2h 14m" */
 export function countdownTo(from: Date, to: Date): string {
   const ms = Math.max(0, to.getTime() - from.getTime());
-  const m = Math.floor(ms / 60000);
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  if (h > 0) return `${h}h ${String(mm).padStart(2, '0')}m`;
-  return `${mm}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`;
+  const s = Math.floor(ms / 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  /* always include seconds so the countdown visibly ticks every second
+   * (matches the homepage timer) — previously >1h dropped the seconds and
+   * only changed once a minute, so it looked frozen. */
+  if (h > 0) return `${h}h ${p(mm)}m ${p(ss)}s`;
+  return `${mm}m ${p(ss)}s`;
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { resolveLocation, detectLocationChange, applyLocation, watchLocation, type Loc } from '@/lib/location';
+import { resolveLocation, detectLocationChange, applyLocation, watchLocation, resetLocation, type Loc } from '@/lib/location';
 import {
   computePrayerTimesWith,
   countdownTo,
@@ -83,6 +83,8 @@ export default function PrayerTimes() {
   };
   /* pass 38 — "new location detected" prompt candidate */
   const [moved, setMoved] = useState<Loc | null>(null);
+  /* location pill — busy while re-detecting the device location */
+  const [locBusy, setLocBusy] = useState(false);
   const playedRef = useRef<string | null>(null);
   const scroller = useRef<ScrollView>(null);
   useEffect(() => {
@@ -210,9 +212,21 @@ export default function PrayerTimes() {
           </View>
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Prayer Times</T>
-            <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
-              {loc.name} · {PRAYER_METHODS.find((m) => m.id === apiMethodId)?.label ?? METHODS.find((m) => m.id === settings.method)?.label ?? ''}
-            </T>
+            <Pressable
+              accessibilityLabel="Update location"
+              onPress={() => {
+                if (locBusy) return;
+                haptic.selection(); setLocBusy(true);
+                resetLocation()
+                  .then((l) => applyLocation(l).then(() => { setLoc(l); setApiTimes(null); setLocBusy(false); }))
+                  .catch(() => setLocBusy(false));
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 3, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.1)' : 'rgba(91,200,245,0.08)', paddingHorizontal: 9, paddingVertical: 4 }}
+            >
+              <FontAwesome5 name="map-marker-alt" size={9} color="#5BC8F5" />
+              <T v="caption" numberOfLines={1} style={{ fontSize: 10, fontWeight: '700', color: d.text, maxWidth: 155 }}>{loc.name.split(',').slice(0, 2).join(',')}</T>
+              {locBusy ? <ActivityIndicator size="small" color="#5BC8F5" /> : <FontAwesome5 name="sync-alt" size={8} color="#5BC8F5" />}
+            </Pressable>
           </View>
           <Pressable accessibilityLabel="Settings"  onPress={() => { haptic.selection(); setSheet(true); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="sliders-h" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
