@@ -261,9 +261,9 @@ export default function CommunityScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      {/* Sticky feed tabs — appear at the top while scrolling */}
+      {/* Sticky feed tabs removed (user: it duplicated the inline tabs). Kept off-screen. */}
       <View
-        pointerEvents={sticky ? 'auto' : 'none'}
+        pointerEvents="none"
         style={{
           position: 'absolute',
           top: 0,
@@ -276,7 +276,7 @@ export default function CommunityScreen() {
           paddingTop: Math.max(insets.top, 12),
           paddingBottom: 10,
           paddingHorizontal: 16,
-          transform: [{ translateY: sticky ? 0 : -58 }],
+          transform: [{ translateY: -260 }],
         }}
       >
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -582,7 +582,7 @@ export default function CommunityScreen() {
 
         {/* Feed tabs (inline at the top of the feed; sticky clone appears on scroll) */}
         {!searching ? (
-          <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 14, opacity: sticky ? 0 : 1 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 14, opacity: 1 }}>
             {TABS.map((t) => {
               const on = tab === t.id;
               return (

@@ -269,7 +269,7 @@ export function CommentsModal({
       .filter((a) => !mentionQuery || a.username.toLowerCase().includes(mentionQuery) || a.full_name.toLowerCase().includes(mentionQuery))
       .slice(0, 6)
       .map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
-    return [{ handle: 'DeenLink', name: 'DeenLink AI', ai: true }, ...people];
+    return [{ handle: 'deenlinkai', name: 'DeenLink AI', ai: true }, ...people];
   }, [mentionQuery]);
   const pickMention = (handle: string) => {
     setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, `@${handle} `));
@@ -447,13 +447,13 @@ export function CommentsModal({
     /* pass 40 — mention @DeenLink (or @deenlink ai / @ai) → the AI answers
      * in-thread: it VERIFIES the post's claims against our library and
      * answers the question, grounded in what it can actually retrieve. */
-    if (/@deenlink\b/i.test(t) || /^@ai\b/i.test(t)) void answerAsDeenLinkAI(t, post);
+    if (/@deenlink(ai)?\b/i.test(t) || /^@ai\b/i.test(t)) void answerAsDeenLinkAI(t, post);
   };
 
   const answerAsDeenLinkAI = async (question: string, forPost: Post | null) => {
     setAiTyping(true);
     const postText = (forPost?.content_text ?? '').slice(0, 500);
-    const q = question.replace(/@deenlink\b/i, '').replace(/^@ai\b/i, '').trim() || 'Is this post accurate?';
+    const q = question.replace(/@deenlink(ai)?\b/i, '').replace(/^@ai\b/i, '').trim() || 'Is this post accurate?';
     let answer = '';
     try {
       const key = await getApiKey();
@@ -496,7 +496,7 @@ export function CommentsModal({
     const ai: SampleComment = {
       id: Date.now() + 1,
       name: 'DeenLink AI',
-      handle: 'deenlink',
+      handle: 'deenlinkai',
       avatar: null,
       badge: 'green',
       text: `✅ ${clean}`,
@@ -596,7 +596,7 @@ export function CommentsModal({
             ))}
             <ActivityIndicator size="small" color={emerald} style={{ marginTop: 2 }} />
           </View>
-        ) : items.map((c) => (
+        ) : [...items].reverse().map((c) => (
           <CommentRow
             key={c.id}
             c={c}
@@ -642,8 +642,8 @@ export function CommentsModal({
 
       {/* GIF picker — bundled animated stickers */}
       {gifOpen ? (
-        <View style={{ paddingHorizontal: 12, paddingBottom: 8, maxHeight: 150 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        <View style={{ paddingHorizontal: 12, paddingBottom: 8, maxHeight: 240 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {Object.entries(GIFS).map(([name, g]) => (
               <Pressable key={name} onPress={() => sendGif(g)} style={({ pressed }) => ({ width: 96, height: 96, borderRadius: 13, overflow: 'hidden', borderWidth: 1, borderColor: pressed ? emerald : hairline, opacity: pressed ? 0.75 : 1 })}>
                 <Image source={g} style={{ width: '100%', height: '100%' }} contentFit="cover" />
@@ -725,7 +725,7 @@ export function CommentsModal({
           hitSlop={6}
           style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: gifOpen ? 'rgba(46,204,113,0.14)' : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(20,36,28,0.06)', borderWidth: 1, borderColor: gifOpen ? 'rgba(74,227,143,0.6)' : hairline }}
         >
-          <FontAwesome5 name="photo-video" size={13} color={gifOpen ? emerald : (faint as string)} />
+          <T v="caption" style={{ fontSize: 11, fontWeight: '900', letterSpacing: 0.4, color: gifOpen ? emerald : (faint as string) }}>GIF</T>
         </Pressable>
         <Pressable
           onPress={addComment}

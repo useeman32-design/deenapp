@@ -112,7 +112,7 @@ export default function Chat() {
             <FadeIn key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
               <View style={{ borderRadius: 16, borderBottomRightRadius: mine ? 5 : 16, borderBottomLeftRadius: mine ? 16 : 5, backgroundColor: mine ? '#1F8F5C' : d.card, borderWidth: mine ? 0 : 1, borderColor: d.cardBorder, paddingHorizontal: 13, paddingVertical: 9 }}>
                 <T v="bodyS" style={{ fontSize: 13, lineHeight: 19, color: mine ? '#fff' : d.text }}>{m.body}</T>
-                <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint, marginTop: 3 }}>{!mine && m.username ? `${m.username} · ` : ''}{(m.created_at || '').slice(11, 16)}</T>
+                <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint, marginTop: 3 }}>{!mine && m.username ? `${m.username} · ` : ''}{(m.created_at || '').slice(11, 16)}{mine ? (m.read_at ? '  ✓✓' : '  ✓') : ''}</T>
               </View>
             </FadeIn>
           );
@@ -120,7 +120,7 @@ export default function Chat() {
       </ScrollView>
       <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: d.cardBorder, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 14 }}>
-          <TextInput value={draft} onChangeText={setDraft} placeholder={`Message ${name(open)}…`} placeholderTextColor={d.faint} returnKeyType="send" onSubmitEditing={send} style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Poppins-Regular' }} />
+          <TextInput value={draft} onChangeText={setDraft} placeholder="Type something…" placeholderTextColor={d.faint} returnKeyType="send" onSubmitEditing={send} style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Poppins-Regular' }} />
         </View>
         <Pressable onPress={send} disabled={busy} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}>
           <FontAwesome5 name="paper-plane" size={13} color="#fff" />

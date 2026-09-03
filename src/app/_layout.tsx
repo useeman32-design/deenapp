@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { UIScaleProvider } from '@/context/UIScale';
@@ -17,7 +16,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function Root() {
   const [fontsLoaded] = useAppFonts();
   const { ready } = useAuth();
-  const { isDark } = useTheme();
+  const { theme, isDark } = useTheme();
 
   useEffect(() => {
     if (ready && fontsLoaded) SplashScreen.hideAsync().catch(() => {});
@@ -77,7 +76,7 @@ function Root() {
         {/* TikTok-style reels feed — opens over everything, swipe up/down */}
         <Stack.Screen name="videos" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', statusBarHidden: false }} />
       </Stack>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <RNStatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.dash.bg} translucent={false} />
       {/* global connectivity pill — slow network while media loads, red banner when offline */}
       <NetPill />
       </QuranAudioProvider>

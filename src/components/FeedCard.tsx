@@ -151,7 +151,8 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
       try {
         boxRef.current?.measureInWindow((y: number, _x: number, h: number, _w: number) => {
           const vh = Dimensions.get('window').height;
-          const out = y + h < 0 || y > vh;
+          /* stop as soon as the card is mostly scrolled past (not only fully off) */
+          const out = y + h < vh * 0.28 || y > vh * 0.72;
           if (out !== outRef.current) {
             outRef.current = out;
             if (out) player.pause();
@@ -159,7 +160,7 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
           }
         });
       } catch {}
-    }, 450);
+    }, 220);
     return () => clearInterval(iv);
   }, [started, paused, player]);
 
