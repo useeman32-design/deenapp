@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { resolveLocation, detectLocationChange, applyLocation, watchLocation, resetLocation, type Loc } from '@/lib/location';
+import { resolveLocation, type Loc } from '@/lib/location';
 import {
   computePrayerTimesWith,
   countdownTo,
@@ -81,10 +81,6 @@ export default function PrayerTimes() {
     setAdhanDesign(id);
     storage.setItem(ADHAN_DESIGN_KEY, id).catch(() => {});
   };
-  /* pass 38 — "new location detected" prompt candidate */
-  const [moved, setMoved] = useState<Loc | null>(null);
-  /* location pill — busy while re-detecting the device location */
-  const [locBusy, setLocBusy] = useState(false);
   const playedRef = useRef<string | null>(null);
   const scroller = useRef<ScrollView>(null);
   useEffect(() => {
@@ -106,11 +102,10 @@ export default function PrayerTimes() {
   }, [now, loc, settings.adhan, settings.adhanVoice, offset]);
 
   useEffect(() => {
+    /* Use the shared location already resolved on the Home screen —
+     * resolveLocation() returns the cached one (no second GPS fix), so this
+     * screen never "loads another location". */
     resolveLocation().then(setLoc);
-    /* pass 38 — detect a saved-location change once on open (never silent) */
-    detectLocationChange().then((cand) => { if (cand) setMoved(cand); });
-    const stop = watchLocation((cand) => { setMoved(cand); });
-    return stop ?? undefined;
     loadPrayerSettings().then(setSettings);
   }, []);
 
@@ -212,21 +207,10 @@ export default function PrayerTimes() {
           </View>
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Prayer Times</T>
-            <Pressable
-              accessibilityLabel="Update location"
-              onPress={() => {
-                if (locBusy) return;
-                haptic.selection(); setLocBusy(true);
-                resetLocation()
-                  .then((l) => applyLocation(l).then(() => { setLoc(l); setApiTimes(null); setLocBusy(false); }))
-                  .catch(() => setLocBusy(false));
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 3, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.1)' : 'rgba(91,200,245,0.08)', paddingHorizontal: 9, paddingVertical: 4 }}
-            >
+            <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 3, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: isDark ? 'rgba(91,200,245,0.1)' : 'rgba(91,200,245,0.08)', paddingHorizontal: 9, paddingVertical: 4 }}>
               <FontAwesome5 name="map-marker-alt" size={9} color="#5BC8F5" />
               <T v="caption" numberOfLines={1} style={{ fontSize: 10, fontWeight: '700', color: d.text, maxWidth: 155 }}>{loc.name.split(',').slice(0, 2).join(',')}</T>
-              {locBusy ? <ActivityIndicator size="small" color="#5BC8F5" /> : <FontAwesome5 name="sync-alt" size={8} color="#5BC8F5" />}
-            </Pressable>
+            </View>
           </View>
           <Pressable accessibilityLabel="Settings"  onPress={() => { haptic.selection(); setSheet(true); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="sliders-h" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
@@ -263,27 +247,6 @@ export default function PrayerTimes() {
           <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>{apiSrc === 'live' ? 'ISLAMICAPI' : 'OFFLINE CALC'} · SAVE / SHARE</T>
           <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
         </Pressable>
-
-        {/* pass 38 — new-location prompt (never switch silently) */}
-        {moved ? (
-          <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(91,200,245,0.5)' : 'rgba(91,200,245,0.4)', backgroundColor: isDark ? 'rgba(91,200,245,0.1)' : 'rgba(91,200,245,0.07)', paddingHorizontal: 12, paddingVertical: 10 }}>
-            <FontAwesome5 name="map-marked-alt" size={15} color="#5BC8F5" />
-            <View style={{ flex: 1 }}>
-              <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>New location detected: {moved.name}</T>
-              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>Update your prayer times to this location?</T>
-            </View>
-            <Pressable
-              accessibilityLabel="update location"
-              onPress={() => { haptic.success(); applyLocation(moved).then(() => { setMoved(null); setApiTimes(null); resolveLocation().then(setLoc); }); }}
-              style={{ borderRadius: 10, backgroundColor: '#1F8F5C', paddingHorizontal: 12, paddingVertical: 8 }}
-            >
-              <T v="button" style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>Update</T>
-            </Pressable>
-            <Pressable onPress={() => { haptic.selection(); setMoved(null); }} hitSlop={8}>
-              <FontAwesome5 name="times" size={12} color={d.faint} />
-            </Pressable>
-          </View>
-        ) : null}
 
         {/* pass 38 — adhan popup preview, one tap from the main screen */}
         <Pressable
