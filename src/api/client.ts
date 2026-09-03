@@ -363,6 +363,26 @@ export async function uploadProfileImage(uri: string, name: string, type: string
   return { ok: false, message: r.data?.message ?? 'Upload failed' };
 }
 
+export async function getSecurityQuestion(identifier: string): Promise<{ ok: boolean; found?: boolean; question?: string; message?: string }> {
+  if (FORCE_DEMO) return { ok: false, message: 'Account recovery needs the live API' };
+  const r = await request<{ status?: string; found?: boolean; security_question?: string; message?: string }>('/api/auth/get_security_question.php', {
+    method: 'POST',
+    body: { identifier },
+  });
+  if (r.ok) return { ok: true, found: r.data.found, question: r.data.security_question, message: r.data.message };
+  return { ok: false, message: r.data?.message };
+}
+
+export async function recoverPassword(identifier: string, answer: string, password: string, confirmPassword: string): Promise<{ ok: boolean; message?: string }> {
+  if (FORCE_DEMO) return { ok: false, message: 'Account recovery needs the live API' };
+  const r = await request<{ status?: string; message?: string }>('/api/auth/recover_password.php', {
+    method: 'POST',
+    body: { identifier, answer, password, confirm_password: confirmPassword },
+  });
+  if (r.ok) return { ok: true, message: r.data.message };
+  return { ok: false, message: r.data?.message ?? 'Could not reset password' };
+}
+
 export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> {
   if (FORCE_DEMO) return { ok: true, points: 1 };
   const r = await request<{ status?: string; points?: number; deenpoints?: number }>('/api/users/daily_checkin.php', {
