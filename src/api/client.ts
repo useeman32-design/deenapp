@@ -430,6 +430,26 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
   return r.ok && r.data.times ? r.data : null;
 }
 
+/* Slice 9 — live chat (DM + group). */
+export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null };
+export type ChatMessage = { id: number; sender_id: number; body: string; media_url: string | null; created_at: string; username?: string };
+export async function chatConversations(): Promise<ChatConversation[] | null> {
+  const r = await request<{ status?: string; conversations?: ChatConversation[] }>('/api/chat/conversations.php', { auth: true });
+  return r.ok && Array.isArray(r.data.conversations) ? r.data.conversations : null;
+}
+export async function chatMessages(conversationId: number): Promise<ChatMessage[] | null> {
+  const r = await request<{ status?: string; messages?: ChatMessage[] }>(`/api/chat/messages.php?conversation_id=${conversationId}`, { auth: true });
+  return r.ok && Array.isArray(r.data.messages) ? r.data.messages : null;
+}
+export async function chatStartDM(userId: number): Promise<number | null> {
+  const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start.php', { method: 'POST', body: { user_id: userId }, auth: true });
+  return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
+}
+export async function chatSend(conversationId: number, body: string): Promise<number | null> {
+  const r = await request<{ status?: string; id?: number }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
+  return r.ok && r.data.id ? (r.data.id as number) : null;
+}
+
 /* Slice 7 — admin-managed Prophets stories chapters; null when offline/empty so the bundled files stay. */
 export type AdminProphetChapter = { slug: string; name: string; n: number; source: string; paras: string[]; summary_ha: string };
 export async function prophetChapters(): Promise<AdminProphetChapter[] | null> {
