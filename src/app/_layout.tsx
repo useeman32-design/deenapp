@@ -52,7 +52,16 @@ function Root() {
     ]
       .map(([fam, file]) => `@font-face{font-family:'${fam}';src:url('${base}/fonts/${file}.ttf') format('truetype');font-display:swap;}`)
       .join('');
-    el.textContent = `${faces} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; }`;
+    /* Large-screen responsiveness (web only): keep the exact mobile design but
+     * centre it in a phone-width column on tablets/desktops so nothing stretches
+     * edge-to-edge. Mobile widths and native builds are untouched. */
+    const responsive = `
+      @media (min-width: 620px) {
+        html, body { background: #0B0F0E; }
+        #root { max-width: 480px; margin: 0 auto; height: 100%; min-height: 100vh; position: relative;
+                box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 18px 60px rgba(0,0,0,0.5); overflow: hidden; }
+      }`;
+    el.textContent = `${faces} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; } ${responsive}`;
     document.head.appendChild(el);
     return () => {
       el.remove();

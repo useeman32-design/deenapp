@@ -628,13 +628,16 @@ export function CommentsModal({
 
       {/* Emoji row (IG-style) + GIF picker (pass 20) */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, paddingBottom: 4 }}>
-        {EMOJIS.map((e, i) => (
-          <Pressable key={`e${i}`} onPress={() => setDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }} onPressIn={() => haptic.selection()}>
-            <T v="caption" style={{ fontSize: e.length > 2 ? 12 : 20, fontWeight: '400' }}>
-              {e}
-            </T>
-          </Pressable>
-        ))}
+        {EMOJIS.map((e, i) => {
+          const ar = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(e);
+          return (
+            <Pressable key={`e${i}`} onPress={() => setDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }} onPressIn={() => haptic.selection()}>
+              <T v="caption" style={{ fontSize: ar ? (e.length > 4 ? 13 : 21) : e.length > 2 ? 12 : 20, fontWeight: '400', fontFamily: ar ? 'Amiri' : undefined }}>
+                {e}
+              </T>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {/* GIF picker — bundled animated stickers */}

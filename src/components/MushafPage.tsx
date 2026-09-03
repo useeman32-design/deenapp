@@ -365,7 +365,7 @@ export function MushafPage({
   );
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: skin.bg }}>
       <Animated.View {...swipeProps} style={{ flex: 1, transform: [{ translateX: slide }] }}>
         <View
           onLayout={(e) => {
