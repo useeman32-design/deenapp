@@ -8,7 +8,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
-import { chatConversations, chatMessages, chatSend, type ChatConversation, type ChatMessage } from '@/api/client';
+import { chatConversations, chatMessages, chatSend, chatRead, chatPresence, type ChatConversation, type ChatMessage } from '@/api/client';
 
 /** Smooth entrance for each bubble. */
 function FadeIn({ children, style }: { children: React.ReactNode; style?: object }) {
@@ -44,11 +44,20 @@ export default function Chat() {
 
   useEffect(load, [load]);
 
+  /* presence heartbeat — marks you online and refreshes others' status */
+  useEffect(() => {
+    if (!user || isDemo) return;
+    chatPresence().catch(() => {});
+    const iv = setInterval(() => { chatPresence().catch(() => {}); chatConversations().then((c) => setConvs((prev) => (prev ? (c ?? []) : prev))); }, 60000);
+    return () => clearInterval(iv);
+  }, [user, isDemo]);
+
   const openConvo = (c: ChatConversation) => {
     haptic.selection();
     setOpen(c);
     setMsgs([]);
     chatMessages(c.id).then((m) => setMsgs(m ?? []));
+    chatRead(c.id).catch(() => {});
   };
 
   const send = async () => {
@@ -64,7 +73,8 @@ export default function Chat() {
     setBusy(false);
   };
 
-  const name = (c: ChatConversation) => (c.type === 'dm' ? c.peer?.username ?? c.title : c.title || 'Group');
+  const name = (c: ChatConversation) => c.with_username || c.peer?.username || c.title || (c.kind === 'group' ? 'Group' : 'Chat');
+  const isOnline = (c: ChatConversation | null) => !!c?.peer_seen && (Date.now() - new Date(String(c.peer_seen).replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
 
   if (!open) {
     return (
@@ -103,7 +113,13 @@ export default function Chat() {
           <FontAwesome5 name="chevron-left" size={13} color={d.text} />
         </Pressable>
         <AvatarImage source={null} name={name(open)} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
-        <T v="h2" style={{ fontWeight: '800', fontSize: 16, color: d.text }}>{name(open)}</T>
+        <View style={{ flex: 1 }}>
+          <T v="h2" style={{ fontWeight: '800', fontSize: 16, color: d.text }}>{name(open)}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isOnline(open) ? '#2ECC71' : '#E05252' }} />
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{isOnline(open) ? 'Online' : open.peer_seen ? `Last seen ${String(open.peer_seen).slice(5, 16)}` : 'Offline'}</T>
+          </View>
+        </View>
       </View>
       <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 16, gap: 10 }}>
         {msgs.map((m) => {

@@ -431,7 +431,7 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 }
 
 /* Slice 9 — live chat (DM + group). */
-export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null };
+export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string };
 export type ChatMessage = { id: number; sender_id: number; body: string; media_url: string | null; created_at: string; username?: string; read_at?: string | null };
 export async function chatConversations(): Promise<ChatConversation[] | null> {
   const r = await request<{ status?: string; conversations?: ChatConversation[] }>('/api/chat/conversations.php', { auth: true });
@@ -449,6 +449,14 @@ export async function chatSend(conversationId: number, body: string): Promise<nu
   const r = await request<{ status?: string; id?: number }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
   return r.ok && r.data.id ? (r.data.id as number) : null;
 }
+export async function chatRead(conversationId: number): Promise<void> { await request('/api/chat/read.php', { method: 'POST', body: { conversation_id: conversationId }, auth: true }); }
+export async function chatPresence(): Promise<void> { await request('/api/chat/presence.php', { method: 'POST', auth: true }); }
+/** Shared AI answer cache (live app only) — serves repeated/similar questions without an API call. */
+export async function aiCacheLookup(q: string): Promise<string | null> {
+  const r = await request<{ hit?: boolean; answer?: string }>(`/api/deenai/cache_lookup.php?q=${encodeURIComponent(q)}`);
+  return r.ok && r.data.hit && r.data.answer ? String(r.data.answer) : null;
+}
+export async function aiCacheSave(question: string, answer: string): Promise<void> { await request('/api/deenai/cache_save.php', { method: 'POST', body: { question, answer } }); }
 
 /* Slice 7 — admin-managed Prophets stories chapters; null when offline/empty so the bundled files stay. */
 export type AdminProphetChapter = { slug: string; name: string; n: number; source: string; paras: string[]; summary_ha: string };

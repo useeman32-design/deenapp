@@ -18,6 +18,7 @@ import { mentionedSources,
  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
+import { aiCacheLookup, aiCacheSave } from '@/api/client';
 
 type Memory = { id: string; text: string; at: number };
 const MEM_KEY = 'dl.ai.memory';
@@ -436,6 +437,15 @@ export default function DeenLinkAI() {
     patchChat(chatId, (m) => [...m, { role: 'assistant', text: '', at: Date.now(), memSaved: savedMem }]);
 
     if (apiKey) {
+      /* shared answer cache — if another user already asked this, answer instantly (no API call) */
+      const cached = await aiCacheLookup(q).catch(() => null);
+      if (cached) {
+        patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: cached }; return c; });
+        setBusyIds((b) => b.filter((x) => x !== chatId));
+        setPhase('idle');
+        scrollDown();
+        return;
+      }
       setPhase('thinking');
       const history = [...msgs.filter((m) => m.text), userMsg].slice(-8).map((m) => ({ role: m.role, content: m.text }) as { role: 'user' | 'assistant'; content: string });
       /* pass 42 — feed the REAL tafsir (Ibn Kathir) into the context when the
@@ -477,6 +487,7 @@ export default function DeenLinkAI() {
       }, ac.signal);
       netDone();
       aborts.current.delete(chatId);
+      if (acc.trim() && !err) aiCacheSave(q, acc).catch(() => {});
       const navRoute = acc.match(NAV_LINE)?.[1];
       if (err) {
         const fallback = composeLocalAnswer(q, sources);
