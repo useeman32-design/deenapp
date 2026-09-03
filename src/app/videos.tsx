@@ -138,6 +138,7 @@ function ReelItem({
     p.muted = false;
   });
   const [paused, setPaused] = useState(false);
+  const [followed, setFollowed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
   const lastTap = useRef(0);
@@ -377,23 +378,35 @@ function ReelItem({
             })()}
           </Pressable>
         ) : null}
-        <Pressable
-          onPress={() => onOpenProfile(reel.username)}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, opacity: pressed ? 0.8 : 1 })}
-        >
-          <AvatarImage source={account.photo ?? null} name={account.full_name} size={38} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.3)" />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <T v="bodyS" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>
-              @{reel.username}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+          <Pressable
+            onPress={() => onOpenProfile(reel.username)}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, opacity: pressed ? 0.8 : 1, flexShrink: 1 })}
+          >
+            <AvatarImage source={account.photo ?? null} name={account.full_name} size={38} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.3)" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }}>
+              <T v="bodyS" numberOfLines={1} style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14, flexShrink: 1 }}>
+                {account.full_name}
+              </T>
+              {account.badge ? <VerificationBadge type={account.badge} size={13} /> : null}
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => { haptic.light(); setFollowed((f) => !f); }}
+            style={{
+              borderWidth: 1,
+              borderColor: followed ? 'rgba(74,227,143,0.6)' : 'rgba(255,255,255,0.65)',
+              backgroundColor: followed ? 'rgba(46,204,113,0.2)' : 'transparent',
+              borderRadius: 8,
+              paddingHorizontal: 9,
+              paddingVertical: 4,
+            }}
+          >
+            <T v="caption" style={{ color: followed ? '#4AE38F' : '#FFFFFF', fontWeight: '800', fontSize: 11 }}>
+              {followed ? 'Following' : 'Follow'}
             </T>
-            {account.badge ? <VerificationBadge type={account.badge} size={13} /> : null}
-          </View>
-          <View style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.65)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 }}>
-            <T v="caption" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>
-              Follow
-            </T>
-          </View>
-        </Pressable>
+          </Pressable>
+        </View>
         <T v="bodyS" numberOfLines={2} style={{ color: 'rgba(255,255,255,0.94)', fontSize: 13, lineHeight: 18.5, marginTop: 10 }}>
           {reel.caption}
         </T>
@@ -830,7 +843,7 @@ export default function VideosFeed() {
             onComments={(r) => setCommentReel(r)}
             onShare={(r) => setShareReel(r)}
             onAvatar={(img, nm) => setAvatarPreview({ img, name: nm })}
-            onOpenProfile={(u) => router.push(`/profile/${u}`)}
+            onOpenProfile={(u) => router.push(`/profile/${u}?tab=videos` as never)}
             onMore={(r) => setMoreReel(r)}
           />
         )}

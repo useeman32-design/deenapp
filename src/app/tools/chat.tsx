@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -9,6 +9,19 @@ import { TopBar } from '@/components/TopBar';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { chatConversations, chatMessages, chatSend, type ChatConversation, type ChatMessage } from '@/api/client';
+
+/** Smooth entrance for each bubble. */
+function FadeIn({ children, style }: { children: React.ReactNode; style?: object }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration: 240, useNativeDriver: true }).start();
+  }, [a]);
+  return (
+    <Animated.View style={[style, { opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
 
 /** Slice 9 — live Chat (DM + group) backed by the DeenLink API. */
 export default function Chat() {
@@ -96,10 +109,12 @@ export default function Chat() {
         {msgs.map((m) => {
           const mine = m.sender_id === user?.id;
           return (
-            <View key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%', borderRadius: 16, borderBottomRightRadius: mine ? 5 : 16, borderBottomLeftRadius: mine ? 16 : 5, backgroundColor: mine ? '#1F8F5C' : d.card, borderWidth: mine ? 0 : 1, borderColor: d.cardBorder, paddingHorizontal: 13, paddingVertical: 9 }}>
-              <T v="bodyS" style={{ fontSize: 13, lineHeight: 19, color: mine ? '#fff' : d.text }}>{m.body}</T>
-              <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint, marginTop: 3 }}>{!mine && m.username ? `${m.username} · ` : ''}{(m.created_at || '').slice(11, 16)}</T>
-            </View>
+            <FadeIn key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
+              <View style={{ borderRadius: 16, borderBottomRightRadius: mine ? 5 : 16, borderBottomLeftRadius: mine ? 16 : 5, backgroundColor: mine ? '#1F8F5C' : d.card, borderWidth: mine ? 0 : 1, borderColor: d.cardBorder, paddingHorizontal: 13, paddingVertical: 9 }}>
+                <T v="bodyS" style={{ fontSize: 13, lineHeight: 19, color: mine ? '#fff' : d.text }}>{m.body}</T>
+                <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint, marginTop: 3 }}>{!mine && m.username ? `${m.username} · ` : ''}{(m.created_at || '').slice(11, 16)}</T>
+              </View>
+            </FadeIn>
           );
         })}
       </ScrollView>

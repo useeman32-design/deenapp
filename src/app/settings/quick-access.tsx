@@ -178,25 +178,24 @@ export default function QuickAccessEditor() {
                   {it.label}
                 </T>
               </View>
-              {/* pass 44 — the plus was a nested <Pressable> with NO handler, so
-               * tapping it swallowed the gesture and add() never fired — the user
-               * had to tap the surrounding row. Now it's a plain non-interactive
-               * circle; the whole row is the single tap target. */}
-              <View
-                pointerEvents="none"
+              {/* The plus is a real button now — tapping it adds immediately. */}
+              <Pressable
+                onPress={() => add(it.key)}
+                disabled={atMax}
+                hitSlop={8}
                 style={{
                   width: 30,
                   height: 30,
                   borderRadius: 15,
                   backgroundColor: d.bgSoft,
                   borderWidth: 1,
-                  borderColor: d.cardBorder,
+                  borderColor: atMax ? d.cardBorder : d.emerald,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
                 <FontAwesome5 name="plus" size={12} color={atMax ? d.faint : d.emerald} />
-              </View>
+              </Pressable>
             </Pressable>
           ))}
           {available.length === 0 ? (

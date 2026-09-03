@@ -57,13 +57,13 @@ type ProfileTab = 'posts' | 'questions' | 'videos';
  * and Posts / Questions (scholars) / About tabs.
  */
 export default function PublicProfileScreen() {
-  const { username = '' } = useLocalSearchParams<{ username: string }>();
+  const { username = '', tab: initialTab } = useLocalSearchParams<{ username: string; tab?: string }>();
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
 
-  const [tab, setTab] = useState<ProfileTab>('posts');
+  const [tab, setTab] = useState<ProfileTab>(initialTab === 'videos' || initialTab === 'questions' ? (initialTab as ProfileTab) : 'posts');
   const [photoPreview, setPhotoPreview] = useState(false);
   // the account's reels — shown in the Videos tab
   const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);

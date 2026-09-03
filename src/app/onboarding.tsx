@@ -38,10 +38,10 @@ const cardShadow = (isDark: boolean) => ({
   elevation: 6,
 });
 
-function ImageCard({ img, isDark, d }: { img: any; isDark: boolean; d: any }) {
+function ImageCard({ img, isDark, d, tall }: { img: any; isDark: boolean; d: any; tall?: boolean }) {
   return (
     <View style={{ width: '100%', marginTop: 24, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, ...cardShadow(isDark) }}>
-      <Image source={img} style={{ width: '100%', aspectRatio: 1 }} resizeMode="cover" />
+      <Image source={img} style={tall ? { width: '100%', aspectRatio: 1 } : { width: '100%', height: 232 }} resizeMode="cover" />
     </View>
   );
 }
@@ -191,7 +191,7 @@ export default function Onboarding() {
               <Tag isDark={isDark} gold>DEENLINK AI</Tag>
               <T v="display" style={{ marginTop: 16, textAlign: 'center', fontSize: 27, lineHeight: 34, color: d.text, fontWeight: '800' }}>Ask anything,{'\n'}anytime</T>
               <T v="bodyS" style={{ marginTop: 10, textAlign: 'center', fontSize: 13, lineHeight: 19, color: d.subtext }}>Instant, respectful answers grounded in the Quran and Sunnah.</T>
-              <ImageCard img={aiImg} isDark={isDark} d={d} />
+              <ImageCard img={aiImg} isDark={isDark} d={d} tall />
             </View>
 
             {/* Slide 5 — library */}
