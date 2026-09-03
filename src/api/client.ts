@@ -347,6 +347,20 @@ export async function updateProfile(payload: {
   return { ok: false, message: r.data?.message };
 }
 
+export async function uploadProfileImage(uri: string, name: string, type: string): Promise<{ ok: boolean; url?: string; message?: string }> {
+  if (FORCE_DEMO) return { ok: false, message: 'Photo upload needs the live API' };
+  await fetchCsrf(); // upload_profile_image.php requires the CSRF token
+  const form = new FormData();
+  // React Native file part
+  form.append('profile_image', { uri, name, type } as unknown as Blob);
+  const r = await request<{ status?: string; profile_image_url?: string; message?: string }>('/api/users/upload_profile_image.php', {
+    method: 'POST',
+    form,
+  });
+  if (r.ok && r.data.profile_image_url) return { ok: true, url: r.data.profile_image_url };
+  return { ok: false, message: r.data?.message ?? 'Upload failed' };
+}
+
 export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> {
   if (FORCE_DEMO) return { ok: true, points: 1 };
   const r = await request<{ status?: string; points?: number; deenpoints?: number }>('/api/users/daily_checkin.php', {

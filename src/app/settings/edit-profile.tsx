@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import * as api from '@/api/client';
@@ -8,6 +9,7 @@ import { T } from '@/components/T';
 import { Surface } from '@/components/Surface';
 import { TopBar } from '@/components/TopBar';
 import { CheckIcon } from '@/components/Icons';
+import { haptic } from '@/lib/haptics';
 
 /**
  * Edit profile (pass 18) — mirrors the web profile edit modal
@@ -26,6 +28,36 @@ export default function EditProfile() {
   const [phone, setPhone] = useState((user?.phone as string) ?? '');
   const [hideCharity, setHideCharity] = useState(Boolean(user?.hide_charity_balance));
   const [busy, setBusy] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string>((user?.profile_image_url as string) ?? '');
+  const [uploading, setUploading] = useState(false);
+
+  const pickPhoto = async () => {
+    if (uploading) return;
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+      const asset = res.assets?.[0];
+      if (!asset) return;
+      haptic.selection();
+      setUploading(true);
+      const name = (asset.fileName ?? 'profile.jpg').slice(0, 40);
+      const type = asset.mimeType ?? 'image/jpeg';
+      const up = await api.uploadProfileImage(asset.uri, name, type);
+      setUploading(false);
+      if (up.ok && up.url) {
+        setPhotoUrl(up.url);
+        haptic.success();
+        Alert.alert('Photo updated', 'Your profile photo was saved.');
+      } else if (api.isLive()) {
+        Alert.alert('Could not upload', up.message ?? 'Check your connection and try again.');
+      } else {
+        Alert.alert('Offline', 'Photo upload needs a connection to the DeenLink API.');
+      }
+    } catch {
+      setUploading(false);
+      Alert.alert('Could not open the photo picker');
+    }
+  };
 
   const save = async () => {
     if (busy) return;
@@ -72,6 +104,17 @@ export default function EditProfile() {
       <TopBar title="Edit profile" showBack />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
         <Surface style={{ padding: 18, gap: 14 }}>
+          {/* profile photo */}
+          <View style={{ alignItems: 'center', gap: 10, paddingBottom: 4 }}>
+            <Pressable onPress={pickPhoto} disabled={uploading} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: theme.cardSoft, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} /> : <FontAwesome5 name="user" size={30} color={theme.subtext} />}
+              {uploading ? <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color="#fff" /></View> : null}
+            </Pressable>
+            <Pressable onPress={pickPhoto} disabled={uploading} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <FontAwesome5 name="camera" size={11} color={theme.primary} />
+              <T v="meta" style={{ color: theme.primary, fontWeight: '700' }}>{uploading ? 'Uploading…' : 'Change photo'}</T>
+            </Pressable>
+          </View>
           <View>
             <T v="meta" style={label}>FULL NAME</T>
             <TextInput value={fullName} onChangeText={setFullName} placeholder="Enter your full name" placeholderTextColor={theme.subtext} style={field} />
