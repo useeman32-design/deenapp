@@ -699,26 +699,41 @@ export function CommentsModal({
         >
           A
         </Text>
-        <TextInput
-          ref={inputRef}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
-          placeholderTextColor={faint}
-          onSubmitEditing={addComment}
-          returnKeyType="send"
-          style={{
-            flex: 1,
-            width: 0,
-            fontFamily: 'Poppins-Medium',
-            fontSize: 16,
-            color: txt,
-            backgroundColor: inputBg,
-            borderRadius: 17,
-            paddingHorizontal: 13,
-            paddingVertical: 9,
-          }}
-        />
+        <View style={{ flex: 1 }}>
+          <TextInput
+            ref={inputRef}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
+            placeholderTextColor={faint}
+            onSubmitEditing={addComment}
+            returnKeyType="send"
+            selectionColor={emerald}
+            style={{
+              width: '100%',
+              fontFamily: 'Poppins-Medium',
+              fontSize: 16,
+              lineHeight: 20,
+              color: draft ? 'transparent' : txt,
+              backgroundColor: inputBg,
+              borderRadius: 17,
+              paddingHorizontal: 13,
+              paddingVertical: 9,
+            }}
+          />
+          {/* green @mention highlight rendered over the (transparent-text) input */}
+          {draft ? (
+            <Text
+              pointerEvents="none"
+              numberOfLines={1}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, fontFamily: 'Poppins-Medium', fontSize: 16, lineHeight: 20, paddingHorizontal: 13, paddingVertical: 9, color: txt }}
+            >
+              {draft.split(/(@[A-Za-z0-9_.]+)/g).map((part, i) =>
+                part.startsWith('@') ? <Text key={i} style={{ color: emerald, fontWeight: '700' }}>{part}</Text> : <Text key={i}>{part}</Text>,
+              )}
+            </Text>
+          ) : null}
+        </View>
         <Pressable
           onPress={() => { haptic.selection(); setGifOpen((o) => !o); }}
           accessibilityLabel="toggle gif picker"
