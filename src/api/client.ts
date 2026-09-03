@@ -332,6 +332,8 @@ export async function updateProfile(payload: {
   aqeedah?: string;
   phone?: string;
   hide_charity_balance?: boolean;
+  security_question?: string;
+  security_answer?: string;
 }): Promise<{ ok: boolean; user?: User; message?: string }> {
   if (FORCE_DEMO) {
     return { ok: true, user: { ...MOCK_USER, ...payload } as User, message: 'Saved (demo mode)' };

@@ -17,6 +17,15 @@ import { haptic } from '@/lib/haptics';
  * Phone Number, Email (read-only), Privacy: hide charity balance.
  * All inputs use fontSize 16 so iOS Safari never focus-zooms.
  */
+
+const SECURITY_QUESTIONS = [
+  'What is the name of your first school?',
+  "What is your mother's maiden name?",
+  'What city were you born in?',
+  'What is the name of your first pet?',
+  'What is your favourite Surah?',
+];
+
 export default function EditProfile() {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -30,6 +39,8 @@ export default function EditProfile() {
   const [busy, setBusy] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string>((user?.profile_image_url as string) ?? '');
   const [uploading, setUploading] = useState(false);
+  const [securityQuestion, setSecurityQuestion] = useState<string>((user?.security_question as string) ?? '');
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const pickPhoto = async () => {
     if (uploading) return;
@@ -73,6 +84,8 @@ export default function EditProfile() {
       aqeedah: aqeedah.trim(),
       phone: phone.trim(),
       hide_charity_balance: hideCharity,
+      security_question: securityQuestion.trim(),
+      ...(securityAnswer.trim() ? { security_answer: securityAnswer.trim() } : {}),
     });
     setBusy(false);
     if (res.ok) {
@@ -161,6 +174,30 @@ export default function EditProfile() {
               style={{ ...field, color: theme.subtext }}
             />
             <T v="meta" style={{ marginTop: 5 }}>Email can only be changed from the website (verify &amp; change).</T>
+          </View>
+
+          {/* security question — account recovery */}
+          <View>
+            <T v="meta" style={label}>SECURITY QUESTION</T>
+            <T v="meta" style={{ marginBottom: 8, textTransform: 'none', letterSpacing: 0, lineHeight: 16 }}>Used to help recover your account if you forget your password.</T>
+            <View style={{ gap: 7 }}>
+              {SECURITY_QUESTIONS.map((sq) => {
+                const on = securityQuestion === sq;
+                return (
+                  <Pressable key={sq} onPress={() => setSecurityQuestion(sq)} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 9, paddingHorizontal: 11, borderRadius: 11, borderWidth: 1, borderColor: on ? theme.primary : theme.border, backgroundColor: on ? `${theme.primary}14` : 'transparent' }}>
+                    <FontAwesome5 name={on ? 'check-circle' : 'circle'} size={12} color={on ? theme.primary : theme.subtext} />
+                    <T v="bodyS" style={{ flex: 1, fontSize: 12.5, color: on ? theme.text : theme.subtext }}>{sq}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {securityQuestion ? (
+              <View style={{ marginTop: 10 }}>
+                <T v="meta" style={label}>YOUR ANSWER</T>
+                <TextInput value={securityAnswer} onChangeText={setSecurityAnswer} placeholder="Enter your answer" autoCapitalize="none" autoCorrect={false} secureTextEntry placeholderTextColor={theme.subtext} style={field} />
+                <T v="meta" style={{ marginTop: 5 }}>Leave blank to keep your current answer. Answers are stored securely (hashed).</T>
+              </View>
+            ) : null}
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 2 }}>
