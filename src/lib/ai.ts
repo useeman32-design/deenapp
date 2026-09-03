@@ -54,7 +54,7 @@ export function detectProvider(key: string): ProviderId | null {
 }
 
 export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'fatwa' | 'web'; label: string; href?: string; excerpt: string };
-export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string };
+export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string; memSaved?: boolean };
 export type AiChat = { id: string; title: string; at: number; msgs: AiMsg[] };
 
 const K_CHATS = 'dl.ai.chats.v2';

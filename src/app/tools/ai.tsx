@@ -401,9 +401,10 @@ export default function DeenLinkAI() {
     });
     setDraft('');
     /* AI memory — quietly remember personal facts/preferences the user shares */
+    let savedMem = false;
     if (isImportantMessage(q)) {
       const t = q.slice(0, 200);
-      if (!memories.some((m) => m.text.toLowerCase() === t.toLowerCase())) persistMem([{ id: uid(), text: t, at: Date.now() }, ...memories].slice(0, 50));
+      if (!memories.some((m) => m.text.toLowerCase() === t.toLowerCase())) { persistMem([{ id: uid(), text: t, at: Date.now() }, ...memories].slice(0, 50)); savedMem = true; }
     }
     setBusyIds((b) => [...b, chatId]);
     scrollDown();
@@ -432,7 +433,7 @@ export default function DeenLinkAI() {
     setPhase('retrieving');
     let sources: AiSource[] = [];
     try { sources = await retrieveLocal(q); } catch {}
-    patchChat(chatId, (m) => [...m, { role: 'assistant', text: '', at: Date.now() }]);
+    patchChat(chatId, (m) => [...m, { role: 'assistant', text: '', at: Date.now(), memSaved: savedMem }]);
 
     if (apiKey) {
       setPhase('thinking');
@@ -550,6 +551,14 @@ export default function DeenLinkAI() {
             </>
           )}
         </View>
+
+        {/* memory-saved chip */}
+        {!mine && m.memSaved && m.text.trim() ? (
+          <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <FontAwesome5 name="brain" size={9} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.3, color: isDark ? '#4AE38F' : '#1D6F42' }}>Memory saved</T>
+          </View>
+        ) : null}
 
         {/* NAV button — direct navigation */}
         {!mine && nav && !thinkingHere ? (
