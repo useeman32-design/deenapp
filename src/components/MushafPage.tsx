@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, PanResponder, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Dimensions, Easing, Modal, PanResponder, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -83,6 +83,7 @@ export function MushafPage({
   const boxH = useRef(0);
   const slide = useRef(new Animated.Value(0)).current;
   const loadingPage = useRef<number | null>(null);
+  const winW = Dimensions.get('window').width;
 
   /* persisted prefs; theme default follows the app theme (Night in dark) */
   useEffect(() => {
@@ -230,18 +231,26 @@ export function MushafPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGlobal, audio.playing]);
 
-  /* swipe paging */
+  /* swipe paging — the page now FOLLOWS the finger, then the outgoing page
+   * slides off and the incoming page slides in (RTL: drag right = next). */
   const go = useCallback(
     (dir: 1 | -1) => {
       if (!pg?.pageNo) return;
       const next = pg.pageNo + dir;
-      if (next < 1 || next > 604) return;
+      if (next < 1 || next > 604) { Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: false }).start(); return; }
       setFollowingAudio(false);
-      slide.setValue(dir === 1 ? 40 : -40);
-      Animated.timing(slide, { toValue: 0, duration: 240, easing: Easing.out(Easing.poly(4)), useNativeDriver: false }).start();
-      load(next, true);
+      const exit = dir === 1 ? winW : -winW;
+      haptic.selection();
+      /* slide the current page fully off in the drag direction, then bring the
+       * next page in from the opposite edge once it's loaded */
+      Animated.timing(slide, { toValue: exit, duration: 170, easing: Easing.in(Easing.quad), useNativeDriver: false }).start(() => {
+        slide.setValue(-exit);
+        load(next, true).then(() => {
+          Animated.timing(slide, { toValue: 0, duration: 230, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+        });
+      });
     },
-    [pg, load, slide],
+    [pg, load, slide, winW],
   );
 
   const pan = useMemo(
@@ -249,16 +258,17 @@ export function MushafPage({
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onStartShouldSetPanResponderCapture: () => false,
-        /* CAPTURE phase — children (text/scroll) otherwise eat the gesture on
-         * iOS Safari and the page stops being swippable (pass 23 fix) */
         onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
         onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 16 && Math.abs(g.dy) < 42,
+        onPanResponderMove: (_e, g) => { if (pg?.pageNo) slide.setValue(Math.max(-winW, Math.min(winW, g.dx))); },
         onPanResponderRelease: (_e, g) => {
           if (g.dx > 40) go(1);
           else if (g.dx < -40) go(-1);
+          else Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: false }).start();
         },
+        onPanResponderTerminate: () => Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: false }).start(),
       }),
-    [go],
+    [go, pg, slide, winW],
   );
 
   /* pass 32: on the WEB react-native-web's PanResponder loses touches to the
@@ -272,6 +282,13 @@ export function MushafPage({
             const t0 = e.touches?.[0] ?? e.changedTouches?.[0];
             touch.current = t0 ? { x: t0.clientX, y: t0.clientY, t: Date.now() } : null;
           },
+          onTouchMove: (e: any) => {
+            const st = touch.current;
+            const t1 = e.touches?.[0];
+            if (!st || !t1 || !pg?.pageNo) return;
+            const dx = t1.clientX - st.x;
+            if (Math.abs(dx) > Math.abs(t1.clientY - st.y)) slide.setValue(Math.max(-winW, Math.min(winW, dx)));
+          },
           onTouchEnd: (e: any) => {
             const st = touch.current;
             touch.current = null;
@@ -280,10 +297,9 @@ export function MushafPage({
             const dx = t1.clientX - st.x;
             const dy = t1.clientY - st.y;
             const dt = Date.now() - st.t;
-            if (dt > 800) return;
-            /* pass 33: RTL paging — a mushaf reads right-to-left, so dragging
-             * the finger RIGHTWARD reveals the next page (on the left). */
+            if (dt > 800) { Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: false }).start(); return; }
             if (Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.25) go(dx > 0 ? 1 : -1);
+            else Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: false }).start();
           },
         }
       : pan.panHandlers;

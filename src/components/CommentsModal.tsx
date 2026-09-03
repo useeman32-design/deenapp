@@ -16,7 +16,8 @@ import { useRouter } from 'expo-router';
 
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 
-const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋', '', 'سُبْحَانَهُ وَتَعَالَى'];
+/* ﷺ (sallallahu alayhi wasallam ligature U+FDFA) and Subhanahu wa ta'ala lead the picker. */
+const EMOJIS = ['ﷺ', 'سُبْحَانَهُ وَتَعَالَى', '😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
 
 /* pass 20: bundled animated stickers for comments */
 const GIFS = {

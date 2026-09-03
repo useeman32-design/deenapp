@@ -21,7 +21,8 @@ const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
-const EMOJIS = ['😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋', '', 'سُبْحَانَهُ وَتَعَالَى'];
+/* ﷺ (sallallahu alayhi wasallam ligature U+FDFA) and Subhanahu wa ta'ala lead the picker. */
+const EMOJIS = ['ﷺ', 'سُبْحَانَهُ وَتَعَالَى', '😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
 
 const B = ({ children }: { children: ReactNode }) => <Text style={{ fontWeight: '800' }}>{children}</Text>;
 
