@@ -4,7 +4,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { isLive, sendOtp, verifyOtp } from '@/api/client';
+import { isLive, sendOtp, verifyOtp, checkEmailVerified } from '@/api/client';
 
 /**
  * pass 44 — 6-digit email OTP, cinematic verify sequence:
@@ -42,10 +42,22 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   };
 
   useEffect(() => {
+    if (live) setHint('Enter the 6-digit code — or tap “Verify my email” in the email.');
     send(); // eslint-disable-line
     const iv = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
     return () => clearInterval(iv);
   }, []);
+
+  /* Poll for email-LINK verification: if the user taps the link in the email
+   * instead of typing the code, this detects it and completes automatically. */
+  useEffect(() => {
+    if (!live) return;
+    const iv = setInterval(() => {
+      checkEmailVerified(email).then((v) => { if (v) { clearInterval(iv); setStatus('success'); onVerified(); } }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, email]);
 
   const setDigit = (i: number, v: string) => {
     const c = v.replace(/\D/g, '').slice(-1);

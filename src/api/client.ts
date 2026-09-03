@@ -386,6 +386,11 @@ export async function sendOtp(email: string): Promise<{ ok: boolean; message?: s
   const r = await request<{ status?: string; message?: string; already?: boolean }>('/api/auth/send_otp.php', { body: { email } });
   return { ok: r.ok, message: r.data.message, already: !!r.data.already, networkError: r.networkError };
 }
+/** Poll whether an email has been verified (via OTP or the email link). */
+export async function checkEmailVerified(email: string): Promise<boolean> {
+  const r = await request<{ verified?: boolean; is_email_verified?: number }>(`/api/auth/check_email_verified.php?email=${encodeURIComponent(email)}`);
+  return !!r.ok && (r.data.verified === true || Number(r.data.is_email_verified) === 1);
+}
 export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean }> {
   const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean }>('/api/auth/verify_otp.php', { body: { email, code } });
   return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
