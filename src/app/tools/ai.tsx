@@ -5,6 +5,8 @@ import { Image as ExpoImage } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { loadSurah } from '@/lib/content';
@@ -16,6 +18,15 @@ import { mentionedSources,
  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
+
+type Memory = { id: string; text: string; at: number };
+const MEM_KEY = 'dl.ai.memory';
+/** Heuristic: does this message share a personal fact/preference worth remembering? */
+function isImportantMessage(q: string): boolean {
+  const t = q.toLowerCase();
+  if (t.length < 8 || t.length > 240) return false;
+  return /\b(my name is|i am|i'm|im |call me|remember|i live|i reside|i am from|i'm from|my madhab|i follow|my email|my number|my birthday|i prefer|i like|my family|my wife|my husband|my son|my daughter)\b/.test(t);
+}
 
 /**
  * DeenLink AI (pass 25 redesign):
@@ -294,6 +305,13 @@ function FeedbackRow({ text, msgKey }: { text: string; msgKey: number }) {
 
 export default function DeenLinkAI() {
   const { theme, isDark } = useTheme();
+  const { user } = useAuth();
+  const firstName = (user?.full_name ?? '').trim().split(/\s+/)[0] || '';
+  const [memories, setMemories] = useState<Memory[]>([]);
+  useEffect(() => {
+    storage.getItem(MEM_KEY).then((r) => { try { const a = JSON.parse(r ?? '[]'); if (Array.isArray(a)) setMemories(a); } catch { /* ignore */ } });
+  }, []);
+  const persistMem = useCallback((next: Memory[]) => { setMemories(next); storage.setItem(MEM_KEY, JSON.stringify(next)).catch(() => {}); }, []);
   isDarkStatic = isDark;
   textColStatic = theme.text;
   subColStatic = theme.subtext;
@@ -382,6 +400,11 @@ export default function DeenLinkAI() {
       return next;
     });
     setDraft('');
+    /* AI memory — quietly remember personal facts/preferences the user shares */
+    if (isImportantMessage(q)) {
+      const t = q.slice(0, 200);
+      if (!memories.some((m) => m.text.toLowerCase() === t.toLowerCase())) persistMem([{ id: uid(), text: t, at: Date.now() }, ...memories].slice(0, 50));
+    }
     setBusyIds((b) => [...b, chatId]);
     scrollDown();
 
@@ -399,7 +422,7 @@ export default function DeenLinkAI() {
 
     /* pass 33: greetings never touch the corpora — instant reply */
     if (!apiKey && isGreeting(q)) {
-      patchChat(chatId, (m) => [...m, { role: 'assistant', text: greetingAnswer(q), at: Date.now() }]);
+      patchChat(chatId, (m) => [...m, { role: 'assistant', text: greetingAnswer(q, firstName), at: Date.now() }]);
       setPhase('idle');
       scrollDown();
       setBusyIds((b) => b.filter((x) => x !== chatId));
@@ -424,7 +447,8 @@ export default function DeenLinkAI() {
         const t = await tafsirContextFor(sn, an, 1200).catch(() => null);
         if (t) tafsirCtx = `\n\n[Tafsir Ibn Kathir — ${sn}:${an}] ${t}`;
       }
-      const sys = SYSTEM_PROMPT + tafsirCtx + (sources.length ? '\n\n' + buildContext(sources) : '') + (webRef.current ? '\n\nWeb search is enabled — verify current facts and cite [web].' : '');
+      const memCtx = memories.length ? `\n\nAbout this user (remembered — weave in naturally when relevant; never list them back):\n- ${memories.map((m) => m.text).join('\n- ')}` : '';
+      const sys = SYSTEM_PROMPT + memCtx + tafsirCtx + (sources.length ? '\n\n' + buildContext(sources) : '') + (webRef.current ? '\n\nWeb search is enabled — verify current facts and cite [web].' : '');
       let acc = '';
       let reasoning = '';
       const thinkStart = Date.now();
@@ -652,7 +676,7 @@ export default function DeenLinkAI() {
                   {/* pass 41 — the real DeenLink logo (crescent is the LOADER only, never the logo) */}
                   <ExpoImage source={require('../../../assets/img/logo-badge.png')} style={{ width: 44, height: 44, borderRadius: 12 }} contentFit="cover" />
                 </View>
-                <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: d.text, marginTop: 14 }}>Assalamu alaikum</T>
+                <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: d.text, marginTop: 14 }}>Assalamu alaikum{firstName ? `, ${firstName}` : ''}</T>
                 <T v="caption" style={{ fontSize: 11.5, color: d.faint, marginTop: 4, textAlign: 'center', lineHeight: 17, maxWidth: 280 }}>
                   Ask about the Qur{'\u2019'}an, hadith & duas — or where anything lives in the app. I answer from your library{apiKey ? ' + AI reasoning' : ''}.
                 </T>
@@ -718,6 +742,34 @@ export default function DeenLinkAI() {
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={() => setShowSettings(false)}>
           <Pressable onPress={(e) => stopBubble(e)} style={{ marginTop: insets.top + 60, marginHorizontal: 10, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 16 }}>
             <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>AI Settings</T>
+
+            {/* AI memory — things the assistant remembers about you */}
+            <View style={{ marginTop: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 1, color: d.subtext }}>MEMORY · THINGS I REMEMBER</T>
+                {memories.length ? (
+                  <Pressable onPress={() => { haptic.selection(); persistMem([]); }} hitSlop={6}>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#DC5050' }}>Clear all</T>
+                  </Pressable>
+                ) : null}
+              </View>
+              {memories.length === 0 ? (
+                <T v="caption" style={{ fontSize: 10.5, color: d.faint, lineHeight: 16 }}>
+                  Nothing saved yet. When you share something personal — your name, madhab, preferences — I remember it here so future answers fit you. You can delete any item.
+                </T>
+              ) : (
+                <View style={{ gap: 7 }}>
+                  {memories.map((m) => (
+                    <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 10, paddingVertical: 8 }}>
+                      <T v="bodyS" style={{ flex: 1, fontSize: 11.5, color: d.text }}>{m.text}</T>
+                      <Pressable onPress={() => { haptic.selection(); persistMem(memories.filter((x) => x.id !== m.id)); }} hitSlop={6} accessibilityLabel="delete memory">
+                        <FontAwesome5 name="trash" size={11} color="#DC5050" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
             <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, marginBottom: 14 }}>Your key stays on this device only — never uploaded or committed.</T>
 
             <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>API KEY</T>

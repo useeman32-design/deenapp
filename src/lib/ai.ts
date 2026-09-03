@@ -97,10 +97,11 @@ export function isGreeting(q: string): boolean {
   if (!t || t.length > 40) return false;
   return GREET_RE.test(t) || /^(السلام|سلام|مرحبا|أهلا|اهلا|صباح|مساء)/.test(t);
 }
-export function greetingAnswer(q: string): string {
+export function greetingAnswer(q: string, name?: string): string {
   const m = q.trim().toLowerCase();
   const wb = /sala?m|alaikum|السلام|سلام/.test(m) || /السلام|سلام/.test(q);
-  const open = wb ? 'Wa alaikum assalam! 🌙' : 'Assalamu alaikum! 🌙';
+  const who = name ? `, ${name}` : '';
+  const open = wb ? `Wa alaikum assalam${who}! 🌙` : `Assalamu alaikum${who}! 🌙`;
   return `${open}
 
 I'm DeenLink — your companion for the Qur'an, hadith, duas and daily ibadah.
