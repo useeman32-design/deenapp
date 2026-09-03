@@ -45,11 +45,13 @@ const TIMEOUT = 9000;
 
 /**
  * FORCE_DEMO — mock-only mode.
- * While true, NO network request is ever made: every call resolves against
- * bundled mock data and the signed-in user is the demo profile.
- * Flip to false to go live against deenlink.org.
+ * Real authentication runs on the production app domain (app.deenlink.org),
+ * where the API is same-origin. Everywhere else (GitHub Pages preview,
+ * localhost) stays in demo mode so the UI is explorable without a backend.
  */
-export const FORCE_DEMO = true;
+const IS_APP_DOMAIN =
+  typeof window !== 'undefined' && /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin);
+export const FORCE_DEMO = !IS_APP_DOMAIN;
 
 let session: string | null = null;
 let csrf: string | null = null;

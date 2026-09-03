@@ -22,6 +22,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
   /* security-question account recovery */
   const d = theme.dash;
@@ -69,16 +70,26 @@ export default function Login() {
 
   const submit = async () => {
     if (busy) return;
-    setBusy(true);
-    await login(email.trim() || 'demo@deenlink.org', password || 'demo1234', remember);
-    router.replace('/(tabs)');
+    const id = email.trim();
+    if (!id || !password) { setErr('Enter your email and password.'); return; }
+    setBusy(true); setErr('');
+    const res = await login(id, password, remember);
+    setBusy(false);
+    if (res.ok) {
+      router.replace('/(tabs)');
+    } else {
+      setErr(res.message || 'Invalid email or password.');
+      haptic.medium();
+    }
   };
 
   const googleDemo = async () => {
     if (busy) return;
-    setBusy(true);
-    await login('demo@deenlink.org', 'demo1234', true);
-    router.replace('/(tabs)');
+    setBusy(true); setErr('');
+    const res = await login('demo@deenlink.org', 'demo1234', true);
+    setBusy(false);
+    if (res.ok) router.replace('/(tabs)');
+    else setErr(res.message || 'Google sign-in is not available yet. Use email and password.');
   };
 
   return (
@@ -116,6 +127,13 @@ export default function Login() {
             </T>
           </Pressable>
         </View>
+
+        {err ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,123,123,0.5)', backgroundColor: 'rgba(255,123,123,0.1)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
+            <FontAwesome5 name="exclamation-circle" size={13} color="#FF7B7B" />
+            <T v="caption" style={{ flex: 1, fontSize: 11.5, color: '#FF7B7B', fontWeight: '600' }}>{err}</T>
+          </View>
+        ) : null}
 
         <AuthPrimaryButton label="Sign In" busy={busy} onPress={submit} />
 

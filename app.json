@@ -55,8 +55,7 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true,
-      "baseUrl": "/deenapp"
+      "reactCompiler": true
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
