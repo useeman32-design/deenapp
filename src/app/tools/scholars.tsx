@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
+import { DeenPointsPill } from '@/components/DeenPoints';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { MOCK_SCHOLARS } from '@/api/mocks';
@@ -119,7 +120,7 @@ export default function Scholars() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar showBack title="Ask Scholars" />
+      <TopBar showBack title="Ask Scholars" right={<DeenPointsPill />} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {picked == null ? (

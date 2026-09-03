@@ -25,6 +25,7 @@ import {
   type IconProps,
 } from '@/components/Icons';
 import { learningSections, type LearningSection } from '@/api/client';
+import { DeenPointsPill } from '@/components/DeenPoints';
 
 /**
  * Learning Hub — pass 36 redesign.
@@ -234,6 +235,8 @@ export default function Learning() {
         {/* pass 42 — back button (page had none) */}
         <View style={{ paddingHorizontal: 16, paddingTop: Math.max(insets.top, 12) - 4, flexDirection: 'row', alignItems: 'center' }}>
           <BackButton />
+          <View style={{ flex: 1 }} />
+          <DeenPointsPill />
         </View>
 
         {/* ── hero banner ── */}

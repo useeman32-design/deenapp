@@ -7,6 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
+import { DeenPointsPill } from '@/components/DeenPoints';
 
 /**
  * pass 35 — wallpapers, rebuilt. Every wallpaper is generated live as an SVG
@@ -142,6 +143,7 @@ export default function Wallpapers() {
             <T v="h2" style={{ fontWeight: '800', fontSize: 18, color: d.text }}>Islamic Wallpapers</T>
             <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>Generated in-app · save or share any design</T>
           </View>
+          <DeenPointsPill />
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: 14 }}>

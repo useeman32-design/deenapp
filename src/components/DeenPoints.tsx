@@ -58,7 +58,9 @@ const PACKS = [
   { pts: 100, bonus: 0 },
   { pts: 500, bonus: 25 },
   { pts: 1000, bonus: 100 },
+  { pts: 2500, bonus: 300 },
   { pts: 5000, bonus: 750 },
+  { pts: 10000, bonus: 2000 },
 ];
 
 export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -115,7 +117,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 9 }}>
                   {PACKS.map((p) => {
                     const on = pack.pts === p.pts;
-                    const best = p.pts === 5000;
+                    const best = p.pts === 10000;
                     return (
                       <Pressable
                         key={p.pts}
@@ -216,6 +218,37 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
         </Animated.View>
       </Pressable>
     </Modal>
+  );
+}
+
+/** Reusable balance pill — tap to open the (uniform) purchase modal. Drop into any header. */
+export function DeenPointsPill() {
+  const { points } = useDeenPoints();
+  const { isDark } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        onPress={() => { haptic.selection(); setOpen(true); }}
+        accessibilityLabel="DeenPoints — tap to top up"
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: isDark ? 'rgba(212,175,55,0.4)' : 'rgba(184,134,11,0.35)',
+          backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.1)',
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          opacity: pressed ? 0.8 : 1,
+        })}
+      >
+        <DPIcon size={12} />
+        <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: '#B8860B' }}>{points.toLocaleString()}</T>
+      </Pressable>
+      <DeenPointsBuyModal visible={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
 

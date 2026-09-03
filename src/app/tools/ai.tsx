@@ -19,6 +19,7 @@ import { mentionedSources,
   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
 } from '@/lib/ai';
 import { aiCacheLookup, aiCacheSave } from '@/api/client';
+import { DeenPointsPill } from '@/components/DeenPoints';
 
 type Memory = { id: string; text: string; at: number };
 const MEM_KEY = 'dl.ai.memory';
@@ -622,6 +623,7 @@ export default function DeenLinkAI() {
               : 'Your library · History ⟶ Settings for full AI'}
           </T>
         </View>
+        <DeenPointsPill />
         <Pressable accessibilityLabel="New chat" onPress={newChat} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="plus" size={13} color="#fff" />
         </Pressable>

@@ -8,6 +8,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { markActive, markGoal } from '@/lib/routine';
 import { T } from '@/components/T';
 import { PageHero } from '@/components/PageHero';
+import { DeenPointsPill } from '@/components/DeenPoints';
 import {
   CalculatorIcon,
   CalendarIcon,
@@ -156,7 +157,7 @@ export default function Tools() {
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon} />
+        <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon}><DeenPointsPill /></PageHero>
         <View style={{ paddingTop: 20, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {TOOLS.map((t) => {
