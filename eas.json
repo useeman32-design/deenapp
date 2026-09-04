@@ -1,19 +1,28 @@
 {
-  "cli": { "version": ">= 5.0.0" },
+  "cli": {
+    "version": ">= 5.0.0"
+  },
   "build": {
     "preview": {
-      "android": { "buildType": "apk" },
-      "distribution": "internal",
-      "channel": "preview"
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
     },
     "preview-store": {
-      "android": { "buildType": "app-bundle" },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "channel": "preview"
     },
     "production": {
-      "android": { "buildType": "app-bundle" },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "channel": "production"
     }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {}
+  }
 }

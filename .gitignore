@@ -51,7 +51,7 @@ content/
 # hadith shipped as plain .txt — old notes may still quote the larger figure.
 
 # content pack downloaded at install time (pass 34d)
-assets/content.zip
+# assets/content.zip — kept in the working tree (untracked) so EAS uploads it; the dead CDN URLs no longer resolve
 dist-app/
 
 # Expo / EAS secrets — never commit
