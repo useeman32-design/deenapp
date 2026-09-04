@@ -437,6 +437,16 @@ export async function awardDeenPoints(activity: string): Promise<{ ok: boolean; 
   return { ok: r.ok, awarded: r.data.awarded, balance: r.data.new_balance };
 }
 
+/** pass 49 — register this device's Expo push token so the server can deliver mobile push. */
+export async function registerPushToken(token: string, platform?: string): Promise<{ ok: boolean }> {
+  if (FORCE_DEMO) return { ok: true };
+  const r = await request<{ status?: string }>('/api/notifications/register_expo.php', {
+    method: 'POST',
+    body: { token, platform: platform ?? '' },
+  });
+  return { ok: r.ok };
+}
+
 export async function events(): Promise<EventItem[]> {
   const r = await request<{ status?: string; events?: EventItem[] }>('/api/events/list.php');
   if (r.ok && Array.isArray(r.data.events) && r.data.events.length > 0) return r.data.events;

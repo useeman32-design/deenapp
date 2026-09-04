@@ -10,17 +10,30 @@ import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
 import { SplashGate } from '@/components/SplashGate';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
+import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Root() {
   const [fontsLoaded] = useAppFonts();
-  const { ready } = useAuth();
+  const { ready, user } = useAuth();
   const { theme, isDark } = useTheme();
 
   useEffect(() => {
     if (ready && fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [ready, fontsLoaded]);
+
+  /* pass 49: Expo mobile push — handle taps once, and (re)register this
+   * device's push token whenever a user is signed in. Native builds only. */
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    return registerPushResponseHandler();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user) return;
+    initPushNotifications().catch(() => {});
+  }, [user?.id]);
 
   /* pass 29: warm the Qur'an corpus in the background — the first
    * recite-search used to pay the whole 114-surah load */
