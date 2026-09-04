@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
+import { checkUsernameAvailable, checkEmailAvailable } from '@/api/client';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -26,15 +27,31 @@ import { OtpVerify } from '@/components/OtpVerify';
 
 const COUNTRIES: Array<{ name: string; flag: string }> = [
   { name: 'Nigeria', flag: '🇳🇬' },
-  { name: 'Niger', flag: '🇳🇪' }, { name: 'Ghana', flag: '🇬🇭' }, { name: 'Cameroon', flag: '🇨🇲' },
-  { name: 'Chad', flag: '🇹🇩' }, { name: 'Benin', flag: '🇧🇯' }, { name: 'Senegal', flag: '🇸🇳' },
-  { name: 'Kenya', flag: '🇰🇪' }, { name: 'South Africa', flag: '🇿🇦' }, { name: 'Egypt', flag: '🇪🇬' },
-  { name: 'Morocco', flag: '🇲🇦' }, { name: 'Saudi Arabia', flag: '🇸🇦' }, { name: 'UAE', flag: '🇦🇪' },
-  { name: 'Qatar', flag: '🇶🇦' }, { name: 'Kuwait', flag: '🇰🇼' }, { name: 'Turkey', flag: '🇹🇷' },
-  { name: 'Pakistan', flag: '🇵🇰' }, { name: 'India', flag: '🇮🇳' }, { name: 'Bangladesh', flag: '🇧🇩' },
-  { name: 'Indonesia', flag: '🇮🇩' }, { name: 'Malaysia', flag: '🇲🇾' }, { name: 'United Kingdom', flag: '🇬🇧' },
-  { name: 'United States', flag: '🇺🇸' }, { name: 'Canada', flag: '🇨🇦' }, { name: 'Germany', flag: '🇩🇪' },
-  { name: 'France', flag: '🇫🇷' }, { name: 'Other', flag: '🌍' },
+  { name: 'Afghanistan', flag: '🇦🇫' }, { name: 'Albania', flag: '🇦🇱' }, { name: 'Algeria', flag: '🇩🇿' }, { name: 'Andorra', flag: '🇦🇩' }, { name: 'Angola', flag: '🇦🇴' }, { name: 'Antigua and Barbuda', flag: '🇦🇬' }, { name: 'Argentina', flag: '🇦🇷' }, { name: 'Armenia', flag: '🇦🇲' }, { name: 'Australia', flag: '🇦🇺' }, { name: 'Austria', flag: '🇦🇹' }, { name: 'Azerbaijan', flag: '🇦🇿' },
+  { name: 'Bahamas', flag: '🇧🇸' }, { name: 'Bahrain', flag: '🇧🇭' }, { name: 'Bangladesh', flag: '🇧🇩' }, { name: 'Barbados', flag: '🇧🇧' }, { name: 'Belarus', flag: '🇧🇾' }, { name: 'Belgium', flag: '🇧🇪' }, { name: 'Belize', flag: '🇧🇿' }, { name: 'Benin', flag: '🇧🇯' }, { name: 'Bhutan', flag: '🇧🇹' }, { name: 'Bolivia', flag: '🇧🇴' }, { name: 'Bosnia and Herzegovina', flag: '🇧🇦' }, { name: 'Botswana', flag: '🇧🇼' }, { name: 'Brazil', flag: '🇧🇷' }, { name: 'Brunei', flag: '🇧🇳' }, { name: 'Bulgaria', flag: '🇧🇬' }, { name: 'Burkina Faso', flag: '🇧🇫' }, { name: 'Burundi', flag: '🇧🇮' },
+  { name: 'Cabo Verde', flag: '🇨🇻' }, { name: 'Cambodia', flag: '🇰🇭' }, { name: 'Cameroon', flag: '🇨🇲' }, { name: 'Canada', flag: '🇨🇦' }, { name: 'Central African Republic', flag: '🇨🇫' }, { name: 'Chad', flag: '🇹🇩' }, { name: 'Chile', flag: '🇨🇱' }, { name: 'China', flag: '🇨🇳' }, { name: 'Colombia', flag: '🇨🇴' }, { name: 'Comoros', flag: '🇰🇲' }, { name: 'Congo (DRC)', flag: '🇨🇩' }, { name: 'Congo (Republic)', flag: '🇨🇬' }, { name: 'Costa Rica', flag: '🇨🇷' }, { name: "Côte d'Ivoire", flag: '🇨🇮' }, { name: 'Croatia', flag: '🇭🇷' }, { name: 'Cuba', flag: '🇨🇺' }, { name: 'Cyprus', flag: '🇨🇾' }, { name: 'Czechia', flag: '🇨🇿' },
+  { name: 'Denmark', flag: '🇩🇰' }, { name: 'Djibouti', flag: '🇩🇯' }, { name: 'Dominica', flag: '🇩🇲' }, { name: 'Dominican Republic', flag: '🇩🇴' },
+  { name: 'Ecuador', flag: '🇪🇨' }, { name: 'Egypt', flag: '🇪🇬' }, { name: 'El Salvador', flag: '🇸🇻' }, { name: 'Equatorial Guinea', flag: '🇬🇶' }, { name: 'Eritrea', flag: '🇪🇷' }, { name: 'Estonia', flag: '🇪🇪' }, { name: 'Eswatini', flag: '🇸🇿' }, { name: 'Ethiopia', flag: '🇪🇹' },
+  { name: 'Fiji', flag: '🇫🇯' }, { name: 'Finland', flag: '🇫🇮' }, { name: 'France', flag: '🇫🇷' },
+  { name: 'Gabon', flag: '🇬🇦' }, { name: 'Gambia', flag: '🇬🇲' }, { name: 'Georgia', flag: '🇬🇪' }, { name: 'Germany', flag: '🇩🇪' }, { name: 'Ghana', flag: '🇬🇭' }, { name: 'Greece', flag: '🇬🇷' }, { name: 'Grenada', flag: '🇬🇩' }, { name: 'Guatemala', flag: '🇬🇹' }, { name: 'Guinea', flag: '🇬🇳' }, { name: 'Guinea-Bissau', flag: '🇬🇼' }, { name: 'Guyana', flag: '🇬🇾' },
+  { name: 'Haiti', flag: '🇭🇹' }, { name: 'Honduras', flag: '🇭🇳' }, { name: 'Hungary', flag: '🇭🇺' },
+  { name: 'Iceland', flag: '🇮🇸' }, { name: 'India', flag: '🇮🇳' }, { name: 'Indonesia', flag: '🇮🇩' }, { name: 'Iran', flag: '🇮🇷' }, { name: 'Iraq', flag: '🇮🇶' }, { name: 'Ireland', flag: '🇮🇪' }, { name: 'Israel', flag: '🇮🇱' }, { name: 'Italy', flag: '🇮🇹' },
+  { name: 'Jamaica', flag: '🇯🇲' }, { name: 'Japan', flag: '🇯🇵' }, { name: 'Jordan', flag: '🇯🇴' },
+  { name: 'Kazakhstan', flag: '🇰🇿' }, { name: 'Kenya', flag: '🇰🇪' }, { name: 'Kiribati', flag: '🇰🇮' }, { name: 'Kuwait', flag: '🇰🇼' }, { name: 'Kyrgyzstan', flag: '🇰🇬' },
+  { name: 'Laos', flag: '🇱🇦' }, { name: 'Latvia', flag: '🇱🇻' }, { name: 'Lebanon', flag: '🇱🇧' }, { name: 'Lesotho', flag: '🇱🇸' }, { name: 'Liberia', flag: '🇱🇷' }, { name: 'Libya', flag: '🇱🇾' }, { name: 'Liechtenstein', flag: '🇱🇮' }, { name: 'Lithuania', flag: '🇱🇹' }, { name: 'Luxembourg', flag: '🇱🇺' },
+  { name: 'Madagascar', flag: '🇲🇬' }, { name: 'Malawi', flag: '🇲🇼' }, { name: 'Malaysia', flag: '🇲🇾' }, { name: 'Maldives', flag: '🇲🇻' }, { name: 'Mali', flag: '🇲🇱' }, { name: 'Malta', flag: '🇲🇹' }, { name: 'Marshall Islands', flag: '🇲🇭' }, { name: 'Mauritania', flag: '🇲🇷' }, { name: 'Mauritius', flag: '🇲🇺' }, { name: 'Mexico', flag: '🇲🇽' }, { name: 'Micronesia', flag: '🇫🇲' }, { name: 'Moldova', flag: '🇲🇩' }, { name: 'Monaco', flag: '🇲🇨' }, { name: 'Mongolia', flag: '🇲🇳' }, { name: 'Montenegro', flag: '🇲🇪' }, { name: 'Morocco', flag: '🇲🇦' }, { name: 'Mozambique', flag: '🇲🇿' }, { name: 'Myanmar', flag: '🇲🇲' },
+  { name: 'Namibia', flag: '🇳🇦' }, { name: 'Nauru', flag: '🇳🇷' }, { name: 'Nepal', flag: '🇳🇵' }, { name: 'Netherlands', flag: '🇳🇱' }, { name: 'New Zealand', flag: '🇳🇿' }, { name: 'Nicaragua', flag: '🇳🇮' }, { name: 'Niger', flag: '🇳🇪' }, { name: 'North Korea', flag: '🇰🇵' }, { name: 'North Macedonia', flag: '🇲🇰' }, { name: 'Norway', flag: '🇳🇴' },
+  { name: 'Oman', flag: '🇴🇲' },
+  { name: 'Pakistan', flag: '🇵🇰' }, { name: 'Palau', flag: '🇵🇼' }, { name: 'Palestine', flag: '🇵🇸' }, { name: 'Panama', flag: '🇵🇦' }, { name: 'Papua New Guinea', flag: '🇵🇬' }, { name: 'Paraguay', flag: '🇵🇾' }, { name: 'Peru', flag: '🇵🇪' }, { name: 'Philippines', flag: '🇵🇭' }, { name: 'Poland', flag: '🇵🇱' }, { name: 'Portugal', flag: '🇵🇹' },
+  { name: 'Qatar', flag: '🇶🇦' },
+  { name: 'Romania', flag: '🇷🇴' }, { name: 'Russia', flag: '🇷🇺' }, { name: 'Rwanda', flag: '🇷🇼' },
+  { name: 'Saint Kitts and Nevis', flag: '🇰🇳' }, { name: 'Saint Lucia', flag: '🇱🇨' }, { name: 'Saint Vincent', flag: '🇻🇨' }, { name: 'Samoa', flag: '🇼🇸' }, { name: 'San Marino', flag: '🇸🇲' }, { name: 'São Tomé and Príncipe', flag: '🇸🇹' }, { name: 'Saudi Arabia', flag: '🇸🇦' }, { name: 'Senegal', flag: '🇸🇳' }, { name: 'Serbia', flag: '🇷🇸' }, { name: 'Seychelles', flag: '🇸🇨' }, { name: 'Sierra Leone', flag: '🇸🇱' }, { name: 'Singapore', flag: '🇸🇬' }, { name: 'Slovakia', flag: '🇸🇰' }, { name: 'Slovenia', flag: '🇸🇮' }, { name: 'Solomon Islands', flag: '🇸🇧' }, { name: 'Somalia', flag: '🇸🇴' }, { name: 'South Africa', flag: '🇿🇦' }, { name: 'South Korea', flag: '🇰🇷' }, { name: 'South Sudan', flag: '🇸🇸' }, { name: 'Spain', flag: '🇪🇸' }, { name: 'Sri Lanka', flag: '🇱🇰' }, { name: 'Sudan', flag: '🇸🇩' }, { name: 'Suriname', flag: '🇸🇷' }, { name: 'Sweden', flag: '🇸🇪' }, { name: 'Switzerland', flag: '🇨🇭' }, { name: 'Syria', flag: '🇸🇾' },
+  { name: 'Tajikistan', flag: '🇹🇯' }, { name: 'Tanzania', flag: '🇹🇿' }, { name: 'Thailand', flag: '🇹🇭' }, { name: 'Timor-Leste', flag: '🇹🇱' }, { name: 'Togo', flag: '🇹🇬' }, { name: 'Tonga', flag: '🇹🇴' }, { name: 'Trinidad and Tobago', flag: '🇹🇹' }, { name: 'Tunisia', flag: '🇹🇳' }, { name: 'Türkiye', flag: '🇹🇷' }, { name: 'Turkmenistan', flag: '🇹🇲' }, { name: 'Tuvalu', flag: '🇹🇻' },
+  { name: 'Uganda', flag: '🇺🇬' }, { name: 'Ukraine', flag: '🇺🇦' }, { name: 'United Arab Emirates', flag: '🇦🇪' }, { name: 'United Kingdom', flag: '🇬🇧' }, { name: 'United States', flag: '🇺🇸' }, { name: 'Uruguay', flag: '🇺🇾' }, { name: 'Uzbekistan', flag: '🇺🇿' },
+  { name: 'Vanuatu', flag: '🇻🇺' }, { name: 'Vatican City', flag: '🇻🇦' }, { name: 'Venezuela', flag: '🇻🇪' }, { name: 'Vietnam', flag: '🇻🇳' },
+  { name: 'Yemen', flag: '🇾🇪' },
+  { name: 'Zambia', flag: '🇿🇲' }, { name: 'Zimbabwe', flag: '🇿🇼' },
+  { name: 'Other', flag: '🌍' },
 ];
 const TRIBES = ['Hausa', 'Igbo', 'Yoruba', 'General'];
 const GENDERS = ['Male', 'Female'];
@@ -55,13 +72,6 @@ const VERIFY_METHODS: Array<{ id: 'documents' | 'letter' | 'links'; icon: string
   { id: 'letter', icon: 'envelope-open-text', title: 'Recommendation letter', sub: 'A letter from a recognized scholar or organization' },
   { id: 'links', icon: 'link', title: 'Dawah platforms', sub: 'Verified links to your lectures, TV/radio or big platforms' },
 ];
-
-/* mock live-availability backend (demo): a few reserved handles */
-const TAKEN_USERNAMES = ['admin', 'demo', 'deenlink', 'muhammad', 'ibrahim', 'aisha', 'yusuf', 'maryam', 'khadijah', 'usman'];
-async function checkUsernameAvailable(u: string): Promise<boolean> {
-  await new Promise((r) => setTimeout(r, 450));
-  return !TAKEN_USERNAMES.includes(u.toLowerCase());
-}
 
 const usernameValid = (u: string) => /^[a-z0-9._]{3,20}$/i.test(u);
 
@@ -159,7 +169,9 @@ function PasswordBlock({ password, setPassword, confirm, setConfirm, showConfirm
 function CountryPicker({ value, onPick }: { value: string; onPick: (c: string) => void }) {
   const { isDark } = useTheme();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
   const cur = COUNTRIES.find((c) => c.name === value);
+  const filtered = q.trim() ? COUNTRIES.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase())) : COUNTRIES;
   return (
     <View style={{ marginBottom: 13 }}>
       <Label>Country</Label>
@@ -176,8 +188,14 @@ function CountryPicker({ value, onPick }: { value: string; onPick: (c: string) =
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }} onPress={() => setOpen(false)}>
           <Pressable onStartShouldSetResponder={() => true} style={{ maxHeight: '70%', borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: isDark ? '#07140D' : '#FFFFFF', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.2)', padding: 16 }}>
             <T v="h3" style={{ fontWeight: '800', marginBottom: 10 }}>Select your country</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)', paddingHorizontal: 12, height: 44, marginBottom: 10 }}>
+              <FontAwesome5 name="search" size={13} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} />
+              <TextInput value={q} onChangeText={setQ} placeholder="Search countries…" placeholderTextColor={isDark ? 'rgba(242,247,243,0.4)' : 'rgba(20,36,28,0.4)'} style={{ flex: 1, fontSize: 14, color: isDark ? '#F2F7F3' : '#14241C', padding: 0 }} />
+              {q ? <Pressable onPress={() => setQ('')}><FontAwesome5 name="times-circle" size={14} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} /></Pressable> : null}
+            </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24, gap: 4 }}>
-              {COUNTRIES.map((c) => {
+              {filtered.length === 0 ? <T v="caption" style={{ textAlign: 'center', marginTop: 20, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)' }}>No country matches “{q}”</T> : null}
+              {filtered.map((c) => {
                 const on = c.name === value;
                 return (
                   <Pressable key={c.name} onPress={() => { haptic.selection(); onPick(c.name); setOpen(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 10, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}>
@@ -267,6 +285,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [uState, setUState] = useState<'idle' | 'checking' | 'ok' | 'taken'>('idle');
+  const [eState, setEState] = useState<'idle' | 'checking' | 'ok' | 'taken'>('idle');
   const [gender, setGender] = useState<string | null>(null);
   const [country, setCountry] = useState('');
   const [tribe, setTribe] = useState<string | null>(null);
@@ -300,10 +319,21 @@ export default function Register() {
     if (!usernameValid(username)) { setUState('taken'); return; }
     setUState('checking');
     const t = setTimeout(() => {
-      checkUsernameAvailable(username).then((ok) => setUState(ok ? 'ok' : 'taken'));
+      checkUsernameAvailable(username).then((r) => setUState(r.available ? 'ok' : 'taken'));
     }, 350);
     return () => clearTimeout(t);
   }, [username]);
+
+  /* email live availability (debounced, real backend) */
+  useEffect(() => {
+    const em = email.trim();
+    if (!em || !em.includes('@')) { setEState('idle'); return; }
+    setEState('checking');
+    const t = setTimeout(() => {
+      checkEmailAvailable(em).then((r) => setEState(r.available ? 'ok' : 'taken'));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [email]);
 
   const pwOk = password.length >= 6 && /[A-Za-z]/.test(password) && /[0-9]/.test(password) && password === confirm;
 
@@ -335,6 +365,7 @@ export default function Register() {
     if (busy) return;
     if (!fullName.trim()) return setError('Please enter your full name');
     if (!email.includes('@')) return setError('Please enter a valid email');
+    if (eState === 'taken') return setError('This email is already registered — please sign in or use another email');
     if (uState !== 'ok') return setError('Please choose an available username');
     if (!gender) return setError('Please select your gender');
     if (!country) return setError('Please select your country');
@@ -477,6 +508,15 @@ export default function Register() {
 
       <AuthField label="Full name" value={fullName} onChangeText={setFullName} placeholder="e.g. Aminu Abubakar" icon="user" autoCap="words" />
       <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" icon="envelope" keyboard="email-address" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -6, marginBottom: 13, minHeight: 16 }}>
+        {eState === 'checking' ? (
+          <><ActivityIndicator size="small" color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} /><T v="caption" style={{ fontSize: 10, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)' }}>Checking email…</T></>
+        ) : eState === 'ok' ? (
+          <><FontAwesome5 name="check-circle" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#4AE38F' : '#1D6F42' }}>Email available</T></>
+        ) : eState === 'taken' ? (
+          <><FontAwesome5 name="times-circle" size={11} color="#FF7B7B" /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#FF7B7B' }}>Already registered — sign in instead</T></>
+        ) : null}
+      </View>
 
       {IdentityBlock}
 

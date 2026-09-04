@@ -429,6 +429,28 @@ export async function checkEmailVerified(email: string): Promise<boolean> {
   const r = await request<{ verified?: boolean; is_email_verified?: number }>(`/api/auth/check_email_verified.php?email=${encodeURIComponent(email)}`);
   return !!r.ok && (r.data.verified === true || Number(r.data.is_email_verified) === 1);
 }
+
+/** Real-time username availability against the live database. */
+export async function checkUsernameAvailable(username: string): Promise<{ available: boolean; message?: string }> {
+  if (FORCE_DEMO) return { available: true };
+  const r = await request<{ available?: boolean; message?: string }>('/api/auth/check_username.php', {
+    method: 'POST',
+    body: { username },
+  });
+  if (r.ok) return { available: !!r.data.available, message: r.data.message };
+  return { available: false, message: r.data?.message ?? 'Could not check username' };
+}
+
+/** Real-time email availability against the live database. */
+export async function checkEmailAvailable(email: string): Promise<{ available: boolean; message?: string }> {
+  if (FORCE_DEMO) return { available: true };
+  const r = await request<{ available?: boolean; message?: string }>('/api/auth/check_email.php', {
+    method: 'POST',
+    body: { email },
+  });
+  if (r.ok) return { available: !!r.data.available, message: r.data.message };
+  return { available: false, message: r.data?.message ?? 'Could not check email' };
+}
 export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean }> {
   const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean }>('/api/auth/verify_otp.php', { body: { email, code } });
   return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
