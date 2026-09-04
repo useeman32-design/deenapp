@@ -1,3 +1,4 @@
+import { buildShareUrl } from '@/lib/share';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -1047,7 +1048,7 @@ export default function VideosFeed() {
             <Pressable
               onPress={() => {
                 haptic.light();
-                Share.share({ message: `${shareReel.username} on DeenLink Videos — https://useeman32-design.github.io/deenapp/videos?start=${shareReel.id}` }).catch(() => {});
+                Share.share({ message: `${shareReel.username} on DeenLink Videos\n\n${buildShareUrl('video', shareReel.id, shareReel.caption || 'A video on DeenLink')}` }).catch(() => {});
                 setShareReel(null);
               }}
               style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}

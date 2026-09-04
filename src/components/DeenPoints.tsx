@@ -95,8 +95,8 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,8,5,0.66)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={onClose}>
-        <Animated.View style={{ width: '100%', maxWidth: 360, borderRadius: 24, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.3)', backgroundColor: isDark ? '#0A1A11' : '#FFFFFF', padding: 20, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] }}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,8,5,0.66)', alignItems: 'center', justifyContent: 'center', padding: 16 }} onPress={onClose}>
+        <Animated.View style={{ width: '100%', maxWidth: 340, borderRadius: 24, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.3)', backgroundColor: isDark ? '#0A1A11' : '#FFFFFF', padding: 18, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] }}>
           <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }} onStartShouldSetResponder={() => true}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
               <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(212,175,55,0.14)', alignItems: 'center', justifyContent: 'center' }}>
@@ -123,16 +123,16 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                         key={p.pts}
                         onPress={() => { haptic.selection(); setPack(p); setCustom(''); }}
                         style={({ pressed }) => ({
-                          width: '48.5%',
-                          borderRadius: 18,
+                          width: '31%',
+                          borderRadius: 14,
                           borderWidth: 1.5,
                           borderColor: on ? '#D4AF37' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(20,36,28,0.1)'),
                           backgroundColor: on ? 'rgba(212,175,55,0.1)' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)'),
-                          paddingTop: 20,
-                          paddingBottom: 13,
-                          paddingHorizontal: 10,
+                          paddingTop: 14,
+                          paddingBottom: 10,
+                          paddingHorizontal: 4,
                           alignItems: 'center',
-                          gap: 5,
+                          gap: 4,
                           opacity: pressed ? 0.85 : 1,
                         })}
                       >
@@ -146,17 +146,17 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                             <FontAwesome5 name="check" size={8} color="#FFFFFF" />
                           </View>
                         ) : null}
-                        <DPIcon size={30} />
-                        <T v="h3" style={{ fontSize: 16, fontWeight: '900', color: on ? '#B8860B' : theme.text }}>{p.pts.toLocaleString()}</T>
+                        <DPIcon size={22} />
+                        <T v="h3" style={{ fontSize: 12.5, fontWeight: '900', color: on ? '#B8860B' : theme.text }}>{p.pts.toLocaleString()}</T>
                         {p.bonus ? (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: 'rgba(74,227,143,0.14)', paddingHorizontal: 7, paddingVertical: 2 }}>
-                            <FontAwesome5 name="plus" size={7} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                            <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{p.bonus.toLocaleString()} bonus</T>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, backgroundColor: 'rgba(74,227,143,0.14)', paddingHorizontal: 5, paddingVertical: 1.5 }}>
+                            <FontAwesome5 name="plus" size={6} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                            <T v="caption" style={{ fontSize: 7.5, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{p.bonus.toLocaleString()}</T>
                           </View>
                         ) : (
-                          <T v="caption" style={{ fontSize: 9, color: theme.subtext }}>points</T>
+                          <T v="caption" style={{ fontSize: 7.5, color: theme.subtext }}>points</T>
                         )}
-                        <T v="caption" style={{ fontWeight: '800', fontSize: 12, color: on ? '#B8860B' : theme.subtext, marginTop: 2 }}>{naira(p.pts)}</T>
+                        <T v="caption" style={{ fontWeight: '800', fontSize: 10, color: on ? '#B8860B' : theme.subtext, marginTop: 1 }}>{naira(p.pts)}</T>
                       </Pressable>
                     );
                   })}

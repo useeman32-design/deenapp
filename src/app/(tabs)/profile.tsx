@@ -19,6 +19,7 @@ import { haptic } from '@/lib/haptics';
 import { Platform } from 'react-native';
 import { UI_SCALES, useUIScale, useSetUIScale } from '@/context/UIScale';
 import { DeenPointsBuyModal, RewardModal, useDeenPoints } from '@/components/DeenPoints';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 import { useSaved } from '@/lib/savedPosts';
 
@@ -47,6 +48,7 @@ export default function Profile() {
   /* pass 38 — the DeenPoints chip opens the BUY modal (it used to fire the check-in!) */
   const [buyOpen, setBuyOpen] = useState(false);
   const [reward, setReward] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const dp = useDeenPoints();
 
   useEffect(() => {
@@ -83,12 +85,7 @@ export default function Profile() {
   const like = (id: number) =>
     setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) } : p)));
 
-  const signOut = () => {
-    Alert.alert('Sign out', 'Leave DeenLink? Your session on this device will end.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: logout },
-    ]);
-  };
+  const signOut = () => setSignOutOpen(true);
 
   const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
 
@@ -361,6 +358,17 @@ export default function Profile() {
       </ScrollView>
       <RewardModal visible={reward} onClose={() => setReward(false)} amount={5} />
       <DeenPointsBuyModal visible={buyOpen} onClose={() => setBuyOpen(false)} />
+      <ConfirmDialog
+        visible={signOutOpen}
+        title="Log out?"
+        message="Are you sure you want to log out of DeenLink on this device?"
+        confirmLabel="Log out"
+        cancelLabel="Cancel"
+        tone="danger"
+        icon="sign-out-alt"
+        onCancel={() => setSignOutOpen(false)}
+        onConfirm={() => { setSignOutOpen(false); logout(); try { router.dismissAll?.(); } catch {} router.replace('/(auth)/login'); }}
+      />
 
     </View>
   );

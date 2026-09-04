@@ -864,7 +864,7 @@ export default function CommunityScreen() {
               </View>
 
               {/* emoji row */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingBottom: 2 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={{ height: 46, flexGrow: 0, flexShrink: 0, paddingBottom: 2 }}>
                 {EMOJIS.map((e, i) => {
                   const ar = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(e);
                   return (

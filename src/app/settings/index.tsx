@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { DeenPointsBuyModal } from '@/components/DeenPoints';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 
@@ -49,6 +50,7 @@ export default function SettingsScreen() {
   const [dpOpen, setDpOpen] = useState(false);
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
   const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true });
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   const persist = (key: string, val: unknown) => { storage.setItem(key, JSON.stringify(val)).catch(() => {}); };
 
@@ -157,12 +159,7 @@ export default function SettingsScreen() {
           <Divider />
           <Row icon="info-circle" label="About DeenLink" desc="Version & credits" tint={d.subtext as string} onPress={() => setSheet('about')} />
           <Divider />
-          <Row icon="sign-out-alt" label="Sign out" desc="End session on this device" tint="#FF7B7B" onPress={() =>
-            Alert.alert('Sign out', 'Leave DeenLink? Your session on this device will end.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: logout },
-            ])
-          } />
+          <Row icon="sign-out-alt" label="Sign out" desc="End session on this device" tint="#FF7B7B" onPress={() => setSignOutOpen(true)} />
         </View>
 
         <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 10, marginTop: 16 }}>
@@ -296,6 +293,17 @@ export default function SettingsScreen() {
           </Sheet>
         </View>
       </Modal>
+      <ConfirmDialog
+        visible={signOutOpen}
+        title="Log out?"
+        message="Are you sure you want to log out of DeenLink on this device?"
+        confirmLabel="Log out"
+        cancelLabel="Cancel"
+        tone="danger"
+        icon="sign-out-alt"
+        onCancel={() => setSignOutOpen(false)}
+        onConfirm={() => { setSignOutOpen(false); logout(); try { router.dismissAll?.(); } catch {} router.replace('/(auth)/login'); }}
+      />
     </View>
   );
 }

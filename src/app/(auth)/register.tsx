@@ -327,7 +327,10 @@ export default function Register() {
   /* email live availability (debounced, real backend) */
   useEffect(() => {
     const em = email.trim();
-    if (!em || !em.includes('@')) { setEState('idle'); return; }
+    // Only check availability once the address is COMPLETE and valid — otherwise
+    // it flashes "already registered" while the user is still typing.
+    const complete = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(em);
+    if (!complete) { setEState('idle'); return; }
     setEState('checking');
     const t = setTimeout(() => {
       checkEmailAvailable(em).then((r) => setEState(r.available ? 'ok' : 'taken'));

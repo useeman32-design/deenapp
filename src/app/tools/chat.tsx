@@ -90,16 +90,26 @@ export default function Chat() {
           ) : convs.length === 0 ? (
             <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>No conversations yet. Open a profile and tap Message to start one.</T>
           ) : (
-            convs.map((c) => (
+            convs.map((c) => {
+              const on = isOnline(c);
+              return (
               <Pressable key={c.id} onPress={() => openConvo(c)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 10 }}>
-                <AvatarImage source={null} name={name(c)} size={44} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                <View>
+                  <AvatarImage source={null} name={name(c)} size={44} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                  {/* presence dot — green online / red offline (peer_seen within 5 min) */}
+                  <View style={{ position: 'absolute', right: 0, bottom: 0, width: 13, height: 13, borderRadius: 7, backgroundColor: on ? '#2ECC71' : '#E05252', borderWidth: 2.5, borderColor: d.card }} />
+                </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', color: d.text }}>{name(c)}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', color: d.text, flexShrink: 1 }}>{name(c)}</T>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: on ? '#2ECC71' : d.faint }}>{on ? 'Online' : c.peer_seen ? `Last seen ${String(c.peer_seen).slice(5, 16)}` : 'Offline'}</T>
+                  </View>
                   <T v="caption" numberOfLines={1} style={{ color: d.faint, marginTop: 2 }}>{c.last_body ?? 'Say salam 👋'}</T>
                 </View>
                 <FontAwesome5 name={c.type === 'group' ? 'users' : 'chevron-right'} size={12} color={d.faint} />
               </Pressable>
-            ))
+              );
+            })
           )}
         </ScrollView>
       </View>

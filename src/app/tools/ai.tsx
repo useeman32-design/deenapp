@@ -590,7 +590,7 @@ export default function DeenLinkAI() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
             {dedupeSources(m.sources).slice(0, 6).map((s, j) => (
               <Pressable key={j} onPress={() => { haptic.selection(); if (s.href) router.push(s.href as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: s.kind === 'web' ? 'rgba(44,110,143,0.4)' : glass.border, backgroundColor: s.kind === 'web' ? 'rgba(44,110,143,0.08)' : isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.06)' }}>
-                <FontAwesome5 name={s.kind === 'quran' ? 'book-open' : s.kind === 'hadith' ? 'scroll' : s.kind === 'dua' ? 'hands-helping' : s.kind === 'name' ? 'star-and-crescent' : s.kind === 'web' ? 'globe' : 'question-circle'} size={8} color={s.kind === 'web' ? '#5EA7C9' : isDark ? '#4AE38F' : '#1D6F42'} />
+                <FontAwesome5 name={s.kind === 'quran' ? 'book-open' : s.kind === 'hadith' ? 'scroll' : s.kind === 'dua' ? 'hands-helping' : s.kind === 'name' ? 'star-and-crescent' : s.kind === 'prophet' ? 'mosque' : s.kind === 'fatwa' ? 'balance-scale' : s.kind === 'web' ? 'globe' : 'question-circle'} size={8} color={s.kind === 'web' ? '#5EA7C9' : isDark ? '#4AE38F' : '#1D6F42'} />
                 <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: s.kind === 'web' ? '#5EA7C9' : isDark ? '#4AE38F' : '#1D6F42' }}>{s.label}</T>
               </Pressable>
             ))}
@@ -696,7 +696,7 @@ export default function DeenLinkAI() {
               <View style={{ alignItems: 'center', marginTop: 26, marginBottom: 24 }}>
                 <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: glass.bg, borderWidth: 1, borderColor: glass.border, alignItems: 'center', justifyContent: 'center' }}>
                   {/* pass 41 — the real DeenLink logo (crescent is the LOADER only, never the logo) */}
-                  <ExpoImage source={require('../../../assets/img/logo-badge.png')} style={{ width: 44, height: 44, borderRadius: 12 }} contentFit="cover" />
+                  <ExpoImage source={require('../../../assets/img/logo-export.png')} style={{ width: 44, height: 44, borderRadius: 12 }} contentFit="cover" />
                 </View>
                 <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: d.text, marginTop: 14 }}>Assalamu alaikum{firstName ? `, ${firstName}` : ''}</T>
                 <T v="caption" style={{ fontSize: 11.5, color: d.faint, marginTop: 4, textAlign: 'center', lineHeight: 17, maxWidth: 280 }}>

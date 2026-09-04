@@ -53,7 +53,7 @@ export function detectProvider(key: string): ProviderId | null {
   return null;
 }
 
-export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'fatwa' | 'web'; label: string; href?: string; excerpt: string };
+export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'fatwa' | 'prophet' | 'web'; label: string; href?: string; excerpt: string };
 export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string; memSaved?: boolean };
 export type AiChat = { id: string; title: string; at: number; msgs: AiMsg[] };
 
@@ -126,12 +126,71 @@ function tokenize(q: string): string[] {
     .filter((w) => w.length > 2 && !STOP.has(w));
 }
 
+const BOOK_ALIASES: Array<[RegExp, string]> = [
+  [/bukhari|buhari/i, 'buhari'],
+  [/muslim/i, 'muslim'],
+  [/abu\s*dawud|abudawud|aboodawud/i, 'abudawud'],
+  [/tirmidhi|tirmizi/i, 'tirmidhi'],
+  [/nasai|nasa'i/i, 'nasai'],
+  [/ibn\s*majah|ibnmajah/i, 'ibnmajah'],
+  [/muwatta|malik/i, 'malik'],
+  [/darimi/i, 'darimi'],
+  [/ahmad|ahmed|musnad/i, 'ahmed'],
+];
+
+/** Fetch the EXACT ayah or hadith the user cited by number — e.g. "Quran 2:255",
+ * "Sahih Muslim #1115", "Bukhari 8". Fixes the "not in library" failure for
+ * specific references the keyword search could not rank. */
+async function directReferences(query: string): Promise<AiSource[]> {
+  const res: AiSource[] = [];
+  const q = ` ${query} `;
+  /* ── Quran S:A ── */
+  const qm =
+    q.match(/(?:qur'?an|surah|surat|s\.)\s*(\d{1,3})\s*[:.]\s*(\d{1,3})/i) ||
+    q.match(/(?:surah|surat)\s*(\d{1,3})\s+(?:ayah|verse|v\.?)\s*(\d{1,3})/i) ||
+    q.match(/\b(\d{1,3})\s*:\s*(\d{1,3})\b/);
+  if (qm) {
+    const s = Number(qm[1]);
+    const a = Number(qm[2]);
+    if (s >= 1 && s <= 114 && a >= 1) {
+      try {
+        const sc = await loadSurah(s);
+        const v = sc?.verses?.find((x) => x.ayah === a);
+        if (v) res.push({ kind: 'quran', label: `Quran ${s}:${a}`, href: `/read/${s}?ayah=${a}`, excerpt: `${v.arabic}\n${v.english || v.hausa || ''}`.slice(0, 700) });
+      } catch {}
+    }
+  }
+  /* ── <book> #<number> ── */
+  for (const [re, book] of BOOK_ALIASES) {
+    const m = q.match(re);
+    if (m && m.index != null) {
+      const nm = q.slice(m.index + m[0].length).match(/#?\s*(\d{1,5})/);
+      if (nm) {
+        const num = Number(nm[1]);
+        try {
+          const arr = await loadBook(book);
+          let nums: number[] = [];
+          try { nums = await hadithNumbers(book); } catch {}
+          const ix = arr.findIndex((h, i) => (h.hadith_number != null ? Number(h.hadith_number) : (nums[i] ?? i + 1)) === num);
+          if (ix >= 0) {
+            const h = arr[ix];
+            res.push({ kind: 'hadith', label: `${BOOK_LABEL[book] ?? book} · Hadith ${num}${h.chapter_name?.english ? ' · ' + h.chapter_name.english : ''}`, href: `/tools/hadith/${book}?h=${num}`, excerpt: (h.english || h.arabic || '').slice(0, 700) });
+          }
+        } catch {}
+        break;
+      }
+    }
+  }
+  return res;
+}
+
 export async function retrieveLocal(query: string, progress?: (done: number) => void): Promise<AiSource[]> {
+  const direct = await directReferences(query);
   const toks = tokenize(query);
   /* pass 33: no content keywords ("hello", "salam", small talk) → NOTHING to
    * retrieve. This used to load the whole Quran corpus + 3 hadith books +
    * fatwas (~60MB) before answering a greeting — the 2-minute "hello". */
-  if (!toks.length) return [];
+  if (!toks.length) return direct;
   const out: AiSource[] = [];
   const score = (text: string) => {
     const low = ' ' + text.toLowerCase() + ' ';
@@ -247,10 +306,43 @@ export async function retrieveLocal(query: string, progress?: (done: number) => 
     return res;
   };
 
-  const parts = await Promise.all([quranBlock(), hadithBlock(), duaBlock(), nameBlock(), fatwaBlock()]);
+  /* item 9: prophets-history (Ibn Kathir) — only loads a prophet file when the
+   * query actually names that prophet, so it stays cheap. */
+  const prophetsBlock = async (): Promise<AiSource[]> => {
+    const res: AiSource[] = [];
+    try {
+      const { publicBase } = await import('@/lib/gzio');
+      const idx = (await (await fetch(`${publicBase()}/prophets/index.json`)).json()) as { slug: string; name: string }[];
+      const q = query.toLowerCase();
+      const hit = idx.find((p) => {
+        const words = [p.slug, ...p.name.toLowerCase().split(/[\s()]+/)].filter((w) => w.length > 2);
+        return words.some((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(q));
+      });
+      if (hit) {
+        const full = (await (await fetch(`${publicBase()}/prophets/${hit.slug}.json`)).json()) as { name: string; paras: string[] };
+        const paras = full.paras || [];
+        let best = ''; let bestSc = 0;
+        for (const para of paras) { const sc = score(para); if (sc > bestSc) { bestSc = sc; best = para; } }
+        if (!best && paras.length) best = paras[0];
+        if (best) res.push({ kind: 'prophet', label: `${full.name} — Stories of the Prophets`, href: '/tools/prophets', excerpt: best.slice(0, 480) });
+      }
+    } catch {}
+    return res;
+  };
+
+  const parts = await Promise.all([quranBlock(), hadithBlock(), duaBlock(), nameBlock(), fatwaBlock(), prophetsBlock()]);
   for (const part of parts) out.push(...part);
 
-  return out.slice(0, 6);
+  /* Exact references the user cited (e.g. "Muslim #1115", "Quran 2:255") come
+   * first, then keyword matches — deduped by label. */
+  const seen = new Set<string>();
+  const merged: AiSource[] = [];
+  for (const s of [...direct, ...out]) {
+    if (seen.has(s.label)) continue;
+    seen.add(s.label);
+    merged.push(s);
+  }
+  return merged.slice(0, 6);
 }
 
 /* ── islamqa fatwa corpus (public/islamqa.json, ~3.4MB, fetched once) ── */
@@ -334,9 +426,10 @@ export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the Deen
 - Be honest when unsure; encourage asking a qualified scholar for rulings.
 - Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.
 - STYLE (the app renders your formatting — users never want to see raw * or # symbols): use **bold** for key terms and short bold labels instead of markdown headings; use "- " bullets for lists; NEVER use #, ## headings or tables; no asterisk art.
+- RULINGS / FATWAS: when the context includes an IslamQA fatwa excerpt that fits the question, ground your ruling in it, cite it inline like [IslamQA · <title>], and briefly restate its question and the ruling. Never invent a fatwa attribution; if no fatwa excerpt fits, say so and advise a qualified scholar.
 - When you quote the Qur'an, ALWAYS include the full Arabic text of the ayah first (with diacritics), then the English translation, then cite [Quran S:A]. When you cite a hadith, quote its English text and cite like [Bukhari · Faith #8].
 - NAVIGATION MAP: you know the app's screens. When the user asks WHERE to find something (a surah reader, mushaf, prayer times, qibla compass, zakat calculator, tasbeeh, hijri calendar, duas, athkar, 99 names, hadith collections, quizzes, videos/community, AI chat, settings), answer briefly and end your reply with ONE final line of the exact form:
-NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/quiz | /tools/mirath | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
+NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/prophets | /tools/fatwa | /tools/courses | /tools/seerah | /tools/quiz | /tools/mirath | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
 The app turns that line into a button that opens the screen. Only add it when it genuinely helps.
 - MIRATH (inheritance): whenever the user describes an estate, heirs, or asks who inherits what, give the ruling briefly and ALWAYS finish with the NAV line to the calculator so they can compute exact shares and save the report:
 NAV: /tools/mirath`;
@@ -349,6 +442,7 @@ export const NAV_LABELS: Record<string, string> = {
   '/tools/quiz': 'Quiz', '/tools/ai': 'DeenLink AI', '/videos': 'Videos & reels',
   '/(tabs)/community': 'Community', '(tabs)/community': 'Community', '/(tabs)/quran/surah': 'Quran · surah list',
   '/tools/charity': 'Sadaqah', '/tools/seerah': 'Seerah timeline', '/tools/courses': 'Courses',
+  '/tools/prophets': 'Stories of the Prophets', '/tools/fatwa': 'Fatwa & Rulings',
   '/tools/mirath': 'Mirath — inheritance calculator',
 };
 

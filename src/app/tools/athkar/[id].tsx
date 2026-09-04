@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAllAthkar } from '@/lib/liveAthkar';
-import { storage } from '@/lib/storage';
+import { readDhikrCount, writeDhikrCount } from '@/lib/zikrChallenge';
 import { useTheme } from '@/context/ThemeContext';
 import { DhikrCounter } from '@/components/DhikrCounter';
 import { TopBar } from '@/components/TopBar';
@@ -23,15 +23,7 @@ export default function AtharDetail() {
   const [session, setSession] = useState(false);
 
   useEffect(() => {
-    storage.getItem(`dl.athkar.${id}`).then((raw) => {
-      if (raw) {
-        try {
-          setCount(Number(raw) || 0);
-        } catch {
-          // ignore
-        }
-      }
-    });
+    readDhikrCount(String(id)).then(setCount).catch(() => {});
   }, [id]);
 
   useEffect(() => {
@@ -40,7 +32,7 @@ export default function AtharDetail() {
       const meta = list.find((a) => a.id === id);
       setCount((c) => {
         const next = c + 1;
-        void storage.setItem(`dl.athkar.${id}`, String(next));
+        void writeDhikrCount(String(id), next);
         if (meta && meta.count > 0 && next >= meta.count) {
           setSession(false);
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -56,7 +48,7 @@ export default function AtharDetail() {
   const bump = async () => {
     const next = count + 1;
     setCount(next);
-    await storage.setItem(`dl.athkar.${id}`, String(next));
+    await writeDhikrCount(String(id), next);
     if (Platform.OS !== 'web') {
       if (item.count > 0 && next === item.count) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -68,7 +60,7 @@ export default function AtharDetail() {
 
   const reset = async () => {
     setCount(0);
-    await storage.setItem(`dl.athkar.${id}`, '0');
+    await writeDhikrCount(String(id), 0);
   };
 
   return (

@@ -162,7 +162,7 @@ export default function Home() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState('');
   const [streak, setStreak] = useState({ days: 0, demo: true });
-  const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean }[] }>({ done: 0, total: 4, demo: true, items: [] });
+  const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean; route?: string }[] }>({ done: 0, total: 4, demo: true, items: [] });
   /* pass 42 — Today's Goal modal */
   const [goalOpen, setGoalOpen] = useState(false);
   /* pass 44 — goal-completion celebration */
@@ -1422,18 +1422,20 @@ export default function Home() {
               {(goal.items.length ? goal.items : [{ key: 'surah', label: 'Read a surah', done: false }, { key: 'checkin', label: 'Daily check-in', done: false }, { key: 'dua', label: 'Make a dua', done: false }, { key: 'dhikr', label: 'Dhikr (33×)', done: false }]).map((it) => {
                 const on = it.done;
                 return (
-                  /* pass 44 — read-only. Goals complete AUTOMATICALLY when the
-                   * app records the action (markGoal); tapping no longer writes. */
-                  <View
+                  /* pass 46 — tap an unfinished goal to open its activity screen. */
+                  <Pressable
                     key={it.key}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13 }}
+                    onPress={() => { if (!on && it.route) { haptic.selection(); setGoalOpen(false); router.push(it.route as never); } }}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13, opacity: pressed ? 0.85 : 1 })}
                   >
                     <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.7)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.18)' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                       <FontAwesome5 name="check" size={11} color={on ? (isDark ? d.goldBright : d.gold) : 'transparent'} />
                     </View>
                     <T v="bodyS" style={{ flex: 1, fontSize: 13, fontWeight: '700', color: on ? d.subtext : d.text, textDecorationLine: on ? 'line-through' : 'none' }}>{it.label}</T>
-                    <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: on ? 'rgba(212,175,55,0.9)' : d.faint }}>{on ? 'DONE' : 'AUTO'}</T>
-                  </View>
+                    {on
+                      ? <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.4, color: 'rgba(212,175,55,0.9)' }}>DONE</T>
+                      : <FontAwesome5 name="chevron-right" size={11} color={d.faint} />}
+                  </Pressable>
                 );
               })}
             </View>

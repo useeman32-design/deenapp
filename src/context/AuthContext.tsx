@@ -27,6 +27,7 @@ type AuthValue = {
     gender?: string;
   }) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
+  updateUser: (patch: Partial<User>) => void;
 };
 
 const Ctx = createContext<AuthValue>({
@@ -36,6 +37,7 @@ const Ctx = createContext<AuthValue>({
   login: async () => ({ ok: false }),
   register: async () => ({ ok: false }),
   logout: async () => {},
+  updateUser: () => {},
 });
 
 function prettyName(identifier: string): string {
@@ -110,7 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await clearSession();
     };
 
-    return { user, isDemo, ready, login, register, logout };
+    const updateUser = (patch: Partial<User>) => setUser((u) => (u ? { ...u, ...patch } : u));
+    return { user, isDemo, ready, login, register, logout, updateUser };
   }, [user, isDemo, ready]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

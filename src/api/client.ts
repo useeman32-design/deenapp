@@ -90,6 +90,7 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
     res = await fetch(`${BASE}${path}`, {
       method: opts.method ?? (opts.body !== undefined || opts.form ? 'POST' : 'GET'),
       headers,
+      credentials: 'include', // always send the httpOnly session cookie (web)
       body: opts.form ? opts.form : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       signal: controller.signal,
     });
@@ -136,10 +137,13 @@ export async function restoreSession(): Promise<{ user: User | null; ok: boolean
   }
 
   const saved = await storage.getItem('dl.session');
-  if (!saved) return { user: null, ok: false };
-  session = saved;
+  if (saved) session = saved;
   csrf = (await storage.getItem('dl.csrf')) || null;
 
+  // On web the server's session cookie is httpOnly, so JS can't read it and
+  // `dl.session` may be empty after a refresh — but the browser still sends the
+  // cookie automatically. So ALWAYS probe /me instead of bailing (which used to
+  // log the user out on every page refresh).
   const me = await request<{ status: string; user?: User }>('/api/auth/me.php');
   if (me.ok && me.data.user) return { user: me.data.user, ok: true };
 
@@ -312,6 +316,29 @@ export async function scholars(): Promise<Scholar[]> {
   return MOCK_SCHOLARS;
 }
 
+/** A public question answered by a DeenLink scholar — a "direct fatwa". */
+export type DirectFatwa = {
+  id: number;
+  title: string;
+  preview: string;
+  question: string;
+  answer: string;
+  category: string;
+  tags: string[];
+  answered_time_ago: string;
+  scholar: { id: number; name: string; username: string; profile_image_url: string | null; country?: string };
+};
+
+/** Direct fatwas — public questions answered by verified DeenLink scholars
+ * (api/questions/public_list.php). Empty in demo/offline mode. */
+export async function directFatwas(limit = 30): Promise<DirectFatwa[]> {
+  const r = await request<{ status?: string; questions?: DirectFatwa[] }>(
+    `/api/questions/public_list.php?limit=${limit}&sort=newest`,
+  );
+  if (r.ok && Array.isArray(r.data.questions)) return r.data.questions;
+  return [];
+}
+
 export async function submitQuestion(payload: {
   scholar_id: number;
   title: string;
@@ -336,6 +363,8 @@ export async function updateProfile(payload: {
   hide_charity_balance?: boolean;
   security_question?: string;
   security_answer?: string;
+  security_question_2?: string;
+  security_answer_2?: string;
 }): Promise<{ ok: boolean; user?: User; message?: string }> {
   if (FORCE_DEMO) {
     return { ok: true, user: { ...MOCK_USER, ...payload } as User, message: 'Saved (demo mode)' };
@@ -398,6 +427,16 @@ export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> 
   return { ok: false };
 }
 
+/** Award DeenPoints for an activity — server-side, idempotent per activity per day. */
+export async function awardDeenPoints(activity: string): Promise<{ ok: boolean; awarded?: number; balance?: number }> {
+  if (FORCE_DEMO) return { ok: true, awarded: 0 };
+  const r = await request<{ status?: string; awarded?: number; new_balance?: number }>('/api/deenpoints/award.php', {
+    method: 'POST',
+    body: { activity },
+  });
+  return { ok: r.ok, awarded: r.data.awarded, balance: r.data.new_balance };
+}
+
 export async function events(): Promise<EventItem[]> {
   const r = await request<{ status?: string; events?: EventItem[] }>('/api/events/list.php');
   if (r.ok && Array.isArray(r.data.events) && r.data.events.length > 0) return r.data.events;
@@ -454,6 +493,13 @@ export async function checkEmailAvailable(email: string): Promise<{ available: b
 export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean }> {
   const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean }>('/api/auth/verify_otp.php', { body: { email, code } });
   return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
+}
+
+/** Request an email change — the server emails a confirmation link to the CURRENT address. */
+export async function requestEmailChange(oldEmail: string, newEmail: string): Promise<{ ok: boolean; message?: string }> {
+  if (FORCE_DEMO) return { ok: true, message: 'Saved (demo mode)' };
+  const r = await request<{ status?: string; message?: string }>('/api/auth/change_email.php', { body: { old_email: oldEmail, new_email: newEmail } });
+  return { ok: r.ok, message: r.data.message };
 }
 export type Campaign = { key: string; title: string; subtitle?: string; imageUrl?: string; href?: string };
 

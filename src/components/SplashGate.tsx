@@ -12,7 +12,7 @@ import { T } from '@/components/T';
  * when the app is ready AND at least 2.8s passed (cap 5.5s).
  * Once per app lifetime on native; every cold web load.
  */
-const logo = require('../../assets/img/logo.webp');
+const logo = require('../../assets/img/logo-export.png');
 /* pass 37 — one explicit square size for the splash logo (no aspectRatio math) */
 const LOGO = 148;
 

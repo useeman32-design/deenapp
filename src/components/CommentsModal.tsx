@@ -77,19 +77,48 @@ function MentionText({ text, base, mention }: { text: string; base: object; ment
   );
 }
 
-/* pass 42 — tappable "Open <place>" chip rendered under AI comment answers */
-function NavChip({ route }: { route: string }) {
+/* pass 42 — tappable "Open <place>" chip rendered under AI comment answers.
+ * Navigating away must also dismiss the comments sheet (it stayed up before). */
+function NavChip({ route, onClose }: { route: string; onClose?: () => void }) {
   const router = useRouter();
   const label = NAV_LABELS[route.replace(/^\/+/, '/')] ?? NAV_LABELS['/' + route.replace(/^\/+/, '')] ?? 'Open in the app';
   return (
     <Pressable
       accessibilityLabel={`open ${label}`}
-      onPress={() => { haptic.medium(); router.push(route as never); }}
+      onPress={() => { haptic.medium(); onClose?.(); setTimeout(() => router.push(route as never), 140); }}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 7, borderRadius: 11, backgroundColor: 'rgba(46,204,113,0.12)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', paddingHorizontal: 10, paddingVertical: 6 }}
     >
       <FontAwesome5 name="location-arrow" size={9} color="#4AE38F" />
       <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#4AE38F' }}>Open {label}</T>
     </Pressable>
+  );
+}
+
+/* Three-dot typing animation shown while DeenLink AI composes its reply. */
+function TypingDots({ color }: { color: string }) {
+  const v0 = useRef(new Animated.Value(0.3)).current;
+  const v1 = useRef(new Animated.Value(0.3)).current;
+  const v2 = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    const mk = (v: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(v, { toValue: 1, duration: 260, useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0.3, duration: 260, useNativeDriver: true }),
+          Animated.delay(520 - delay),
+        ]),
+      );
+    const loops = [mk(v0, 0), mk(v1, 160), mk(v2, 320)];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [v0, v1, v2]);
+  return (
+    <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}>
+      {[v0, v1, v2].map((v, i) => (
+        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color, opacity: v, transform: [{ scale: v }] }} />
+      ))}
+    </View>
   );
 }
 
@@ -106,6 +135,7 @@ function CommentRow({
   onToggleReplies,
   repliesOpen,
   onOpenProfile,
+  onClose,
   colors,
 }: {
   c: SampleComment;
@@ -116,6 +146,7 @@ function CommentRow({
   onToggleReplies: (id: number) => void;
   repliesOpen: boolean;
   onOpenProfile: (handle: string) => void;
+  onClose?: () => void;
   colors: {
     txt: string;
     sub: string;
@@ -154,7 +185,7 @@ function CommentRow({
           ) : null}
           {c.gif ? <Image source={c.gif} style={{ width: 96, height: 96, marginTop: 6, borderRadius: 12 }} contentFit="contain" /> : null}
           {/* pass 42 — AI answers get a DIRECT open button for the place it described */}
-          {c.nav ? <NavChip route={c.nav} /> : null}
+          {c.nav ? <NavChip route={c.nav} onClose={onClose} /> : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 }}>
           <T v="caption" style={{ fontSize: 9.5, color: colors.faint, fontWeight: '600' }}>
@@ -207,6 +238,7 @@ function CommentRow({
                 onToggleReplies={onToggleReplies}
                 repliesOpen={repliesOpen}
                 onOpenProfile={onOpenProfile}
+                onClose={onClose}
                 colors={colors}
               />
             ))}
@@ -489,6 +521,15 @@ export function CommentsModal({
     const navMatch = answer.match(/^\s*NAV:\s*(\/[^\s]+)\s*$/im);
     let navRoute = navMatch?.[1];
     let clean = answer.replace(/^\s*NAV:\s*\/?[a-z0-9/()\-]*.*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
+    /* strip markdown emphasis/code/bullets so the inline reply reads clean — no stray * or _ */
+    clean = clean
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^\s*[*\-]\s+/gm, '• ')
+      .trim();
     if (!navRoute) {
       const nav = navAnswer(question);
       if (nav) { navRoute = nav.route; clean = `${clean}\n\n${nav.text}`.trim(); }
@@ -596,19 +637,34 @@ export function CommentsModal({
             ))}
             <ActivityIndicator size="small" color={emerald} style={{ marginTop: 2 }} />
           </View>
-        ) : [...items].reverse().map((c) => (
-          <CommentRow
-            key={c.id}
-            c={c}
-            isLiked={isLiked}
-            onToggleLike={toggleLike}
-            onReply={startReply}
-            onToggleReplies={toggleReplies}
-            repliesOpen={openReplies.has(c.id)}
-            onOpenProfile={openProfile}
-            colors={colors}
-          />
-        ))}
+        ) : (
+          <>
+            {[...items].reverse().map((c) => (
+              <CommentRow
+                key={c.id}
+                c={c}
+                isLiked={isLiked}
+                onToggleLike={toggleLike}
+                onReply={startReply}
+                onToggleReplies={toggleReplies}
+                repliesOpen={openReplies.has(c.id)}
+                onOpenProfile={openProfile}
+                onClose={onClose}
+                colors={colors}
+              />
+            ))}
+            {aiTyping ? (
+              <View style={{ flexDirection: 'row', gap: 9, marginTop: 14 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(74,227,143,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="robot" size={14} color="#4AE38F" />
+                </View>
+                <View style={{ borderRadius: 13, backgroundColor: colors.bubble, paddingHorizontal: 12, alignSelf: 'flex-start' }}>
+                  <TypingDots color={colors.emerald} />
+                </View>
+              </View>
+            ) : null}
+          </>
+        )}
       </ScrollView>
 
       {/* Reply indicator */}
@@ -617,7 +673,7 @@ export function CommentsModal({
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: `${gold}14`, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }}>
             <FontAwesome5 name="reply" size={10} color={gold} />
             <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, fontSize: 10.5, fontWeight: '700', color: gold }}>
-              Replying to {replyingTo.name}
+              Replying to › {replyingTo.name}{replyingTo.handle && replyingTo.handle !== replyingTo.name ? ` (@${replyingTo.handle})` : ''}
             </T>
           </View>
           <Pressable onPress={() => setReplyingTo(null)} hitSlop={10} style={{ padding: 5 }}>
@@ -627,7 +683,7 @@ export function CommentsModal({
       ) : null}
 
       {/* Emoji row (IG-style) + GIF picker (pass 20) */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 36, flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, paddingBottom: 4 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={{ height: 46, flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, paddingBottom: 4 }}>
         {EMOJIS.map((e, i) => {
           const ar = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(e);
           return (

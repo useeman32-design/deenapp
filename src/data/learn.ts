@@ -35,11 +35,12 @@ export const JOKES: Joke[] = [
   { setup: 'What did the traveller say when he finally found the qibla?', punch: '“Direction confirmed — heart at ease, luggage still lost.”' },
 ];
 
-export type Article = { title: string; tag: string; mins: number; icon: string; body: string[] };
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type Article = { title: string; tag: string; mins: number; icon: string; img?: any; body: string[] };
 export const ARTICLES: Article[] = [
   {
     title: 'How to Build a Daily Connection with the Qur’an',
-    tag: 'Qur’an', mins: 3, icon: 'book-open',
+    tag: 'Qur’an', mins: 3, icon: 'book-open', img: require('../../assets/img/articles/quran-daily.jpg'),
     body: [
       'The Prophet ﷺ said the best of you are those who learn the Qur’an and teach it (Bukhari 5027) — and every journey with the Book begins with a single, consistent page.',
       'Pick a fixed time — after Fajr is the sunnah of recitation and the quietest hour — and commit to one page, no more. Consistency beats quantity: “The most beloved deeds to Allah are the most constant, even if small” (Bukhari 6464).',
@@ -48,7 +49,7 @@ export const ARTICLES: Article[] = [
   },
   {
     title: 'The Sunnah of Sleeping and Waking',
-    tag: 'Sunnah', mins: 3, icon: 'moon',
+    tag: 'Sunnah', mins: 3, icon: 'moon', img: require('../../assets/img/articles/sleep-sunnah.jpg'),
     body: [
       'Sleep itself can be worship when done the prophetic way: dust the bed, lie on the right side, and recite the sleeping dua — “In Your name, O Allah, I die and I live.”',
       'Before sleep, settle your debts and disputes — “the believer does not sleep while angry at his brother.” Wudu before bed is a shield, and the last words of the night should be good ones.',
@@ -57,7 +58,7 @@ export const ARTICLES: Article[] = [
   },
   {
     title: 'Duas of the Daily Journey',
-    tag: 'Dua', mins: 2, icon: 'hands-helping',
+    tag: 'Dua', mins: 2, icon: 'hands-helping', img: require('../../assets/img/articles/duas-daily.jpg'),
     body: [
       'The day of a believer is framed by short remembrances: leaving the home (“In the name of Allah, I trust in Allah”), entering it (“Bismillah” with salam to the family), and travelling (“Subhanalladhi sakhkhara lana hadha”).',
       'These brief sentences take seconds but turn ordinary motion into reward. Teach them to children by saying them aloud — the sunnah is caught, not just taught.',
@@ -66,7 +67,7 @@ export const ARTICLES: Article[] = [
   },
   {
     title: 'Why the Early Generations Prayed at Night',
-    tag: 'Spirituality', mins: 3, icon: 'star-and-crescent',
+    tag: 'Spirituality', mins: 3, icon: 'star-and-crescent', img: require('../../assets/img/articles/night-prayer.jpg'),
     body: [
       'Qiyam al-layl was the counsel of the Prophet ﷺ to nearly every companion: “Stand at night, for it was the habit of the righteous before you” (Tirmidhi 3549).',
       'The night prayer is not a burden for the elite — begin with two rak’ahs after waking, even minutes before Fajr. Allah descends in the last third of the night asking who is calling, so He may answer.',
@@ -75,7 +76,7 @@ export const ARTICLES: Article[] = [
   },
   {
     title: 'A Beginner’s Map to the Five Pillars',
-    tag: 'Aqeedah', mins: 3, icon: 'landmark',
+    tag: 'Aqeedah', mins: 3, icon: 'landmark', img: require('../../assets/img/articles/five-pillars.jpg'),
     body: [
       'Islam stands on five: the shahadah, salah, zakah, sawm and hajj — a complete schedule for body, wealth and soul.',
       'Shahadah is the entry; salah five times a day is the heartbeat; zakah purifies what you own; Ramadan purifies the year; and hajj, once in a lifetime for those able, purifies the whole life.',
@@ -84,7 +85,7 @@ export const ARTICLES: Article[] = [
   },
   {
     title: 'Kindness: the Forgotten Worship',
-    tag: 'Character', mins: 2, icon: 'hand-holding-heart',
+    tag: 'Character', mins: 2, icon: 'hand-holding-heart', img: require('../../assets/img/articles/kindness.jpg'),
     body: [
       'The Prophet ﷺ was never coarse. He said smiling is charity, that the best of people are the most beneficial, and that Allah is gentle and loves gentleness in all things (Muslim 2593).',
       'Kindness is worship with the hands: carrying a neighbour’s bag, visiting the sick, making room in the row. Even removing harm from the road is a branch of faith.',

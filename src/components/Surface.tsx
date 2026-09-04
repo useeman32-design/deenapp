@@ -15,12 +15,14 @@ export function Surface({
   glow = false,
   soft = false,
   elevated = false,
+  solid = false,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   glow?: boolean;
   soft?: boolean;
   elevated?: boolean;
+  solid?: boolean;
 }) {
   const { theme, isDark } = useTheme();
 
@@ -49,12 +51,15 @@ export function Surface({
               ? 'rgba(212,175,55,0.35)'
               : 'rgba(212,175,55,0.18)'
             : 'rgba(29,111,66,0.16)',
+          ...(solid ? { backgroundColor: single } : null),
           ...(elevated ? shadows.dark.float : shadows.light.card),
         },
         style,
       ]}
     >
-      <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      {!solid ? (
+        <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      ) : null}
       {glow && isDark ? (
         <View
           style={{

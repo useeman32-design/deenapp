@@ -53,3 +53,7 @@ content/
 # content pack downloaded at install time (pass 34d)
 assets/content.zip
 dist-app/
+
+# Expo / EAS secrets — never commit
+.expo-token
+.expo/

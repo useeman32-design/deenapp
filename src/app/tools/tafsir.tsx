@@ -33,7 +33,7 @@ export default function Tafsir() {
   const [view, setView] = useState<'books' | 'surahs' | 'read'>('books');
   const [book, setBook] = useState<TafsirAuthor>('Ibn Kathir');
   const [surahN, setSurahN] = useState(1);
-  const [ayahN, setAyahN] = useState(1);
+  const [ayahN, setAyahN] = useState<number | null>(1);
   const [q, setQ] = useState('');
   const [jump, setJump] = useState('');
   const [content, setContent] = useState<SurahData>(null);
@@ -55,7 +55,7 @@ export default function Tafsir() {
   }, [surahN, view]);
 
   useEffect(() => {
-    if (view !== 'read') return;
+    if (view !== 'read' || ayahN == null) return;
     setPassage({ loading: true });
     fetchTafsir(surahN, ayahN)
       .then((j) => {
@@ -203,7 +203,7 @@ export default function Tafsir() {
               const on = a.ayah === ayahN;
               return (
                 <View key={a.ayah} style={{ borderRadius: 15, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.06)' : 'rgba(212,175,55,0.04)') : d.card, overflow: 'hidden' }}>
-                  <Pressable accessibilityLabel={`ayah ${a.ayah}`} onPress={() => { haptic.selection(); setAyahN(a.ayah); }} style={{ padding: 14 }}>
+                  <Pressable accessibilityLabel={`ayah ${a.ayah}`} onPress={() => { haptic.selection(); setAyahN(on ? null : a.ayah); }} style={{ padding: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <View style={{ width: 26, height: 26, borderRadius: 9, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
                         <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#E8C96A' }}>{a.ayah}</T>

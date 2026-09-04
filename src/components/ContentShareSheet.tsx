@@ -10,6 +10,7 @@ import { haptic } from '@/lib/haptics';
 import { generateShareCard, shareOrSaveCard, downloadDataUrl } from '@/lib/shareCard';
 import { ShareCardSvg } from '@/components/ShareCardSvg';
 import { canSaveImages, saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
+import { buildShareUrl } from '@/lib/share';
 import { addUserPost } from '@/lib/userPosts';
 
 /**
@@ -47,6 +48,9 @@ export function ContentShareSheet({
   const [canSave, setCanSave] = useState(false);
   useEffect(() => { canSaveImages().then(setCanSave).catch(() => setCanSave(false)); }, []);
   const [sent, setSent] = useState<string | null>(null);
+  /* pass 49 — route the shared link through /share.php so external apps render a preview card */
+  const KIND_MAP: Record<string, 'verse' | 'hadith' | 'dua' | 'post'> = { ayah: 'verse', hadith: 'hadith', dua: 'dua', athkar: 'dua', post: 'post' };
+  const previewUrl = card ? buildShareUrl(KIND_MAP[card.kind] ?? 'dua', undefined, card.ref || 'DeenLink', card.meaning) : link;
 
   if (!visible && (svgMode || imgUrl)) { setSvgMode(false); setImgUrl(null); }
   if (!visible) return null;
@@ -128,9 +132,9 @@ export function ContentShareSheet({
           </ScrollView>
 
           <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
-            <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: link }).catch(() => {}); }} />
+            <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: previewUrl }).catch(() => {}); }} />
             <Row icon="edit" label="Share as post" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
-            <Row icon="share-alt" label="More options…" tint="#5BC8F5" onPress={() => { Share.share({ message: `${card?.meaning ?? ''}\n\n${card?.ref ?? ''}\n${link}` }).catch(() => {}); }} />
+            <Row icon="share-alt" label="More options…" tint="#5BC8F5" onPress={() => { Share.share({ message: `${card?.meaning ?? ''}\n\n${card?.ref ?? ''}\n${previewUrl}` }).catch(() => {}); }} />
             {!noImage ? <Row icon="image" label="Share as image" tint="#E8C96A" onPress={makeImage} /> : null}
           </View>
 

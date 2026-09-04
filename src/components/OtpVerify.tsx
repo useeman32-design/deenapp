@@ -4,7 +4,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { isLive, sendOtp, verifyOtp, checkEmailVerified } from '@/api/client';
+import { FORCE_DEMO, sendOtp, verifyOtp, checkEmailVerified } from '@/api/client';
 
 /**
  * pass 44 — 6-digit email OTP, cinematic verify sequence:
@@ -27,13 +27,14 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   const [cooldown, setCooldown] = useState(0);
   const [unlocked, setUnlocked] = useState(false);
   const refs = useRef<Array<TextInput | null>>([]);
-  const live = isLive();
+  const live = !FORCE_DEMO;
 
   const shake = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current; // 0→1 success timeline (3s)
   const spin = useRef(new Animated.Value(0)).current;     // ring-of-boxes rotation
   const lockTilt = useRef(new Animated.Value(0)).current; // wiggle on unlock
   const fade = useRef(new Animated.Value(1)).current;     // final slow fade-out
+  const doneRef = useRef(false); // guards the success celebration so it plays once
 
   const send = () => {
     setCooldown(30);
@@ -42,10 +43,15 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   };
 
   useEffect(() => {
-    if (live) setHint('Enter the 6-digit code — or tap “Verify my email” in the email.');
-    send(); // eslint-disable-line
+    // register.php already emailed the 6-digit code, so don't auto-send a second
+    // one here — that would overwrite the code hash and send a duplicate email.
+    // The "Resend code" button below still calls send() for a manual resend.
+    if (live) setHint('Enter the 6-digit code we emailed you — or tap “Verify my email” in the email.');
+    else setHint('Demo mode — use code 123456');
+    setCooldown(30);
     const iv = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
     return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* Poll for email-LINK verification: if the user taps the link in the email
@@ -53,7 +59,7 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   useEffect(() => {
     if (!live) return;
     const iv = setInterval(() => {
-      checkEmailVerified(email).then((v) => { if (v) { clearInterval(iv); setStatus('success'); onVerified(); } }).catch(() => {});
+      checkEmailVerified(email).then((v) => { if (v) { clearInterval(iv); succeed(); } }).catch(() => {});
     }, 5000);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,6 +86,8 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   };
 
   const succeed = () => {
+    if (doneRef.current) return; // play the celebration once
+    doneRef.current = true;
     haptic.success();
     setStatus('success');
     setHint('');

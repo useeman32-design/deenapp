@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -27,6 +27,7 @@ type Full = { slug: string; name: string; source: string; paras: string[] };
 
 const READ_KEY = 'dl.prophets.read.v1';
 const LAST_KEY = 'dl.prophets.last.v1';
+const PAGE_SIZE = 6; // paragraphs per reading page (Next / Previous paging)
 
 export default function ProphetsStories() {
   const { theme, isDark } = useTheme();
@@ -41,6 +42,8 @@ export default function ProphetsStories() {
   const [last, setLast] = useState<string | null>(null);
   /* pass 37 — EN (full text) / HA (Hausa summary) */
   const [lang, setLang] = useState<'en' | 'ha'>('en');
+  /* pass 45 — paged reading: Next / Previous + scroll-to-top + progress */
+  const [page, setPage] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -74,6 +77,7 @@ export default function ProphetsStories() {
     setOpen(c);
     setFull(null);
     setLang('en');
+    setPage(Math.floor((read[c.slug] ?? 0) / PAGE_SIZE));
     setLoading(true);
     storage.setItem(LAST_KEY, c.slug).catch(() => {});
     setLast(c.slug);
@@ -87,7 +91,6 @@ export default function ProphetsStories() {
     }).catch(fromFile);
   };
 
-  const shown = useMemo(() => (full ? Math.min(full.paras.length, Math.max(8, read[full.slug] ?? 8)) : 0), [full, read]);
   const markRead = (n: number) => {
     if (!full) return;
     setRead((prev) => {
@@ -96,12 +99,28 @@ export default function ProphetsStories() {
       return next;
     });
   };
+  /* pass 45 — paged reader: Next / Previous, scroll-to-top, progress from page */
+  const totalParas = full?.paras.length ?? 0;
+  const pages = Math.max(1, Math.ceil(totalParas / PAGE_SIZE));
+  const curPage = Math.min(page, pages - 1);
+  const start = curPage * PAGE_SIZE;
+  const shownEnd = Math.min(totalParas, start + PAGE_SIZE);
+  const goTo = (p: number) => {
+    const np = Math.max(0, Math.min(pages - 1, p));
+    setPage(np);
+    markRead(Math.min(totalParas, (np + 1) * PAGE_SIZE));
+    // Scroll to top after the new page paints. Done defensively — a throwing
+    // scrollTo here previously blanked the reader (white screen on CONTINUE).
+    setTimeout(() => {
+      try { scrollRef.current?.scrollTo({ y: 0, animated: true }); } catch {}
+    }, 0);
+  };
 
   /* ───────────────────────── READER ───────────────────────── */
   if (open) {
     const th = themeFor(open.slug);
     const total = full?.paras.length ?? open.n;
-    const pct = full ? Math.round((shown / total) * 100) : 0;
+    const pct = full ? Math.round((shownEnd / total) * 100) : 0;
     const finished = full ? (read[full.slug] ?? 0) >= total : false;
     return (
       <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -183,30 +202,44 @@ export default function ProphetsStories() {
               </View>
             ) : (
               <>
-                {full.paras.slice(0, shown).map((p, i) => (
-                  <View key={i} style={{ flexDirection: i === 0 ? 'row' : 'column' }}>
-                    {i === 0 ? (
-                      <T v="h1" style={{ fontSize: 34, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42', lineHeight: 38, marginRight: 7 }}>{p.trim().replace(/^["“]/, '').slice(0, 1)}</T>
-                    ) : null}
-                    <T v="body" style={{ fontSize: 14.5, lineHeight: 24, color: d.text, marginBottom: 13, flex: 1 }}>
-                      {i === 0 ? p.trim().replace(/^["“]/, '').slice(1) : p}
-                    </T>
-                  </View>
-                ))}
-                {shown < full.paras.length ? (
-                  <Pressable onPress={() => { haptic.light(); markRead(Math.min(full.paras.length, shown + 8)); }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>
-                    <FontAwesome5 name="book-reader" size={12} color="#fff" />
-                    <T v="button" style={{ fontSize: 13, fontWeight: '800' }}>CONTINUE READING ({Math.min(8, full.paras.length - shown)} more)</T>
-                  </Pressable>
-                ) : (
-                  <View style={{ alignItems: 'center', gap: 10, marginTop: 6 }}>
+                {full.paras.slice(start, shownEnd).map((p, idx) => {
+                  const i = start + idx;
+                  return (
+                    <View key={i} style={{ flexDirection: i === 0 ? 'row' : 'column' }}>
+                      {i === 0 ? (
+                        <T v="h1" style={{ fontSize: 34, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42', lineHeight: 38, marginRight: 7 }}>{p.trim().replace(/^["“]/, '').slice(0, 1)}</T>
+                      ) : null}
+                      <T v="body" style={{ fontSize: 14.5, lineHeight: 24, color: d.text, marginBottom: 13, flex: 1 }}>
+                        {i === 0 ? p.trim().replace(/^["“]/, '').slice(1) : p}
+                      </T>
+                    </View>
+                  );
+                })}
+                {/* pass 45 — Previous / Continue paging with scroll-to-top */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                  {curPage > 0 ? (
+                    <Pressable onPress={() => { haptic.light(); goTo(curPage - 1); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card }}>
+                      <FontAwesome5 name="chevron-left" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                      <T v="button" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>PREVIOUS</T>
+                    </Pressable>
+                  ) : null}
+                  {shownEnd < full.paras.length ? (
+                    <Pressable onPress={() => { haptic.light(); goTo(curPage + 1); }} style={({ pressed }) => ({ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>
+                      <FontAwesome5 name="book-reader" size={12} color="#fff" />
+                      <T v="button" style={{ fontSize: 13, fontWeight: '800', color: '#fff' }}>CONTINUE ({Math.min(PAGE_SIZE, full.paras.length - shownEnd)} more)</T>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {shownEnd >= full.paras.length ? (
+                  <View style={{ alignItems: 'center', gap: 10, marginTop: 12 }}>
                     <FontAwesome5 name="check-circle" size={22} color="#B8870B" />
                     <T v="caption" style={{ fontSize: 11, color: d.faint, textAlign: 'center' }}>Chapter finished — {full.source}</T>
                     <Pressable onPress={() => { haptic.light(); setOpen(null); }} style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 18, paddingVertical: 11 }}>
                       <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>ALL PROPHETS →</T>
                     </Pressable>
                   </View>
-                )}
+                ) : null}
+                <T v="caption" style={{ textAlign: 'center', fontSize: 9.5, color: d.faint, marginTop: 12 }}>Page {curPage + 1} of {pages}</T>
               </>
             )}
           </View>

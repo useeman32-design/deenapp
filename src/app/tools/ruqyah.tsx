@@ -6,6 +6,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
+import { useRouter } from 'expo-router';
 import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahArticle, type RuqyahEntry } from '@/lib/islamicApi';
 import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, ruqyahPosition, seekRuqyahFrac, stopRuqyahAudio } from '@/lib/ruqyahAudio';
 import { ShareWithFriends } from '@/components/ShareWithFriends';
@@ -88,11 +89,20 @@ export default function Ruqyah() {
     );
   };
 
+  const router = useRouter();
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView contentContainerStyle={{ paddingTop: Math.max(insets.top, 12) + 6, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18 }}>
+          <Pressable
+            onPress={() => { haptic.light(); router.back(); }}
+            accessibilityLabel="Back"
+            hitSlop={10}
+            style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <FontAwesome5 name="chevron-left" size={15} color={d.text} />
+          </Pressable>
           <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="shield-alt" size={15} color="#E8C96A" />
           </View>

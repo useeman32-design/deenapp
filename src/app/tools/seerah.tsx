@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { SEERAH, type SeerahEvent } from '@/data/seerah';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -18,6 +19,7 @@ export default function Seerah() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [q, setQ] = useState('');
   const [marks, setMarks] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState<SeerahEvent | null>(null);
@@ -65,6 +67,14 @@ export default function Seerah() {
       {/* header + search */}
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable
+            onPress={() => { haptic.light(); router.back(); }}
+            accessibilityLabel="Back"
+            hitSlop={10}
+            style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <FontAwesome5 name="chevron-left" size={15} color={d.text} />
+          </Pressable>
           <View style={{ flex: 1 }}>
             <T v="h2" style={{ fontWeight: '800', fontSize: 20 }}>Seerah of the Prophet ﷺ</T>
             <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>

@@ -39,7 +39,13 @@ export function gunzipBytes(bytes: Uint8Array): Uint8Array {
 /* ---------- base for files in public/ (translations, hadith-num, adhan) ---------- */
 export function publicBase(): string {
   if (Platform.OS === 'web') {
-    return typeof window !== 'undefined' ? window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1') : '';
+    if (typeof window === 'undefined') return '';
+    const p = window.location.pathname;
+    // GitHub Pages serves the app under /deenapp; app.deenlink.org serves it from
+    // the domain root (baseUrl "/"). Public data (islamqa.json, prophets/, quran …)
+    // lives next to index.html in both cases, so the base is /deenapp or "" — never
+    // the current route path (which previously produced /tools/fatwa/islamqa.json → 404).
+    return p.startsWith('/deenapp') ? '/deenapp' : '';
   }
   /* Expo Go / dev: Metro serves public/ at the dev-server root */
   try {

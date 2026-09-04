@@ -121,7 +121,7 @@ function ReceiptCard({ rcpt, d, isDark, fmtDate }: { rcpt: Dono; d: { text: stri
             )),
           )}
         </View>
-        <ExpoImage source={require('../../../assets/img/logo-360.webp')} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
+        <ExpoImage source={require('../../../assets/img/logo-export.png')} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
         <T v="h3" style={{ marginTop: 8, fontSize: 15, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 }}>DEENLINK</T>
         <T v="caption" style={{ fontSize: 9, letterSpacing: 1.4, color: '#E8C96A', marginTop: 2 }}>DONATION RECEIPT</T>
       </View>

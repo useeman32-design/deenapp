@@ -8,7 +8,7 @@ import { haptic } from '@/lib/haptics';
 const bgDark = require('../../assets/img/auth-bg-dark.jpg');
 const bgLight = require('../../assets/img/auth-bg-light.jpg');
 /* pass 34e: the user's REAL DeenLink logo (replaces the generated emblem) */
-const realLogo = require('../../assets/img/logo-360.webp');
+const realLogo = require('../../assets/img/logo-export.png');
 
 /**
  * Shared shell for the login / register redesign (pass 12, glass pass 34e):

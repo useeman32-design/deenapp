@@ -4,7 +4,7 @@
  * these to render the "Daily Progress" cards.
  */
 import { storage } from '@/lib/storage';
-import { appDefaults, isLive } from '@/api/client';
+import { appDefaults, isLive, awardDeenPoints } from '@/api/client';
 
 const dayKey = (d: Date = new Date()) => d.toDateString();
 
@@ -57,21 +57,48 @@ const GOAL_META: Record<string, string> = {
   hadith: 'Read a hadith',
   names: 'Read the Names',
   charity: 'Give in charity',
+  tafsir: 'Read a tafsir',
+  athkar: 'Morning/evening athkar',
+  prayer: 'Check prayer times',
+  qibla: 'Find the qibla',
+  fatwa: 'Ask a fatwa',
+  prophets: "Read a prophet's story",
+  seerah: 'Read the Seerah',
+  ruqyah: 'Ruqyah Shariah',
+  articles: 'Read an article',
+  learn: 'Open the Learning Hub',
+  zikr: 'Daily zikr challenge',
+  course: 'Continue a course',
 };
 
-const GOAL_SETS: string[][] = [
-  ['surah', 'checkin', 'dua', 'dhikr'],
-  ['surah', 'hadith', 'dhikr', 'dua'],
-  ['surah', 'quiz', 'checkin', 'dua'],
-  ['hadith', 'names', 'dhikr', 'checkin'],
-  ['surah', 'names', 'dua', 'dhikr'],
-  ['surah', 'checkin', 'quiz', 'dhikr'],
-  ['hadith', 'charity', 'dua', 'checkin'],
-  ['surah', 'hadith', 'names', 'dua'],
-];
+/* pass 46 — each goal opens its activity screen when tapped. */
+const GOAL_ROUTES: Record<string, string> = {
+  surah: '/(tabs)/quran',
+  checkin: '/(tabs)/profile',
+  dua: '/tools/dua',
+  dhikr: '/tools/tasbeeh',
+  quiz: '/tools/quiz',
+  hadith: '/tools/hadith',
+  names: '/tools/names',
+  charity: '/tools/charity',
+  tafsir: '/tools/tafsir',
+  athkar: '/tools/athkar',
+  prayer: '/tools/prayer',
+  qibla: '/tools/qibla',
+  fatwa: '/tools/fatwa',
+  prophets: '/tools/prophets',
+  seerah: '/tools/seerah',
+  ruqyah: '/tools/ruqyah',
+  articles: '/tools/articles',
+  learn: '/tools/learning',
+  zikr: '/tools/zikr-challenge',
+  course: '/tools/courses',
+};
 
-/* pass 44 — admin can override the rotating sets (api/defaults/get.php); bundled
- * GOAL_SETS remain the fallback. Fetched once and cached for the session. */
+export const goalRoute = (key: string): string | undefined => GOAL_ROUTES[key];
+
+/* pass 44 — admin can override the rotating sets (api/defaults/get.php); the
+ * bundled all-module shuffle remains the fallback. Fetched once, cached. */
 let setsCache: string[][] | null = null;
 let setsPromise: Promise<void> | null = null;
 function ensureSets(): Promise<void> {
@@ -91,17 +118,27 @@ function ensureSets(): Promise<void> {
 
 /** Stable per-day pick: same date -> same set, next day -> rotates. */
 function daySet(): string[] {
-  const sets = setsCache && setsCache.length ? setsCache : GOAL_SETS;
   const s = dayKey();
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return sets[h % sets.length];
+  // Admin override still wins if provided.
+  if (setsCache && setsCache.length) return setsCache[h % setsCache.length];
+  // Otherwise: a deterministic shuffle of ALL app modules — every day a different
+  // order, but the same day is stable across reloads.
+  const arr = Object.keys(GOAL_META);
+  let seed = h || 1;
+  const rand = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 0x100000000; };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
 }
 
 export async function getGoal(): Promise<{
   done: number;
   total: number;
-  items: { key: string; label: string; done: boolean }[];
+  items: { key: string; label: string; done: boolean; route?: string }[];
   demo: boolean;
 }> {
   await ensureSets();
@@ -120,6 +157,7 @@ export async function getGoal(): Promise<{
     key,
     label: GOAL_META[key] ?? key,
     done: !!rec[key],
+    route: GOAL_ROUTES[key],
   }));
   return {
     done: items.filter((i) => i.done).length,
@@ -160,6 +198,12 @@ export async function markGoal(key: string): Promise<void> {
     try { const pr = await storage.getItem(pk); const parsed = pr ? JSON.parse(pr) : []; if (Array.isArray(parsed)) pend = parsed; } catch { pend = []; }
     if (!pend.includes(key)) pend.push(key);
     await storage.setItem(pk, JSON.stringify(pend));
+    /* pass 48 — award DeenPoints server-side for completing this activity
+     * (idempotent per activity per day, so re-opening won't double-award). */
+    awardDeenPoints(key).then((r) => {
+      // Keep the displayed balance in sync with the server ledger.
+      if (r.ok && typeof r.balance === 'number') storage.setItem('dl.deenpoints', String(r.balance)).catch(() => {});
+    }).catch(() => {});
   }
 }
 

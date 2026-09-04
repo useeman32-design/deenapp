@@ -51,6 +51,7 @@ export const QUICK_ITEMS: QuickItem[] = [
   { key: 'donation', label: 'Donation & Charity', icon: GiftIcon, action: { type: 'route', href: '/tools/charity' } },
   { key: 'calendar', label: 'Islamic Events', icon: CalendarIcon, action: { type: 'route', href: '/tools/events' } },
   { key: 'tasbih', label: 'Tasbih', icon: BeadsIcon, action: { type: 'route', href: '/tools/tasbeeh' } },
+  { key: 'dailydhikr', label: 'Daily Dhikr', icon: (p: any) => <FontAwesome5 name="praying-hands" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/athkar' } },
   { key: 'calendar', label: 'Calendar', icon: CalendarIcon, action: { type: 'route', href: '/tools/calendar' } },
   { key: 'hadith', label: 'Hadith', icon: ScrollIcon, action: { type: 'route', href: '/tools/hadith' } },
   { key: 'quran', label: 'Quran', icon: BookIcon, action: { type: 'route', href: '/(tabs)/quran' } },
