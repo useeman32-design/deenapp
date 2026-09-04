@@ -8,7 +8,7 @@ import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
-import { DeenPointsBuyModal } from '@/components/DeenPoints';
+import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
@@ -135,7 +135,7 @@ export default function SettingsScreen() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.07)', borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 }}>
             <Image source={deenPointsLogo} style={{ width: 13, height: 13 }} resizeMode="contain" />
-            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>{deenpoints.toLocaleString()}</T>
+            <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '800', fontSize: 11 }}>{formatDP(deenpoints)}</T>
           </View>
         </View>
 

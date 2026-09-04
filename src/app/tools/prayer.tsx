@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -53,6 +54,7 @@ const ADHAN_DESIGNS: Array<{ id: AdhanDesign; label: string; img: number; accent
 const ADHAN_DESIGN_KEY = 'dl.adhan.design';
 
 export default function PrayerTimes() {
+  useEffect(() => { markGoal('prayer').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

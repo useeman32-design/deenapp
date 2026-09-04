@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ const CLAMP = 160; // chars shown before "Read more"
  * Read more → full modal (dates, location, source — everything in the data).
  */
 export default function Seerah() {
+  useEffect(() => { markGoal('seerah').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

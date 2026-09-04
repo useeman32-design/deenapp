@@ -40,6 +40,7 @@ export function ContentShareSheet({
   const { theme, isDark } = useTheme();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [posting, setPosting] = useState(false);
   /* pass 35 — native share-as-image: the same card rendered as SVG (web keeps the canvas path) */
   const [svgMode, setSvgMode] = useState(false);
   const exportRef = useRef<SvgRefHandle>(null);
@@ -56,12 +57,14 @@ export function ContentShareSheet({
   if (!visible) return null;
 
   const shareAsPost = async () => {
-    if (!card) return;
+    if (!card || posting) return;
     haptic.success();
+    setPosting(true);
     try {
-      await addUserPost(card.meaning, card.kind);
+      // hold the "Posting…" state briefly so the action feels deliberate
+      await Promise.all([addUserPost(card.meaning, card.kind), new Promise((r) => setTimeout(r, 700))]);
       onClose();
-    } catch {}
+    } catch {} finally { setPosting(false); }
   };
 
   const makeImage = async () => {
@@ -133,7 +136,7 @@ export function ContentShareSheet({
 
           <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
             <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: previewUrl }).catch(() => {}); }} />
-            <Row icon="edit" label="Share as post" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
+            <Row icon={posting ? 'circle-notch' : 'edit'} label={posting ? 'Posting…' : 'Share as post'} tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
             <Row icon="share-alt" label="More options…" tint="#5BC8F5" onPress={() => { Share.share({ message: `${card?.meaning ?? ''}\n\n${card?.ref ?? ''}\n${previewUrl}` }).catch(() => {}); }} />
             {!noImage ? <Row icon="image" label="Share as image" tint="#E8C96A" onPress={makeImage} /> : null}
           </View>

@@ -1,3 +1,4 @@
+import { formatDP } from '@/components/DeenPoints';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -407,7 +408,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
       {/* deenpoints balance */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.07)' : 'rgba(212,175,55,0.05)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
         <DPIcon size={13} />
-        <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>{points.toLocaleString()} DeenPoints</T>
+        <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>{formatDP(points)} DeenPoints</T>
         <T v="caption" style={{ fontSize: 9, color: d.faint }}>balance</T>
       </View>
 
@@ -441,7 +442,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, marginBottom: 4 }}>
         <FontAwesome5 name="bolt" size={12} color="#E8C96A" />
         <TextInput value={urgency} onChangeText={(t) => setUrgency(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={{ flex: 1, paddingVertical: 11, fontSize: 14, fontWeight: '700', fontFamily: 'Poppins-Medium', color: d.text }} placeholder="0" placeholderTextColor={d.faint} />
-        <DPIcon size={10} color="#E8C96A" /><T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {points.toLocaleString()}</T>
+        <DPIcon size={10} color="#E8C96A" /><T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {formatDP(points)}</T>
       </View>
       <T v="caption" style={{ fontSize: 9, color: d.faint, marginBottom: 12 }}>Paying DeenPoints only moves your question up the queue — it never changes the answer. {pledged ? `${pledged.toLocaleString()} DP will be pledged.` : ''}</T>
 

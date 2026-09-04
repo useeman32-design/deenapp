@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -25,6 +26,8 @@ import {
   type IconProps,
 } from '@/components/Icons';
 import { learningSections, type LearningSection } from '@/api/client';
+import { ARTICLES } from '@/data/learn';
+import { QUIZ_POOL, QUIZ_POOL_EXTRA } from '@/data/quiz';
 import { DeenPointsPill } from '@/components/DeenPoints';
 
 /**
@@ -62,7 +65,7 @@ const LIBRARY: Section[] = [
   { title: 'Short Lessons', desc: 'Bite-size micro-lessons on tawhid, salah, ramadan and more.', icon: NewspaperIcon, grad: ['#2F6D33', '#4CAF50'], chip: '9 lessons', cta: 'Learn', href: '/tools/lessons' },
   { title: 'Seerah Timeline', desc: 'Key moments from the Prophet\'s life ﷺ and early Islam.', icon: LandmarkIcon, grad: ['#B8860B', '#F39C12'], chip: '40+ milestones', cta: 'Explore', href: '/tools/seerah' },
   { title: 'Stories of the Prophets', desc: 'From Adam to Muhammad (PBUT) — lessons, wisdom, guidance.', icon: MosqueIcon, grad: ['#8D6E63', '#A1887F'], chip: '19 chapters', cta: 'Explore', href: '/tools/prophets' },
-  { title: 'Articles', desc: 'Contemporary issues, spirituality and family life.', icon: NewspaperIcon, grad: ['#C62828', '#EF5350'], chip: '300+ articles', cta: 'Read', href: '/tools/articles' },
+  { title: 'Articles', desc: 'Contemporary issues, spirituality and family life.', icon: NewspaperIcon, grad: ['#C62828', '#EF5350'], chip: `${ARTICLES.length} articles`, cta: 'Read', href: '/tools/articles' },
   { title: 'Fatwa & Rulings', desc: '1,080 verified rulings, searchable by topic.', icon: ScaleIcon, grad: ['#303F9F', '#5C6BC0'], chip: 'islamqa archive', cta: 'Browse', href: '/tools/fatwa' },
   { title: 'Ruqyah Shariah', desc: 'Quran & Sunnah healing — recite programs, listen and learn.', icon: MosqueIcon, grad: ['#0E5E52', '#26A69A'], chip: '308 recitations', cta: 'Open', href: '/tools/ruqyah' },
   /* pass 39 — the rest of the app's learning content, surfaced here */
@@ -175,6 +178,7 @@ const TOPICS: Array<{ id: string; title: string; icon: string; tint: string; min
 ];
 
 export default function Learning() {
+  useEffect(() => { markGoal('learn').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
@@ -251,7 +255,7 @@ export default function Learning() {
             <T v="h2" style={{ fontWeight: '900', fontSize: 21, color: '#F2F7F3', lineHeight: 27 }}>Enhance Your Knowledge</T>
             <T v="caption" style={{ fontSize: 11, color: 'rgba(242,247,243,0.75)', marginTop: 3 }}>Courses, quizzes & knowledge for every Muslim</T>
             <View style={{ flexDirection: 'row', gap: 7, marginTop: 11 }}>
-              {['9 sections', '100+ quizzes', '300+ articles'].map((st) => (
+              {[`${quickList.length + libraryList.length} sections`, `${QUIZ_POOL.length + QUIZ_POOL_EXTRA.length} quizzes`, `${ARTICLES.length} article${ARTICLES.length === 1 ? '' : 's'}`].map((st) => (
                 <View key={st} style={{ borderRadius: 9, backgroundColor: 'rgba(232,201,102,0.14)', borderWidth: 1, borderColor: 'rgba(232,201,102,0.4)', paddingHorizontal: 9, paddingVertical: 4 }}>
                   <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: '#E8C96A' }}>{st}</T>
                 </View>

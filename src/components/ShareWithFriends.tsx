@@ -5,6 +5,7 @@ import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { MOCK_ACCOUNTS, PROFILE_PHOTOS } from '@/api/mocks';
+import * as Clipboard from 'expo-clipboard';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 
@@ -43,17 +44,20 @@ export function ShareWithFriends({
   onSent,
   title,
   preview,
+  link,
 }: {
   visible: boolean;
   onClose: () => void;
   onSent?: (count: number) => void;
   title: string;          /* what gets delivered */
   preview?: string;       /* small sub-line under the title */
+  link?: string;          /* pass 50 — preview-enabled URL for "Copy link" */
 }) {
   const { theme, isDark } = useTheme();
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
@@ -103,6 +107,15 @@ export function ShareWithFriends({
 
           {!sent ? (
             <>
+              {link ? (
+                <Pressable
+                  onPress={async () => { haptic.selection(); try { await Clipboard.setStringAsync(link); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1900); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 18, marginBottom: 10, borderRadius: 11, borderWidth: 1, borderColor: theme.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', paddingHorizontal: 12, paddingVertical: 10 }}
+                >
+                  <FontAwesome5 name={copied ? 'check-circle' : 'link'} size={12} color={copied ? '#4AE38F' : theme.accent} />
+                  <T v="caption" numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: copied ? '#4AE38F' : theme.text, flex: 1 }}>{copied ? 'Link copied — opens with a preview anywhere' : 'Copy link'}</T>
+                </Pressable>
+              ) : null}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 18, marginBottom: 10 }}>
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderRadius: 11, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 10, paddingVertical: 7 }}>
                   <FontAwesome5 name="search" size={11} color={theme.subtext} />

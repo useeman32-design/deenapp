@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -45,6 +46,7 @@ function categoryOf(f: Fatwa): string | null {
  * IslamQA), a category FILTER DROPDOWN, a mixed "Recent" section, and a
  * searchable rulings list with correct icons. */
 export default function FatwaBrowser() {
+  useEffect(() => { markGoal('fatwa').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -174,7 +176,11 @@ export default function FatwaBrowser() {
               <T v="h3" style={{ fontSize: 13, fontWeight: '800' }}>Direct Fatwas · DeenLink Scholars</T>
             </View>
             {direct.length === 0 ? (
-              <T v="caption" style={{ fontSize: 11, color: d.faint, textAlign: 'center', marginTop: 16 }}>No public scholar answers yet — ask a question and it appears here once answered.</T>
+              <Pressable onPress={() => { haptic.selection(); setSource('islamqa'); setCat(null); setQ(''); }} style={{ borderRadius: 15, borderWidth: 1, borderColor: green, backgroundColor: isDark ? 'rgba(74,227,143,0.10)' : 'rgba(29,111,66,0.06)', padding: 18, alignItems: 'center', gap: 8 }}>
+                <FontAwesome5 name="compass" size={18} color={green} />
+                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: green, textAlign: 'center' }}>No direct answers yet — tap to explore IslamQA fatwas</T>
+                <T v="caption" style={{ fontSize: 10, color: d.faint, textAlign: 'center' }}>1,080+ authentic rulings, searchable in-app</T>
+              </Pressable>
             ) : (
               direct.map((f) => (
                 <Pressable key={`d${f.id}`} onPress={() => openUrl('https://app.deenlink.org')} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 9 }}>
@@ -282,23 +288,24 @@ export default function FatwaBrowser() {
             ) : (
               list.map((f, i) => {
                 const isOpen = open === i;
+                const idx = all ? all.indexOf(f) : -1;
                 const c = CATEGORIES.find((x) => x.key === categoryOf(f));
                 return (
-                  <Pressable key={i} onPress={() => { haptic.selection(); setOpen(isOpen ? null : i); }} style={{ backgroundColor: d.card, borderWidth: 1, borderColor: isOpen ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)') : d.cardBorder, borderRadius: 15, padding: 13, marginBottom: 9 }}>
+                  <Pressable key={`${idx}-${i}`} onPress={() => { haptic.selection(); setOpen(isOpen ? null : i); }} style={{ backgroundColor: d.card, borderWidth: 1, borderColor: isOpen ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)') : d.cardBorder, borderRadius: 15, padding: 13, marginBottom: 9 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
                       <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: 'rgba(48,63,143,0.12)', alignItems: 'center', justifyContent: 'center' }}>
                         <FontAwesome5 name={c?.icon ?? 'gavel'} size={11} color="#3F51B5" />
                       </View>
                       <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', lineHeight: 18 }}>{f.t}</T>
-                      <Pressable onPress={() => toggleSave(all.indexOf(f))} hitSlop={8} style={{ padding: 4 }}>
-                        <FontAwesome5 name="bookmark" size={13} solid={savedIdx.has(all.indexOf(f))} color={savedIdx.has(all.indexOf(f)) ? '#E8C96A' : d.faint} />
+                      <Pressable onPress={() => { if (idx >= 0) toggleSave(idx); }} hitSlop={8} style={{ padding: 4 }}>
+                        <FontAwesome5 name="bookmark" size={13} solid={idx >= 0 && savedIdx.has(idx)} color={idx >= 0 && savedIdx.has(idx) ? '#E8C96A' : d.faint} />
                       </Pressable>
                       <FontAwesome5 name={isOpen ? 'chevron-up' : 'chevron-down'} size={10} color={d.faint} />
                     </View>
                     {isOpen ? (
                       <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: d.cardBorder, paddingTop: 10 }}>
-                        <T v="caption" style={{ fontSize: 10, lineHeight: 16, color: d.subtext }}>{(f.q.replace(f.t, '').trim() || f.q).slice(0, 420)}</T>
-                        <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, marginTop: 8 }}>{f.a.slice(0, 1400)}…</T>
+                        <T v="caption" style={{ fontSize: 10, lineHeight: 16, color: d.subtext }}>{(((f.q || '').replace(f.t || '', '').trim()) || f.q || '').slice(0, 420)}</T>
+                        <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, marginTop: 8 }}>{(f.a || '').slice(0, 1400)}…</T>
                         {f.u ? (
                           <Pressable onPress={() => openUrl(f.u.startsWith('http') ? f.u : `https://islamqa.info/en/answers/${f.u}`)} style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                             <FontAwesome5 name="link" size={9} color="#5EA7C9" />
@@ -320,10 +327,7 @@ export default function FatwaBrowser() {
           </>
         )}
 
-        {/* note on adding more sources */}
-        <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 18, lineHeight: 15 }}>
-          Islam House & Islamweb aren't listed because we hold no copy of their fatwas. To add a source, export its fatwas to JSON ({'{t, q, a, u}'} like islamqa.json) and drop it in public/ — the browser will pick it up.
-        </T>
+
       </ScrollView>
     </View>
   );

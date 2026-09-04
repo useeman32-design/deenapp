@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { markGoal } from '@/lib/routine';
 import { Image, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -10,6 +12,7 @@ import { ARTICLES } from '@/data/learn';
 
 /** Article reader — full text + native share sheet. */
 export default function ArticleReader() {
+  useEffect(() => { markGoal('articles').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

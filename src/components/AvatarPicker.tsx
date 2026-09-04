@@ -49,9 +49,18 @@ type Props = {
 export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: Props) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
-  const startTab = (gender ?? '').toLowerCase().startsWith('f') ? 'female' : 'male';
+  const g = (gender ?? '').toLowerCase();
+  const isFemale = g.startsWith('f');
+  const isMale = g.startsWith('m');
+  /* pass 50 — a male account sees only male avatars, a female account only
+   * female avatars. The tab switcher is shown only when gender is unknown. */
+  const locked = isFemale || isMale;
+  const startTab = isFemale ? 'female' : 'male';
   const [tab, setTab] = useState<'male' | 'female'>(startTab);
-  const list = useMemo(() => (tab === 'male' ? MALE_AVATARS : FEMALE_AVATARS), [tab]);
+  const list = useMemo(
+    () => (locked ? (isFemale ? FEMALE_AVATARS : MALE_AVATARS) : (tab === 'male' ? MALE_AVATARS : FEMALE_AVATARS)),
+    [locked, isFemale, tab],
+  );
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -77,8 +86,8 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
             {selected == null ? <FontAwesome5 name="check-circle" size={16} color="#E8C96A" /> : null}
           </Pressable>
 
-          {/* tabs */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {/* tabs — only when we don't know the account's gender */}
+          {!locked && <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
             {(['male', 'female'] as const).map((t) => {
               const on = tab === t;
               return (
@@ -87,7 +96,7 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
                 </Pressable>
               );
             })}
-          </View>
+          </View>}
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

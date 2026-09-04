@@ -17,7 +17,7 @@ export function BackButton({ onDark = false, label = 'back' }: { onDark?: boolea
       accessibilityLabel={label}
       accessibilityRole="button"
       hitSlop={10}
-      onPress={() => { haptic.light(); router.back(); }}
+      onPress={() => { haptic.light(); if (router.canGoBack()) router.back(); else router.replace('/(tabs)' as never); }}
       style={{
         width: 38,
         height: 38,

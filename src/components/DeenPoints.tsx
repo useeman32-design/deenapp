@@ -16,6 +16,15 @@ import { haptic } from '@/lib/haptics';
  *    animation (chest/glow pop + coins)
  */
 
+/* pass 50 — abbreviate big balances: full below 10k, then 921k / 1M / 24.2M */
+export function formatDP(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  if (Math.abs(n) < 10000) return n.toLocaleString('en-US');
+  const trim1 = (v: number) => { const s = v.toFixed(1); return s.endsWith('.0') ? s.slice(0, -2) : s; };
+  if (Math.abs(n) >= 1000000) return `${trim1(n / 1000000)}M`;
+  return `${trim1(n / 1000)}k`;
+}
+
 export const DP_KEY = 'dl.deenpoints';
 export const DP_DEFAULT = 1250;
 export const DP_PRICE = 1.5; /* naira per point */
@@ -104,7 +113,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
               </View>
               <View style={{ flex: 1 }}>
                 <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>Get DeenPoints</T>
-                <T v="caption" style={{ fontSize: 10.5, color: theme.subtext, marginTop: 1 }}>₦1.5 per point · balance {points.toLocaleString()}</T>
+                <T v="caption" style={{ fontSize: 10.5, color: theme.subtext, marginTop: 1 }}>₦1.5 per point · balance {formatDP(points)}</T>
               </View>
               <Pressable onPress={onClose} hitSlop={8} style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.06)', alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name="times" size={11} color={theme.subtext} />
@@ -208,7 +217,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                   <DPIcon size={34} />
                 </View>
                 <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>{(pack.pts + pack.bonus).toLocaleString()} points added</T>
-                <T v="caption" style={{ fontSize: 11, color: theme.subtext }}>New balance {points.toLocaleString()}</T>
+                <T v="caption" style={{ fontSize: 11, color: theme.subtext }}>New balance {formatDP(points)}</T>
                 <Pressable onPress={onClose} style={{ marginTop: 8, borderRadius: 14, paddingHorizontal: 26, height: 44, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
                   <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Done</T>
                 </Pressable>
@@ -245,7 +254,7 @@ export function DeenPointsPill() {
         })}
       >
         <DPIcon size={12} />
-        <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: '#B8860B' }}>{points.toLocaleString()}</T>
+        <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: '#B8860B' }}>{formatDP(points)}</T>
       </Pressable>
       <DeenPointsBuyModal visible={open} onClose={() => setOpen(false)} />
     </>

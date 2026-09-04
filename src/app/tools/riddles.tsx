@@ -54,9 +54,13 @@ export default function Riddles() {
     setHintOn(false);
     setI((v) => (v + dir + list.length) % list.length);
   };
+  const [posting, setPosting] = useState(false);
   const sharePost = async () => {
+    if (posting) return;
     haptic.success();
-    await addUserPost(`🧠 Riddle: ${r.q}${shown ? `\n\n✅ ${r.a}` : '\n\n(can you solve it?)'}`, 'riddle');
+    setPosting(true);
+    await Promise.all([addUserPost(`🧠 Riddle: ${r.q}${shown ? `\n\n✅ ${r.a}` : '\n\n(can you solve it?)'}`, 'riddle'), new Promise((r2) => setTimeout(r2, 700))]);
+    setPosting(false);
     setToast('Posted to your feed ✓');
     setTimeout(() => setToast(null), 2200);
   };
@@ -118,8 +122,8 @@ export default function Riddles() {
             <FontAwesome5 name="chevron-left" size={13} color={d.subtext} />
           </Pressable>
           <Pressable onPress={sharePost} style={({ pressed }) => ({ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', opacity: pressed ? 0.8 : 1 })}>
-            <FontAwesome5 name="edit" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
-            <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>SHARE AS POST</T>
+            <FontAwesome5 name={posting ? 'circle-notch' : 'edit'} size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{posting ? 'POSTING…' : 'SHARE AS POST'}</T>
           </Pressable>
           <Pressable onPress={() => { haptic.light(); setFriendsOpen(true); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', opacity: pressed ? 0.8 : 1 })}>
             <FontAwesome5 name="paper-plane" size={12} color="#5BC8F5" />

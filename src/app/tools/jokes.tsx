@@ -18,6 +18,7 @@ export default function Jokes() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const [i, setI] = useState(0);
+  const [posting, setPosting] = useState(false);
   const j = JOKES[i % JOKES.length];
   const [shown, setShown] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -47,9 +48,9 @@ export default function Jokes() {
               <FontAwesome5 name="arrow-right" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>NEXT JOKE</T>
             </Pressable>
-            <Pressable onPress={() => { haptic.success(); addUserPost(`${j.setup}\n\n${j.punch} 😄`, 'joke').then(() => setToast('Posted to your feed ✓')); setTimeout(() => setToast(null), 2200); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 14, paddingVertical: 9 }}>
-              <FontAwesome5 name="share-alt" size={10} color="#B8870B" />
-              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B' }}>POST</T>
+            <Pressable onPress={async () => { if (posting) return; haptic.success(); setPosting(true); await Promise.all([addUserPost(`${j.setup}\n\n${j.punch} 😄`, 'joke'), new Promise((r) => setTimeout(r, 700))]); setPosting(false); setToast('Posted to your feed ✓'); setTimeout(() => setToast(null), 2200); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 14, paddingVertical: 9 }}>
+              <FontAwesome5 name={posting ? 'circle-notch' : 'share-alt'} size={10} color="#B8870B" />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#B8870B' }}>{posting ? 'POSTING…' : 'POST'}</T>
             </Pressable>
             <Pressable onPress={() => { haptic.light(); setFriendsOpen(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
               <FontAwesome5 name="paper-plane" size={10} color="#5BC8F5" />

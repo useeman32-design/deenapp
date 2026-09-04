@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { markGoal } from '@/lib/routine';
+import { useCallback, useState, useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ const isDone = (a: Athar, count: number) => (a.count > 0 ? count >= a.count : co
  * challenge with progress + a completion streak; after-prayer & general adkar
  * ride along below. Counts reset each day (see lib/zikrChallenge). */
 export default function Athkar() {
+  useEffect(() => { markGoal('athkar').catch(() => {}); }, []);
   const { theme } = useTheme();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);

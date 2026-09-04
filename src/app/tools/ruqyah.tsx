@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { RUQYAH_PROGRAMS, RUQYAH_TOPICS, ruqyah, type RuqyahArticle, type RuqyahEntry } from '@/lib/islamicApi';
 import { audioForEntry, audioForProgram, onRuqyahAudio, playRuqyahAudio, ruqyahPosition, seekRuqyahFrac, stopRuqyahAudio } from '@/lib/ruqyahAudio';
 import { ShareWithFriends } from '@/components/ShareWithFriends';
+import { buildShareUrl } from '@/lib/share';
 
 /**
  * pass 35 — Ruqyah Shariah (islamicapi.com):
@@ -21,6 +23,7 @@ import { ShareWithFriends } from '@/components/ShareWithFriends';
 type Tab = 'recite' | 'learn';
 
 export default function Ruqyah() {
+  useEffect(() => { markGoal('ruqyah').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -40,7 +43,7 @@ export default function Ruqyah() {
   const [playing, setPlaying] = useState<string | null>(null);
   /* pass 40 — full-program player progress + our send-to-users share */
   const [prog, setProg] = useState<{ pos: number; dur: number } | null>(null);
-  const [friendsShare, setFriendsShare] = useState<{ title: string; preview?: string } | null>(null);
+  const [friendsShare, setFriendsShare] = useState<{ title: string; preview?: string; link?: string } | null>(null);
   const trackRef = useRef<View>(null);
   useEffect(() => onRuqyahAudio((k) => setPlaying(k)), []);
   /* poll position while the full program plays */
@@ -181,7 +184,7 @@ export default function Ruqyah() {
                     </View>
                     <Pressable
                       accessibilityLabel="share program with friends"
-                      onPress={() => { haptic.light(); setFriendsShare({ title: `Ruqyah Shariah — ${full.label}`, preview: 'Listen along in DeenLink · tools/ruqyah' }); }}
+                      onPress={() => { haptic.light(); const ttl = `Ruqyah Shariah — ${full.label}`; setFriendsShare({ title: ttl, preview: 'Listen along in DeenLink · tools/ruqyah', link: buildShareUrl('ruqyah', undefined, ttl) }); }}
                       style={{ width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
                     >
                       <FontAwesome5 name="paper-plane" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
@@ -334,10 +337,10 @@ export default function Ruqyah() {
               })()}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable
-                  onPress={() => { if (!open) return; haptic.success(); setReadSet((s) => new Set(s).add(`${program}:${source}:${open.id}`)); setFriendsShare({ title: `${open.title} — Ruqyah Shariah`, preview: `${(open.translation ?? '').slice(0, 80)} · DeenLink` }); }}
+                  onPress={() => { if (!open) return; haptic.light(); const ttl = `${open.title} — Ruqyah Shariah`; setFriendsShare({ title: ttl, preview: `${(open.translation ?? '').slice(0, 80)} · DeenLink`, link: buildShareUrl('ruqyah', open.id, ttl, (open.translation ?? '').slice(0, 120)) }); }}
                   style={{ flex: 1, borderRadius: 13, backgroundColor: '#1F8F5C', alignItems: 'center', paddingVertical: 12 }}
                 >
-                  <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Read & share</T>
+                  <T v="button" style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Share</T>
                 </Pressable>
                 <Pressable onPress={() => setOpen(null)} style={{ flex: 1, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', paddingVertical: 12 }}>
                   <T v="button" style={{ color: d.subtext, fontWeight: '800', fontSize: 12 }}>Close</T>
@@ -409,7 +412,7 @@ export default function Ruqyah() {
           </View>
         </View>
       </Modal>
-      <ShareWithFriends visible={!!friendsShare} onClose={() => setFriendsShare(null)} title={friendsShare?.title ?? ''} preview={friendsShare?.preview} />
+      <ShareWithFriends visible={!!friendsShare} onClose={() => setFriendsShare(null)} title={friendsShare?.title ?? ''} preview={friendsShare?.preview} link={friendsShare?.link} />
     </View>
   );
 }

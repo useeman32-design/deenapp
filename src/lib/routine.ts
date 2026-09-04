@@ -97,6 +97,15 @@ const GOAL_ROUTES: Record<string, string> = {
 
 export const goalRoute = (key: string): string | undefined => GOAL_ROUTES[key];
 
+/* pass 50 — goals that auto-complete (wired to markGoal somewhere in the app).
+ * The daily pick only draws from these, so every goal shown is achievable. */
+const WIRED_GOALS = [
+  'surah', 'checkin', 'dua', 'dhikr', 'quiz', 'hadith', 'names', 'charity',
+  'prayer', 'qibla', 'athkar', 'tafsir', 'articles', 'prophets', 'seerah',
+  'ruqyah', 'learn', 'fatwa',
+];
+const GOALS_PER_DAY = 4;
+
 /* pass 44 — admin can override the rotating sets (api/defaults/get.php); the
  * bundled all-module shuffle remains the fallback. Fetched once, cached. */
 let setsCache: string[][] | null = null;
@@ -122,17 +131,18 @@ function daySet(): string[] {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   // Admin override still wins if provided.
-  if (setsCache && setsCache.length) return setsCache[h % setsCache.length];
-  // Otherwise: a deterministic shuffle of ALL app modules — every day a different
-  // order, but the same day is stable across reloads.
-  const arr = Object.keys(GOAL_META);
+  if (setsCache && setsCache.length) return setsCache[h % setsCache.length].slice(0, GOALS_PER_DAY);
+  // Otherwise: a deterministic shuffle of the completable modules — every day a
+  // different combination, but the same day is stable across reloads. Only
+  // GOALS_PER_DAY are surfaced (was: all 20 in a row).
+  const arr = WIRED_GOALS.filter((k) => GOAL_META[k]);
   let seed = h || 1;
   const rand = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 0x100000000; };
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
   }
-  return arr;
+  return arr.slice(0, GOALS_PER_DAY);
 }
 
 export async function getGoal(): Promise<{

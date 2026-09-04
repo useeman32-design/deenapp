@@ -73,7 +73,7 @@ export interface ApiResult<T> {
   httpStatus?: number;
 }
 
-async function request<T = Record<string, unknown>>(path: string, opts: ReqOptions = {}): Promise<ApiResult<T>> {
+async function request<T = Record<string, unknown>>(path: string, opts: ReqOptions = {}, _retried = false): Promise<ApiResult<T>> {
   // Mock-only mode: never touch the network; every caller falls back to bundled data.
   if (FORCE_DEMO) return { ok: false, data: {} as T, networkError: true };
 
@@ -116,6 +116,16 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
   if (res.status === 401) {
     session = null;
     csrf = null;
+  }
+
+  // pass 50 — the cached CSRF token can go stale (server rotated it, or the
+  // session was regenerated). On a CSRF rejection, refresh the token and retry
+  // the write once so profile edits don't fail with "invalid CSRF token".
+  const _msg = String((data as { message?: string })?.message ?? '');
+  const _isWrite = opts.method === 'POST' || opts.body !== undefined || !!opts.form;
+  if (!_retried && _isWrite && (res.status === 403 || /csrf/i.test(_msg))) {
+    const fresh = await fetchCsrf();
+    if (fresh) return request<T>(path, opts, true);
   }
 
   return {

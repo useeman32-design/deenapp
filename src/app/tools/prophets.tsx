@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +31,7 @@ const LAST_KEY = 'dl.prophets.last.v1';
 const PAGE_SIZE = 6; // paragraphs per reading page (Next / Previous paging)
 
 export default function ProphetsStories() {
+  useEffect(() => { markGoal('prophets').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

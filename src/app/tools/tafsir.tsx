@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ const BOOK_KEY = 'dl.tafsir.book';
 type SurahData = { surah: number; hasBasmallah: boolean; basmallah: string; verses: ContentAyah[] } | null;
 
 export default function Tafsir() {
+  useEffect(() => { markGoal('tafsir').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

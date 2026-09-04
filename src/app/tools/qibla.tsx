@@ -1,3 +1,4 @@
+import { markGoal } from '@/lib/routine';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Modal, Platform, Pressable, View } from 'react-native';
@@ -24,6 +25,7 @@ import { ScrollView } from 'react-native';
  *  · aligned when you're within 3° — one success haptic per alignment
  */
 export default function Qibla() {
+  useEffect(() => { markGoal('qibla').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets(); // pass 44 — header row was hardcoded paddingTop: 12
   const router = useRouter();

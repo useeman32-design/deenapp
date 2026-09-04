@@ -1,3 +1,4 @@
+import { formatDP } from '@/components/DeenPoints';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -294,7 +295,7 @@ export default function Donations() {
               style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 10, marginBottom: 14 }}
             >
               <DPIcon size={15} />
-              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 13, color: d.text }}>{dp.points.toLocaleString()} DeenPoints</T>
+              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 13, color: d.text }}>{formatDP(dp.points)} DeenPoints</T>
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>GET MORE · ₦1.5/PT</T>
             </Pressable>
 

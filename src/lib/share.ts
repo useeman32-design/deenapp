@@ -7,7 +7,7 @@ import { Platform, Share } from 'react-native';
  */
 const SHARE_BASE = 'https://app.deenlink.org/share.php';
 
-export type ShareKind = 'video' | 'post' | 'dua' | 'verse' | 'article' | 'hadith';
+export type ShareKind = 'video' | 'post' | 'dua' | 'verse' | 'article' | 'hadith' | 'ruqyah' | 'seerah' | 'prophets' | 'tafsir' | 'athkar' | 'names' | 'quiz' | 'riddle' | 'joke';
 
 export function buildShareUrl(kind: ShareKind, id?: string | number, title?: string, text?: string, img?: string): string {
   const parts: string[] = [`t=${encodeURIComponent(kind)}`];
