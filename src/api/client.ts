@@ -576,6 +576,12 @@ export async function chatStartDM(userId: number): Promise<number | null> {
   const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start.php', { method: 'POST', body: { user_id: userId }, auth: true });
   return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
 }
+/** pass 60 — open (or reuse) a DM by USERNAME. The app navigates profiles by
+ *  username, so the id is resolved server-side and never exposed to the client. */
+export async function chatStartDMByUsername(username: string): Promise<number | null> {
+  const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
+  return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
+}
 export async function chatSend(conversationId: number, body: string): Promise<number | null> {
   const r = await request<{ status?: string; id?: number }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
   return r.ok && r.data.id ? (r.data.id as number) : null;

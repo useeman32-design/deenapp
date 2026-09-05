@@ -92,7 +92,8 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { chatConversations, chatPresence } from '@/api/client';
+import { chatConversations, chatMessages, chatPresence, chatRead, chatSend, chatStartDMByUsername, isLive } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 
 if (Platform.OS === 'android') { UIManager.setLayoutAnimationEnabledExperimental?.(true); }
 
@@ -125,6 +126,11 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user, isDemo } = useAuth();
+  /* pass 60 — ONE chat interface, two modes: real API on the live site,
+   * bundled demo threads on gh-pages where there is no backend. */
+  const live = isLive() && !!user && !isDemo;
+  const [convIds, setConvIds] = useState<Record<string, number>>({});
   const [threads, setThreads] = useState<Thread[]>(SEED);
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
   const [emojiFor, setEmojiFor] = useState<string | null>(null);
@@ -193,13 +199,46 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const pull = () => chatConversations().then((cs) => {
       if (!cs) { return; }
       const m: Record<string, string> = {};
-      cs.forEach((c) => { const u = c.with_username || c.peer?.username; if (u && c.peer_seen) { m[u] = String(c.peer_seen); } });
+      const ids: Record<string, number> = {};
+      cs.forEach((c) => {
+        const u = c.with_username || c.peer?.username;
+        if (!u) { return; }
+        ids[u] = c.id;
+        if (c.peer_seen) { m[u] = String(c.peer_seen); }
+      });
       setSeenMap(m);
+      setConvIds(ids);
+      /* live conversations become threads; demo threads stay so shares still work */
+      if (live) {
+        setThreads((prev) => {
+          const have = new Set(prev.map((t) => t.friend));
+          const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
+          return add.length ? [...add, ...prev] : prev;
+        });
+      }
     }).catch(() => {});
     pull();
     const iv = setInterval(() => { chatPresence().catch(() => {}); pull(); }, 60000);
     return () => clearInterval(iv);
-  }, []);
+  }, [live]);
+
+  /* pass 60 — opening a live thread pulls the real history and marks it read */
+  useEffect(() => {
+    if (!live || !openFriend) { return; }
+    const cid = convIds[openFriend];
+    if (!cid) { return; }
+    chatMessages(cid).then((ms) => {
+      if (!ms) { return; }
+      const chat: ChatMsg[] = ms.map((m) => ({
+        id: `s${m.id}`, text: m.body, ago: (m.created_at || '').slice(11, 16),
+        dir: m.sender_id === user?.id ? 'me' as const : 'them' as const,
+      }));
+      chat.forEach((c) => freshIds.current.add(c.id));
+      setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat } : t)));
+      setTimeout(() => scroller.current?.scrollToEnd({ animated: false }), 60);
+    }).catch(() => {});
+    chatRead(cid).catch(() => {});
+  }, [live, openFriend, convIds, user?.id]);
 
   const isOnline = useCallback((u: string | null | undefined) => {
     if (!u) { return false; }
@@ -220,6 +259,36 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDrafts((m) => ({ ...m, [thread.friend]: '' }));
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+
+    /* pass 60 — the bubble is already on screen; now make it real. If there is no
+     * conversation with this person yet (e.g. you tapped Message on their
+     * profile), one is created by username and reused next time. */
+    if (live) {
+      const who = thread.friend;
+      void (async () => {
+        let cid = convIds[who];
+        if (!cid) {
+          const made = await chatStartDMByUsername(who).catch(() => null);
+          if (!made) { markFailed(who, id); return; }
+          cid = made;
+          setConvIds((m) => ({ ...m, [who]: made }));
+        }
+        const sid = await chatSend(cid, text).catch(() => null);
+        if (!sid) { markFailed(who, id); return; }
+        setThreads((prev) => prev.map((t) => (t.friend === who
+          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sid}` } : c)) }
+          : t)));
+        freshIds.current.delete(id);
+        freshIds.current.add(`s${sid}`);
+      })();
+    }
+  };
+
+  /** Flag a bubble that never reached the server instead of letting it lie. */
+  const markFailed = (who: string, id: string) => {
+    setThreads((prev) => prev.map((t) => (t.friend === who
+      ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, text: `${c.text}  ⚠ not sent` } : c)) }
+      : t)));
   };
 
   const shareBack = (kind: Kind, title: string) => {
