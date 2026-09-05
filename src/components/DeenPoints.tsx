@@ -17,18 +17,9 @@ import { haptic } from '@/lib/haptics';
  */
 
 /* pass 50 — abbreviate big balances: full below 10k, then 921k / 1M / 24.2M */
-/* pass 51 — no Intl/toLocaleString here: Hermes on Android can lack full Intl
- * support, and this runs while the home dashboard renders (right after the
- * splash), so a throw there killed the app at startup. Pure string grouping. */
-function groupThousands(n: number): string {
-  const neg = n < 0;
-  const s = String(Math.trunc(Math.abs(n)));
-  return (neg ? '-' : '') + s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
 export function formatDP(n: number): string {
   if (!Number.isFinite(n)) return '0';
-  if (Math.abs(n) < 10000) return groupThousands(n);
+  if (Math.abs(n) < 10000) return n.toLocaleString('en-US');
   const trim1 = (v: number) => { const s = v.toFixed(1); return s.endsWith('.0') ? s.slice(0, -2) : s; };
   if (Math.abs(n) >= 1000000) return `${trim1(n / 1000000)}M`;
   return `${trim1(n / 1000)}k`;
@@ -109,7 +100,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
     }, 1600);
   };
 
-  const naira = (n: number) => `₦${groupThousands(Math.round(n * DP_PRICE))}`;
+  const naira = (n: number) => `₦${(n * DP_PRICE).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

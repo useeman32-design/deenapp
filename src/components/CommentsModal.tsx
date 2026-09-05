@@ -303,8 +303,11 @@ export function CommentsModal({
       .map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
     return [{ handle: 'deenlinkai', name: 'DeenLink AI', ai: true }, ...people];
   }, [mentionQuery]);
-  const pickMention = (handle: string) => {
-    setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, `@${handle} `));
+  const pickMention = (_handle: string) => {
+    /* pass 52 — tapping a suggested person no longer types "@user " into the
+     * comment box; users found the injected text confusing. Just drop the
+     * in-progress "@query" so the suggestion list closes. */
+    setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, ''));
     haptic.light();
   };
   const inputRef = useRef<TextInput>(null);
@@ -639,6 +642,19 @@ export function CommentsModal({
           </View>
         ) : (
           <>
+            {/* pass 52 — the AI is answering the ORIGINAL comment, so its typing
+              * indicator belongs at the TOP of the thread, not buried under every
+              * reply where the user cannot see it. */}
+            {aiTyping ? (
+              <View style={{ flexDirection: 'row', gap: 9, marginTop: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(74,227,143,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="robot" size={14} color="#4AE38F" />
+                </View>
+                <View style={{ borderRadius: 13, backgroundColor: colors.bubble, paddingHorizontal: 12, alignSelf: 'flex-start' }}>
+                  <TypingDots color={colors.emerald} />
+                </View>
+              </View>
+            ) : null}
             {[...items].reverse().map((c) => (
               <CommentRow
                 key={c.id}
@@ -653,16 +669,6 @@ export function CommentsModal({
                 colors={colors}
               />
             ))}
-            {aiTyping ? (
-              <View style={{ flexDirection: 'row', gap: 9, marginTop: 14 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(74,227,143,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                  <FontAwesome5 name="robot" size={14} color="#4AE38F" />
-                </View>
-                <View style={{ borderRadius: 13, backgroundColor: colors.bubble, paddingHorizontal: 12, alignSelf: 'flex-start' }}>
-                  <TypingDots color={colors.emerald} />
-                </View>
-              </View>
-            ) : null}
           </>
         )}
       </ScrollView>

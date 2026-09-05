@@ -1,5 +1,6 @@
 import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useGoalFocus, focusRing, focusKeyFromHref } from '@/lib/useGoalFocus';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -216,6 +217,8 @@ export default function Learning() {
   const banner = BANNER_POOL[slide % BANNER_POOL.length];
   const BANNER_DOTS = Math.min(BANNER_POOL.length, 6);
   const bannerAnim = useRef(new Animated.Value(1)).current; // 1 = fully visible
+  /* pass 52 — deep-linked goal: scroll to the card and flash it */
+  const { highlight, register, scrollRef } = useGoalFocus();
   useEffect(() => {
     const iv = setInterval(() => {
       Animated.timing(bannerAnim, { toValue: 0, duration: 220, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(({ finished }) => {
@@ -235,7 +238,7 @@ export default function Learning() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* pass 42 — back button (page had none) */}
         <View style={{ paddingHorizontal: 16, paddingTop: Math.max(insets.top, 12) - 4, flexDirection: 'row', alignItems: 'center' }}>
           <BackButton />
@@ -275,9 +278,10 @@ export default function Learning() {
             return (
               <Pressable
                 key={c.title}
+                ref={register(focusKeyFromHref(c.href))}
                 accessibilityLabel={c.title}
                 onPress={() => open(c.href)}
-                style={({ pressed }) => ({ width: 168, borderRadius: 18, padding: 14, opacity: pressed ? 0.85 : 1, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 })}
+                style={({ pressed }) => ({ width: 168, borderRadius: 18, padding: 14, opacity: pressed ? 0.85 : 1, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3, ...(highlight === focusKeyFromHref(c.href) ? focusRing(true) : null) })}
               >
                 <LinearGradient colors={c.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', inset: 0, borderRadius: 18 }} />
                 <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
@@ -352,9 +356,10 @@ export default function Learning() {
             return (
               <Pressable
                 key={c.title}
+                ref={register(focusKeyFromHref(c.href))}
                 accessibilityLabel={c.title}
                 onPress={() => open(c.href)}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, opacity: pressed ? 0.82 : 1 })}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, opacity: pressed ? 0.82 : 1, ...(highlight === focusKeyFromHref(c.href) ? focusRing(true) : null) })}
               >
                 <LinearGradient colors={c.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={19} color="#fff" />

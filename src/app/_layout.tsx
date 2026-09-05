@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -9,7 +9,6 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
 import { SplashGate } from '@/components/SplashGate';
-import { CrashBoundary } from '@/components/CrashBoundary';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 
@@ -20,22 +19,9 @@ function Root() {
   const { ready, user } = useAuth();
   const { theme, isDark } = useTheme();
 
-  /* pass 51 — BOOT WATCHDOG. `fontsLoaded` gated BOTH the first render and
-   * SplashScreen.hideAsync(). If expo-font ever fails on a device (variable
-   * fonts are rejected by some Android versions), the splash stayed up forever
-   * with nothing rendered behind it and Android killed the process — exactly
-   * the reported "shows the app logo, then terminates". Boot must never depend
-   * on a resource that might not load: after 8s we proceed regardless. */
-  const [booted, setBooted] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setBooted(true), 8000);
-    return () => clearTimeout(t);
-  }, []);
-  const bootOk = (ready && fontsLoaded) || booted;
-
-  useEffect(() => {
-    if (bootOk) SplashScreen.hideAsync().catch(() => {});
-  }, [bootOk]);
+    if (ready && fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [ready, fontsLoaded]);
 
   /* pass 49: Expo mobile push — handle taps once, and (re)register this
    * device's push token whenever a user is signed in. Native builds only. */
@@ -94,10 +80,10 @@ function Root() {
     };
   }, []);
 
-  if (!bootOk) return null;
+  if (!fontsLoaded) return null;
 
   return (
-    <SplashGate ready={bootOk}>
+    <SplashGate ready={ready}>
       <QuranAudioProvider>
       <Stack screenOptions={{ headerShown: false }}>
         {/* TikTok-style reels feed — opens over everything, swipe up/down */}
@@ -113,7 +99,6 @@ function Root() {
 
 export default function RootLayout() {
   return (
-    <CrashBoundary>
     <SafeAreaProvider>
       <ThemeProvider>
         <UIScaleProvider>
@@ -123,6 +108,5 @@ export default function RootLayout() {
         </UIScaleProvider>
       </ThemeProvider>
     </SafeAreaProvider>
-    </CrashBoundary>
   );
 }

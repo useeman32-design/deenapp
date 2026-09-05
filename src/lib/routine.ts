@@ -71,28 +71,30 @@ const GOAL_META: Record<string, string> = {
   course: 'Continue a course',
 };
 
-/* pass 46 — each goal opens its activity screen when tapped. */
+/* pass 52 — goals now open the HUB that contains the activity, with
+ * ?focus=<key>, so the hub scrolls to that card and flashes it. Users learn
+ * where things live instead of being teleported straight to the leaf screen. */
 const GOAL_ROUTES: Record<string, string> = {
   surah: '/(tabs)/quran',
   checkin: '/(tabs)/profile',
-  dua: '/tools/dua',
-  dhikr: '/tools/tasbeeh',
-  quiz: '/tools/quiz',
-  hadith: '/tools/hadith',
-  names: '/tools/names',
-  charity: '/tools/charity',
-  tafsir: '/tools/tafsir',
+  dua: '/(tabs)/tools?focus=dua',
+  dhikr: '/(tabs)/tools?focus=tasbeeh',
+  quiz: '/tools/learning?focus=quiz',
+  hadith: '/tools/learning?focus=hadith',
+  names: '/tools/learning?focus=names',
+  charity: '/(tabs)/tools?focus=donation',
+  tafsir: '/tools/learning?focus=tafsir',
   athkar: '/tools/athkar',
-  prayer: '/tools/prayer',
-  qibla: '/tools/qibla',
-  fatwa: '/tools/fatwa',
-  prophets: '/tools/prophets',
-  seerah: '/tools/seerah',
-  ruqyah: '/tools/ruqyah',
-  articles: '/tools/articles',
+  prayer: '/(tabs)/tools?focus=prayer',
+  qibla: '/(tabs)/tools?focus=qibla',
+  fatwa: '/tools/learning?focus=fatwa',
+  prophets: '/tools/learning?focus=prophets',
+  seerah: '/tools/learning?focus=seerah',
+  ruqyah: '/tools/learning?focus=ruqyah',
+  articles: '/tools/learning?focus=articles',
   learn: '/tools/learning',
-  zikr: '/tools/zikr-challenge',
-  course: '/tools/courses',
+  zikr: '/tools/learning?focus=zikr-challenge',
+  course: '/tools/learning?focus=courses',
 };
 
 export const goalRoute = (key: string): string | undefined => GOAL_ROUTES[key];
@@ -123,6 +125,28 @@ function ensureSets(): Promise<void> {
       .catch(() => {});
   }
   return setsPromise;
+}
+
+/**
+ * pass 52 — the set is now PERSISTED the first time it is computed for a day.
+ * Before this, daySet() was recomputed on every read and the admin override
+ * (`setsCache`) arrives asynchronously, so the four goals on screen could swap
+ * to a different four the moment the network call landed. Activities completed
+ * against the first set then appeared to "count" against the second — which is
+ * exactly the reported bug. Pinning the set for the day makes it deterministic.
+ */
+async function daySetStable(): Promise<string[]> {
+  const k = `dl.goal.set.${dayKey()}`;
+  const raw = await storage.getItem(k);
+  if (raw) {
+    try {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a) && a.length && a.every((x) => typeof x === 'string')) return a;
+    } catch { /* fall through and recompute */ }
+  }
+  const set = daySet();
+  await storage.setItem(k, JSON.stringify(set)).catch(() => {});
+  return set;
 }
 
 /** Stable per-day pick: same date -> same set, next day -> rotates. */
@@ -163,7 +187,7 @@ export async function getGoal(): Promise<{
   if (empty && !isLive()) {
     rec = { surah: true, checkin: true };
   }
-  const items = daySet().map((key) => ({
+  const items = (await daySetStable()).map((key) => ({
     key,
     label: GOAL_META[key] ?? key,
     done: !!rec[key],
@@ -191,6 +215,8 @@ export async function setGoal(key: string, val: boolean): Promise<void> {
 }
 
 export async function markGoal(key: string): Promise<void> {
+  /* pass 52 — only real, known activities can ever be recorded */
+  if (!GOAL_META[key]) return;
   const k = `dl.goal.${dayKey()}`;
   const raw = await storage.getItem(k);
   let rec: Record<string, boolean> = {};

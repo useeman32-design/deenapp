@@ -354,6 +354,8 @@ export default function DeenLinkAI() {
   const [model, setModelState] = useState<string>(PROVIDERS.groq.models[0].id);
   const [webOn, setWebOn] = useState(false);
   const [webToggle, setWebToggle] = useState(false);
+  /* pass 52 — lightbulb opens the answer-mode picker instead of silently toggling web */
+  const [modeOpen, setModeOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
@@ -723,9 +725,26 @@ export default function DeenLinkAI() {
 
         {/* ── input bar (glassy) ── */}
         <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: glass.border, backgroundColor: glass.bg }}>
+          {modeOpen ? (
+            <View style={{ position: 'absolute', bottom: 56, left: 12, zIndex: 60, width: 224, borderRadius: 16, borderWidth: 1, borderColor: glass.border, backgroundColor: isDark ? 'rgba(12,26,18,0.98)' : 'rgba(255,255,255,0.98)', padding: 6, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 10 }}>
+              <T v="caption" style={{ fontSize: 9, fontWeight: '800', letterSpacing: 0.9, color: d.faint, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 5 }}>ANSWER MODE</T>
+              {([{ k: false, icon: 'book-open', label: 'Library only', note: 'Your saved sources' },
+                 { k: true,  icon: 'globe',     label: 'Library + Web', note: 'Live web results' }] as const).map((o) => (
+                <Pressable key={String(o.k)} onPress={() => { haptic.selection(); setWebToggle(o.k); setWebPref(o.k); setModeOpen(false); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: webToggle === o.k ? (isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.08)') : 'transparent' }}>
+                  <FontAwesome5 name={o.icon} size={12} color={webToggle === o.k ? '#4AE38F' : d.faint} />
+                  <View style={{ flex: 1 }}>
+                    <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: d.text }}>{o.label}</T>
+                    <T v="caption" style={{ fontSize: 9, color: d.faint }}>{o.note}</T>
+                  </View>
+                  {webToggle === o.k ? <FontAwesome5 name="check" size={11} color="#4AE38F" /> : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
-            <Pressable onPress={() => { haptic.selection(); setWebToggle((w) => { setWebPref(!w); return !w; }); }} accessibilityLabel="web search toggle" style={{ width: 44, height: 46, borderRadius: 16, borderWidth: 1, borderColor: webToggle ? 'rgba(44,110,143,0.55)' : glass.border, backgroundColor: webToggle ? 'rgba(44,110,143,0.12)' : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.65)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="globe" size={14} color={webToggle ? '#5EA7C9' : d.faint} />
+            <Pressable onPress={() => { haptic.selection(); setModeOpen((v) => !v); }} accessibilityLabel="answer mode" style={{ width: 44, height: 46, borderRadius: 16, borderWidth: 1, borderColor: webToggle ? 'rgba(212,175,55,0.6)' : glass.border, backgroundColor: webToggle ? 'rgba(212,175,55,0.14)' : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.65)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="lightbulb" size={14} color={webToggle ? '#D4AF37' : d.faint} />
             </Pressable>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1.5, borderColor: draft ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.45)') : glass.border, backgroundColor: isDark ? 'rgba(10,22,15,0.65)' : 'rgba(255,255,255,0.92)', paddingHorizontal: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
               <TextInput

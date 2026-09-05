@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useGoalFocus, focusRing } from '@/lib/useGoalFocus';
 import { Linking, Modal, Pressable, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
@@ -144,6 +145,8 @@ const TOOLS: ToolCard[] = [
 ];
 
 export default function Tools() {
+  /* pass 52 — deep-linked goal: scroll to the tool card and flash it */
+  const { highlight, register, scrollRef } = useGoalFocus();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
@@ -156,7 +159,7 @@ export default function Tools() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon}><DeenPointsPill /></PageHero>
         <View style={{ paddingTop: 20, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
@@ -165,6 +168,7 @@ export default function Tools() {
               return (
                 <Pressable
                   key={t.key}
+                  ref={register(t.key)}
                   onPress={() => open(t)}
                   style={({ pressed }) => ({
                     width: '48%',
@@ -181,6 +185,7 @@ export default function Tools() {
                     shadowRadius: 10,
                     shadowOffset: { width: 0, height: 4 },
                     elevation: 3,
+                    ...(highlight === t.key ? focusRing(true) : null),
                   })}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>

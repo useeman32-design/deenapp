@@ -18,7 +18,7 @@ import { FeedCard } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { Platform } from 'react-native';
 import { UI_SCALES, useUIScale, useSetUIScale } from '@/context/UIScale';
-import { DeenPointsBuyModal, RewardModal, useDeenPoints } from '@/components/DeenPoints';
+import { DeenPointsBuyModal, RewardModal, useDeenPoints, formatDP } from '@/components/DeenPoints';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 import { useSaved } from '@/lib/savedPosts';
@@ -87,7 +87,9 @@ export default function Profile() {
 
   const signOut = () => setSignOutOpen(true);
 
-  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
+  /* pass 52 — use the shared formatter so the profile chip shows 12.4k / 1.2M
+   * exactly like every other screen (this local copy only did 'k'). */
+  const fmt = formatDP;
 
   const Setting = ({ icon, label, desc, tint, onPress }: { icon: string; label: string; desc: string; tint: string; onPress: () => void }) => (
     <Pressable
