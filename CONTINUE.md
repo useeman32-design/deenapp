@@ -744,3 +744,75 @@ Two chats now work the same codebase. To stop them clobbering each other:
 ### Why not a branch?
 A branch would be cleaner git-wise, but a folder is safer here: the other agent cannot accidentally
 deploy or rewrite history, and the user can see every proposed change in one place before it lands.
+
+---
+## ── pass 56–62 (2026-09-05) — the CHAT module, rebuilt and server-backed ──
+
+Shipped: gh-pages `e77036d` (bundle `entry-f0e291bcb7d4404dbacd9042e0804a9f.js`, 200 verified) ·
+deenlink-api main `afba407` (backend) then `423cb4e` (web build) · deenapp master `e77f0f4`.
+⚠️ `app.deenlink.org` still needs the user's cPanel `git pull` — none of passes 53+ is live there yet.
+
+**Pass 56** fresh chat + AI backend (`api/chat/`, `api/deenai/chat.php`); migrations inside the PHP.
+**Pass 57** chat UI → built into `src/app/tools/chat.tsx`, which had **zero inbound links** (invisible).
+**Pass 58** ported the whole chat UI into the real screen, `CommunityInbox.tsx`.
+**Pass 59** per-conversation drafts, truncated titles, avatar/name → profile, WhatsApp-style send,
+"Message" button on the public profile, text no longer leaks between chats.
+**Pass 60** ONE chat interface: `tools/chat.tsx` deleted; `live = isLive() && !!user && !isDemo`
+(demo on Pages, live on the main site); new `start_username.php` resolves a username → DM server-side.
+**Pass 61** `PopEmoji` (per-reaction mount animation) + the ellipsis sweep (Correction 31).
+**Pass 62** shares and reactions moved to the server (below).
+
+### Pass 62 — shares + reactions are server-backed now
+The user: *"yes I want these in the server too — reels, posts, duas, ayahs, and the emoji reactions."*
+
+**Backend (`deenlink-api`, commit `afba407` + `423cb4e`):**
+- `chat_schema()` gained `chat_shares(id, conversation_id, sender_id, kind, title, payload, created_at)`
+  and `chat_reactions(id, conversation_id, target_kind, target_id, user_id, emoji, created_at)` with
+  `UNIQUE(target_kind, target_id, user_id)` — one emoji per person per target, so reacting again replaces.
+- `api/chat/send_share.php` — `POST {conversation_id, kind, title, payload}` → `{id, kind, title, payload, created_at}`.
+  `kind` is whitelisted to `post|reel|ayah|hadith|dua|profile`; `payload` keeps **only** `arabic|refLabel|sub|dur`
+  (each ≤600 chars, blob ≤2000). No uploads, no external URLs — shares are pointers to in-app content.
+- `api/chat/react.php` — `POST {conversation_id, target_kind, target_id, emoji}` → `{emoji, removed}`.
+  `emoji: ""` removes MY reaction (that is the UI's toggle-off). Control chars stripped, ≤8 chars.
+- `messages.php` now returns `messages` + `shares` + `reactions` (reactions carry `username`) in ONE call;
+  the `messages` array shape is unchanged, so old clients keep working.
+- `conversations.php` preview line is the newer of last message / last share, and the list is ordered by
+  that same recency, so a share-only conversation no longer looks empty.
+- `send.php` + `send_share.php` return the row's real `created_at`.
+- `common.php` gained `chat_share_kinds()` and `chat_target_exists()` (a reaction can only target a row
+  that belongs to the caller's conversation).
+
+**Frontend (`deenapp`, commit `e77f0f4`):**
+- `client.ts`: `chatThread()` (one call for the whole thread), `chatSendShare()`, `chatReact()`;
+  `chatSend()` now returns `{id, created_at}`.
+- `CommunityInbox.tsx`: opening a live thread replaces the demo cards with the real thread;
+  `react()` posts and **reverts** if it fails; `shareBack()` posts and marks the card `⚠ not sent` on
+  failure; `resolveCid()` creates the DM by username when there is none yet.
+- `ShareItem`/`ChatMsg` gained `at` (server timestamp). `flow` merges shares and messages and sorts by it,
+  so a shared ayah appears where it happened instead of above every message. Untimestamped rows sort to
+  `'9999'` = last, which keeps the demo seed order byte-identical.
+- The two render blocks were extracted verbatim into `renderShare(th, it)` / `renderMsg(th, m)` to make
+  that merge possible. `thread.` became `th.` inside them.
+
+**Verified over HTTP against real MariaDB 11.8.6 (22 checks):** share write + read-back · Arabic payload
+round-trips (`إِيَّاكَ نَعْبُدُ…`) · two users reacting to one target · replace emoji · toggle-off deletes the
+row · 401 unsigned · 403 non-member on BOTH read and react · 404 target from another conversation ·
+400 bad kind / empty title / missing conversation_id · payload whitelist drops unknown keys
+(`<script>` payload key discarded) · overlong+control-char emoji truncated to 8 · preview flips to
+`DUA shared: Test` when the share is newest · `created_at` returned by both send endpoints.
+`tsc --noEmit` → 0. **NOT exercised in a browser** — same caveat as passes 60/61.
+
+### pass 56 backend test harness (rebuild it every turn — `/tmp` is wiped)
+```bash
+sudo apt-get install -y php-cli php-mysql php-mbstring php-curl mariadb-server   # php-curl is separate!
+mariadb-install-db --datadir=/tmp/mydata --auth-root-authentication-method=normal
+setsid nohup /usr/sbin/mariadbd --datadir=/tmp/mydata --socket=/tmp/myrun/my.sock \
+  --pid-file=/tmp/myrun/my.pid --skip-grant-tables --port=3311 >/tmp/mariadb.log 2>&1 </dev/null &
+# mariadbd is NOT on PATH; /var/lib/mysql is not writable by `user`
+```
+Harness = a copy of `api/chat/*` + **empty stubs** for `api/config/{db,cors,session,csrf}.php` and
+`api/admin/auth/common.php` (`db.php` returns a PDO on the unix socket, db `deenlink`) + a `router.php`
+that fills `$_SESSION` from an `X-Test-User` header, served by `php -S 127.0.0.1:PORT -t <dir> router.php`.
+Seed `users(id, username, full_name, profile_image, deleted_at)`.
+Never test POST endpoints with `php runner.php` — `php://input` is empty in the CLI SAPI.
+Never `pkill -f "php -S"` — it kills the shell (exit -1); use a fresh port.

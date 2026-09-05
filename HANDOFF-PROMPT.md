@@ -1,5 +1,5 @@
 <!-- =====================================================================
-     LATEST HANDOFF — 2026-09-05 · PASS 52.  *** START HERE ***
+     LATEST HANDOFF — 2026-09-05 · PASS 62.  *** START HERE ***
      Detailed state + pending work: CONTINUE.md (same folder)
      ===================================================================== -->
 
@@ -12,7 +12,9 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `34a785f` · deenlink-api main `f5b7fa5` · deenapp master `f865653` (+ this doc commit)
+gh-pages `e77036d` (bundle `entry-f0e291bcb7d4404dbacd9042e0804a9f.js`, verified 200) ·
+deenlink-api main `423cb4e` (web build) + `afba407` (chat backend) · deenapp master `e77f0f4` (+ this doc commit)
+⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
 ## First commands in a new session
@@ -223,3 +225,30 @@ When I give you the next change request, start from there.
 - Batch 2 PENDING: zikr-challenge rebuild (the REAL daily dhikr — `tools/athkar` is to be removed), chat presence/last-seen/read receipts (backend `api/chat/` does not exist yet), Groq key read from DB.
 - **Verify pass-51 files survived the workspace before committing** (`bootOk` in `_layout.tsx`, `CrashBoundary.tsx`, `Font.loadAsync` in `fonts.ts`). A rollback already pushed one regression.
 - gh-pages deploys must preserve `.nojekyll`; verify an `_expo/` asset returns 200 after every push.
+
+---
+### Pass 56–62 checkpoint (latest) — the CHAT module
+One chat interface only: **`src/components/CommunityInbox.tsx`** (`src/app/tools/chat.tsx` was deleted in
+pass 60 — it had zero inbound links, which is why pass 57 was invisible). Reached from `community.tsx`,
+`tools/inbox.tsx` and `videos.tsx`.
+
+- **Mode:** `const live = isLive() && !!user && !isDemo` — real API on `app.deenlink.org`, bundled
+  `SEED`/`MOCK_ACCOUNTS` demo threads on gh-pages. Same codebase, two modes (Correction 32).
+- **Row ids:** `s<id>` = chat_messages row, `h<id>` = chat_shares row, anything else = demo/optimistic
+  (no server target yet). `targetOf()` maps them back for reactions.
+- **Backend:** `api/chat/` (10 files) in `deenlink-api`. `chat_schema()` in `common.php` self-creates every
+  chat table on first request — **SQL migrations live inside the PHP** (Correction 28), no phpMyAdmin step.
+  Tables: `chat_conversations`, `chat_participants`, `chat_messages`, `chat_presence`,
+  `chat_shares`, `chat_reactions`.
+- **Endpoints:** `conversations.php` · `messages.php` (returns `messages` + `shares` + `reactions`) ·
+  `send.php` · `send_share.php` · `react.php` · `read.php` · `presence.php` · `start.php` (by user id) ·
+  `start_username.php` (by username, pass 60) — all gated on `chat_member()`; `chat_target_exists()` stops
+  reacting to rows from another conversation.
+- **Reactions:** `thread.reactions` = MY emoji, `thread.others` = theirs. Empty emoji = remove.
+  `PopEmoji` (pass 61) animates on mount with its OWN Animated.Value — do not go back to a shared `pop`.
+- **Harness:** the whole PHP/MariaDB test rig lives in `/tmp` and is wiped every turn. Recipe is in
+  `CONTINUE.md` → "pass 56 backend test harness". `deenlink-api` is NOT kept in the workspace (128 MB) —
+  clone it fresh: `git clone --depth 1 https://x-access-token:$(cat deenapp/.token)@github.com/useeman32-design/deenlink-api.git`.
+
+**Still open:** Report/Block in the inbox are client-side only (no `api/reports/`, no `user_blocks`).
+Next per the user: test the chat end-to-end → registration flow → posts, likes and comments.
