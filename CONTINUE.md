@@ -816,3 +816,39 @@ that fills `$_SESSION` from an `X-Test-User` header, served by `php -S 127.0.0.1
 Seed `users(id, username, full_name, profile_image, deleted_at)`.
 Never test POST endpoints with `php runner.php` — `php://input` is empty in the CLI SAPI.
 Never `pkill -f "php -S"` — it kills the shell (exit -1); use a fresh port.
+
+---
+## ── pass 63 (2026-09-05) — chat UX the user asked for, verified in a browser ──
+Shipped: gh-pages `60c8a6d` · deenlink-api main `3b10242` (backend) + `32e2f47` (web) · deenapp master (this commit).
+⚠️ `app.deenlink.org` still needs the cPanel `git pull`.
+
+What the user asked, and what shipped:
+- **"sending doesn't go smoothly"** → messages never animated: `renderMsg` returned a plain `<View>`. Now
+  every row is wrapped in `BubbleIn`, which springs in from the side it was sent (opacity + translateX/Y +
+  scale). Shares keep `SlideIn`.
+- **"reaction panel looks sheddy"** → the old picker faded the whole strip from opacity 0.4 on a SHARED
+  Animated.Value. Now the panel is `SheetIn` (springs up) and each emoji is a `PickerEmoji` with its OWN
+  staggered spring + real `lineHeight` (no clipping).
+- **double-tap** → reacts instantly with the default emoji (`onTapItem` → `react(EMOJIS[0])`).
+- **press and hold** → `openFocus`: every other row dims (shared `dim` Animated.Value — the RIGHT use of a
+  shared value), the held row lifts, and a WhatsApp-style sheet shows the reaction strip +
+  Reply / Forward / Copy / Delete. Delete only appears on your own rows and calls the new `delete.php`.
+- **slide to reply** → `SwipeReply` (PanResponder, native driver). A TOUCH drag past ~58px opens the reply
+  bar; the composer shows "Replying to …" with an ×; the quote is persisted server-side (`reply_to_id`).
+- **"texts can't be copied / highlighted"** → message text is `selectable`. On the web a MOUSE drag is NOT
+  claimed as a swipe (`pointerType === 'mouse'` opts out), so drag-to-highlight works; Copy in the sheet uses
+  `expo-clipboard`.
+
+Backend (commit `3b10242`, verified over HTTP + a live-migration test): `chat_messages` gains
+`reply_to_id` / `reply_to_kind` / `deleted_at`, `chat_shares` gains `deleted_at`; `chat_ensure_column()`
+probes information_schema and ALTERs only what is missing (works on MariaDB AND MySQL 8 — `ADD COLUMN IF
+NOT EXISTS` is MariaDB-only). `send.php` accepts `{reply_to_id, reply_to_kind}` (404 if the quote is not in
+the conversation). `messages.php` returns `deleted` + `reply_to{id,kind,body,username}`. `delete.php` (new)
+soft-deletes YOUR OWN row: 403 non-member / not-sender, 404 wrong conversation; reactions on a deleted row
+are dropped and a quote of a deleted row returns empty. Dropped all the columns to simulate the live DB —
+one request to `messages.php` re-added them (200).
+
+Browser verification (headless Chromium via `scripts/probe63.mjs`, demo mode): thread renders shares richly;
+`user-select: text` on the message text; hold dims the list + shows Reply/Forward/Copy (no Delete on their
+row); touch swipe opens the reply bar; double-tap + mouse-drag verified. Reaction-strip glyphs showed as
+boxes only because headless Chrome has no color-emoji font.
