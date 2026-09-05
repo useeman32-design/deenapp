@@ -665,3 +665,22 @@ The risk is only that the sandbox hands back stale source, which can then be com
 Stable daily goals (`dl.goal.set.<date>`) · hub deep-link highlight (`src/lib/useGoalFocus.ts`,
 `?focus=<key>` on Learning Hub + Worship Tools) · profile uses shared `formatDP` ·
 AI lightbulb + ANSWER MODE menu · AI typing indicator at top of comments · no `@handle` injection.
+
+---
+## FRESH-CLONE GAPS (verified against the GitHub API, not local git)
+
+`git ls-files`/`git cat-file` are **unusable** in this sandbox — `.git` disappears between turns, so always
+verify repo state with the API:
+`curl -s -H "Authorization: Bearer $(cat deenapp/.token)" https://api.github.com/repos/useeman32-design/deenapp/contents/<path>?ref=master`
+
+Remote `assets/` contains ONLY: `expo.icon`, `images`, `img`, `vid`.
+**Missing from the repo:** `assets/content/` (20 MB extracted datasets), `assets/content.zip` (17 MB),
+`assets/avatars/`. Six source files depend on them:
+`src/data/hadithBooks.ts`, `src/data/hadithDaily.ts`, `src/data/names99.ts` + 3 more (`grep -rl 'assets/content' src/`).
+
+**Remedy now in place:** `content.zip` is published as a release asset on `v0.1.1-preview`
+(17,196,993 bytes) → https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/content.zip
+Download it and run `node scripts/unpack-content.mjs` before any build. See the START HERE block in
+`HANDOFF-PROMPT.md`.
+
+Also gitignored and therefore absent from a clone: `.token`, `.expo-token` (both 40-byte files, user-supplied).

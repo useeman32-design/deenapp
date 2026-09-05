@@ -12,7 +12,7 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `34a785f` · deenlink-api main `f5b7fa5` · deenapp master `dc3ad21`
+gh-pages `34a785f` · deenlink-api main `f5b7fa5` · deenapp master `f865653` (+ this doc commit)
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
 ## First commands in a new session
@@ -21,6 +21,18 @@ cd deenapp && npm ci && ./node_modules/.bin/tsc --noEmit     # expect TSC_EXIT 0
 # .git and .git/config DO NOT survive between turns — re-add the remote:
 git remote add origin "https://x-access-token:$(cat .token)@github.com/useeman32-design/deenapp.git"
 ```
+
+## 🔴 A FRESH CLONE IS NOT ENOUGH — restore these first
+`assets/content/`, `assets/content.zip` and `assets/avatars/` are **untracked**, so `git clone` will NOT
+give them to you — and 6 source files `require()` those datasets, so Metro/EAS will fail to bundle without them.
+```bash
+cd deenapp
+curl -sL -o assets/content.zip https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/content.zip
+node scripts/unpack-content.mjs          # extracts hadith/ islamic/ quran/  (~20 MB, 3 top-level dirs)
+ls assets/content                        # expect: hadith  islamic  quran
+```
+Also **not** in the repo (gitignored, must be supplied by the user): `.token` (GitHub PAT) and
+`.expo-token` (Expo access token). Without `.token` you cannot push or deploy.
 
 ## ⚠️ MANDATORY rollback check before EVERY commit
 The sandbox workspace is capped (~128 MB / 10 000 files). When it overflows, files **silently revert**
