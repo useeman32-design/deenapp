@@ -713,3 +713,34 @@ Release `v0.1.1-preview` (id `383117057`) now holds three assets:
 
 **Rule going forward:** any new asset tree that code `require()`s must be committed to git OR published as a
 release asset in the same session. Untracked assets are the one thing this git-centric workflow does NOT protect.
+
+---
+## REVIEW-GATE WORKFLOW — `new-agent-update/` (agreed 2026-09-05)
+
+Two chats now work the same codebase. To stop them clobbering each other:
+
+**The other agent (the "new chat") may ONLY write inside `new-agent-update/` at the repo root of
+`deenapp`, on `master`.** It must not touch `src/`, must not deploy to gh-pages, and must not touch
+`deenlink-api`. Nothing in that folder is imported by the app, so it is inert until reviewed.
+
+### What the other agent must do
+1. `git pull` latest `master` FIRST, so it is not editing a stale copy (pass 52 changed
+   `routine.ts`, `learning.tsx`, `tools.tsx`, `ai.tsx`, `CommentsModal.tsx`, `profile.tsx`).
+2. Mirror the real paths inside the folder — `new-agent-update/src/app/tools/zikr-challenge.tsx`,
+   not `new-agent-update/zikr-challenge.tsx`. Path-for-path mirroring is what makes review a diff.
+3. Add `new-agent-update/CHANGES.md` listing: the user request addressed, each file changed and why,
+   what it verified (tsc? which command?), and anything it could NOT verify.
+4. Commit + push. Do not deploy.
+
+### What THIS chat does on receiving it
+1. `git pull`, then diff every file in `new-agent-update/` against its live counterpart in `src/`.
+2. Copy into place, run `npm ci && ./node_modules/.bin/tsc --noEmit` — must be 0.
+3. Re-run the **rollback check** (`bootOk`, `CrashBoundary.tsx`, `Font.loadAsync`, `groupThousands`,
+   `useGoalFocus.ts`) — the other agent will not know these matter.
+4. Confirm it did not undo pass 52: stable daily goals (`dl.goal.set.`), hub `?focus=` deep links,
+   profile `formatDP`, AI lightbulb, comment AI loader at top, no `@handle` injection.
+5. Only then deploy BOTH web builds and verify an `_expo/` asset returns 200.
+
+### Why not a branch?
+A branch would be cleaner git-wise, but a folder is safer here: the other agent cannot accidentally
+deploy or rewrite history, and the user can see every proposed change in one place before it lands.

@@ -22,6 +22,12 @@ cd deenapp && npm ci && ./node_modules/.bin/tsc --noEmit     # expect TSC_EXIT 0
 git remote add origin "https://x-access-token:$(cat .token)@github.com/useeman32-design/deenapp.git"
 ```
 
+## 🤝 TWO-CHAT REVIEW GATE
+Another agent may be working this repo concurrently. **It writes ONLY inside `new-agent-update/`**
+(mirroring real paths, plus a `CHANGES.md`), never `src/`, never a deploy. This chat reviews that folder,
+runs `tsc`, re-checks the rollback markers and pass-52 behaviour, and only then integrates + deploys.
+Full protocol in `CONTINUE.md` → "REVIEW-GATE WORKFLOW".
+
 ## 🔴 A FRESH CLONE IS NOT ENOUGH — restore these first
 `assets/content/`, `assets/content.zip` and `assets/avatars/` are **untracked**, so `git clone` will NOT
 give them to you — and 6 source files `require()` those datasets, so Metro/EAS will fail to bundle without them.
