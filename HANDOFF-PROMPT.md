@@ -31,6 +31,23 @@ curl -sL -o assets/content.zip https://github.com/useeman32-design/deenapp/relea
 node scripts/unpack-content.mjs          # extracts hadith/ islamic/ quran/  (~20 MB, 3 top-level dirs)
 ls assets/content                        # expect: hadith  islamic  quran
 ```
+Three asset trees the code `require()`s are NOT in git. Restore ALL of them or Metro/EAS will fail:
+```bash
+REL=https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview
+
+# 1. assets/content/ — 147 files, 20 MB (6 source files depend on it)
+curl -sL -o assets/content.zip $REL/content.zip && node scripts/unpack-content.mjs
+ls assets/content            # expect: hadith  islamic  quran
+
+# 2. assets/avatars/ — 62 files, 5.8 MB (src/data/avatars.ts). Source IS in git as avatar.zip,
+#    but it stores them under profile/ — the code expects assets/avatars/. VERIFIED working:
+unzip -q avatar.zip -d /tmp/av && mkdir -p assets/avatars && cp -r /tmp/av/profile/* assets/avatars/ && rm -rf /tmp/av
+ls assets/avatars            # expect: female  male   (62 files)
+
+# 3. assets/img/articles/ — 6 files, 2 MB (src/data/learn.ts)
+curl -sL -o /tmp/ia.zip $REL/img-articles.zip && unzip -qo /tmp/ia.zip -d assets/img/ && rm -f /tmp/ia.zip
+ls assets/img/articles       # expect 6 .jpg files
+```
 Also **not** in the repo (gitignored, must be supplied by the user): `.token` (GitHub PAT) and
 `.expo-token` (Expo access token). Without `.token` you cannot push or deploy.
 

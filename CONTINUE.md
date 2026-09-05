@@ -698,3 +698,18 @@ command `git checkout <old-sha> -- <paths>` fails with `fatal: invalid reference
 - `git fetch --deepen 40 origin master` → **works**: 1 → 41 commits, `e47a726` reachable, `.git` 33 MB → 35 MB.
 
 So: stay shallow for normal work, and `--deepen` only when you need to recover an older revision.
+
+---
+## ASSET BACKUP MAP (all three verified 2026-09-05)
+
+| Local path | Files | Size | Backup | Restore |
+|---|---|---|---|---|
+| `assets/content/` | 147 | 20 MB | release asset `content.zip` (17,196,993 B) | `node scripts/unpack-content.mjs` |
+| `assets/avatars/` | 62 | 5.8 MB | **`avatar.zip` — tracked in git** | unzip, then `profile/*` → `assets/avatars/` (layout differs) |
+| `assets/img/articles/` | 6 | 2.0 MB | release asset `img-articles.zip` (2,044,683 B) | unzip into `assets/img/` |
+
+Release `v0.1.1-preview` (id `383117057`) now holds three assets:
+`deenlink-preview.apk`, `content.zip`, `img-articles.zip`.
+
+**Rule going forward:** any new asset tree that code `require()`s must be committed to git OR published as a
+release asset in the same session. Untracked assets are the one thing this git-centric workflow does NOT protect.
