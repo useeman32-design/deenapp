@@ -97,6 +97,26 @@ import { useAuth } from '@/context/AuthContext';
 
 if (Platform.OS === 'android') { UIManager.setLayoutAnimationEnabledExperimental?.(true); }
 
+/**
+ * pass 61 — a reaction emoji that animates ON MOUNT, with its own value.
+ *
+ * It used to share one `pop` Animated.Value with every other reaction, and
+ * `popIn()` ran before the new row was mounted — so the spring finished before
+ * the node existed. The emoji attached at scale 0.3 and opacity 0.4 (tiny and
+ * washed-out) and only "popped" when the NEXT reaction re-ran the animation.
+ */
+function PopEmoji({ emoji, size }: { emoji: string; size: number }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 4, tension: 110 }).start();
+  }, [a]);
+  return (
+    <Animated.Text style={{ fontSize: size, opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
+      {emoji}
+    </Animated.Text>
+  );
+}
+
 /** pass 58 — a chat row that SPRINGS in. `animate` is false for rows that were
  *  already there when the thread opened, so history never replays the effect. */
 function SlideIn({ children, style, animate }: { children: React.ReactNode; style?: object; animate: boolean }) {
@@ -457,7 +477,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 }}>
                     <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{mine ? `you shared · ${it.ago}` : `shared with you · ${it.ago}`}</T>
                     {reaction ? (
-                      <Animated.Text style={{ fontSize: 15, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>{reaction}</Animated.Text>
+                      <PopEmoji emoji={reaction} size={15} />
                     ) : (
                       <Pressable onPress={() => { haptic.light(); setEmojiFor(it.id); }} hitSlop={8}>
                         <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>React</T>

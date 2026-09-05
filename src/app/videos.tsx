@@ -971,10 +971,10 @@ export default function VideosFeed() {
                 <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)' }}>
                   <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
                   <View style={{ flex: 1 }}>
-                    <T v="bodyS" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 12.5 }}>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 12.5 }}>
                       {a.full_name}
                     </T>
-                    <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5 }}>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5 }}>
                       @{a.username}
                     </T>
                   </View>
@@ -1074,7 +1074,7 @@ export default function VideosFeed() {
         <Pressable style={{ position: 'absolute', inset: 0, zIndex: 130, backgroundColor: 'rgba(4,8,6,0.95)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setAvatarPreview(null)}>
           <View style={{ alignItems: 'center' }}>
             <AvatarImage source={avatarPreview.img} name={avatarPreview.name} size={300} tint="rgba(46,204,113,0.2)" border="rgba(212,175,55,0.55)" />
-            <T v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 17, marginTop: 16 }}>
+            <T numberOfLines={1} ellipsizeMode="tail" v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 17, marginTop: 16 }}>
               {avatarPreview.name}
             </T>
             <View style={{ position: 'absolute', bottom: -44, right: -6, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(4,8,6,0.7)' }}>
@@ -1693,10 +1693,10 @@ function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (r
           </Pressable>
           <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(212,175,55,0.5)" />
           <View style={{ flex: 1 }}>
-            <T v="bodyS" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 13.5 }}>
+            <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 13.5 }}>
               {a.full_name}
             </T>
-            <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10, marginTop: 1 }}>
+            <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10, marginTop: 1 }}>
               @{a.username} · reels you share with each other
             </T>
           </View>

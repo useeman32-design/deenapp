@@ -447,7 +447,7 @@ export default function Home() {
                     NEXT PRAYER
                   </T>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
-                    <T v="display" style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '700' }}>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="display" style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '700' }}>
                       {np?.name ?? '—'}
                     </T>
                     <PulseDot color={isDark ? d.emerald : '#5BE59B'} />
@@ -467,7 +467,7 @@ export default function Home() {
                   }}
                 >
                   <FontAwesome5 name="map-marker-alt" size={10} color={isDark ? d.emerald : '#5BE59B'} />
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600' }}>
+                  <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600' }}>
                     {loc ? loc.name.split(',').slice(0, 2).join(',') : 'Locating…'}
                   </T>
                 </View>
@@ -633,7 +633,7 @@ export default function Home() {
                   style={{ position: 'absolute', inset: 0 }}
                 />
                 <View style={{ position: 'absolute', left: 15, right: 130, top: 0, bottom: 0, justifyContent: 'center' }}>
-                  <T v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
+                  <T numberOfLines={1} ellipsizeMode="tail" v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
                     {c.title}
                   </T>
                   <T v="caption" style={{ color: 'rgba(255,255,255,0.78)', fontSize: 10.5, marginTop: 4, lineHeight: 14 }}>
@@ -838,7 +838,7 @@ export default function Home() {
                     </View>
                   ) : null}
                 </View>
-                <T v="bodyS" style={{ color: d.text, fontSize: 11.5, fontWeight: '600', marginTop: 8, lineHeight: 14 }}>
+                <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ color: d.text, fontSize: 11.5, fontWeight: '600', marginTop: 8, lineHeight: 14 }}>
                   {v.title ?? 'Daily reminder'}
                 </T>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -1073,7 +1073,7 @@ export default function Home() {
                     <T v="bodyS" style={{ color: d.text, fontSize: 11, fontWeight: '600', textAlign: 'center', lineHeight: 13, width: 104 }}>
                       {name}
                     </T>
-                    <T v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 2, textAlign: 'center' }}>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 2, textAlign: 'center' }}>
                       {sc.institute || sc.title || 'Scholar'}
                     </T>
                   </View>
@@ -1271,7 +1271,7 @@ export default function Home() {
                                   <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: ds.dark ? '#D4AF37' : '#8C6D1F' }} />
                                 </View>
                               </View>
-                              <T v="caption" style={{ fontSize: 9, fontWeight: sel ? '700' : '500', color: sel ? d.gold : d.faint }}>
+                              <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ fontSize: 9, fontWeight: sel ? '700' : '500', color: sel ? d.gold : d.faint }}>
                                 {ds.name}
                               </T>
                             </Pressable>

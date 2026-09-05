@@ -762,9 +762,10 @@ export function CommentsModal({
                 <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: m.ai ? 'rgba(212,175,55,0.16)' : isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.1)', alignItems: 'center', justifyContent: 'center' }}>
                   <FontAwesome5 name={m.ai ? 'robot' : 'user'} size={11} color={m.ai ? '#D4AF37' : emerald} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: m.ai ? '#D4AF37' : txt }}>{m.name}</T>
-                  <T v="caption" style={{ fontSize: 9.5, color: faint }}>@{m.handle}{m.ai ? ' · answers from your library' : ''}</T>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {/* pass 61 — long names/handles truncate instead of widening the row */}
+                  <T v="bodyS" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 12, fontWeight: '800', color: m.ai ? '#D4AF37' : txt }}>{m.name}</T>
+                  <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 9.5, color: faint }}>@{m.handle}{m.ai ? ' · answers from your library' : ''}</T>
                 </View>
                 <FontAwesome5 name="plus" size={9} color={faint} />
               </Pressable>

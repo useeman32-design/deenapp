@@ -200,7 +200,7 @@ function CountryPicker({ value, onPick }: { value: string; onPick: (c: string) =
                 return (
                   <Pressable key={c.name} onPress={() => { haptic.selection(); onPick(c.name); setOpen(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 10, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}>
                     <T v="bodyS" style={{ fontSize: 17 }}>{c.flag}</T>
-                    <T v="bodyS" style={{ flex: 1, fontSize: 13.5, fontWeight: on ? '800' : '600', color: isDark ? '#F2F7F3' : '#14241C' }}>{c.name}</T>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ flex: 1, fontSize: 13.5, fontWeight: on ? '800' : '600', color: isDark ? '#F2F7F3' : '#14241C' }}>{c.name}</T>
                     {on ? <FontAwesome5 name="check" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
                   </Pressable>
                 );
@@ -457,7 +457,7 @@ export default function Register() {
             <FontAwesome5 name={o.icon} size={17} color={o.tint} />
           </View>
           <View style={{ flex: 1 }}>
-            <T v="h3" style={{ fontSize: 14.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{o.title}</T>
+            <T numberOfLines={1} ellipsizeMode="tail" v="h3" style={{ fontSize: 14.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{o.title}</T>
             <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)', marginTop: 2 }}>{o.sub}</T>
           </View>
           <FontAwesome5 name="chevron-right" size={13} color={isDark ? 'rgba(242,247,243,0.4)' : 'rgba(20,36,28,0.4)'} />
@@ -677,7 +677,7 @@ export default function Register() {
                 <Pressable key={m.id} accessibilityLabel={`verify by ${m.title}`} onPress={() => { haptic.selection(); setMethod(m.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.55)' : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: on ? 'rgba(212,175,55,0.09)' : isDark ? 'rgba(2,59,42,0.5)' : 'rgba(255,255,255,0.7)', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 8 }}>
                   <FontAwesome5 name={on ? 'check-circle' : 'circle'} size={15} color={on ? '#D4AF37' : isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} />
                   <View style={{ flex: 1 }}>
-                    <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{m.title}</T>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{m.title}</T>
                     <T v="caption" style={{ fontSize: 9.5, color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', marginTop: 1 }}>{m.sub}</T>
                   </View>
                 </Pressable>
