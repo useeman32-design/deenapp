@@ -1,3 +1,59 @@
+<!-- =====================================================================
+     LATEST HANDOFF — 2026-09-05 · PASS 52.  *** START HERE ***
+     Detailed state + pending work: CONTINUE.md (same folder)
+     ===================================================================== -->
+
+## Where everything lives
+- **RN app (PUBLIC):** `github.com/useeman32-design/deenapp` — branch `master`.
+  gh-pages serves the web build at https://useeman32-design.github.io/deenapp/
+- **Backend + admin (PRIVATE):** `github.com/useeman32-design/deenlink-api` — branch `main`.
+  `deenlink.org` / `app.deenlink.org` are **separate manual `git pull`** deployments. gh-pages has no PHP.
+- GitHub token: `deenapp/.token` (gitignored) · Expo token: `deenapp/.expo-token` (gitignored, chmod 600).
+  **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
+
+## Live right now
+gh-pages `34a785f` · deenlink-api main `f5b7fa5` · deenapp master `dc3ad21`
+Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
+
+## First commands in a new session
+```bash
+cd deenapp && npm ci && ./node_modules/.bin/tsc --noEmit     # expect TSC_EXIT 0
+# .git and .git/config DO NOT survive between turns — re-add the remote:
+git remote add origin "https://x-access-token:$(cat .token)@github.com/useeman32-design/deenapp.git"
+```
+
+## ⚠️ MANDATORY rollback check before EVERY commit
+The sandbox workspace is capped (~128 MB / 10 000 files). When it overflows, files **silently revert**
+and a later commit pushes the regression. This already happened once (pass 51 was reverted and re-committed).
+```bash
+grep -c bootOk src/app/_layout.tsx                 # must be > 0
+ls src/components/CrashBoundary.tsx                # must exist
+grep -c 'Font.loadAsync' src/lib/fonts.ts          # must be > 0
+grep -c groupThousands src/components/DeenPoints.tsx
+ls src/lib/useGoalFocus.ts
+```
+If any is missing: `git checkout <last-good-sha> -- <those paths>` then re-verify.
+
+## Deploy rules (do not skip)
+1. Every UI change ships to **BOTH** builds: gh-pages (`baseUrl "/deenapp"`) **and** deenlink-api web (`baseUrl "/"`).
+   Two separate `expo export` runs. Never let them drift.
+2. gh-pages wipe MUST exclude `.nojekyll`, or every JS chunk 404s → **blank site**:
+   `find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.nojekyll' -exec rm -rf {} +`
+3. After pushing, `curl` an `_expo/` asset and assert **HTTP 200**. `index.html` 200 is NOT sufficient proof.
+4. In deenlink-api, verify **434** `api/|admin/|vendor/` files before and after, and **0** backend files in the diff.
+5. **Delete throwaway clones** (`ghp/`, `dlapi/`) when done — they are what overflowed the workspace budget.
+6. `dist` builds are NOT shipping. Done = pushed AND verified live.
+
+## Pending work (batch 2) — see CONTINUE.md for full detail
+- **Zikr Challenge** `/tools/zikr-challenge` is the REAL "daily dhikr": move the adhkar challenge content into it,
+  centre the counter + circular beads, balance the text. `tools/athkar` is to be **removed**.
+- **Chat presence / last-seen / read receipts:** client already calls `/api/chat/presence.php` but
+  **`api/chat/` does not exist in the backend** — endpoints were never built. Backend work, not UI.
+- **Groq key from DB:** read the admin-stored key server-side so AI needs no manual key entry.
+- **99 Names translations (item 6):** blocked — needs an IslamicAPI key (ha/sw/bn/fr, no Yoruba) + a verified Yoruba source.
+  Do NOT generate religious text from memory; a previous attempt produced duplicated/wrong entries and was discarded.
+
+---
 # DeenLink — fresh-agent handoff prompt
 
 **Copy everything below the line into your new agent chat as the first message.**

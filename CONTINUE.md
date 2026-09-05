@@ -608,3 +608,60 @@ Five pass-51 files silently reverted in the working tree (boot watchdog, CrashBo
 - gh-pages wipe MUST exclude `.nojekyll` (`! -name '.nojekyll'`) or every JS chunk 404s → blank site.
 - Always finish a deploy by curling an `_expo/` asset and asserting **200**.
 - `.git` and `.git/config` do NOT survive between turns — re-clone or `git remote add origin` each time.
+
+---
+## WHY FILES SOMETIMES DON'T REFLECT — workspace snapshot budget (root cause)
+
+The sandbox persists the workspace only up to **~128 MB / 10 000 files**. This session created
+**553.6 MB across 2 766 files → 660 files were NOT saved.** Consequences, both observed:
+1. Files silently revert to an older state between turns. Five pass-51 files did exactly that
+   (`_layout.tsx` boot watchdog, `CrashBoundary.tsx`, `fonts.ts`, `push.ts`, `DeenPoints.tsx`) and one
+   commit pushed the regression before it was caught. Restored in `8327b53`.
+2. `.git` and `.git/config` are excluded from snapshots, so `origin` disappears — `git fetch` fails
+   and, if chained with `&&`, silently skips the rest of the command.
+
+**Note:** the *deployed* sites are never affected by this (they live on GitHub / the PHP server).
+The risk is only that the sandbox hands back stale source, which can then be committed.
+
+**What was eating the budget:** throwaway deploy clones `dlapi/` (35 MB) and `ghp/` (24 MB).
+**Both are now deleted.** Re-clone them on demand and delete them again at the end of the session.
+
+### Budget hygiene rules
+- Never leave `ghp/`, `dlapi/`, `dist-web/`, `dist-root/`, `apkx*/`, or `*.apk` in the workspace.
+- `deenapp/assets/content.zip` (17 MB) and `avatar.zip` (5.6 MB) must stay — EAS needs content.zip un-ignored.
+- After any cleanup, re-run the rollback check above before committing.
+
+---
+## BATCH 2 — execution notes (so the next session does not re-investigate)
+
+### 1. Zikr Challenge — the REAL daily dhikr
+- Screen: `src/app/tools/zikr-challenge.tsx` (13 KB) + `src/lib/zikrChallenge.ts` (2.5 KB).
+- The user's "daily dhikr" is HERE, **not** `src/app/tools/athkar.tsx` / `src/data/athkar.ts`.
+  `tools/athkar` is to be **removed** (the user has asked twice).
+- Work: move the adhkar *challenge* content into zikr-challenge; **centre** the counter and the
+  circular bead ring; **balance** the surrounding text (it currently reads lopsided).
+- Before deleting `tools/athkar`, grep for inbound links and re-point them:
+  `grep -rn "tools/athkar" src/` — note `GOAL_META.athkar` / `GOAL_ROUTES.athkar` in `src/lib/routine.ts`
+  and any Learning Hub entry.
+
+### 2. Chat presence / last seen / read receipts
+- Client side already exists: `src/api/client.ts:584`
+  `chatPresence()` → `POST /api/chat/presence.php`; also `chatConversations`, `chatMessages`, `chatSend`, `chatRead`.
+- **Backend gap (verified):** `deenlink-api` has **no `api/chat/` directory at all**. Every one of those
+  calls 404s, which is exactly why nothing ever reflected in the UI.
+- Build in `deenlink-api/api/chat/`: `conversations.php`, `messages.php`, `send.php`, `read.php`, `presence.php`.
+  Follow the existing conventions: `api/lib/` helpers, and remember admin `json_out` is
+  **`(int $code, array $payload)`** — two args, code first.
+- No chat/conversation tables exist yet in the DB — they must be created (see the table list in BRIEFING.md).
+- UI files: `src/app/tools/chat.tsx`, `src/components/CommunityInbox.tsx`.
+
+### 3. Groq key from DB
+- The key was saved once in the admin panel and lives in the database. Wire the AI to read it
+  **server-side** so the user never types a key.
+- Client: `src/app/tools/ai.tsx` (~54 KB), `src/lib/ai.ts`. Backend: `api/ai/*`, `ai_provider_keys` table exists.
+- Related: `EXPO_PUBLIC_ISLAMIC_API_KEY` is exported by the build env (seen in the EAS log).
+
+### 4. Also already done this pass, do not redo
+Stable daily goals (`dl.goal.set.<date>`) · hub deep-link highlight (`src/lib/useGoalFocus.ts`,
+`?focus=<key>` on Learning Hub + Worship Tools) · profile uses shared `formatDP` ·
+AI lightbulb + ANSWER MODE menu · AI typing indicator at top of comments · no `@handle` injection.
