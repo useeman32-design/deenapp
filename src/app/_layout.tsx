@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
 import { SplashGate } from '@/components/SplashGate';
+import { CrashBoundary } from '@/components/CrashBoundary';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 
@@ -99,6 +100,7 @@ function Root() {
 
 export default function RootLayout() {
   return (
+    <CrashBoundary>
     <SafeAreaProvider>
       <ThemeProvider>
         <UIScaleProvider>
@@ -108,5 +110,6 @@ export default function RootLayout() {
         </UIScaleProvider>
       </ThemeProvider>
     </SafeAreaProvider>
+    </CrashBoundary>
   );
 }
