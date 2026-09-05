@@ -365,7 +365,7 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
-                placeholder={`Message @${thread.friend}…`}
+                placeholder="Type something…"
                 placeholderTextColor={d.faint}
                 returnKeyType="send"
                 onSubmitEditing={sendChat}
