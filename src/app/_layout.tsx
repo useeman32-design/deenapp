@@ -75,9 +75,6 @@ function Root() {
       ['Amiri-Bold', 'Amiri-Bold'],
       ['ArefRuqaa', 'ArefRuqaa-Regular'],
       ['ArefRuqaa-Bold', 'ArefRuqaa-Bold'],
-      /* pass 64 — the typing field gets its own, friendlier face */
-      ['Manrope', 'Manrope'],
-      ['Sora', 'Sora'],
     ]
       .map(([fam, file]) => `@font-face{font-family:'${fam}';src:url('${base}/fonts/${file}.ttf') format('truetype');font-display:swap;}`)
       .join('');
@@ -90,17 +87,7 @@ function Root() {
         #root { max-width: 480px; margin: 0 auto; height: 100%; min-height: 100vh; position: relative;
                 box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 18px 60px rgba(0,0,0,0.5); overflow: hidden; }
       }`;
-    /* pass 64: nothing on the page may be highlighted. The user does not want any
-     * text selectable anywhere — copy happens through the chat sheet's Copy, not
-     * drag-selection. Inputs keep caret selection for editing while typing. */
-    const noSelect = `
-      html, body, #root { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-      input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }`;
-    /* pass 64: the body background must never be white — when the mobile keyboard
-     * opens the visual viewport can reveal the area under the app, which used to
-     * flash white under the text field. Paint it the app's base instead. */
-    const bodyBg = ` html, body { background: #0B0F0E; }`;
-    el.textContent = `${faces} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; }${noSelect}${bodyBg} ${responsive}`;
+    el.textContent = `${faces} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; } ${responsive}`;
     document.head.appendChild(el);
     return () => {
       el.remove();

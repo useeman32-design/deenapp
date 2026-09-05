@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
+import { Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -178,27 +178,62 @@ function SwipeReply({ onReply, children, tint, style }: { onReply: () => void; c
   const x = useRef(new Animated.Value(0)).current;
   const cb = useRef(onReply);
   cb.current = onReply;
-  /* clamped in the interpolation so the gesture itself can stay on the native driver */
   const tx = x.interpolate({ inputRange: [0, 60, 84, 200], outputRange: [0, 60, 72, 84], extrapolate: 'clamp' });
   const fade = x.interpolate({ inputRange: [0, 34], outputRange: [0, 1], extrapolate: 'clamp' });
-  const onMove = useRef(Animated.event([null, { dx: x }], { useNativeDriver: true })).current;
-  const pan = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_e, g) =>
-      /* pass 64: with selection globally disabled there is no drag-to-highlight to
-       * protect, so both touch and mouse can swipe a bubble to reply. */
-      g.dx > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
-    onPanResponderMove: onMove,
-    onPanResponderRelease: (_e, g) => {
-      Animated.spring(x, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
-      if (g.dx > 58) { cb.current(); }
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(x, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
-    },
-  })).current;
+
+  /* pass 65 — raw touch + mouse handlers instead of PanResponder.
+   * The bubble is a Pressable, and on native a Pressable claims the responder on
+   * touch-start, so a wrapper PanResponder never saw the gesture (swipe "did
+   * nothing"). Touch and mouse events fire no matter who wins the responder, so
+   * they are the reliable path on both native and web. */
+  const startX = useRef<number | null>(null);
+  const lastDx = useRef(0);
+  const nodeRef = useRef<{ addEventListener?: (t: string, f: (e: { clientX: number }) => void) => void; removeEventListener?: (t: string, f: (e: { clientX: number }) => void) => void } | null>(null);
+
+  const begin = (px: number) => { startX.current = px; lastDx.current = 0; };
+  const move = (px: number) => {
+    if (startX.current == null) { return; }
+    const dx = px - startX.current;
+    lastDx.current = dx;
+    if (dx > 0) { x.setValue(Math.min(dx, 200)); }
+  };
+  const end = () => {
+    if (startX.current == null) { return; }
+    const go = lastDx.current > 58;
+    startX.current = null;
+    lastDx.current = 0;
+    Animated.spring(x, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
+    if (go) { cb.current(); }
+  };
+
+  /* web mouse: a click-drag on a bubble swipes it on desktop */
+  useEffect(() => {
+    if (Platform.OS !== 'web') { return; }
+    const el = nodeRef.current;
+    if (!el?.addEventListener) { return; }
+    const md = (e: { clientX: number }) => begin(e.clientX);
+    const mm = (e: { clientX: number }) => { if (startX.current != null) { move(e.clientX); } };
+    const mu = () => end();
+    el.addEventListener('mousedown', md);
+    window.addEventListener('mousemove', mm);
+    window.addEventListener('mouseup', mu);
+    return () => {
+      el.removeEventListener?.('mousedown', md);
+      window.removeEventListener('mousemove', mm);
+      window.removeEventListener('mouseup', mu);
+    };
+  }, []);
+
   return (
     <View style={style}>
-      <Animated.View {...pan.panHandlers} style={{ transform: [{ translateX: tx }] }}>
+      <Animated.View
+        ref={nodeRef as never}
+        style={{ transform: [{ translateX: tx }] }}
+        onTouchStart={(e) => begin(e.nativeEvent.touches[0]?.pageX ?? 0)}
+        onTouchMove={(e) => move(e.nativeEvent.touches[0]?.pageX ?? 0)}
+        onTouchEnd={end}
+        onTouchCancel={end}
+      >
         {/* rides WITH the bubble so it is visible on either alignment; it only
             fades in after ~34px of drag, by which point there is room for it */}
         <Animated.View pointerEvents="none" style={{ position: 'absolute', left: -24, top: 0, bottom: 0, width: 20, alignItems: 'center', justifyContent: 'center', opacity: fade }}>
