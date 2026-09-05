@@ -22,9 +22,12 @@ type Measurable = {
 type Scrollable = { scrollTo: (o: { y: number; animated: boolean }) => void };
 
 export function useGoalFocus<S = ScrollView>() {
-  const params = useLocalSearchParams<{ focus?: string }>();
+  const params = useLocalSearchParams<{ focus?: string; t?: string }>();
   const raw = params.focus;
   const focus = typeof raw === 'string' && raw ? raw : undefined;
+  /* pass 54 — a nonce so tapping the SAME goal twice re-runs the scroll+highlight.
+   * Without it the param is unchanged on the second tap and the effect never fires. */
+  const nonce = typeof params.t === 'string' ? params.t : '';
 
   const scrollRef = useRef<S | null>(null);
   const nodes = useRef<Record<string, Measurable>>({});
@@ -63,7 +66,7 @@ export function useGoalFocus<S = ScrollView>() {
       clearTimeout(t);
       if (clearTimer) clearTimeout(clearTimer);
     };
-  }, [focus]);
+  }, [focus, nonce]);
 
   return { focus, highlight, register, scrollRef };
 }

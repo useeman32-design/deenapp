@@ -1425,7 +1425,10 @@ export default function Home() {
                   /* pass 46 — tap an unfinished goal to open its activity screen. */
                   <Pressable
                     key={it.key}
-                    onPress={() => { if (!on && it.route) { haptic.selection(); setGoalOpen(false); router.push(it.route as never); } }}
+                    onPress={() => { if (!on && it.route) { haptic.selection(); setGoalOpen(false);
+                      /* pass 54 — append a nonce: pushing the identical route twice was a
+                       * no-op, so the second tap on the same goal did nothing. */
+                      const r = it.route; router.push((r + (r.includes('?') ? '&' : '?') + 't=' + Date.now()) as never); } }}
                     style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.45)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.08)' : d.bg, padding: 13, opacity: pressed ? 0.85 : 1 })}
                   >
                     <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.7)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.18)' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>

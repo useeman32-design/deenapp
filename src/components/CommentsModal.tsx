@@ -303,15 +303,20 @@ export function CommentsModal({
       .map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
     return [{ handle: 'deenlinkai', name: 'DeenLink AI', ai: true }, ...people];
   }, [mentionQuery]);
-  const pickMention = (_handle: string) => {
-    /* pass 52 — tapping a suggested person no longer types "@user " into the
-     * comment box; users found the injected text confusing. Just drop the
-     * in-progress "@query" so the suggestion list closes. */
+  const pickMention = (handle: string) => {
+    /* pass 54 — tapping a suggestion never types "@user " into the comment box
+     * (that was the confusing part). Picking DeenLink AI instead sets an explicit
+     * tag chip, which is what actually triggers its answer — the old behaviour
+     * relied on the literal text "@deenlinkai" being present, so removing the
+     * injection had silently broken AI tagging altogether. */
     setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, ''));
+    if (handle === 'deenlinkai') setAiTagged(true);
     haptic.light();
   };
   const inputRef = useRef<TextInput>(null);
   const [gifOpen, setGifOpen] = useState(false);
+  /* pass 54 — tagging DeenLink AI is now an explicit chip, NOT injected text. */
+  const [aiTagged, setAiTagged] = useState(false);
   /* pass 28: LIVE drag-to-resize via pointer events (PanResponder was dead on
    * iOS Safari web). The sheet follows the finger; release snaps. */
   const vh = Dimensions.get('window').height;
@@ -482,7 +487,8 @@ export function CommentsModal({
     /* pass 40 — mention @DeenLink (or @deenlink ai / @ai) → the AI answers
      * in-thread: it VERIFIES the post's claims against our library and
      * answers the question, grounded in what it can actually retrieve. */
-    if (/@deenlink(ai)?\b/i.test(t) || /^@ai\b/i.test(t)) void answerAsDeenLinkAI(t, post);
+    if (aiTagged || /@deenlink(ai)?\b/i.test(t) || /^@ai\b/i.test(t)) void answerAsDeenLinkAI(t, post);
+    setAiTagged(false);
   };
 
   const answerAsDeenLinkAI = async (question: string, forPost: Post | null) => {
@@ -672,6 +678,21 @@ export function CommentsModal({
           </>
         )}
       </ScrollView>
+
+      {/* pass 54 — DeenLink AI tag chip (replaces typing "@deenlinkai") */}
+      {aiTagged ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(74,227,143,0.12)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }}>
+            <FontAwesome5 name="robot" size={10} color="#4AE38F" />
+            <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, fontSize: 10.5, fontWeight: '700', color: '#4AE38F' }}>
+              DeenLink AI will answer this comment
+            </T>
+          </View>
+          <Pressable onPress={() => setAiTagged(false)} hitSlop={10} style={{ padding: 5 }}>
+            <FontAwesome5 name="times-circle" size={14} color={faint} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Reply indicator */}
       {replyingTo ? (
