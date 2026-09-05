@@ -684,3 +684,17 @@ Download it and run `node scripts/unpack-content.mjs` before any build. See the 
 `HANDOFF-PROMPT.md`.
 
 Also gitignored and therefore absent from a clone: `.token`, `.expo-token` (both 40-byte files, user-supplied).
+
+---
+## SHALLOW CLONE — intentional, with one correction
+
+`git clone --depth 1 --single-branch` is **deliberate**, not an accident: `.git` counts toward the 128 MB
+workspace snapshot cap, and a full clone's history pushed it over (that overflow is what silently dropped
+660 files). A depth-1 clone keeps `.git` at ~33 MB.
+
+**Correction (verified 2026-09-05):** because only 1 commit is present, the previously documented rollback
+command `git checkout <old-sha> -- <paths>` fails with `fatal: invalid reference: <sha>`.
+- `git fetch --depth 1 origin <sha>` → **fails** (`couldn't find remote ref`) — do not use.
+- `git fetch --deepen 40 origin master` → **works**: 1 → 41 commits, `e47a726` reachable, `.git` 33 MB → 35 MB.
+
+So: stay shallow for normal work, and `--deepen` only when you need to recover an older revision.

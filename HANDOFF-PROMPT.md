@@ -44,7 +44,15 @@ grep -c 'Font.loadAsync' src/lib/fonts.ts          # must be > 0
 grep -c groupThousands src/components/DeenPoints.tsx
 ls src/lib/useGoalFocus.ts
 ```
-If any is missing: `git checkout <last-good-sha> -- <those paths>` then re-verify.
+If any is missing, restore from history — but note **this repo is a depth-1 shallow clone**, so old
+commits are NOT present and a bare `git checkout <sha> -- <path>` fails with `invalid reference`.
+Verified recovery recipe (tested 2026-09-05):
+```bash
+git fetch --deepen 40 origin master        # 1 -> 41 commits, .git only 33M -> 35M
+git checkout <last-good-sha> -- <those paths>
+```
+`git fetch --depth 1 origin <sha>` does **NOT** work — GitHub answers `couldn't find remote ref <sha>`.
+Use `--deepen N` (or `--unshallow` if you need everything).
 
 ## Deploy rules (do not skip)
 1. Every UI change ships to **BOTH** builds: gh-pages (`baseUrl "/deenapp"`) **and** deenlink-api web (`baseUrl "/"`).
