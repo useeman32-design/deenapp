@@ -12,8 +12,8 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `60c8a6d` (bundle `entry-388ecc1f32a99d3c9d50057c91874320.js`, verified 200) ·
-deenlink-api main `32e2f47` (web build) + `3b10242` (chat backend) · deenapp master `e77f0f4` (+ this doc commit)
+gh-pages `85940aa` (bundle `entry-26c17187373e27c447602b66db23ad82.js`, verified 200) ·
+deenlink-api main `3e5bd3a` (web build; backend `3b10242`) · deenapp master `79acaf1` (+ this doc commit)
 ⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 

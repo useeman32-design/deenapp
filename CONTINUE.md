@@ -852,3 +852,30 @@ Browser verification (headless Chromium via `scripts/probe63.mjs`, demo mode): t
 `user-select: text` on the message text; hold dims the list + shows Reply/Forward/Copy (no Delete on their
 row); touch swipe opens the reply bar; double-tap + mouse-drag verified. Reaction-strip glyphs showed as
 boxes only because headless Chrome has no color-emoji font.
+
+---
+## ── pass 64 (2026-09-05) — chat corrections; several REVERSALS of pass 63 ──
+Shipped: gh-pages `85940aa` · deenlink-api main `3e5bd3a` (web only, no backend) · deenapp master (this commit).
+⚠️ `app.deenlink.org` still needs the cPanel `git pull`.
+
+What the user asked and what shipped (verified in headless Chromium, `scripts/probe64.mjs`):
+- **"smooth scroll on send so I see the animation"** → `smoothScrollBottom()`: a cascade of animated
+  `scrollToEnd` at 0/60/160/300ms follows the new bubble (replaces the single 80ms jump).
+- **"nothing in the page should be highlighted"** → REVERSED pass-63 `selectable`. Global
+  `user-select:none` injected in `_layout.tsx` (inputs/textarea excepted for typing); body background painted
+  `#0B0F0E` so no white flash. `SwipeReply` now accepts mouse drags too (nothing to protect).
+- **"menu at the message, not from the bottom; glassy; held chat more visible"** → `openFocus()` measures the
+  bubble with `measureInWindow` and floats a frosted-glass card (`backdropFilter: blur`) hugging it (flips above
+  when it would clip). Unfocused rows dim via the shared `dim` value; the held bubble gets a green ring + glow.
+  No coloured backdrop, so the held bubble is never covered.
+- **"Info for delivered/viewed on my messages"** → menu gains `Info` (own messages only) → a glass card with
+  `Delivered <time>` and `Seen <time>` / `Not seen yet`, from `created_at` / `read_at`.
+- **"forward = a screen, pick many"** and **"share to many people"** → forward is now a full screen with
+  checkboxes + `Forward to N`. (`ShareWithFriends`, used by posts/quiz/names/etc., was already multi-select.)
+- **"change the typing font"** → composer input `Manrope` (added to the web @font-face list; already on native).
+- **keyboard white gap** → composer drops its safe-area padding while the keyboard is up (`kbOpen`), plus the
+  body-background paint.
+
+Browser verification: message `user-select:none`; input `Manrope`; own bubble scrolled into view after send;
+own-menu shows Reply/Forward/Copy/Info/Delete; Info shows Delivered+Seen; their-message menu hides Info/Delete;
+forward screen multi-selects with "Forward to N". Emoji strip glyphs box-only in headless (no emoji font).

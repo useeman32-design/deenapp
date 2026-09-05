@@ -563,7 +563,7 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 
 /* Slice 9 — live chat (DM + group). */
 export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string };
-export type ChatMessage = { id: number; sender_id: number; body: string; media_url: string | null; created_at: string; username?: string; read_at?: string | null; deleted?: boolean; reply_to?: { id: number; kind: 'msg' | 'share'; body: string; username: string | null } | null };
+export type ChatMessage = { id: number; sender_id: number; body: string; media_url: string | null; created_at: string; username?: string; read_at?: string | null };
 export async function chatConversations(): Promise<ChatConversation[] | null> {
   const r = await request<{ status?: string; conversations?: ChatConversation[] }>('/api/chat/conversations.php', { auth: true });
   return r.ok && Array.isArray(r.data.conversations) ? r.data.conversations : null;
@@ -582,19 +582,13 @@ export async function chatStartDMByUsername(username: string): Promise<number | 
   const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
   return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
 }
-export async function chatSend(conversationId: number, body: string, replyTo?: { id: number; kind: 'msg' | 'share' }): Promise<{ id: number; created_at?: string } | null> {
-  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body, reply_to_id: replyTo?.id, reply_to_kind: replyTo?.kind }, auth: true });
+export async function chatSend(conversationId: number, body: string): Promise<{ id: number; created_at?: string } | null> {
+  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
   return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
-}
-/** pass 63 — delete YOUR OWN message or share. Soft delete: the slot stays and
- *  the thread shows "Message deleted", the text is withheld server-side. */
-export async function chatDelete(conversationId: number, targetKind: 'msg' | 'share', targetId: number): Promise<boolean> {
-  const r = await request<{ status?: string }>('/api/chat/delete.php', { method: 'POST', body: { conversation_id: conversationId, target_kind: targetKind, target_id: targetId }, auth: true });
-  return r.ok;
 }
 /* pass 62 — in-app shares and emoji reactions, server-backed so BOTH sides of a
  * conversation see the same thread instead of two local-only copies. */
-export type ChatShare = { id: number; sender_id: number; kind: string; title: string; payload: Record<string, string> | null; created_at: string; username?: string; deleted?: boolean };
+export type ChatShare = { id: number; sender_id: number; kind: string; title: string; payload: Record<string, string> | null; created_at: string; username?: string };
 export type ChatReaction = { target_kind: 'msg' | 'share'; target_id: number; user_id: number; emoji: string; username?: string | null };
 export type ChatThreadData = { messages: ChatMessage[]; shares: ChatShare[]; reactions: ChatReaction[] };
 /** One round trip for a whole thread: messages + shares + every reaction on them. */

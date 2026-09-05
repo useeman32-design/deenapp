@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, ImageBackground, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
+import { Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,7 +40,7 @@ type ShareItem = {
 };
 /* pass 63 — the quoted row when you reply to something */
 type Quote = { who: string; text: string };
-type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null };
+type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null; createdAt?: string; readAt?: string | null };
 /* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
  * somebody else left, so I can see their reaction and still add my own. */
 type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string> };
@@ -183,10 +183,10 @@ function SwipeReply({ onReply, children, tint, style }: { onReply: () => void; c
   const fade = x.interpolate({ inputRange: [0, 34], outputRange: [0, 1], extrapolate: 'clamp' });
   const onMove = useRef(Animated.event([null, { dx: x }], { useNativeDriver: true })).current;
   const pan = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (e, g) => {
-      if ((e.nativeEvent as { pointerType?: string }).pointerType === 'mouse') { return false; }
-      return g.dx > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6;
-    },
+    onMoveShouldSetPanResponder: (_e, g) =>
+      /* pass 64: with selection globally disabled there is no drag-to-highlight to
+       * protect, so both touch and mouse can swipe a bubble to reply. */
+      g.dx > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
     onPanResponderMove: onMove,
     onPanResponderRelease: (_e, g) => {
       Animated.spring(x, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
@@ -245,6 +245,19 @@ function SheetIn({ children, style }: { children: React.ReactNode; style?: objec
   );
 }
 
+/** pass 64 — one row of the floating frosted-glass action menu. */
+function MenuRow({ first, icon, label, color, line, onPress }: { first?: boolean; icon: string; label: string; color: string; line: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderTopColor: line, opacity: pressed ? 0.55 : 1, backgroundColor: pressed ? 'rgba(255,255,255,0.05)' : 'transparent' })}
+    >
+      <FontAwesome5 name={icon as never} size={12} color={color} />
+      <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '600', color }}>{label}</T>
+    </Pressable>
+  );
+}
+
 /** pass 63 — the dimming backdrop behind a focused message. */
 function FadeIn({ children, style, duration = 170 }: { children: React.ReactNode; style?: object; duration?: number }) {
   const a = useRef(new Animated.Value(0)).current;
@@ -279,9 +292,19 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   /* pass 63 — press-and-hold focus (WhatsApp-style sheet), reply quoting,
    * forwarding, and the "copied" confirmation. */
   const [focus, setFocus] = useState<{ id: string; kind: 'msg' | 'share' } | null>(null);
+  /* pass 64 — the action menu is anchored to the pressed bubble (not a bottom
+   * sheet), so we record where that bubble is on screen when it is held. */
+  const [focusPos, setFocusPos] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [focusMode, setFocusMode] = useState<'menu' | 'info'>('menu');
+  const rowRefs = useRef<Record<string, { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>>({});
   const [replyTo, setReplyTo] = useState<{ id: string; kind: 'msg' | 'share'; who: string; text: string } | null>(null);
+  /* pass 64 — forward is a full screen with multi-select, not a one-tap list. */
   const [forward, setForward] = useState<{ kind: 'msg' | 'share'; text: string; kindOf?: Kind } | null>(null);
+  const [forwardPicked, setForwardPicked] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  /* pass 64 — track the keyboard so the composer can drop its safe-area padding
+   * while it is up (that leftover padding was the white bar under the field). */
+  const [kbOpen, setKbOpen] = useState(false);
   /* one shared value is RIGHT here: every unfocused row dims together. (The
    * reaction bug was the opposite case — one value shared by independent rows.) */
   const dim = useRef(new Animated.Value(1)).current;
@@ -315,15 +338,32 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     storage.setItem(STORE, JSON.stringify(next)).catch(() => {});
   };
 
+  /* pass 64 — native keyboard show/hide (web is handled by the body background). */
+  useEffect(() => {
+    const on = () => setKbOpen(true);
+    const off = () => setKbOpen(false);
+    const subs = [Keyboard.addListener('keyboardDidShow', on), Keyboard.addListener('keyboardDidHide', off)];
+    return () => subs.forEach((s) => s.remove());
+  }, []);
+
   /* pass 63 — press and hold: dim every other row, focus this one, and offer
    * Reply / Forward / Copy / Delete exactly like WhatsApp. */
   const openFocus = (id: string, kind: 'msg' | 'share') => {
     haptic.medium();
+    setFocusMode('menu');
+    /* pass 64 — anchor the menu to the bubble's real on-screen position. */
+    const node = rowRefs.current[id];
+    if (node?.measureInWindow) {
+      node.measureInWindow((x, y, w, h) => setFocusPos({ x, y, w, h }));
+    } else {
+      setFocusPos(null);
+    }
     setFocus({ id, kind });
-    Animated.timing(dim, { toValue: 0.2, duration: 180, useNativeDriver: true }).start();
+    Animated.timing(dim, { toValue: 0.15, duration: 180, useNativeDriver: true }).start();
   };
   const closeFocus = () => {
     setFocus(null);
+    setFocusMode('menu');
     Animated.timing(dim, { toValue: 1, duration: 160, useNativeDriver: true }).start();
   };
 
@@ -461,15 +501,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const s = !m ? thread.items.find((x) => x.id === id) : null;
     if (!m && !s) { return; }
     closeFocus();
+    setForwardPicked(new Set());
     setForward(kind === 'msg'
       ? { kind: 'msg', text: m!.text }
       : { kind: 'share', text: s!.title, kindOf: s!.kind });
   };
 
-  const doForward = (to: string) => {
-    if (!forward) { return; }
-    const payload = forward;
-    setForward(null);
+  /** pass 64 — send the same payload into one conversation (optimistic then real). */
+  const forwardTo = (to: string, payload: { kind: 'msg' | 'share'; text: string; kindOf?: Kind }) => {
     haptic.success();
     const tmp = uid();
     setThreads((prev) => prev.map((t) => (t.friend === to
@@ -492,6 +531,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           : { ...t, items: t.items.map((x) => (x.id === tmp ? { ...x, id: nid, at: made.created_at || x.at } : x)) }
         : t)));
     })();
+  };
+
+  /** pass 64 — forward the held payload to every picked conversation at once. */
+  const doForwardMany = (friends: string[]) => {
+    if (!forward || !friends.length) { return; }
+    const payload = forward;
+    setForward(null);
+    setForwardPicked(new Set());
+    friends.forEach((to) => forwardTo(to, payload));
   };
 
   /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username */
@@ -537,6 +585,8 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         at: m.created_at || '',
         deleted: !!m.deleted,
         reply: m.reply_to ? { who: m.reply_to.username ?? '', text: m.reply_to.body } : null,
+        createdAt: m.created_at || '',
+        readAt: m.read_at ?? null,
       }));
       /* server shares replace the bundled demo cards for this person */
       const items: ShareItem[] = data.shares.map((s) => ({
@@ -572,6 +622,12 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     return !!t && (Date.now() - new Date(t.replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
   }, [seenMap]);
 
+  /* pass 64 — follow the new bubble with a smooth cascade so the send animation
+   * is on screen while it plays. The old single 80ms scroll jumped past it. */
+  const smoothScrollBottom = () => {
+    [0, 60, 160, 300].forEach((t) => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), t));
+  };
+
   const sendChat = () => {
     const text = draft.trim();
     if (!text || !thread) return;
@@ -588,7 +644,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDrafts((m) => ({ ...m, [thread.friend]: '' }));
     setReplyTo(null);
-    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+    smoothScrollBottom();
 
     /* pass 60 — the bubble is already on screen; now make it real. If there is no
      * conversation with this person yet (e.g. you tapped Message on their
@@ -627,7 +683,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     freshIds.current.add(id);
     const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '' }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, items } : t)));
-    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+    smoothScrollBottom();
 
     /* pass 62 — shares are server-backed too, so the other person receives the
      * card (and can react to it) instead of it living only on my device. */
@@ -667,18 +723,19 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               <SlideIn animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 {!mine ? <AvatarImage source={acc(th.friend).photo ?? null} name={acc(th.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
                 <Pressable
+                  ref={(r) => { rowRefs.current[it.id] = r as never; }}
                   onPress={() => onTapItem(it.id)}
                   onLongPress={() => openFocus(it.id, 'share')}
                   delayLongPress={260}
                   style={({ pressed }) => ({
                     maxWidth: '76%',
                     borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: mine ? 'rgba(74,227,143,0.45)' : d.cardBorder,
+                    borderWidth: isFocus ? 1.5 : 1,
+                    borderColor: isFocus ? '#4AE38F' : mine ? 'rgba(74,227,143,0.45)' : d.cardBorder,
                     backgroundColor: mine ? 'rgba(31,143,92,0.12)' : d.card,
                     padding: 11,
                     opacity: pressed ? 0.85 : 1,
-                    ...(isFocus ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12, transform: [{ scale: 1.02 }] } : null),
+                    ...(isFocus ? { shadowColor: 'rgba(74,227,143,0.5)', shadowOpacity: 0.9, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 16, transform: [{ scale: 1.03 }] } : null),
                   })}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -777,6 +834,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           <View style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
             <SwipeReply onReply={() => openReply(m.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
               <Pressable
+                ref={(r) => { rowRefs.current[m.id] = r as never; }}
                 onLongPress={() => openFocus(m.id, 'msg')}
                 delayLongPress={260}
                 onPress={() => onTapItem(m.id)}
@@ -785,11 +843,12 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                   borderBottomRightRadius: mine ? 5 : 16,
                   borderBottomLeftRadius: mine ? 16 : 5,
                   backgroundColor: mine ? '#1F8F5C' : d.card,
-                  borderWidth: 1,
-                  borderColor: mine ? 'transparent' : d.cardBorder,
+                  borderWidth: isFocus ? 1.5 : 1,
+                  borderColor: isFocus ? '#4AE38F' : mine ? 'transparent' : d.cardBorder,
                   paddingHorizontal: 13,
                   paddingVertical: 9,
-                  ...(isFocus ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12, transform: [{ scale: 1.03 }] } : null),
+                  /* pass 64 — the held bubble pops: bigger, glowing, green ring */
+                  ...(isFocus ? { shadowColor: 'rgba(74,227,143,0.5)', shadowOpacity: 0.9, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 16, transform: [{ scale: 1.05 }] } : null),
                 }}
               >
                 {/* pass 63 — the quoted row when this message is a reply */}
@@ -802,8 +861,9 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 {m.deleted ? (
                   <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, fontStyle: 'italic', color: mine ? 'rgba(255,255,255,0.8)' : d.faint }}>Message deleted</T>
                 ) : (
-                  /* pass 63 — selectable: drag to highlight and copy the text */
-                  <T v="bodyS" selectable style={{ fontSize: 12.5, lineHeight: 18, color: mine ? '#FFFFFF' : d.text }}>{m.text}</T>
+                  /* pass 64 — NOT selectable: nothing on the page highlights (the
+                   * global user-select:none does the rest). Copy lives in the sheet. */
+                  <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: mine ? '#FFFFFF' : d.text }}>{m.text}</T>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                   <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
@@ -837,6 +897,39 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       : thread.items.find((x) => x.id === focus.id) ?? null;
   const focusMine = focusRow?.dir === 'me';
   const deletedRow = !!focusRow?.deleted;
+  const focusMsg = focus?.kind === 'msg' ? (focusRow as ChatMsg | null) : null;
+
+  /* pass 64 — where to float the frosted-glass menu so it hugs the held bubble
+   * instead of rising from the bottom. Prefer just under it; flip above when it
+   * would clip the screen edge. */
+  const MENU_W = 250;
+  const SCREEN_W = Dimensions.get('window').width;
+  const SCREEN_H = Dimensions.get('window').height;
+  const glassLine = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(20,36,28,0.08)';
+  const menuGlass = {
+    overflow: 'hidden',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)',
+    backgroundColor: isDark ? 'rgba(13,22,18,0.66)' : 'rgba(255,255,255,0.66)',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 20,
+    backdropFilter: 'blur(18px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+  };
+  const menuGeom = focusPos
+    ? (() => {
+        const rows = 3 + (focusMine && !deletedRow && focus?.kind === 'msg' ? 1 : 0) + (focusMine && !deletedRow ? 1 : 0);
+        const estH = focusMode === 'info' ? 130 : 58 + rows * 45;
+        const left = Math.max(10, Math.min(focusPos.x, SCREEN_W - MENU_W - 10));
+        let top = focusPos.y + focusPos.h + 10;
+        if (top + estH > SCREEN_H - 10) { top = Math.max(10, focusPos.y - estH - 10); }
+        return { left, top };
+      })()
+    : null;
 
   const body = (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7' }}>
@@ -920,7 +1013,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
 
       {/* composer — chat back + quick in-app shares */}
       {thread ? (
-        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}>
+        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: kbOpen ? 8 : Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {([
               ['ayah', 'book-open', 'Share ayah'],
@@ -963,7 +1056,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 placeholderTextColor={d.faint}
                 returnKeyType="send"
                 onSubmitEditing={sendChat}
-                style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Poppins-Regular' }}
+                style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Manrope' }}
               />
             </View>
             <Pressable onPress={sendChat} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
@@ -1043,62 +1136,101 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           the server refuses to delete anyone else's.) */}
       {focus ? (
         <>
-          <FadeIn style={{ position: 'absolute', inset: 0, zIndex: 60, backgroundColor: 'rgba(4,8,6,0.42)' }}>
-            <Pressable style={{ flex: 1 }} onPress={closeFocus} />
-          </FadeIn>
-          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 70, paddingHorizontal: 12, paddingBottom: 14 + insets.bottom }}>
-            <SheetIn>
-              {/* reaction strip — each emoji springs in on its own stagger */}
-              <View style={{ borderRadius: 22, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? '#0C1712' : '#FFFFFF', paddingVertical: 10, paddingHorizontal: 8, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 14 }}>
-                {EMOJIS.map((e, i) => (
-                  <PickerEmoji key={e} emoji={e} delay={i * 45} onPress={() => react(focus.id, e)} />
-                ))}
-              </View>
-              {/* options */}
-              <View style={{ marginTop: 10, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? '#0C1712' : '#FFFFFF', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 }}>
-                {([
-                  { k: 'reply', label: 'Reply', icon: 'reply' },
-                  { k: 'forward', label: 'Forward', icon: 'share' },
-                  { k: 'copy', label: copied ? 'Copied ✓' : 'Copy', icon: copied ? 'check' : 'copy' },
-                ] as const).map((o, idx) => (
-                  <Pressable
-                    key={o.k}
-                    onPress={() => { if (o.k === 'reply') { openReply(focus.id); } else if (o.k === 'forward') { startForward(focus.id, focus.kind); } else { copyRow(focus.id); } }}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: d.cardBorder, opacity: pressed ? 0.6 : 1 })}
-                  >
-                    <FontAwesome5 name={o.icon as never} size={12} color={d.text} />
-                    <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '600', color: d.text }}>{o.label}</T>
-                  </Pressable>
-                ))}
-                {focusMine && !deletedRow ? (
-                  <Pressable onPress={() => deleteRow(focus.id, focus.kind)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: 1, borderTopColor: d.cardBorder, opacity: pressed ? 0.6 : 1 })}>
-                    <FontAwesome5 name="trash" size={12} color="#E05252" />
-                    <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '700', color: '#E05252' }}>Delete</T>
-                  </Pressable>
-                ) : null}
-              </View>
-            </SheetIn>
-          </View>
+          {/* pass 64 — transparent catcher: any tap outside dismisses, and it adds
+              NO colour, so the held bubble is never covered. The other rows dim
+              through `dim`, which makes the held one stand out. */}
+          <Pressable style={{ position: 'absolute', inset: 0, zIndex: 60 }} onPress={closeFocus} />
+          {menuGeom ? (
+            <View style={{ position: 'absolute', zIndex: 70, left: menuGeom.left, top: menuGeom.top, width: MENU_W }}>
+              <SheetIn>
+                {/* frosted-glass card hugging the bubble */}
+                <View style={menuGlass as never}>
+                  {focusMode === 'menu' ? (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: glassLine }}>
+                        {EMOJIS.map((e, i) => (
+                          <PickerEmoji key={e} emoji={e} delay={i * 40} onPress={() => react(focus.id, e)} />
+                        ))}
+                      </View>
+                      <MenuRow first icon="reply" label="Reply" color={d.text} line={glassLine} onPress={() => openReply(focus.id)} />
+                      <MenuRow icon="share" label="Forward" color={d.text} line={glassLine} onPress={() => startForward(focus.id, focus.kind)} />
+                      <MenuRow icon={copied ? 'check' : 'copy'} label={copied ? 'Copied ✓' : 'Copy'} color={copied ? '#4AE38F' : d.text} line={glassLine} onPress={() => copyRow(focus.id)} />
+                      {focusMine && !deletedRow && focus.kind === 'msg' ? (
+                        <MenuRow icon="info-circle" label="Info" color={d.text} line={glassLine} onPress={() => setFocusMode('info')} />
+                      ) : null}
+                      {focusMine && !deletedRow ? (
+                        <MenuRow icon="trash" label="Delete" color="#E05252" line={glassLine} onPress={() => deleteRow(focus.id, focus.kind)} />
+                      ) : null}
+                    </>
+                  ) : (
+                    /* pass 64 — Info: when my message was delivered and seen */
+                    <View style={{ paddingVertical: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+                        <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Message info</T>
+                        <Pressable onPress={() => setFocusMode('menu')} hitSlop={8}><FontAwesome5 name="chevron-left" size={12} color={d.faint} /></Pressable>
+                      </View>
+                      <View style={{ height: 1, backgroundColor: glassLine, marginHorizontal: 12 }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <FontAwesome5 name="check" size={12} color="#4AE38F" />
+                        <T v="bodyS" style={{ flex: 1, fontSize: 12.5, color: d.text }}>Delivered</T>
+                        <T v="caption" style={{ fontSize: 11, color: d.faint }}>{(focusMsg?.createdAt || '').slice(11, 16) || '—'}</T>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <FontAwesome5 name="check-double" size={12} color={focusMsg?.readAt ? '#4AE38F' : d.faint} />
+                        <T v="bodyS" style={{ flex: 1, fontSize: 12.5, color: d.text }}>{focusMsg?.readAt ? 'Seen' : 'Not seen yet'}</T>
+                        <T v="caption" style={{ fontSize: 11, color: d.faint }}>{focusMsg?.readAt ? String(focusMsg.readAt).slice(11, 16) : ''}</T>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </SheetIn>
+            </View>
+          ) : null}
         </>
       ) : null}
 
-      {/* pass 63 — forward: pick the conversation to send it into */}
-      <Modal visible={!!forward} transparent animationType="fade" onRequestClose={() => setForward(null)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(4,8,6,0.6)', justifyContent: 'center', padding: 26 }} onPress={() => setForward(null)}>
-          <Pressable style={{ borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 8, maxHeight: '70%' }} onPress={() => {}}>
-            <T v="h2" style={{ fontSize: 16, fontWeight: '800', color: d.text, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 4 }}>Forward to</T>
-            <T v="caption" numberOfLines={1} style={{ color: d.faint, paddingHorizontal: 18, paddingBottom: 8 }}>{forward?.text}</T>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {threads.filter((t) => t.friend !== openFriend).map((t) => (
-                <Pressable key={t.friend} onPress={() => doForward(t.friend)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 11, opacity: pressed ? 0.6 : 1 })}>
-                  <AvatarImage source={acc(t.friend).photo ?? null} name={acc(t.friend).full_name} size={34} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
-                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: '700', color: d.text }}>{acc(t.friend).full_name}</T>
-                  <FontAwesome5 name="share" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+      {/* pass 64 — forward is now a full screen: tick as many people as you like,
+          then send to all of them in one tap. */}
+      <Modal visible={!!forward} transparent animationType="slide" onRequestClose={() => setForward(null)}>
+        <View style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7', paddingTop: insets.top + 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 10 }}>
+            <Pressable onPress={() => setForward(null)} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="times" size={13} color={d.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T v="h2" numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: d.text }}>Forward message</T>
+              <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: d.faint }}>{forwardPicked.size} selected</T>
+            </View>
+          </View>
+          <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, paddingHorizontal: 16, paddingBottom: 6 }}>“{forward?.text}”</T>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 92 }}>
+            {MOCK_ACCOUNTS.map((a) => {
+              const on = forwardPicked.has(a.username);
+              return (
+                <Pressable
+                  key={a.username}
+                  onPress={() => { haptic.selection(); setForwardPicked((p) => { const n = new Set(p); if (n.has(a.username)) n.delete(a.username); else n.add(a.username); return n; }); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 13 }}
+                >
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: d.text }}>{a.full_name}</T>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: d.faint }}>@{a.username}</T>
+                  </View>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.6, borderColor: on ? '#1F8F5C' : d.cardBorder, backgroundColor: on ? '#1F8F5C' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                    {on ? <FontAwesome5 name="check" size={10} color="#fff" /> : null}
+                  </View>
                 </Pressable>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 14), backgroundColor: isDark ? 'rgba(7,16,12,0.92)' : 'rgba(246,250,247,0.92)', borderTopWidth: 1, borderTopColor: d.cardBorder }}>
+            <Pressable disabled={!forwardPicked.size} onPress={() => doForwardMany([...forwardPicked])} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: forwardPicked.size ? '#1F8F5C' : d.cardBorder, paddingVertical: 13, opacity: forwardPicked.size ? 1 : 0.5 }}>
+              <FontAwesome5 name="share" size={12} color="#fff" />
+              <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: '#fff' }}>Forward{forwardPicked.size ? ` to ${forwardPicked.size}` : ''}</T>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </KeyboardAvoidingView>
   );
