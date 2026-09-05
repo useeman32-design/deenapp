@@ -117,3 +117,10 @@ curl -s -o /dev/null -w "%{http_code}" https://useeman32-design.github.io/deenap
 - Raw intermediates (praying-raw, misbaha-round-raw, misbaha-circle) were deleted; `assets/img/praying.png` ships. `.chromium-libs` was removed post-verify (rerun browser-env.sh when probing again).
 
 When I give you the next change request, start from there.
+
+---
+### Pass 52 checkpoint (latest)
+- Batch 1 SHIPPED to gh-pages `34a785f`, deenlink-api `f5b7fa5`, deenapp master `8327b53`. See `CONTINUE.md` for the itemised list.
+- Batch 2 PENDING: zikr-challenge rebuild (the REAL daily dhikr — `tools/athkar` is to be removed), chat presence/last-seen/read receipts (backend `api/chat/` does not exist yet), Groq key read from DB.
+- **Verify pass-51 files survived the workspace before committing** (`bootOk` in `_layout.tsx`, `CrashBoundary.tsx`, `Font.loadAsync` in `fonts.ts`). A rollback already pushed one regression.
+- gh-pages deploys must preserve `.nojekyll`; verify an `_expo/` asset returns 200 after every push.

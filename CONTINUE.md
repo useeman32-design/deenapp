@@ -579,3 +579,32 @@ Gotchas hit this pass:
 - IslamicAPI key: EXPO_PUBLIC_ISLAMIC_API_KEY in .env (revocable, public).
 - DeenPoints ₦1.5/pt; donations CATS DeenLink→Zakat→Sadaqah (probe-locked);
   never buy fatwas.
+
+---
+## Pass 52 — status (batch 1 SHIPPED, batch 2 PENDING)
+
+**LIVE:** gh-pages `34a785f` (bundle `entry-42b1b458…js`, markers verified: crash screen + ANSWER MODE + `dl.goal.set.`) · deenlink-api main `f5b7fa5` (backend 434 files, 0 touched) · deenapp master `8327b53`.
+**APK:** v0.1.1-preview — https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
+
+### Shipped in batch 1
+1. **Daily goals bug FIXED.** Root cause: `daySet()` was recomputed on every read and the admin override (`setsCache`) arrives asynchronously, so the four visible goals swapped mid-day — activities done against the first set looked "counted" against the second. The set is now persisted per day (`dl.goal.set.<date>`); `markGoal()` also rejects unknown keys.
+2. **Goals now teach navigation.** Tapping a goal opens its HUB with `?focus=<key>`; `src/lib/useGoalFocus.ts` smoothly scrolls to that card and flashes a gold ring (2.8 s). e.g. Tafsir → Learning Hub → scroll+highlight; Prayer → Worship Tools tab → highlight.
+3. **Profile DeenPoints** now uses the shared `formatDP` (was a local `fmt` that only did `k`, no commas/M).
+4. **AI screen:** globe → **lightbulb**; tapping opens an ANSWER MODE menu (Library only / Library + Web).
+5. **AI typing indicator in comments moved to the TOP** of the thread.
+6. **`@handle` is no longer injected** into the comment text field.
+
+### ⚠️ WORKSPACE ROLLBACK — check after every turn
+Five pass-51 files silently reverted in the working tree (boot watchdog, CrashBoundary, resilient fonts, lazy push, intl-free `formatDP`) and one commit pushed that regression before it was caught. Restored via `git checkout e47a726 -- <files>` in `8327b53`.
+**Rule: before committing, verify pass-51 markers still exist** — `grep -c bootOk src/app/_layout.tsx`, `ls src/components/CrashBoundary.tsx`, `grep -c Font.loadAsync src/lib/fonts.ts`. All must be non-zero.
+
+### Batch 2 — NOT STARTED (next turn)
+- **Zikr Challenge** (`/tools/zikr-challenge`) is the real "daily dhikr" — move the adhkar challenge content INTO it; centre the counter + circular beads; balance the text. (`tools/athkar` is to be REMOVED per the user.)
+- **Chat presence/last-seen/read receipts:** client already calls `/api/chat/presence.php` but **`api/chat/` does not exist in the backend** — the endpoints were never built. That is why nothing ever reflected.
+- **Groq key from DB:** read the admin-stored key server-side so the AI works with no manual key entry.
+- Still open: item 6 (99 Names translations) blocked on an IslamicAPI key + a Yoruba source.
+
+### Deploy rules that must not be forgotten
+- gh-pages wipe MUST exclude `.nojekyll` (`! -name '.nojekyll'`) or every JS chunk 404s → blank site.
+- Always finish a deploy by curling an `_expo/` asset and asserting **200**.
+- `.git` and `.git/config` do NOT survive between turns — re-clone or `git remote add origin` each time.
