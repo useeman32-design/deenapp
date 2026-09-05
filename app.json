@@ -72,7 +72,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true,
-      "baseUrl": "/deenapp"
+      "baseUrl": "/"
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
