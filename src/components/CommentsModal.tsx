@@ -129,6 +129,7 @@ function TypingDots({ color }: { color: string }) {
 function CommentRow({
   c,
   isReply = false,
+  replyTo,
   isLiked,
   onToggleLike,
   onReply,
@@ -139,6 +140,8 @@ function CommentRow({
   colors,
 }: {
   c: SampleComment;
+  /** pass 55 — TikTok-style: nested replies show who they answer, above the name. */
+  replyTo?: string;
   isReply?: boolean;
   isLiked: (id: number) => boolean;
   onToggleLike: (id: number) => void;
@@ -170,6 +173,11 @@ function CommentRow({
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ borderRadius: 13, backgroundColor: colors.bubble, paddingHorizontal: 11, paddingVertical: 7 }}>
+          {isReply && replyTo ? (
+            <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.2, color: colors.emerald, marginBottom: 2 }}>
+              replying to › {replyTo}
+            </T>
+          ) : null}
           <Pressable onPress={() => onOpenProfile(c.handle)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
             <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '700', fontSize: 11, color: colors.txt, flexShrink: 1 }}>
               {cName}
@@ -232,6 +240,7 @@ function CommentRow({
                 key={r.id}
                 c={r}
                 isReply
+                replyTo={c.name}
                 isLiked={isLiked}
                 onToggleLike={onToggleLike}
                 onReply={onReply}
@@ -309,7 +318,10 @@ export function CommentsModal({
      * tag chip, which is what actually triggers its answer — the old behaviour
      * relied on the literal text "@deenlinkai" being present, so removing the
      * injection had silently broken AI tagging altogether. */
-    setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, ''));
+    /* pass 55 — @username injection is BACK in the comment box (the user wants
+     * the original behaviour here; it was only meant to be removed from the
+     * CHAT screen). Tagging DeenLink AI also sets its chip as a visible cue. */
+    setDraft((prev) => prev.replace(/@([A-Za-z0-9_.]*)$/, `@${handle} `));
     if (handle === 'deenlinkai') setAiTagged(true);
     haptic.light();
   };

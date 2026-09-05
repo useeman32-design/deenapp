@@ -129,10 +129,16 @@ export default function ZikrChallenge() {
       Animated.timing(pulse, { toValue: 1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start();
     Animated.timing(float, { toValue: 1, duration: 620, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    /* pass 55 — TWO goal bugs fixed here:
+     *  · "Dhikr (33x)" never fired because these challenge targets are 99/100/100,
+     *    so 33 taps never reached ch.target. It now fires at 33 on its own.
+     *  · "Daily zikr challenge" is the goal key 'zikr', but this screen only ever
+     *    marked 'dhikr' — so that goal could never complete at all. */
+    if (n >= 33) markGoal('dhikr').catch(() => {});
     if (n >= ch.target) {
       haptic.success();
       const nextAll = CHALLENGES.every((c) => (c.id === mode ? n : rec[c.id]) >= c.target);
-      markGoal('dhikr').catch(() => {});
+      markGoal('zikr').catch(() => {});
       markActive().catch(() => {});
       if (nextAll && rec.rewarded !== DAY()) {
         persist({ ...rec, [mode]: n, rewarded: DAY() });
