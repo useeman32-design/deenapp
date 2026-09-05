@@ -355,6 +355,26 @@ export default function PublicProfileScreen() {
                   {following ? 'Following' : 'Follow'}
                 </T>
               </Pressable>
+              {/* pass 59 — message this user straight from their profile */}
+              <Pressable
+                onPress={() => { haptic.light(); router.push(`/tools/inbox?u=${profile.username}` as never); }}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  borderRadius: 12,
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  paddingVertical: 10,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <FontAwesome5 name="comment-dots" size={12} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                <T v="body" style={{ color: isDark ? '#4AE38F' : '#0E7A46', fontWeight: '800', fontSize: 12 }}>Message</T>
+              </Pressable>
               <Pressable
                 onPress={shareProfile}
                 style={({ pressed }) => ({

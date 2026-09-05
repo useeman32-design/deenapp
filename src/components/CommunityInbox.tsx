@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageBackground, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
+import { Animated, Easing, Image, ImageBackground, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { useRouter } from 'expo-router';
 
 /**
  * Community INBOX (pass 22, v2) — the real inbox the user asked for:
@@ -101,10 +102,10 @@ function SlideIn({ children, style, animate }: { children: React.ReactNode; styl
   const a = useRef(new Animated.Value(animate ? 0 : 1)).current;
   useEffect(() => {
     if (!animate) { return; }
-    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
+    Animated.timing(a, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [a, animate]);
   return (
-    <Animated.View style={[style, { opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }, { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]}>
+    <Animated.View style={[style, { opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}>
       {children}
     </Animated.View>
   );
@@ -119,14 +120,15 @@ const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
   { id: 'inappropriate', label: 'Inappropriate content', icon: 'shield-alt' },
 ];
 
-export function CommunityInbox({ visible, onClose, standalone = false }: { visible: boolean; onClose: () => void; standalone?: boolean }) {
+export function CommunityInbox({ visible, onClose, standalone = false, initialFriend = null }: { visible: boolean; onClose: () => void; standalone?: boolean; initialFriend?: string | null }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>(SEED);
-  const [openFriend, setOpenFriend] = useState<string | null>(null);
+  const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
   const [emojiFor, setEmojiFor] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   /* pass 58 — presence from the real API + the ••• menu, report sheet and block */
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState(false);
@@ -170,6 +172,10 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
   };
 
   const thread = threads.find((t) => t.friend === openFriend) ?? null;
+  /* pass 59 — the draft is PER CONVERSATION. It used to be one shared string, so
+   * text typed in chat A was still sitting in the box when you opened chat B. */
+  const draft = thread ? (drafts[thread.friend] ?? '') : '';
+  const setDraft = (v: string) => { if (thread) { const f = thread.friend; setDrafts((m) => ({ ...m, [f]: v })); } };
   const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u) ?? MOCK_ACCOUNTS[0];
 
   const react = (id: string, e: string) => {
@@ -212,7 +218,7 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
     LayoutAnimation.configureNext({ duration: 220, update: { type: LayoutAnimation.Types.easeInEaseOut } });
     const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
-    setDraft('');
+    setDrafts((m) => ({ ...m, [thread.friend]: '' }));
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
   };
 
@@ -234,14 +240,20 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
         {/* pass 58 — the peer's photo with their live presence dot */}
         {thread ? (
           <View>
-            <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+            <Pressable onPress={() => router.push(`/profile/${thread.friend}` as never)} hitSlop={6}>
+              <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+            </Pressable>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
-            {thread ? acc(thread.friend).full_name : 'Inbox'}
-          </T>
+          <Pressable onPress={() => { if (thread) { router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+            {/* pass 59 — long names truncate with an ellipsis instead of pushing
+                the ••• menu off the header */}
+            <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
+              {thread ? acc(thread.friend).full_name : 'Inbox'}
+            </T>
+          </Pressable>
           <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
             {thread ? (isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
           </T>
