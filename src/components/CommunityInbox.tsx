@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageBackground, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Image, ImageBackground, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -89,6 +89,36 @@ const SEED: Thread[] = [
 
 const STORE = 'dl.inbox.v2';
 
+/* pass 58 — real presence/last-seen from the API, and the same six report
+ * reasons the post report sheet uses (src/components/FeedCard.tsx). */
+import { chatConversations, chatPresence } from '@/api/client';
+
+if (Platform.OS === 'android') { UIManager.setLayoutAnimationEnabledExperimental?.(true); }
+
+/** pass 58 — a chat row that SPRINGS in. `animate` is false for rows that were
+ *  already there when the thread opened, so history never replays the effect. */
+function SlideIn({ children, style, animate }: { children: React.ReactNode; style?: object; animate: boolean }) {
+  const a = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  useEffect(() => {
+    if (!animate) { return; }
+    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
+  }, [a, animate]);
+  return (
+    <Animated.View style={[style, { opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }, { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
+  { id: 'spam', label: 'Spam or scam', icon: 'ban' },
+  { id: 'harassment', label: 'Harassment or bullying', icon: 'user-slash' },
+  { id: 'hate', label: 'Hate speech', icon: 'fire' },
+  { id: 'danger', label: 'Dangerous content', icon: 'exclamation-triangle' },
+  { id: 'misleading', label: 'Misleading content', icon: 'question-circle' },
+  { id: 'inappropriate', label: 'Inappropriate content', icon: 'shield-alt' },
+];
+
 export function CommunityInbox({ visible, onClose, standalone = false }: { visible: boolean; onClose: () => void; standalone?: boolean }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -97,6 +127,16 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
   const [openFriend, setOpenFriend] = useState<string | null>(null);
   const [emojiFor, setEmojiFor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  /* pass 58 — presence from the real API + the ••• menu, report sheet and block */
+  const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+  const [menu, setMenu] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportType, setReportType] = useState<string | null>(null);
+  const [reportDesc, setReportDesc] = useState('');
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [reported, setReported] = useState(false);
+  const freshIds = useRef<Set<string>>(new Set());
   const lastTap = useRef<{ id: string; t: number }>({ id: '', t: 0 });
   const pop = useRef(new Animated.Value(0)).current;
   const scroller = useRef<ScrollView>(null);
@@ -141,11 +181,36 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
     popIn();
   };
 
+  /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username */
+  useEffect(() => {
+    chatPresence().catch(() => {});
+    const pull = () => chatConversations().then((cs) => {
+      if (!cs) { return; }
+      const m: Record<string, string> = {};
+      cs.forEach((c) => { const u = c.with_username || c.peer?.username; if (u && c.peer_seen) { m[u] = String(c.peer_seen); } });
+      setSeenMap(m);
+    }).catch(() => {});
+    pull();
+    const iv = setInterval(() => { chatPresence().catch(() => {}); pull(); }, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const isOnline = useCallback((u: string | null | undefined) => {
+    if (!u) { return false; }
+    const t = seenMap[u];
+    return !!t && (Date.now() - new Date(t.replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
+  }, [seenMap]);
+
   const sendChat = () => {
     const text = draft.trim();
     if (!text || !thread) return;
     haptic.light();
-    const chat = [...thread.chat, { id: uid(), text, ago: ago(), dir: 'me' as const }];
+    /* pass 58 — the new row is registered as fresh so it springs in, and the
+     * rest of the list eases out of the way instead of snapping. */
+    const id = uid();
+    freshIds.current.add(id);
+    LayoutAnimation.configureNext({ duration: 220, update: { type: LayoutAnimation.Types.easeInEaseOut } });
+    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDraft('');
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
@@ -166,17 +231,30 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
         <Pressable onPress={() => (thread ? setOpenFriend(null) : onClose())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="chevron-left" size={14} color={d.text} />
         </Pressable>
+        {/* pass 58 — the peer's photo with their live presence dot */}
+        {thread ? (
+          <View>
+            <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
+          </View>
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
             {thread ? acc(thread.friend).full_name : 'Inbox'}
           </T>
           <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
-            {thread ? `@${thread.friend} · in-app shares & chat` : 'Reels, posts, duas & ayahs shared with you'}
+            {thread ? (isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
           </T>
         </View>
         <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
           <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9 }}>IN-APP ONLY</T>
         </View>
+        {/* pass 58 — ••• menu → Report / Block */}
+        {thread ? (
+          <Pressable onPress={() => { haptic.selection(); setMenu((v) => !v); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="ellipsis-v" size={12} color={d.text} />
+          </Pressable>
+        ) : null}
       </View>
 
       {!thread ? (
@@ -219,7 +297,7 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
             const mine = it.dir === 'me';
             const reaction = thread.reactions[it.id];
             return (
-              <View key={it.id} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
+              <SlideIn key={it.id} animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 {!mine ? <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
                 <Pressable
                   onPress={() => onTapItem(it.id)}
@@ -307,7 +385,7 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
                   </View>
                 </Pressable>
                 {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
-              </View>
+              </SlideIn>
             );
           })}
 
@@ -378,6 +456,70 @@ export function CommunityInbox({ visible, onClose, standalone = false }: { visib
           </View>
         </View>
       ) : null}
+
+      {/* pass 58 — ••• dropdown */}
+      {menu && thread ? (
+        <>
+          <Pressable style={{ position: 'absolute', inset: 0, zIndex: 40 }} onPress={() => setMenu(false)} />
+          <View style={{ position: 'absolute', top: (standalone ? insets.top + 8 : 0) + 52, right: 14, zIndex: 50, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, elevation: 8, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }}>
+            {([{ k: 'report', label: reported ? 'Reported ✓' : 'Report', icon: 'flag', color: d.text },
+               { k: 'block', label: blocked ? 'Blocked ✓' : 'Block ' + acc(thread.friend).full_name, icon: 'user-slash', color: '#E05252' }] as const).map((it2) => (
+              <Pressable key={it2.k} onPress={() => { haptic.light(); setMenu(false); if (it2.k === 'report') { setReportOpen(true); } else { setBlockOpen(true); } }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, opacity: pressed ? 0.6 : 1 })}>
+                <FontAwesome5 name={it2.icon as any} size={11} color={it2.color} />
+                <T v="bodyS" numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: it2.color, flexShrink: 1 }}>{it2.label}</T>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {/* pass 58 — report sheet: same reasons + description as the post report */}
+      <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setReportOpen(false)}>
+          <Pressable style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 18, paddingTop: 16, paddingBottom: Math.max(insets.bottom, 20) }} onPress={() => {}}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, alignSelf: 'center', marginBottom: 14 }} />
+            <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>{thread ? `Report ${acc(thread.friend).full_name}` : 'Report'}</T>
+            <T v="caption" style={{ color: d.faint, marginTop: 3, marginBottom: 14 }}>Why are you reporting this conversation?</T>
+            {REPORT_TYPES.map((r) => {
+              const on = reportType === r.id;
+              return (
+                <Pressable key={r.id} onPress={() => { setReportType(r.id); haptic.selection(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 13, borderWidth: 1.5, borderColor: on ? '#E05252' : d.cardBorder, backgroundColor: on ? 'rgba(224,82,82,0.1)' : d.bg, paddingHorizontal: 13, paddingVertical: 12, marginBottom: 8 }}>
+                  <FontAwesome5 name={r.icon} size={12} color={on ? '#E05252' : d.faint} />
+                  <T v="bodyS" style={{ flex: 1, fontSize: 13, fontWeight: on ? '800' : '600', color: on ? '#E05252' : d.text }}>{r.label}</T>
+                  {on ? <FontAwesome5 name="check-circle" size={13} color="#E05252" /> : null}
+                </Pressable>
+              );
+            })}
+            <TextInput value={reportDesc} onChangeText={setReportDesc} multiline placeholder="Add details (optional)…" placeholderTextColor={d.faint}
+              style={{ borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.bg, color: d.text, fontSize: 13, paddingHorizontal: 13, paddingVertical: 11, minHeight: 76, textAlignVertical: 'top', marginTop: 4, fontFamily: 'Poppins-Regular' }} />
+            <Pressable onPress={() => { haptic.success(); setReportOpen(false); setReportType(null); setReportDesc(''); setReported(true); }} disabled={!reportType}
+              style={{ marginTop: 14, borderRadius: 14, backgroundColor: reportType ? '#E05252' : d.cardBorder, paddingVertical: 14, alignItems: 'center', opacity: reportType ? 1 : 0.6 }}>
+              <T v="bodyS" style={{ fontWeight: '800', fontSize: 14, color: reportType ? '#fff' : d.faint }}>Submit report</T>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* pass 58 — block confirm */}
+      <Modal visible={blockOpen} transparent animationType="fade" onRequestClose={() => setBlockOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+          <View style={{ width: '100%', borderRadius: 20, backgroundColor: d.card, padding: 20, alignItems: 'center' }}>
+            <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(224,82,82,0.14)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <FontAwesome5 name="user-slash" size={16} color="#E05252" />
+            </View>
+            <T v="h2" style={{ fontWeight: '800', fontSize: 16, color: d.text, textAlign: 'center' }}>{thread ? `Block ${acc(thread.friend).full_name}?` : 'Block?'}</T>
+            <T v="caption" style={{ color: d.faint, textAlign: 'center', marginTop: 6, lineHeight: 18 }}>They will not be able to message you, and this conversation will be hidden from your inbox.</T>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, width: '100%' }}>
+              <Pressable onPress={() => setBlockOpen(false)} style={{ flex: 1, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, paddingVertical: 12, alignItems: 'center' }}>
+                <T v="bodyS" style={{ fontWeight: '700', fontSize: 13, color: d.text }}>Cancel</T>
+              </Pressable>
+              <Pressable onPress={() => { haptic.medium(); setBlockOpen(false); setBlocked(true); }} style={{ flex: 1, borderRadius: 13, backgroundColor: '#E05252', paddingVertical: 12, alignItems: 'center' }}>
+                <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: '#fff' }}>Block</T>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* emoji panel */}
       {emojiFor ? (
