@@ -32,9 +32,14 @@ type ShareItem = {
   arabic?: string;     /* ayah/hadith/dua arabic text */
   refLabel?: string;   /* citation under arabic */
   sub?: string;        /* post caption / profile handle */
+  /* pass 62 — server timestamp "YYYY-MM-DD HH:MM:SS"; '' until the server
+   * confirms, which also sorts an optimistic card to the bottom. */
+  at?: string;
 };
-type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me' };
-type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string> };
+type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string };
+/* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
+ * somebody else left, so I can see their reaction and still add my own. */
+type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string> };
 
 const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
   post: { icon: 'file-alt', label: 'Post', tint: '#5BC8F5' },
@@ -92,7 +97,7 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { chatConversations, chatMessages, chatPresence, chatRead, chatSend, chatStartDMByUsername, isLive } from '@/api/client';
+import { chatConversations, chatPresence, chatReact, chatRead, chatSend, chatSendShare, chatStartDMByUsername, chatThread, isLive } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 
 if (Platform.OS === 'android') { UIManager.setLayoutAnimationEnabledExperimental?.(true); }
@@ -204,13 +209,52 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const setDraft = (v: string) => { if (thread) { const f = thread.friend; setDrafts((m) => ({ ...m, [f]: v })); } };
   const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u) ?? MOCK_ACCOUNTS[0];
 
+  /** pass 62 — a client row id → its server target. `s12` is message 12, `h7` is
+   *  share 7. Demo/failed rows have no server id and keep reacting locally. */
+  const targetOf = (id: string): { kind: 'msg' | 'share'; id: number } | null => {
+    const m = /^([sh])(\d+)$/.exec(id);
+    if (!m) { return null; }
+    return { kind: m[1] === 'h' ? 'share' : 'msg', id: parseInt(m[2], 10) };
+  };
+
+  /** pass 62 — conversation id for a username, creating the DM when needed. */
+  const resolveCid = async (who: string): Promise<number | null> => {
+    const known = convIds[who];
+    if (known) { return known; }
+    const made = await chatStartDMByUsername(who).catch(() => null);
+    if (made) { setConvIds((m) => ({ ...m, [who]: made })); }
+    return made;
+  };
+
+  /** Put my emoji back — a reaction that never reached the server must not
+   *  pretend it did (same honesty as `markFailed` for messages). */
+  const revertReaction = (who: string, id: string, prev: string) => {
+    setThreads((prevT) => prevT.map((t) => (t.friend === who
+      ? { ...t, reactions: { ...t.reactions, [id]: prev } }
+      : t)));
+  };
+
   const react = (id: string, e: string) => {
     haptic.success();
     if (!thread) return;
-    const reactions = { ...thread.reactions, [id]: thread.reactions[id] === e ? '' : e };
+    const prev = thread.reactions[id] ?? '';
+    const next = prev === e ? '' : e;
+    const reactions = { ...thread.reactions, [id]: next };
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, reactions } : t)));
     setEmojiFor(null);
     popIn();
+    /* pass 62 — the reaction is on screen instantly; now make it real so the
+     * other person sees it. Tapping the same emoji again sends '' = remove. */
+    if (!live) { return; }
+    const who = thread.friend;
+    const target = targetOf(id);
+    if (!target) { return; }
+    void (async () => {
+      const cid = await resolveCid(who);
+      if (!cid) { revertReaction(who, id, prev); return; }
+      const r = await chatReact(cid, target.kind, target.id, next).catch(() => ({ ok: false, emoji: null }));
+      if (!r.ok) { revertReaction(who, id, prev); }
+    })();
   };
 
   /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username */
@@ -242,19 +286,41 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     return () => clearInterval(iv);
   }, [live]);
 
-  /* pass 60 — opening a live thread pulls the real history and marks it read */
+  /* pass 60/62 — opening a live thread pulls the real history (messages + shares
+   * + every reaction on them) in ONE call and marks it read. */
   useEffect(() => {
     if (!live || !openFriend) { return; }
     const cid = convIds[openFriend];
     if (!cid) { return; }
-    chatMessages(cid).then((ms) => {
-      if (!ms) { return; }
-      const chat: ChatMsg[] = ms.map((m) => ({
+    chatThread(cid).then((data) => {
+      if (!data) { return; }
+      const chat: ChatMsg[] = data.messages.map((m) => ({
         id: `s${m.id}`, text: m.body, ago: (m.created_at || '').slice(11, 16),
         dir: m.sender_id === user?.id ? 'me' as const : 'them' as const,
+        at: m.created_at || '',
       }));
-      chat.forEach((c) => freshIds.current.add(c.id));
-      setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat } : t)));
+      /* server shares replace the bundled demo cards for this person */
+      const items: ShareItem[] = data.shares.map((s) => ({
+        id: `h${s.id}`,
+        kind: (Object.keys(KIND_META) as Kind[]).includes(s.kind as Kind) ? (s.kind as Kind) : ('post' as Kind),
+        title: s.title,
+        ago: (s.created_at || '').slice(11, 16),
+        dir: s.sender_id === user?.id ? 'me' as const : 'them' as const,
+        at: s.created_at || '',
+        arabic: s.payload?.arabic,
+        refLabel: s.payload?.refLabel,
+        sub: s.payload?.sub,
+        dur: s.payload?.dur,
+      }));
+      const reactions: Record<string, string> = {};
+      const others: Record<string, string> = {};
+      data.reactions.forEach((r) => {
+        const key = `${r.target_kind === 'share' ? 'h' : 's'}${r.target_id}`;
+        if (r.user_id === user?.id) { reactions[key] = r.emoji; }
+        else if (!others[key]) { others[key] = r.emoji; }
+      });
+      [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
+      setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
       setTimeout(() => scroller.current?.scrollToEnd({ animated: false }), 60);
     }).catch(() => {});
     chatRead(cid).catch(() => {});
@@ -275,7 +341,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const id = uid();
     freshIds.current.add(id);
     LayoutAnimation.configureNext({ duration: 220, update: { type: LayoutAnimation.Types.easeInEaseOut } });
-    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const }];
+    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const, at: '' }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDrafts((m) => ({ ...m, [thread.friend]: '' }));
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
@@ -286,20 +352,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     if (live) {
       const who = thread.friend;
       void (async () => {
-        let cid = convIds[who];
-        if (!cid) {
-          const made = await chatStartDMByUsername(who).catch(() => null);
-          if (!made) { markFailed(who, id); return; }
-          cid = made;
-          setConvIds((m) => ({ ...m, [who]: made }));
-        }
-        const sid = await chatSend(cid, text).catch(() => null);
-        if (!sid) { markFailed(who, id); return; }
+        const cid = await resolveCid(who);
+        if (!cid) { markFailed(who, id); return; }
+        const sent = await chatSend(cid, text).catch(() => null);
+        if (!sent) { markFailed(who, id); return; }
         setThreads((prev) => prev.map((t) => (t.friend === who
-          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sid}` } : c)) }
+          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, at: sent.created_at || c.at } : c)) }
           : t)));
         freshIds.current.delete(id);
-        freshIds.current.add(`s${sid}`);
+        freshIds.current.add(`s${sent.id}`);
       })();
     }
   };
@@ -311,95 +372,50 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       : t)));
   };
 
-  const shareBack = (kind: Kind, title: string) => {
+  const shareBack = (kind: Kind, title: string, payload?: Record<string, unknown>) => {
     if (!thread) return;
     haptic.selection();
-    const items = [...thread.items, { id: uid(), kind, title, ago: ago(), dir: 'me' as const }];
+    const id = uid();
+    freshIds.current.add(id);
+    const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '' }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, items } : t)));
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+
+    /* pass 62 — shares are server-backed too, so the other person receives the
+     * card (and can react to it) instead of it living only on my device. */
+    if (live) {
+      const who = thread.friend;
+      void (async () => {
+        const cid = await resolveCid(who);
+        if (!cid) { markShareFailed(who, id); return; }
+        const made = await chatSendShare(cid, kind, title, payload).catch(() => null);
+        if (!made) { markShareFailed(who, id); return; }
+        setThreads((prev) => prev.map((t) => (t.friend === who
+          ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, id: `h${made.id}`, at: made.created_at || x.at } : x)) }
+          : t)));
+        freshIds.current.delete(id);
+        freshIds.current.add(`h${made.id}`);
+      })();
+    }
   };
 
-  const body = (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7' }}>
-      {/* header */}
-      <View style={{ paddingTop: standalone ? insets.top + 8 : 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)' }}>
-        <Pressable onPress={() => (thread ? setOpenFriend(null) : onClose())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesome5 name="chevron-left" size={14} color={d.text} />
-        </Pressable>
-        {/* pass 58 — the peer's photo with their live presence dot */}
-        {thread ? (
-          <View>
-            <Pressable onPress={() => router.push(`/profile/${thread.friend}` as never)} hitSlop={6}>
-              <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
-            </Pressable>
-            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
-          </View>
-        ) : null}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Pressable onPress={() => { if (thread) { router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
-            {/* pass 59 — long names truncate with an ellipsis instead of pushing
-                the ••• menu off the header */}
-            <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
-              {thread ? acc(thread.friend).full_name : 'Inbox'}
-            </T>
-          </Pressable>
-          <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
-            {thread ? (isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
-          </T>
-        </View>
-        <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
-          <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9 }}>IN-APP ONLY</T>
-        </View>
-        {/* pass 58 — ••• menu → Report / Block */}
-        {thread ? (
-          <Pressable onPress={() => { haptic.selection(); setMenu((v) => !v); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="ellipsis-v" size={12} color={d.text} />
-          </Pressable>
-        ) : null}
-      </View>
+  /** Flag a share card that never reached the server. */
+  const markShareFailed = (who: string, id: string) => {
+    setThreads((prev) => prev.map((t) => (t.friend === who
+      ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, title: `${x.title}  ⚠ not sent` } : x)) }
+      : t)));
+  };
 
-      {!thread ? (
-        /* ── friends who shared with you ── */
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {threads.map((t) => {
-            const a = acc(t.friend);
-            const unread = t.items.filter((x) => x.dir === 'them').length + t.chat.filter((c) => c.dir === 'them').length;
-            return (
-              <Pressable
-                key={t.friend}
-                onPress={() => {
-                  haptic.selection();
-                  setOpenFriend(t.friend);
-                }}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.18)' : 'rgba(29,111,66,0.12)', backgroundColor: isDark ? 'rgba(18,34,25,0.6)' : 'rgba(255,255,255,0.7)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1, shadowColor: '#000', shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 9, shadowOffset: { width: 0, height: 3 } })}
-              >
-                <View>
-                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
-                  <View style={{ position: 'absolute', right: -1, top: -1, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#1F8F5C', borderWidth: 1.5, borderColor: isDark ? '#07100C' : '#F6FAF7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                    <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{unread}</T>
-                  </View>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{a.full_name}</T>
-                  <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
-                    {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
-                  </T>
-                </View>
-                <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      ) : (
-        /* ── thread: shares + chat + composer ── */
-        <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }} showsVerticalScrollIndicator={false}>
-          {thread.items.map((it) => {
+  const renderShare = (th: Thread, it: ShareItem) => {
+
             const meta = KIND_META[it.kind];
             const mine = it.dir === 'me';
-            const reaction = thread.reactions[it.id];
+            const reaction = th.reactions[it.id];
+            /* pass 62 — their reaction, so I can see it and still add my own */
+            const peer = th.others?.[it.id];
             return (
               <SlideIn key={it.id} animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
-                {!mine ? <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
+                {!mine ? <AvatarImage source={acc(th.friend).photo ?? null} name={acc(th.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
                 <Pressable
                   onPress={() => onTapItem(it.id)}
                   style={({ pressed }) => ({
@@ -479,20 +495,25 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                     {reaction ? (
                       <PopEmoji emoji={reaction} size={15} />
                     ) : (
-                      <Pressable onPress={() => { haptic.light(); setEmojiFor(it.id); }} hitSlop={8}>
-                        <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>React</T>
-                      </Pressable>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {peer ? <PopEmoji emoji={peer} size={13} /> : null}
+                        <Pressable onPress={() => { haptic.light(); setEmojiFor(it.id); }} hitSlop={8}>
+                          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>React</T>
+                        </Pressable>
+                      </View>
                     )}
                   </View>
                 </Pressable>
                 {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
               </SlideIn>
             );
-          })}
+  };
 
-          {thread.chat.map((m) => {
+  const renderMsg = (th: Thread, m: ChatMsg) => {
+
             const mine = m.dir === 'me';
-            const reaction = thread.reactions[m.id];
+            const reaction = th.reactions[m.id];
+            const peer = th.others?.[m.id];
             return (
               <View key={m.id} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 <Pressable
@@ -507,12 +528,100 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                   <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: mine ? '#FFFFFF' : d.text }}>{m.text}</T>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                     <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
-                    {reaction ? <T v="caption" style={{ fontSize: 11 }}>{reaction}</T> : null}
+                    {reaction ? <PopEmoji emoji={reaction} size={11} /> : peer ? <PopEmoji emoji={peer} size={11} /> : null}
                   </View>
                 </Pressable>
               </View>
             );
+  };
+
+  /* pass 62 — with real timestamps on both sides, shares and messages are
+   * interleaved by WHEN they happened instead of every share sitting above every
+   * message. Rows with no timestamp (demo seed, or an optimistic card still in
+   * flight) sort to the end, so demo order is unchanged. */
+  const flow: Array<{ kind: 'share'; it: ShareItem; at: string } | { kind: 'msg'; m: ChatMsg; at: string }> = thread
+    ? [
+        ...thread.items.map((it) => ({ kind: 'share' as const, it, at: it.at || '9999' })),
+        ...thread.chat.map((m) => ({ kind: 'msg' as const, m, at: m.at || '9999' })),
+      ].sort((a, b) => a.at.localeCompare(b.at))
+    : [];
+
+  const body = (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7' }}>
+      {/* header */}
+      <View style={{ paddingTop: standalone ? insets.top + 8 : 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)' }}>
+        <Pressable onPress={() => (thread ? setOpenFriend(null) : onClose())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesome5 name="chevron-left" size={14} color={d.text} />
+        </Pressable>
+        {/* pass 58 — the peer's photo with their live presence dot */}
+        {thread ? (
+          <View>
+            <Pressable onPress={() => router.push(`/profile/${thread.friend}` as never)} hitSlop={6}>
+              <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+            </Pressable>
+            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
+          </View>
+        ) : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Pressable onPress={() => { if (thread) { router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+            {/* pass 59 — long names truncate with an ellipsis instead of pushing
+                the ••• menu off the header */}
+            <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
+              {thread ? acc(thread.friend).full_name : 'Inbox'}
+            </T>
+          </Pressable>
+          <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+            {thread ? (isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
+          </T>
+        </View>
+        <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
+          <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9 }}>IN-APP ONLY</T>
+        </View>
+        {/* pass 58 — ••• menu → Report / Block */}
+        {thread ? (
+          <Pressable onPress={() => { haptic.selection(); setMenu((v) => !v); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="ellipsis-v" size={12} color={d.text} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {!thread ? (
+        /* ── friends who shared with you ── */
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {threads.map((t) => {
+            const a = acc(t.friend);
+            const unread = t.items.filter((x) => x.dir === 'them').length + t.chat.filter((c) => c.dir === 'them').length;
+            return (
+              <Pressable
+                key={t.friend}
+                onPress={() => {
+                  haptic.selection();
+                  setOpenFriend(t.friend);
+                }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.18)' : 'rgba(29,111,66,0.12)', backgroundColor: isDark ? 'rgba(18,34,25,0.6)' : 'rgba(255,255,255,0.7)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1, shadowColor: '#000', shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 9, shadowOffset: { width: 0, height: 3 } })}
+              >
+                <View>
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                  <View style={{ position: 'absolute', right: -1, top: -1, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#1F8F5C', borderWidth: 1.5, borderColor: isDark ? '#07100C' : '#F6FAF7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                    <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{unread}</T>
+                  </View>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{a.full_name}</T>
+                  <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
+                    {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
+                  </T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+              </Pressable>
+            );
           })}
+        </ScrollView>
+      ) : (
+        /* ── thread: shares + chat + composer ── */
+        <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }} showsVerticalScrollIndicator={false}>
+          {flow.map((row) => (row.kind === 'share' ? renderShare(thread, row.it) : renderMsg(thread, row.m)))}
+
           <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 9, fontStyle: 'italic' }}>Double-tap to react · shares are in-app content only</T>
         </ScrollView>
       )}

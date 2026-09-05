@@ -582,9 +582,34 @@ export async function chatStartDMByUsername(username: string): Promise<number | 
   const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
   return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
 }
-export async function chatSend(conversationId: number, body: string): Promise<number | null> {
-  const r = await request<{ status?: string; id?: number }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
-  return r.ok && r.data.id ? (r.data.id as number) : null;
+export async function chatSend(conversationId: number, body: string): Promise<{ id: number; created_at?: string } | null> {
+  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
+  return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
+}
+/* pass 62 — in-app shares and emoji reactions, server-backed so BOTH sides of a
+ * conversation see the same thread instead of two local-only copies. */
+export type ChatShare = { id: number; sender_id: number; kind: string; title: string; payload: Record<string, string> | null; created_at: string; username?: string };
+export type ChatReaction = { target_kind: 'msg' | 'share'; target_id: number; user_id: number; emoji: string; username?: string | null };
+export type ChatThreadData = { messages: ChatMessage[]; shares: ChatShare[]; reactions: ChatReaction[] };
+/** One round trip for a whole thread: messages + shares + every reaction on them. */
+export async function chatThread(conversationId: number): Promise<ChatThreadData | null> {
+  const r = await request<{ status?: string; messages?: ChatMessage[]; shares?: ChatShare[]; reactions?: ChatReaction[] }>(`/api/chat/messages.php?conversation_id=${conversationId}`, { auth: true });
+  if (!r.ok || !Array.isArray(r.data.messages)) { return null; }
+  return {
+    messages: r.data.messages,
+    shares: Array.isArray(r.data.shares) ? r.data.shares : [],
+    reactions: Array.isArray(r.data.reactions) ? r.data.reactions : [],
+  };
+}
+/** Share in-app content into a conversation. Returns its server id + timestamp. */
+export async function chatSendShare(conversationId: number, kind: string, title: string, payload?: Record<string, unknown>): Promise<{ id: number; created_at?: string } | null> {
+  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send_share.php', { method: 'POST', body: { conversation_id: conversationId, kind, title, payload }, auth: true });
+  return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
+}
+/** React to a message ('msg') or a share ('share'). emoji '' removes MY reaction. */
+export async function chatReact(conversationId: number, targetKind: 'msg' | 'share', targetId: number, emoji: string): Promise<{ ok: boolean; emoji: string | null }> {
+  const r = await request<{ status?: string; emoji?: string | null }>('/api/chat/react.php', { method: 'POST', body: { conversation_id: conversationId, target_kind: targetKind, target_id: targetId, emoji }, auth: true });
+  return { ok: r.ok, emoji: r.ok && r.data.emoji ? String(r.data.emoji) : null };
 }
 export async function chatRead(conversationId: number): Promise<void> { await request('/api/chat/read.php', { method: 'POST', body: { conversation_id: conversationId }, auth: true }); }
 export async function chatPresence(): Promise<void> { await request('/api/chat/presence.php', { method: 'POST', auth: true }); }
