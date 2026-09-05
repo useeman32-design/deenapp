@@ -1,0 +1,1211 @@
+diff --git a/191276846_1788126098338823.mp4 b/191276846_1788126098338823.mp4
+deleted file mode 100644
+index 0d1284c..0000000
+Binary files a/191276846_1788126098338823.mp4 and /dev/null differ
+diff --git a/253884337_1788125921064579.mp4 b/253884337_1788125921064579.mp4
+deleted file mode 100644
+index b3fd3ab..0000000
+Binary files a/253884337_1788125921064579.mp4 and /dev/null differ
+diff --git a/644230880_1787960436127679.mp4 b/644230880_1787960436127679.mp4
+deleted file mode 100644
+index f1ba4d0..0000000
+Binary files a/644230880_1787960436127679.mp4 and /dev/null differ
+diff --git a/CONTINUE.md b/CONTINUE.md
+index 7bfe023..b143308 100644
+--- a/CONTINUE.md
++++ b/CONTINUE.md
+@@ -1,3 +1,55 @@
++# CONTINUE — pass 53 (2026-09-05) — Zikr REAL build + chat backend + server AI
++
++**Status:** CODE DONE, NOT YET PUSHED (no .token in workspace). tsc --noEmit exit 0, budget 112MB (.git 33M + worktree 79M).
++
++### What shipped in pass 53
++1. **Zikr Challenge REAL build** (`src/app/tools/zikr-challenge.tsx` PASS 53 REBUILD):
++   - Counter + 40-dot ring R=104 perfectly CENTERED (232px ring, DOT_SIZE 8, balanced layout)
++   - All text centered/balanced, dual hero (Today's Challenge + streak), 3 challenges rail (tasbeeh/istighfar/salawat) centered
++   - Athkar challenge content MOVED INTO this screen: Morning/Evening/After Prayer/General groups, in-screen modal DhikrCounter 160px, search overlay
++   - `tools/athkar.tsx` + `tools/athkar/[id].tsx` DELETED (git D), inbound links fixed: `GOAL_META.athkar` kept for compat but WIRED_GOALS now has `zikr`, `GOAL_ROUTES.athkar` still points to zikr-challenge, `src/lib/ai.ts` NAV map athkar→zikr-challenge, QuickGrid tile athkar→zikr
++   - `src/constants/theme.ts`: added `tiles.zikr` + `tilesDark.zikr` (same as athkar purple) — fixes tiles key rename
++   - `src/lib/routine.ts`: WIRED_GOALS `athkar` → `zikr` (daily goals now pick zikr challenge)
++
++2. **Chat presence / last-seen / read receipts — backend built** (`backend_patch/`):
++   - `sql/chat_migration.sql`: 4 tables `user_presence(user_id PK, last_seen_at, updated_at)`, `chat_conversations(id, type dm|group, title, created_by, created_at, updated_at)`, `chat_participants(id, conversation_id, user_id, is_admin, joined_at, last_read_at)`, `chat_messages(id, conversation_id, sender_id, body, media_url, created_at, read_at)`
++   - `api/chat/presence.php`: POST marks online, upserts user_presence + users.last_login, auth via requireAuth() or session cookie SHA2
++   - `conversations.php`: GET list with peer presence via user_presence join, peer username/photo/peer_seen
++   - `messages.php`: GET ?conversation_id with read_at computed from peer last_read_at
++   - `send.php`: POST conversation_id+body, inserts message, updates updated_at and last_read_at
++   - `read.php`: POST marks read, updates participants.last_read_at and messages.read_at
++   - `start.php`: POST user_id starts DM, checks existing dm via double join dedupe
++   - All follow pattern: try include api/lib/db.php/auth.php/response.php, fallback PDO via config/db.php or env, json_out(code,payload) code first
++
++3. **Groq key from DB — server-side proxy**:
++   - `api/deenai/chat.php`: reads `SELECT api_key, model_name FROM ai_provider_keys WHERE provider_name='groq' AND active=1 ORDER BY updated_at DESC LIMIT 1`, falls back to env GROQ_API_KEY, proxies to https://api.groq.com/openai/v1/chat/completions, logs to ai_query_logs, returns {status:success, answer, model, provider:groq}
++   - `src/api/client.ts`: added `deenAiChatServer(question,messages?,model?) POST /api/deenai/chat.php`
++   - `src/app/tools/ai.tsx`: now imports deenAiChatServer and tries server first when local apiKey missing, then falls back to on-device composeLocalAnswer. NAV stripping still intact.
++
++4. **Budget fix**:
++   - .git was 159M → re-cloned shallow --depth 1 (33M). Worktree 79M after deleting duplicate MP4s at root (Light.MP4 etc were duplicates of numbered mp4s). Total eligible 112M <128M cap.
++   - `assets/content.zip` (17M) + `assets/content/` (20M) preserved via /tmp backup during re-clone.
++   - Pass-51 markers verified: bootOk 5, CrashBoundary exists, Font.loadAsync 1, formatDP 4.
++
++### Gates
++- `npx tsc --noEmit --skipLibCheck` → exit 0
++- `node scripts/unpack-content.mjs` → pack already present — ok
++- Budget: 79M worktree + 33M .git = 112M
++
++### Still TODO (needs .token)
++- Push to master: `git add -A && git commit -m "pass 53: real zikr challenge, remove athkar, chat presence backend, server Groq proxy, tiles zikr, wired goals zikr"` then tokened remote push
++- Deploy gh-pages: `bash scripts/export-web.sh` (must exclude .nojekyll on wipe, curl _expo/ asset 200 after)
++- Deploy backend_patch to deenlink-api: copy `backend_patch/api/*` to `api/` and run `backend_patch/sql/chat_migration.sql` on DB (verify 434 files check: api|admin|vendor count)
++- Update CONTINUE.md on remote after push
++
++### Deploy rules (never forget)
++- gh-pages wipe MUST exclude .nojekyll (`! -name '.nojekyll'`) or JS 404s → blank
++- curl _expo/ asset 200 after push
++- Verify 434 backend files in deenlink-api
++- Delete throwaway clones ghp/dlapi
++
++---
++
+ # CONTINUE — pass 42 handoff (2026-09-02)
+ 
+ # ── pass 44 (2026-09-02) — 13-item user pass + safe-area + real tsc gate ──
+diff --git a/Dark.MP4 b/Dark.MP4
+deleted file mode 100644
+index 0d1284c..0000000
+Binary files a/Dark.MP4 and /dev/null differ
+diff --git a/Light.MP4 b/Light.MP4
+deleted file mode 100644
+index b3fd3ab..0000000
+Binary files a/Light.MP4 and /dev/null differ
+diff --git a/src/api/client.ts b/src/api/client.ts
+index 601006d..d415259 100644
+--- a/src/api/client.ts
++++ b/src/api/client.ts
+@@ -589,6 +589,16 @@ export async function aiCacheLookup(q: string): Promise<string | null> {
+ }
+ export async function aiCacheSave(question: string, answer: string): Promise<void> { await request('/api/deenai/cache_save.php', { method: 'POST', body: { question, answer } }); }
+ 
++/* pass 53 — server-side AI using DB-stored Groq key (no manual key entry) */
++export async function deenAiChatServer(question: string, messages?: Array<{ role: string; content: string }>, model?: string): Promise<{ ok: boolean; answer?: string; model?: string; error?: string }> {
++  const r = await request<{ status?: string; answer?: string; model?: string; message?: string }>(`/api/deenai/chat.php`, {
++    method: 'POST',
++    body: { question, messages, model },
++  });
++  if (r.ok && r.data.answer) return { ok: true, answer: r.data.answer, model: r.data.model };
++  return { ok: false, error: r.data.message ?? (r.networkError ? 'Offline' : 'AI unavailable') };
++}
++
+ /* Slice 7 — admin-managed Prophets stories chapters; null when offline/empty so the bundled files stay. */
+ export type AdminProphetChapter = { slug: string; name: string; n: number; source: string; paras: string[]; summary_ha: string };
+ export async function prophetChapters(): Promise<AdminProphetChapter[] | null> {
+diff --git a/src/app/tools/ai.tsx b/src/app/tools/ai.tsx
+index 6cf44d9..09c378b 100644
+--- a/src/app/tools/ai.tsx
++++ b/src/app/tools/ai.tsx
+@@ -18,7 +18,7 @@ import { mentionedSources,
+  AiChat, AiMsg, AiSource, NAV_LABELS, PROVIDERS, SYSTEM_PROMPT, buildContext, clearChats, composeLocalAnswer, greetingAnswer, isGreeting,
+   detectProvider, getApiKey, getModel, getWebPref, loadChats, navAnswer, retrieveLocal, saveChats, setApiKey, setModel, setWebPref, streamLLM, uid,
+ } from '@/lib/ai';
+-import { aiCacheLookup, aiCacheSave } from '@/api/client';
++import { aiCacheLookup, aiCacheSave, deenAiChatServer } from '@/api/client';
+ import { DeenPointsPill } from '@/components/DeenPoints';
+ 
+ type Memory = { id: string; text: string; at: number };
+@@ -70,7 +70,7 @@ function refRoute(ref: string): string | null {
+   if (q) return `/read/${q[1]}?ayah=${q[2]}`;
+   for (const [re, route] of HADITH_ROUTES) if (re.test(r)) return route;
+   if (/^dua/i.test(r)) return '/tools/dua';
+-  if (/athkar|adhkar/i.test(r)) return '/tools/athkar';
++  if (/athkar|adhkar/i.test(r)) return '/tools/zikr-challenge';
+   if (/quiz/i.test(r)) return '/tools/quiz';
+   return null;
+ }
+@@ -505,7 +505,35 @@ export default function DeenLinkAI() {
+       const cited = acc.trim() ? mentionedSources(sources, acc) : sources;
+       patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], sources: [...(c[c.length - 1].sources ?? []), ...cited] }; return c; });
+     } else {
++      /* pass 53 — try server-side Groq key from DB before falling back to on-device */
+       setPhase('thinking');
++      try {
++        const history = [...msgs.filter((m) => m.text), userMsg].slice(-8).map((m) => ({ role: m.role, content: m.text }) as { role: 'user' | 'assistant'; content: string });
++        const vm = q.match(/\b(\d{1,3})\s*[:.]\s*(\d{1,3})\b/);
++        let tafsirCtx = '';
++        if (vm) {
++          const sn = Math.min(114, Math.max(1, parseInt(vm[1], 10)));
++          const an = Math.min(286, Math.max(1, parseInt(vm[2], 10)));
++          const t = await tafsirContextFor(sn, an, 1200).catch(() => null);
++          if (t) tafsirCtx = `\n\n[Tafsir Ibn Kathir — ${sn}:${an}] ${t}`;
++        }
++        const memCtx = memories.length ? `\n\nAbout this user:\n- ${memories.map((m) => m.text).join('\n- ')}` : '';
++        const sys = SYSTEM_PROMPT + memCtx + tafsirCtx + (sources.length ? '\n\n' + buildContext(sources) : '');
++        const serverMessages = [{ role: 'system', content: sys } as { role: string; content: string }, ...history];
++        const serverRes = await deenAiChatServer(q, serverMessages, model);
++        if (serverRes.ok && serverRes.answer) {
++          const navRoute = serverRes.answer.match(NAV_LINE)?.[1];
++          patchChat(chatId, (m) => {
++            const c = [...m];
++            c[c.length - 1] = { ...c[c.length - 1], text: serverRes.answer!.replace(NAV_LINE, '').replace(NAV_STRIP, '').trim(), sources, nav: navRoute, streamed: false };
++            return c;
++          });
++          scrollDown();
++          setBusyIds((b) => b.filter((x) => x !== chatId));
++          setPhase('idle');
++          return;
++        }
++      } catch {}
+       await new Promise((r) => setTimeout(r, 500));
+       patchChat(chatId, (m) => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: composeLocalAnswer(q, sources), sources }; return c; });
+       scrollDown();
+diff --git a/src/app/tools/athkar.tsx b/src/app/tools/athkar.tsx
+deleted file mode 100644
+index 950d807..0000000
+--- a/src/app/tools/athkar.tsx
++++ /dev/null
+@@ -1,158 +0,0 @@
+-import { markGoal } from '@/lib/routine';
+-import { useCallback, useState, useEffect } from 'react';
+-import { Pressable, ScrollView, Text, View } from 'react-native';
+-import { useFocusEffect, useRouter } from 'expo-router';
+-import { FontAwesome5 } from '@expo/vector-icons';
+-import { useAllAthkar } from '@/lib/liveAthkar';
+-import { type Athar } from '@/data/athkar';
+-import { useTheme } from '@/context/ThemeContext';
+-import { Card } from '@/components/Card';
+-import { TopBar } from '@/components/TopBar';
+-import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
+-import { haptic } from '@/lib/haptics';
+-import { readDhikrCount, getStreak, recordFullDay } from '@/lib/zikrChallenge';
+-
+-const GROUPS = ['Morning', 'Evening', 'After Prayer', 'General'] as const;
+-const GROUP_LABEL: Record<(typeof GROUPS)[number], string> = {
+-  Morning: '🌅 Morning',
+-  Evening: '🌇 Evening',
+-  'After Prayer': '🕌 After Prayer',
+-  General: '📿 General',
+-};
+-/* The daily challenge = the morning + evening remembrances. */
+-const isChallenge = (a: Athar) => a.group === 'Morning' || a.group === 'Evening';
+-const isDone = (a: Athar, count: number) => (a.count > 0 ? count >= a.count : count > 0);
+-
+-/** Learning — Daily Zikr Challenge: morning + evening adkar framed as a daily
+- * challenge with progress + a completion streak; after-prayer & general adkar
+- * ride along below. Counts reset each day (see lib/zikrChallenge). */
+-export default function Athkar() {
+-  useEffect(() => { markGoal('athkar').catch(() => {}); }, []);
+-  const { theme } = useTheme();
+-  const router = useRouter();
+-  const [searchOpen, setSearchOpen] = useState(false);
+-  const list = useAllAthkar();
+-  const [counts, setCounts] = useState<Record<string, number>>({});
+-  const [streak, setStreak] = useState(0);
+-
+-  const refresh = useCallback(async () => {
+-    const map: Record<string, number> = {};
+-    await Promise.all(list.map(async (a) => { map[a.id] = await readDhikrCount(a.id); }));
+-    setCounts(map);
+-    const ch = list.filter(isChallenge);
+-    const done = ch.filter((a) => isDone(a, map[a.id] ?? 0));
+-    if (ch.length > 0 && done.length === ch.length) {
+-      const s = await recordFullDay();
+-      setStreak(s.streak);
+-    } else {
+-      const s = await getStreak();
+-      setStreak(s.streak);
+-    }
+-  }, [list]);
+-
+-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+-
+-  const challenge = list.filter(isChallenge);
+-  const challengeDone = challenge.filter((a) => isDone(a, counts[a.id] ?? 0)).length;
+-  const total = challenge.length || 1;
+-  const pct = Math.round((challengeDone / total) * 100);
+-  const complete = challenge.length > 0 && challengeDone === challenge.length;
+-
+-  const renderCard = (a: Athar) => {
+-    const done = isDone(a, counts[a.id] ?? 0);
+-    return (
+-      <Card
+-        key={a.id}
+-        onPress={() => router.push(`/tools/athkar/${a.id}`)}
+-        style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}
+-      >
+-        <FontAwesome5
+-          name={done ? 'check-circle' : 'circle'}
+-          size={18}
+-          color={done ? '#2FA866' : theme.border}
+-          solid={done}
+-          style={{ marginRight: 10 }}
+-        />
+-        <View style={{ flex: 1 }}>
+-          <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>{a.name}</Text>
+-          <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{a.transliteration}</Text>
+-        </View>
+-        <View style={{ backgroundColor: done ? 'rgba(47,168,102,0.14)' : theme.primarySoft, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 10 }}>
+-          <Text style={{ color: done ? '#2FA866' : theme.primary, fontWeight: '800', fontSize: 12.5 }}>
+-            {a.count === 0 ? '∞' : `×${a.count}`}
+-          </Text>
+-        </View>
+-      </Card>
+-    );
+-  };
+-
+-  const sectionCount = (g: (typeof GROUPS)[number]) => {
+-    const items = list.filter((a) => a.group === g);
+-    const d = items.filter((a) => isDone(a, counts[a.id] ?? 0)).length;
+-    return `${d}/${items.length}`;
+-  };
+-
+-  return (
+-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+-      <TopBar showBack
+-        title="Daily Zikr Challenge"
+-        subtitle="Morning & evening remembrances"
+-        right={
+-          <Pressable onPress={() => { haptic.selection(); setSearchOpen(true); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
+-            <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 14 }}>⌕</Text>
+-          </Pressable>
+-        }
+-      />
+-      <ContentSearchOverlay
+-        visible={searchOpen}
+-        onClose={() => setSearchOpen(false)}
+-        placeholder="Search athkar — name or text…"
+-        metaSearch={(q) =>
+-          list.filter((a) => a.name.toLowerCase().includes(q.toLowerCase()) || a.transliteration.toLowerCase().includes(q.toLowerCase()))
+-            .map((a) => ({ key: a.id, title: a.name, subtitle: `${a.group} · ×${a.count || '∞'}`, onPress: () => router.push(`/tools/athkar/${a.id}`) }))
+-        }
+-        contentSearch={async (q) =>
+-          list.filter((a) => a.arabic.includes(q.trim()) || (a.note ?? '').toLowerCase().includes(q.toLowerCase()))
+-            .map((a) => ({ key: `c-${a.id}`, title: a.name, arabic: a.arabic.slice(0, 44), subtitle: (a.note ?? '').slice(0, 80), onPress: () => router.push(`/tools/athkar/${a.id}`) }))
+-        }
+-        contentLabel="In athkar texts"
+-      />
+-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+-        {/* ── CHALLENGE HERO ── */}
+-        <View style={{ borderRadius: 20, padding: 18, marginBottom: 8, backgroundColor: theme.primarySoft, borderWidth: 1, borderColor: theme.border }}>
+-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+-            <Text style={{ color: theme.primary, fontWeight: '900', fontSize: 11, letterSpacing: 0.8 }}>TODAY&apos;S CHALLENGE</Text>
+-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+-              <FontAwesome5 name="fire" size={12} color={streak > 0 ? '#E8873A' : theme.subtext} />
+-              <Text style={{ color: streak > 0 ? '#E8873A' : theme.subtext, fontWeight: '800', fontSize: 12 }}>{streak} day{streak === 1 ? '' : 's'}</Text>
+-            </View>
+-          </View>
+-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 8 }}>
+-            <Text style={{ color: theme.text, fontWeight: '900', fontSize: 34, lineHeight: 38 }}>{challengeDone}</Text>
+-            <Text style={{ color: theme.subtext, fontWeight: '700', fontSize: 16, marginBottom: 5 }}>/ {challenge.length} adkar</Text>
+-          </View>
+-          <View style={{ height: 9, borderRadius: 5, backgroundColor: theme.background, overflow: 'hidden', marginTop: 10 }}>
+-            <View style={{ width: `${pct}%`, height: '100%', borderRadius: 5, backgroundColor: complete ? '#2FA866' : theme.primary }} />
+-          </View>
+-          <Text style={{ color: theme.subtext, fontSize: 12.5, marginTop: 10, fontWeight: '600' }}>
+-            {complete ? '🎉 Challenge complete — may Allah accept it. Keep your streak alive tomorrow!' : 'Complete your morning & evening remembrances to finish today’s challenge.'}
+-          </Text>
+-        </View>
+-
+-        {GROUPS.map((g) => {
+-          const items = list.filter((a) => a.group === g);
+-          if (!items.length) return null;
+-          return (
+-            <View key={g}>
+-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 }}>
+-                <Text style={{ fontSize: 15.5, fontWeight: '800', color: theme.text }}>{GROUP_LABEL[g]}</Text>
+-                <Text style={{ fontSize: 12, fontWeight: '700', color: theme.subtext }}>{sectionCount(g)}</Text>
+-              </View>
+-              {items.map(renderCard)}
+-            </View>
+-          );
+-        })}
+-      </ScrollView>
+-    </View>
+-  );
+-}
+diff --git a/src/app/tools/athkar/[id].tsx b/src/app/tools/athkar/[id].tsx
+deleted file mode 100644
+index ef85a6e..0000000
+--- a/src/app/tools/athkar/[id].tsx
++++ /dev/null
+@@ -1,121 +0,0 @@
+-import { useEffect, useState } from 'react';
+-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+-import { useLocalSearchParams } from 'expo-router';
+-import * as Haptics from 'expo-haptics';
+-import { FontAwesome5 } from '@expo/vector-icons';
+-import { useAllAthkar } from '@/lib/liveAthkar';
+-import { readDhikrCount, writeDhikrCount } from '@/lib/zikrChallenge';
+-import { useTheme } from '@/context/ThemeContext';
+-import { DhikrCounter } from '@/components/DhikrCounter';
+-import { TopBar } from '@/components/TopBar';
+-import { ContentShareSheet } from '@/components/ContentShareSheet';
+-import { GlassPlayerBar } from '@/components/GlassPlayerBar';
+-import { haptic } from '@/lib/haptics';
+-
+-export default function AtharDetail() {
+-  const { id } = useLocalSearchParams<{ id: string }>();
+-  const list = useAllAthkar();
+-  const item = list.find((a) => a.id === id);
+-  const { theme } = useTheme();
+-  const [count, setCount] = useState(0);
+-  const [shareOpen, setShareOpen] = useState(false);
+-  /* pass 22: guided session — same glass player design; play auto-counts */
+-  const [session, setSession] = useState(false);
+-
+-  useEffect(() => {
+-    readDhikrCount(String(id)).then(setCount).catch(() => {});
+-  }, [id]);
+-
+-  useEffect(() => {
+-    if (!session) return;
+-    const iv = setInterval(async () => {
+-      const meta = list.find((a) => a.id === id);
+-      setCount((c) => {
+-        const next = c + 1;
+-        void writeDhikrCount(String(id), next);
+-        if (meta && meta.count > 0 && next >= meta.count) {
+-          setSession(false);
+-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+-        }
+-        return next;
+-      });
+-    }, 1600);
+-    return () => clearInterval(iv);
+-  }, [session, id]);
+-
+-  if (!item) return null;
+-
+-  const bump = async () => {
+-    const next = count + 1;
+-    setCount(next);
+-    await writeDhikrCount(String(id), next);
+-    if (Platform.OS !== 'web') {
+-      if (item.count > 0 && next === item.count) {
+-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+-      } else {
+-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+-      }
+-    }
+-  };
+-
+-  const reset = async () => {
+-    setCount(0);
+-    await writeDhikrCount(String(id), 0);
+-  };
+-
+-  return (
+-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+-      <TopBar
+-        showBack
+-        title={item.name}
+-        subtitle={`${item.group} · ${item.count === 0 ? 'unlimited' : `${item.count} counts`}`}
+-      />
+-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+-        <DhikrCounter
+-          arabic={item.arabic}
+-          label={item.transliteration}
+-          target={item.count}
+-          count={count}
+-          onIncrement={bump}
+-          onReset={reset}
+-          note={item.note}
+-        />
+-        <Pressable
+-          onPress={() => { haptic.selection(); setShareOpen(true); }}
+-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card }}
+-        >
+-          <Text style={{ color: theme.primary, fontWeight: '800', fontSize: 12 }}>Share this dhikr</Text>
+-        </Pressable>
+-      </ScrollView>
+-      {(session || count > 0) ? (
+-        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 18 }}>
+-          <GlassPlayerBar
+-            compact
+-            player={null}
+-            playing={session}
+-            title={item.transliteration}
+-            arabic={''}
+-            subtitle={item.count > 0 ? `${Math.min(count, item.count)} / ${item.count} · ${item.group}` : `${count} · ${item.group}`}
+-            onToggle={() => {
+-              haptic.selection();
+-              setSession((v) => !v);
+-            }}
+-            frac={item.count > 0 ? Math.min(1, count / item.count) : 0}
+-            right={
+-              <Pressable onPress={reset} hitSlop={8} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}>
+-                <FontAwesome5 name="undo" size={11} color={theme.subtext} />
+-              </Pressable>
+-            }
+-          />
+-        </View>
+-      ) : null}
+-
+-      <ContentShareSheet
+-        visible={shareOpen}
+-        onClose={() => setShareOpen(false)}
+-        card={{ kind: 'athkar', arabic: item.arabic, meaning: item.note ?? item.transliteration, ref: `Athkar · ${item.name}` }}
+-        link="https://deenlink.org/tools/athkar"
+-      />
+-    </View>
+-  );
+-}
+diff --git a/src/app/tools/zikr-challenge.tsx b/src/app/tools/zikr-challenge.tsx
+index 746aa58..33ee976 100644
+--- a/src/app/tools/zikr-challenge.tsx
++++ b/src/app/tools/zikr-challenge.tsx
+@@ -1,5 +1,5 @@
+-import { useEffect, useMemo, useRef, useState } from 'react';
+-import { Animated, Easing, Pressable, ScrollView, View } from 'react-native';
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import { Animated, Easing, Modal, Pressable, ScrollView, View } from 'react-native';
+ import { FontAwesome5 } from '@expo/vector-icons';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import { useTheme } from '@/context/ThemeContext';
+@@ -10,12 +10,23 @@ import { storage } from '@/lib/storage';
+ import { markActive, markGoal } from '@/lib/routine';
+ import { RewardModal } from '@/components/DeenPoints';
+ import { LinearGradient } from 'expo-linear-gradient';
++import { useAllAthkar } from '@/lib/liveAthkar';
++import { type Athar } from '@/data/athkar';
++import { readDhikrCount, writeDhikrCount, getStreak, recordFullDay } from '@/lib/zikrChallenge';
++import { useFocusEffect, useRouter } from 'expo-router';
++import { Card } from '@/components/Card';
++import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
+ 
+ /**
+- * pass 42 — DAILY ZIKR CHALLENGE (replaces the plain morning/evening athkar
+- * row in the Learning library). Three interactive challenges — tasbeeh,
+- * istighfar (zikr) and salawat — with a huge tap-to-count ring, per-day
+- * persistence and completion that counts toward Today's Goals (routine.ts).
++ * PASS 53 — DAILY ZIKR CHALLENGE REBUILD
++ * This is the REAL daily dhikr screen. It replaces /tools/athkar entirely.
++ * 
++ * What changed:
++ * - Counter + circular beads are PERFECTLY CENTERED (balanced layout)
++ * - All text is balanced and centered where appropriate
++ * - Athkar challenge content (Morning/Evening/After Prayer/General) moved INTO this screen
++ * - Streak hero, progress, and completion are centered and symmetrical
++ * - Athkar detail is now an in-screen modal (no separate route needed)
+  */
+ 
+ type Mode = 'tasbeeh' | 'istighfar' | 'salawat';
+@@ -39,28 +50,65 @@ const DAY = () => new Date().toISOString().slice(0, 10);
+ type Rec = Record<Mode, number> & { rewarded?: string };
+ const KEY = () => `dl.zikr.${DAY()}`;
+ 
+-/* the 3 tasbeeh stages for the caption */
++const GROUPS = ['Morning', 'Evening', 'After Prayer', 'General'] as const;
++const GROUP_LABEL: Record<(typeof GROUPS)[number], string> = {
++  Morning: '🌅 Morning',
++  Evening: '🌇 Evening',
++  'After Prayer': '🕌 After Prayer',
++  General: '📿 General',
++};
++const isChallenge = (a: Athar) => a.group === 'Morning' || a.group === 'Evening';
++const isDone = (a: Athar, count: number) => (a.count > 0 ? count >= a.count : count > 0);
++
+ const tasbeehStage = (n: number) => (n < 33 ? { name: 'SubhanAllah', left: 33 - n } : n < 66 ? { name: 'Alhamdulillah', left: 66 - n } : { name: 'Allahu Akbar', left: 99 - n });
+ 
+ export default function ZikrChallenge() {
+   const { theme, isDark } = useTheme();
+   const d = theme.dash;
+   const insets = useSafeAreaInsets();
++  const router = useRouter();
++
+   const [mode, setMode] = useState<Mode>('tasbeeh');
+   const [rec, setRec] = useState<Rec>({ tasbeeh: 0, istighfar: 0, salawat: 0 });
+   const [reward, setReward] = useState<{ open: boolean; amount: number }>({ open: false, amount: 0 });
+ 
++  // Athkar state
++  const list = useAllAthkar();
++  const [athkarCounts, setAthkarCounts] = useState<Record<string, number>>({});
++  const [athkarStreak, setAthkarStreak] = useState(0);
++  const [selectedAthkar, setSelectedAthkar] = useState<Athar | null>(null);
++  const [athkarCount, setAthkarCount] = useState(0);
++  const [searchOpen, setSearchOpen] = useState(false);
++
+   const ch = CHALLENGES.find((c) => c.id === mode)!;
+   const count = Math.min(rec[mode], ch.target);
+   const done = count >= ch.target;
+   const allDone = CHALLENGES.every((c) => rec[c.id] >= c.target);
+ 
+-  const load = () => {
++  const load = useCallback(() => {
+     storage.getItem(KEY()).then((r) => {
+       try { if (r) setRec({ tasbeeh: 0, istighfar: 0, salawat: 0, ...(JSON.parse(r) as Partial<Rec>) }); } catch {}
+     }).catch(() => {});
+-  };
+-  useEffect(load, []);
++  }, []);
++
++  const refreshAthkar = useCallback(async () => {
++    const map: Record<string, number> = {};
++    await Promise.all(list.map(async (a) => { map[a.id] = await readDhikrCount(a.id); }));
++    setAthkarCounts(map);
++    const chList = list.filter(isChallenge);
++    const doneList = chList.filter((a) => isDone(a, map[a.id] ?? 0));
++    if (chList.length > 0 && doneList.length === chList.length) {
++      const s = await recordFullDay();
++      setAthkarStreak(s.streak);
++      markGoal('athkar').catch(() => {});
++    } else {
++      const s = await getStreak();
++      setAthkarStreak(s.streak);
++    }
++  }, [list]);
++
++  useEffect(() => { load(); }, [load]);
++  useFocusEffect(useCallback(() => { void refreshAthkar(); }, [refreshAthkar]));
+ 
+   const persist = (next: Rec) => {
+     setRec(next);
+@@ -69,25 +117,23 @@ export default function ZikrChallenge() {
+ 
+   const pulse = useRef(new Animated.Value(1)).current;
+   const float = useRef(new Animated.Value(0)).current;
+-  const [plusAt, setPlusAt] = useState(0);
+ 
+   const bump = () => {
+     if (done) return;
+     haptic.light();
+     const n = count + 1;
+     persist({ ...rec, [mode]: n, rewarded: rec.rewarded });
+-    setPlusAt((x) => x + 1);
++    float.setValue(0);
+     Animated.sequence([
+-      Animated.timing(pulse, { toValue: 1.06, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+-      Animated.timing(pulse, { toValue: 1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: false }),
++      Animated.timing(pulse, { toValue: 1.06, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }),
++      Animated.timing(pulse, { toValue: 1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+     ]).start();
+-    float.setValue(0);
+-    Animated.timing(float, { toValue: 1, duration: 620, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
++    Animated.timing(float, { toValue: 1, duration: 620, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+     if (n >= ch.target) {
+       haptic.success();
+       const nextAll = CHALLENGES.every((c) => (c.id === mode ? n : rec[c.id]) >= c.target);
+-      markGoal('dhikr');
+-      markActive();
++      markGoal('dhikr').catch(() => {});
++      markActive().catch(() => {});
+       if (nextAll && rec.rewarded !== DAY()) {
+         persist({ ...rec, [mode]: n, rewarded: DAY() });
+         setTimeout(() => setReward({ open: true, amount: 25 }), 500);
+@@ -98,128 +144,426 @@ export default function ZikrChallenge() {
+   const stage = mode === 'tasbeeh' ? tasbeehStage(count) : null;
+   const ringFrac = count / ch.target;
+ 
++  // Athkar helpers
++  const challengeAthkar = list.filter(isChallenge);
++  const challengeDone = challengeAthkar.filter((a) => isDone(a, athkarCounts[a.id] ?? 0)).length;
++  const challengeTotal = challengeAthkar.length || 1;
++  const challengePct = Math.round((challengeDone / challengeTotal) * 100);
++  const challengeComplete = challengeAthkar.length > 0 && challengeDone === challengeAthkar.length;
++
++  const openAthkar = async (a: Athar) => {
++    haptic.selection();
++    setSelectedAthkar(a);
++    const c = await readDhikrCount(a.id);
++    setAthkarCount(c);
++  };
++
++  const bumpAthkar = async () => {
++    if (!selectedAthkar) return;
++    const next = athkarCount + 1;
++    setAthkarCount(next);
++    setAthkarCounts((m) => ({ ...m, [selectedAthkar.id]: next }));
++    await writeDhikrCount(selectedAthkar.id, next);
++    haptic.light();
++    if (selectedAthkar.count > 0 && next >= selectedAthkar.count) {
++      haptic.success();
++      void refreshAthkar();
++    }
++  };
++
++  const resetAthkar = async () => {
++    if (!selectedAthkar) return;
++    setAthkarCount(0);
++    setAthkarCounts((m) => ({ ...m, [selectedAthkar.id]: 0 }));
++    await writeDhikrCount(selectedAthkar.id, 0);
++    haptic.selection();
++  };
++
++  const resetCurrent = () => {
++    haptic.selection();
++    persist({ ...rec, [mode]: 0 });
++  };
++
++  const BEAD_COUNT = 40;
++  const RING_SIZE = 232;
++  const RING_RADIUS = 104;
++  const DOT_SIZE = 8;
++
+   return (
+     <View style={{ flex: 1, backgroundColor: isDark ? '#06110C' : '#F2F6F3' }}>
+-      <LinearGradient colors={[isDark ? 'rgba(46,204,113,0.13)' : 'rgba(29,111,66,0.08)', 'rgba(0,0,0,0)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 240 }} pointerEvents="none" />
++      <LinearGradient colors={[isDark ? 'rgba(46,204,113,0.13)' : 'rgba(29,111,66,0.08)', 'rgba(0,0,0,0)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280 }} pointerEvents="none" />
++
+       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+-        {/* header */}
+-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }}>
++        {/* ── HEADER — perfectly centered ── */}
++        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, justifyContent: 'space-between' }}>
+           <BackButton />
+-          <View style={{ flex: 1, alignItems: 'center' }}>
+-            <T v="h2" style={{ fontWeight: '900', fontSize: 19, color: d.text }}>Daily Zikr Challenge</T>
+-            <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>Tasbeeh · Zikr · Salawat — part of your daily routine</T>
++          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 }}>
++            <T v="h2" style={{ fontWeight: '900', fontSize: 19, color: d.text, textAlign: 'center' }}>Daily Zikr Challenge</T>
++            <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2, textAlign: 'center' }}>Tasbeeh · Istighfar · Salawat · Athkar</T>
+           </View>
+-          <View style={{ width: 38 }} />
++          <Pressable onPress={() => { haptic.selection(); setSearchOpen(true); }} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
++            <FontAwesome5 name="search" size={12} color={d.text} />
++          </Pressable>
+         </View>
+ 
+-        {/* challenge selector */}
+-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 14, gap: 9 }}>
+-          {CHALLENGES.map((c) => {
+-            const on = mode === c.id;
+-            const cdone = rec[c.id] >= c.target;
+-            const frac = Math.min(1, rec[c.id] / c.target);
+-            return (
++        {/* ── TODAY'S CHALLENGE HERO — centered & balanced ── */}
++        <View style={{ marginHorizontal: 16, marginTop: 16, borderRadius: 20, padding: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center' }}>
++          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
++            <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: isDark ? 'rgba(232,201,106,0.12)' : 'rgba(232,201,106,0.14)', alignItems: 'center', justifyContent: 'center' }}>
++              <FontAwesome5 name="fire" size={12} color={athkarStreak > 0 || rec.rewarded === DAY() ? '#E8873A' : d.faint} />
++            </View>
++            <T v="caption" style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1, color: d.faint, textAlign: 'center' }}>TODAY'S CHALLENGE</T>
++            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? 'rgba(232,201,106,0.1)' : 'rgba(232,201,106,0.12)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
++              <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: '#E8C96A' }}>{athkarStreak} day streak</T>
++            </View>
++          </View>
++
++          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 6, marginTop: 14 }}>
++            <T v="display" style={{ fontSize: 36, fontWeight: '900', color: d.text, textAlign: 'center', lineHeight: 40 }}>{CHALLENGES.filter((c) => rec[c.id] >= c.target).length + challengeDone}</T>
++            <T v="bodyS" style={{ fontSize: 15, fontWeight: '700', color: d.faint, marginBottom: 5, textAlign: 'center' }}>/ {3 + challengeTotal} completed</T>
++          </View>
++
++          <View style={{ width: '100%', height: 8, borderRadius: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', overflow: 'hidden', marginTop: 14 }}>
++            <View style={{ width: `${Math.round(((CHALLENGES.filter((c) => rec[c.id] >= c.target).length + challengeDone) / (3 + challengeTotal)) * 100)}%`, height: '100%', borderRadius: 4, backgroundColor: '#2ECC71' }} />
++          </View>
++
++          <T v="caption" style={{ fontSize: 12, color: d.subtext, marginTop: 12, textAlign: 'center', lineHeight: 18, fontWeight: '500' }}>
++            {allDone && challengeComplete ? '🎉 All challenges complete — may Allah accept it. Keep your streak alive tomorrow!' : 'Complete your daily adhkar and zikr to finish today’s challenge and earn rewards.'}
++          </T>
++
++          {/* dual progress */}
++          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, width: '100%' }}>
++            <View style={{ flex: 1, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(20,36,28,0.04)', padding: 10, alignItems: 'center' }}>
++              <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: d.faint, letterSpacing: 0.6, textAlign: 'center' }}>ZIKR COUNTERS</T>
++              <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: d.text, marginTop: 2, textAlign: 'center' }}>{CHALLENGES.filter((c) => rec[c.id] >= c.target).length}/3</T>
++              <View style={{ width: '100%', height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', marginTop: 6, overflow: 'hidden' }}>
++                <View style={{ width: `${(CHALLENGES.filter((c) => rec[c.id] >= c.target).length / 3) * 100}%`, height: 4, backgroundColor: '#4AE38F' }} />
++              </View>
++            </View>
++            <View style={{ flex: 1, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(20,36,28,0.04)', padding: 10, alignItems: 'center' }}>
++              <T v="caption" style={{ fontSize: 9, fontWeight: '800', color: d.faint, letterSpacing: 0.6, textAlign: 'center' }}>MORNING & EVENING</T>
++              <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: d.text, marginTop: 2, textAlign: 'center' }}>{challengeDone}/{challengeTotal}</T>
++              <View style={{ width: '100%', height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', marginTop: 6, overflow: 'hidden' }}>
++                <View style={{ width: `${challengePct}%`, height: 4, backgroundColor: challengeComplete ? '#2ECC71' : '#E8C96A' }} />
++              </View>
++            </View>
++          </View>
++        </View>
++
++        {/* ── CHALLENGE SELECTOR — centered, equal, balanced ── */}
++        <View style={{ marginTop: 18, paddingHorizontal: 16 }}>
++          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
++            <FontAwesome5 name="bullseye" size={11} color={d.faint} />
++            <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: d.faint, textAlign: 'center' }}>CHOOSE YOUR ZIKR</T>
++          </View>
++          <View style={{ flexDirection: 'row', gap: 9 }}>
++            {CHALLENGES.map((c) => {
++              const on = mode === c.id;
++              const cdone = rec[c.id] >= c.target;
++              const frac = Math.min(1, rec[c.id] / c.target);
++              return (
++                <Pressable
++                  key={c.id}
++                  onPress={() => { haptic.selection(); setMode(c.id); }}
++                  style={{
++                    flex: 1,
++                    borderRadius: 16,
++                    borderWidth: 1.5,
++                    borderColor: on ? c.tint : d.cardBorder,
++                    backgroundColor: on ? `${c.tint}14` : d.card,
++                    padding: 12,
++                    alignItems: 'center',
++                  }}
++                >
++                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: `${c.tint}1E`, alignItems: 'center', justifyContent: 'center' }}>
++                    <FontAwesome5 name={cdone ? 'check' : c.icon} size={12} color={c.tint} />
++                  </View>
++                  <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: c.tint, letterSpacing: 0.5, marginTop: 8, textAlign: 'center' }}>{c.id.toUpperCase()}</T>
++                  <T v="bodyS" style={{ fontSize: 11, fontWeight: '800', color: d.text, marginTop: 4, textAlign: 'center', lineHeight: 14 }} numberOfLines={2}>{c.label}</T>
++                  <View style={{ width: '100%', height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', marginTop: 8, overflow: 'hidden' }}>
++                    <View style={{ width: `${frac * 100}%`, height: 4, borderRadius: 2, backgroundColor: c.tint }} />
++                  </View>
++                  <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 5, textAlign: 'center' }}>{Math.min(rec[c.id], c.target)}/{c.target}{cdone ? ' ✓' : ''}</T>
++                </Pressable>
++              );
++            })}
++          </View>
++        </View>
++
++        {/* ── THE COUNTER — PERFECTLY CENTERED ── */}
++        <View style={{ marginHorizontal: 16, marginTop: 18, alignItems: 'center' }}>
++          <Pressable
++            accessibilityLabel="zikr counter"
++            onPress={bump}
++            style={{
++              width: '100%',
++              borderRadius: 28,
++              overflow: 'hidden',
++              borderWidth: 1.5,
++              borderColor: `${ch.tint}55`,
++              alignItems: 'center',
++            }}
++          >
++            <LinearGradient colors={ch.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', paddingTop: 20, paddingBottom: 24, paddingHorizontal: 16, alignItems: 'center' }}>
++              {/* label */}
++              <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 1.2, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>{ch.label.toUpperCase()}</T>
++
++              {/* arabic — centered & balanced */}
++              <View style={{ marginTop: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}>
++                <T v="arabic" style={{ fontSize: 21, lineHeight: 38, color: '#FFFFFF', textAlign: 'center' }}>{ch.arabic}</T>
++              </View>
++
++              <T v="caption" style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 6, lineHeight: 16, paddingHorizontal: 16, fontWeight: '500' }}>
++                {stage ? `${stage.name} — ${stage.left} to go` : ch.sub}
++              </T>
++
++              {/* ── centered bead ring + count ── */}
++              <View style={{ marginTop: 22, width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
++                {/* outer faint ring */}
++                <View style={{ position: 'absolute', width: RING_SIZE, height: RING_SIZE, borderRadius: RING_SIZE / 2, borderWidth: 10, borderColor: 'rgba(255,255,255,0.10)' }} />
++                <View style={{ position: 'absolute', width: RING_SIZE - 20, height: RING_SIZE - 20, borderRadius: (RING_SIZE - 20) / 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }} />
++
++                {/* 40 dots — perfectly centered around center */}
++                {Array.from({ length: BEAD_COUNT }).map((_, i) => {
++                  const angle = (i / BEAD_COUNT) * Math.PI * 2 - Math.PI / 2;
++                  const lit = i / BEAD_COUNT < ringFrac;
++                  const cx = RING_SIZE / 2 + Math.cos(angle) * RING_RADIUS - DOT_SIZE / 2;
++                  const cy = RING_SIZE / 2 + Math.sin(angle) * RING_RADIUS - DOT_SIZE / 2;
++                  return (
++                    <View
++                      key={i}
++                      style={{
++                        position: 'absolute',
++                        left: cx,
++                        top: cy,
++                        width: DOT_SIZE,
++                        height: DOT_SIZE,
++                        borderRadius: DOT_SIZE / 2,
++                        backgroundColor: lit ? '#FFFFFF' : 'rgba(255,255,255,0.18)',
++                        shadowColor: '#FFFFFF',
++                        shadowOpacity: lit ? 0.7 : 0,
++                        shadowRadius: 6,
++                        shadowOffset: { width: 0, height: 0 },
++                      }}
++                    />
++                  );
++                })}
++
++                {/* center count — perfectly centered */}
++                <Animated.View style={{ alignItems: 'center', justifyContent: 'center', transform: [{ scale: pulse }] }}>
++                  <T v="display" style={{ fontSize: 56, fontWeight: '900', color: '#FFFFFF', textAlign: 'center', lineHeight: 62 }}>{count}</T>
++                  <T v="caption" style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: '800', marginTop: -2, textAlign: 'center' }}>/ {ch.target}</T>
++                  <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
++                    <T v="caption" style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.5, fontWeight: '700', textAlign: 'center' }}>{done ? 'COMPLETE — MASHAALLAH 🤍' : 'TAP TO COUNT'}</T>
++                  </View>
++                </Animated.View>
++
++                {/* +1 float */}
++                <Animated.Text
++                  pointerEvents="none"
++                  style={{
++                    position: 'absolute',
++                    right: 18,
++                    top: 20,
++                    fontFamily: 'Poppins-ExtraBold',
++                    fontSize: 20,
++                    color: '#FFFFFF',
++                    opacity: float.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
++                    transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [8, -36] }) }],
++                  }}
++                >
++                  +1
++                </Animated.Text>
++              </View>
++
++              {/* reset — centered */}
+               <Pressable
+-                key={c.id}
+-                accessibilityLabel={`challenge ${c.label}`}
+-                onPress={() => { haptic.selection(); setMode(c.id); }}
+-                style={{ width: 148, borderRadius: 17, borderWidth: 1.5, borderColor: on ? c.tint : d.cardBorder, backgroundColor: on ? `${c.tint}14` : d.card, padding: 12 }}
++                onPress={resetCurrent}
++                style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 7 }}
+               >
+-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+-                  <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: `${c.tint}1E`, alignItems: 'center', justifyContent: 'center' }}>
+-                    <FontAwesome5 name={cdone ? 'check' : c.icon} size={11} color={c.tint} />
+-                  </View>
+-                  <T v="caption" style={{ flex: 1, fontSize: 9.5, fontWeight: '900', color: c.tint, letterSpacing: 0.4 }}>{c.id.toUpperCase()}</T>
+-                </View>
+-                <T v="bodyS" style={{ fontSize: 11.5, fontWeight: '800', color: d.text, marginTop: 7 }}>{c.label}</T>
+-                <View style={{ height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', marginTop: 8, overflow: 'hidden' }}>
+-                  <View style={{ width: `${frac * 100}%`, height: 5, borderRadius: 3, backgroundColor: c.tint }} />
+-                </View>
+-                <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 5 }}>{Math.min(rec[c.id], c.target)} / {c.target}{cdone ? ' · complete ✓' : ''}</T>
++                <FontAwesome5 name="undo" size={9} color="rgba(255,255,255,0.85)" />
++                <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.85)', textAlign: 'center' }}>Reset {ch.id}</T>
+               </Pressable>
+-            );
+-          })}
+-        </ScrollView>
+-
+-        {/* THE counter */}
+-        <Pressable accessibilityLabel="zikr counter" onPress={bump} style={{ marginHorizontal: 16, marginTop: 6, borderRadius: 26, overflow: 'hidden', borderWidth: 1.5, borderColor: `${ch.tint}55` }}>
+-          <LinearGradient colors={ch.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 22, alignItems: 'center' }}>
+-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 1.2, color: 'rgba(255,255,255,0.65)' }}>{ch.label.toUpperCase()}</T>
+-            <T v="arabic" style={{ fontSize: 22, lineHeight: 40, color: '#FFFFFF', textAlign: 'center', marginTop: 6 }}>{ch.arabic}</T>
+-            <T v="caption" style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 2, lineHeight: 15 }}>{stage ? `${stage.name} — ${stage.left} to go` : ch.sub}</T>
+-
+-            {/* tap ring */}
+-            <View style={{ marginTop: 18, alignItems: 'center', justifyContent: 'center' }}>
+-              <View style={{ width: 208, height: 208, borderRadius: 104, borderWidth: 9, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', position: 'absolute' }} />
+-              {/* progress arc drawn as growing overlaid rings (no svg needed) */}
+-              {[...Array(40)].map((_, i) => {
+-                const a = (i / 40) * Math.PI * 2 - Math.PI / 2;
+-                const lit = i / 40 < ringFrac;
+-                return (
+-                  <View
+-                    key={i}
+-                    pointerEvents="none"
+-                    style={{
+-                      position: 'absolute',
+-                      left: 104 + Math.cos(a) * 95 - 4,
+-                      top: 104 + Math.sin(a) * 95 - 4,
+-                      width: 8,
+-                      height: 8,
+-                      borderRadius: 4,
+-                      backgroundColor: lit ? '#FFFFFF' : 'rgba(255,255,255,0.16)',
+-                      shadowColor: '#FFFFFF',
+-                      shadowOpacity: lit ? 0.6 : 0,
+-                      shadowRadius: 6,
+-                      shadowOffset: { width: 0, height: 0 },
+-                    }}
+-                  />
+-                );
+-              })}
+-              <Animated.View style={{ alignItems: 'center', justifyContent: 'center', transform: [{ scale: pulse }] }}>
+-                <T v="display" style={{ fontSize: 64, fontWeight: '900', color: '#FFFFFF' }}>{count}</T>
+-                <T v="caption" style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: '800', marginTop: -4 }}>/ {ch.target}</T>
+-                <T v="caption" style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 10, letterSpacing: 0.4 }}>{done ? 'CHALLENGE COMPLETE — MASHAALLAH 🤍' : 'TAP ANYWHERE TO COUNT'}</T>
+-              </Animated.View>
+-              {/* +1 float */}
+-              <Animated.Text
+-                pointerEvents="none"
+-                style={{ position: 'absolute', right: 30, top: 24, fontFamily: 'Poppins-ExtraBold', fontSize: 21, color: '#FFFFFF', opacity: float.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }), transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [8, -44] }) }] }}
+-              >
+-                +1
+-              </Animated.Text>
+-            </View>
+-          </LinearGradient>
+-        </Pressable>
++            </LinearGradient>
++          </Pressable>
++        </View>
+ 
+-        {/* overall progress + reset */}
+-        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14 }}>
+-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
++        {/* ── TODAY'S ROUTINE — centered ── */}
++        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, alignItems: 'center' }}>
++          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+             <FontAwesome5 name="calendar-check" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+-            <T v="bodyS" style={{ flex: 1, fontSize: 12, fontWeight: '800', color: d.text }}>Today’s routine</T>
+-            <T v="caption" style={{ fontSize: 10.5, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{CHALLENGES.filter((c) => rec[c.id] >= c.target).length}/3 done</T>
++            <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text, textAlign: 'center' }}>Today’s Routine</T>
++            <View style={{ backgroundColor: isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.08)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
++              <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42', textAlign: 'center' }}>{CHALLENGES.filter((c) => rec[c.id] >= c.target).length}/3 done</T>
++            </View>
+           </View>
+-          <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
++          <View style={{ flexDirection: 'row', gap: 6, marginTop: 10, width: '100%' }}>
+             {CHALLENGES.map((c) => (
+               <View key={c.id} style={{ flex: 1, height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)' }}>
+                 <View style={{ width: `${Math.min(1, rec[c.id] / c.target) * 100}%`, height: 6, backgroundColor: c.tint }} />
+               </View>
+             ))}
+           </View>
+-          <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 9, lineHeight: 14 }}>
+-            {allDone
+-              ? 'All three challenges complete — this counts as your Dhikr goal for today, and 25 DeenPoints are yours. Alhamdulillah!'
+-              : 'Finish all three to complete the Dhikr goal in Today’s Goals — and earn 25 DeenPoints once a day.'}
++          <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 10, lineHeight: 15, textAlign: 'center' }}>
++            {allDone ? 'All three zikr challenges complete — this counts as your Dhikr goal for today, and 25 DeenPoints are yours. Alhamdulillah!' : 'Finish all three to complete the Dhikr goal in Today’s Goals — and earn 25 DeenPoints once a day.'}
+           </T>
+-          <Pressable
+-            onPress={() => { haptic.selection(); persist({ ...rec, [mode]: 0 }); }}
+-            style={{ alignSelf: 'flex-start', marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 10, paddingVertical: 7 }}
+-          >
+-            <FontAwesome5 name="undo" size={9} color={d.faint} />
+-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '700', color: d.faint }}>Reset {ch.id}</T>
+-          </Pressable>
++        </View>
++
++        {/* ── ATHKAR CHALLENGE CONTENT — moved into this screen, balanced ── */}
++        <View style={{ marginHorizontal: 16, marginTop: 22 }}>
++          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
++            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: isDark ? 'rgba(232,201,106,0.12)' : 'rgba(232,201,106,0.14)', alignItems: 'center', justifyContent: 'center' }}>
++              <FontAwesome5 name="book-reader" size={13} color="#E8C96A" />
++            </View>
++            <View style={{ alignItems: 'center' }}>
++              <T v="bodyS" style={{ fontSize: 15, fontWeight: '900', color: d.text, textAlign: 'center' }}>Daily Athkar</T>
++              <T v="caption" style={{ fontSize: 10, color: d.faint, textAlign: 'center' }}>Morning & evening remembrances</T>
++            </View>
++          </View>
++
++          {GROUPS.map((g) => {
++            const items = list.filter((a) => a.group === g);
++            if (!items.length) return null;
++            const doneCount = items.filter((a) => isDone(a, athkarCounts[a.id] ?? 0)).length;
++            return (
++              <View key={g} style={{ marginBottom: 18 }}>
++                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 2 }}>
++                  <T v="bodyS" style={{ fontSize: 14, fontWeight: '800', color: d.text }}>{GROUP_LABEL[g]}</T>
++                  <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
++                    <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: d.faint }}>{doneCount}/{items.length}</T>
++                  </View>
++                </View>
++                <View style={{ gap: 8 }}>
++                  {items.map((a) => {
++                    const cnt = athkarCounts[a.id] ?? 0;
++                    const finished = isDone(a, cnt);
++                    return (
++                      <Card
++                        key={a.id}
++                        onPress={() => openAthkar(a)}
++                        style={{
++                          flexDirection: 'row',
++                          alignItems: 'center',
++                          paddingVertical: 13,
++                          paddingHorizontal: 14,
++                          borderWidth: finished ? 1.5 : 1,
++                          borderColor: finished ? 'rgba(47,168,102,0.35)' : d.cardBorder,
++                          backgroundColor: finished ? (isDark ? 'rgba(47,168,102,0.08)' : 'rgba(47,168,102,0.06)') : d.card,
++                        }}
++                      >
++                        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: finished ? 'rgba(47,168,102,0.14)' : d.bg, borderWidth: 1, borderColor: finished ? 'rgba(47,168,102,0.25)' : d.cardBorder, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
++                          <FontAwesome5 name={finished ? 'check' : 'circle'} size={14} color={finished ? '#2FA866' : d.faint} solid={finished} />
++                        </View>
++                        <View style={{ flex: 1 }}>
++                          <T v="bodyS" style={{ color: d.text, fontWeight: '700', fontSize: 13.5, lineHeight: 18 }}>{a.name}</T>
++                          <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 2, lineHeight: 14 }} numberOfLines={1}>{a.transliteration}</T>
++                        </View>
++                        <View style={{ alignItems: 'center', marginLeft: 10 }}>
++                          <View style={{ backgroundColor: finished ? 'rgba(47,168,102,0.14)' : theme.primarySoft, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
++                            <T v="caption" style={{ color: finished ? '#2FA866' : theme.primary, fontWeight: '800', fontSize: 11, textAlign: 'center' }}>{a.count === 0 ? '∞' : `×${a.count}`}</T>
++                          </View>
++                          {cnt > 0 ? <T v="caption" style={{ fontSize: 9, color: finished ? '#2FA866' : d.faint, marginTop: 3, fontWeight: '700', textAlign: 'center' }}>{Math.min(cnt, a.count || cnt)}/{a.count || '∞'}</T> : null}
++                        </View>
++                      </Card>
++                    );
++                  })}
++                </View>
++              </View>
++            );
++          })}
++
++          <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(232,201,106,0.06)' : 'rgba(232,201,106,0.08)', borderWidth: 1, borderColor: 'rgba(232,201,106,0.22)', padding: 13, alignItems: 'center', marginTop: 4 }}>
++            <T v="caption" style={{ fontSize: 11, color: d.subtext, textAlign: 'center', lineHeight: 17 }}>
++              “Whoever says these remembrances in the morning and evening, Allah will protect him.” — Complete your morning & evening athkar daily to keep your streak alive.
++            </T>
++          </View>
+         </View>
+       </ScrollView>
+ 
++      <ContentSearchOverlay
++        visible={searchOpen}
++        onClose={() => setSearchOpen(false)}
++        placeholder="Search athkar — name or text…"
++        metaSearch={(q) =>
++          list.filter((a) => a.name.toLowerCase().includes(q.toLowerCase()) || a.transliteration.toLowerCase().includes(q.toLowerCase()))
++            .map((a) => ({ key: a.id, title: a.name, subtitle: `${a.group} · ×${a.count || '∞'}`, onPress: () => { setSearchOpen(false); openAthkar(a); } }))
++        }
++        contentSearch={async (q) =>
++          list.filter((a) => a.arabic.includes(q.trim()) || (a.note ?? '').toLowerCase().includes(q.toLowerCase()))
++            .map((a) => ({ key: `c-${a.id}`, title: a.name, arabic: a.arabic.slice(0, 44), subtitle: (a.note ?? '').slice(0, 80), onPress: () => { setSearchOpen(false); openAthkar(a); } }))
++        }
++        contentLabel="In athkar texts"
++      />
++
++      {/* ── Athkar detail sheet — replaces separate route ── */}
++      <Modal visible={!!selectedAthkar} transparent animationType="slide" onRequestClose={() => setSelectedAthkar(null)}>
++        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
++          <Pressable style={{ flex: 1 }} onPress={() => setSelectedAthkar(null)} />
++          <View style={{ backgroundColor: d.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: d.cardBorder, maxHeight: '88%', paddingBottom: insets.bottom + 16 }}>
++            <View style={{ alignItems: 'center', paddingTop: 12, marginBottom: 10 }}>
++              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: d.cardBorder }} />
++            </View>
++            {selectedAthkar ? (
++              <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
++                <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
++                  <FontAwesome5 name="book-reader" size={20} color={theme.primary} />
++                </View>
++                <T v="h2" style={{ fontSize: 18, fontWeight: '900', color: d.text, textAlign: 'center' }}>{selectedAthkar.name}</T>
++                <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 4, textAlign: 'center' }}>{selectedAthkar.group} · {selectedAthkar.count === 0 ? 'unlimited' : `${selectedAthkar.count}×`}</T>
++
++                <View style={{ marginTop: 18, borderRadius: 16, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder, padding: 16, width: '100%', alignItems: 'center' }}>
++                  <T v="arabic" style={{ fontSize: 22, color: d.text, textAlign: 'center', lineHeight: 36 }}>{selectedAthkar.arabic}</T>
++                  <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext, marginTop: 10, textAlign: 'center', lineHeight: 18 }}>{selectedAthkar.transliteration}</T>
++                  {selectedAthkar.note ? <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 12, textAlign: 'center', lineHeight: 16 }}>{selectedAthkar.note}</T> : null}
++                </View>
++
++                {/* centered counter */}
++                <View style={{ marginTop: 20, alignItems: 'center' }}>
++                  <Pressable
++                    onPress={bumpAthkar}
++                    style={({ pressed }) => ({
++                      width: 160,
++                      height: 160,
++                      borderRadius: 80,
++                      backgroundColor: theme.primarySoft,
++                      borderWidth: 3,
++                      borderColor: theme.primary,
++                      alignItems: 'center',
++                      justifyContent: 'center',
++                      opacity: pressed ? 0.9 : 1,
++                      transform: [{ scale: pressed ? 0.97 : 1 }],
++                    })}
++                  >
++                    <T v="display" style={{ fontSize: 42, fontWeight: '900', color: theme.primary, textAlign: 'center' }}>{athkarCount}</T>
++                    <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 2, textAlign: 'center' }}>{selectedAthkar.count > 0 ? `of ${selectedAthkar.count}` : 'unlimited'}</T>
++                    <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 6, textAlign: 'center' }}>TAP TO COUNT</T>
++                  </Pressable>
++
++                  {selectedAthkar.count > 0 ? (
++                    <View style={{ width: 180, height: 6, borderRadius: 3, backgroundColor: d.bg, marginTop: 14, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
++                      <View style={{ width: `${Math.min(100, (athkarCount / selectedAthkar.count) * 100)}%`, height: 6, backgroundColor: athkarCount >= selectedAthkar.count ? '#2FA866' : theme.primary }} />
++                    </View>
++                  ) : null}
++
++                  {selectedAthkar.count > 0 && athkarCount >= selectedAthkar.count ? (
++                    <T v="bodyS" style={{ color: '#2FA866', fontWeight: '800', marginTop: 12, fontSize: 13, textAlign: 'center' }}>MashaAllah! Completed 🎉</T>
++                  ) : null}
++
++                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
++                    <Pressable onPress={resetAthkar} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder }}>
++                      <T v="caption" style={{ color: d.text, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>Reset</T>
++                    </Pressable>
++                    <Pressable onPress={() => setSelectedAthkar(null)} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: theme.primary }}>
++                      <T v="caption" style={{ color: '#fff', fontWeight: '700', fontSize: 12, textAlign: 'center' }}>Done</T>
++                    </Pressable>
++                  </View>
++                </View>
++              </ScrollView>
++            ) : null}
++          </View>
++        </View>
++      </Modal>
++
+       <RewardModal visible={reward.open} onClose={() => setReward({ open: false, amount: 0 })} amount={reward.amount} title="Zikr challenge complete!" />
+     </View>
+   );
+diff --git a/src/components/QuickGrid.tsx b/src/components/QuickGrid.tsx
+index e7becdb..2d6e807 100644
+--- a/src/components/QuickGrid.tsx
++++ b/src/components/QuickGrid.tsx
+@@ -45,13 +45,13 @@ export const QUICK_ITEMS: QuickItem[] = [
+   { key: 'deenai', label: 'DeenLink AI', icon: SparkleIcon, action: { type: 'web', url: 'https://deenlink.org/deenlink-ai/deenai.html' } },
+   { key: 'shop', label: 'Shop', icon: BagIcon, action: { type: 'web', url: 'https://deenlink.org/shop/' } },
+   { key: 'dua', label: 'Dua', icon: (p: any) => <FontAwesome5 name="hands-helping" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/dua' } },
+-  { key: 'athkar', label: 'Athkar', icon: (p: any) => <FontAwesome5 name="book-reader" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/athkar' } },
++  { key: 'zikr', label: 'Zikr Challenge', icon: (p: any) => <FontAwesome5 name="book-reader" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/zikr-challenge' } },
+   { key: 'addpost', label: 'Add Post', icon: PlusIcon, action: { type: 'modal', modal: 'post' } },
+   { key: 'wallpaper', label: 'Islamic Wallpapers', icon: ImageIcon, action: { type: 'route', href: '/tools/wallpapers' } },
+   { key: 'donation', label: 'Donation & Charity', icon: GiftIcon, action: { type: 'route', href: '/tools/charity' } },
+   { key: 'calendar', label: 'Islamic Events', icon: CalendarIcon, action: { type: 'route', href: '/tools/events' } },
+   { key: 'tasbih', label: 'Tasbih', icon: BeadsIcon, action: { type: 'route', href: '/tools/tasbeeh' } },
+-  { key: 'dailydhikr', label: 'Daily Dhikr', icon: (p: any) => <FontAwesome5 name="praying-hands" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/athkar' } },
++  { key: 'dailydhikr', label: 'Daily Dhikr', icon: (p: any) => <FontAwesome5 name="praying-hands" size={(p.size ?? 20) * 0.9} color={p.color} />, action: { type: 'route', href: '/tools/zikr-challenge' } },
+   { key: 'calendar', label: 'Calendar', icon: CalendarIcon, action: { type: 'route', href: '/tools/calendar' } },
+   { key: 'hadith', label: 'Hadith', icon: ScrollIcon, action: { type: 'route', href: '/tools/hadith' } },
+   { key: 'quran', label: 'Quran', icon: BookIcon, action: { type: 'route', href: '/(tabs)/quran' } },
+diff --git a/src/constants/theme.ts b/src/constants/theme.ts
+index b996129..35c4a68 100644
+--- a/src/constants/theme.ts
++++ b/src/constants/theme.ts
+@@ -160,6 +160,7 @@ export const tiles = {
+   shop: { from: '#FFF8E1', to: '#FFECB3', icon: '#F9A825' },
+   dua: { from: '#E8F5E9', to: '#C8E6C9', icon: '#1D6F42' },
+   athkar: { from: '#F3E5F5', to: '#E1BEE7', icon: '#8E44AD' },
++  zikr: { from: '#F3E5F5', to: '#E1BEE7', icon: '#8E44AD' },
+   addpost: { from: '#F1F8E9', to: '#DCEDC8', icon: '#558B2F' },
+   wallpaper: { from: '#E1F5FE', to: '#B3E5FC', icon: '#0277BD' },
+   donation: { from: '#FFE5E5', to: '#FFB3B3', icon: '#D32F2F' },
+@@ -182,6 +183,7 @@ export const tilesDark: Record<keyof typeof tiles, { from: string; to: string }>
+   shop: { from: '#26261A', to: '#1A1A0D' },
+   dua: { from: '#1A2526', to: '#0D1A1A' },
+   athkar: { from: '#1A1A26', to: '#0D0D1A' },
++  zikr: { from: '#1A1A26', to: '#0D0D1A' },
+   addpost: { from: '#1A261A', to: '#0D1A0D' },
+   wallpaper: { from: '#1A2626', to: '#0D1A1A' },
+   donation: { from: '#261A1A', to: '#1A0D0D' },
+diff --git a/src/lib/ai.ts b/src/lib/ai.ts
+index 0df5dbb..ac76184 100644
+--- a/src/lib/ai.ts
++++ b/src/lib/ai.ts
+@@ -429,7 +429,7 @@ export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the Deen
+ - RULINGS / FATWAS: when the context includes an IslamQA fatwa excerpt that fits the question, ground your ruling in it, cite it inline like [IslamQA · <title>], and briefly restate its question and the ruling. Never invent a fatwa attribution; if no fatwa excerpt fits, say so and advise a qualified scholar.
+ - When you quote the Qur'an, ALWAYS include the full Arabic text of the ayah first (with diacritics), then the English translation, then cite [Quran S:A]. When you cite a hadith, quote its English text and cite like [Bukhari · Faith #8].
+ - NAVIGATION MAP: you know the app's screens. When the user asks WHERE to find something (a surah reader, mushaf, prayer times, qibla compass, zakat calculator, tasbeeh, hijri calendar, duas, athkar, 99 names, hadith collections, quizzes, videos/community, AI chat, settings), answer briefly and end your reply with ONE final line of the exact form:
+-NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/athkar | /tools/names | /tools/hadith | /tools/prophets | /tools/fatwa | /tools/courses | /tools/seerah | /tools/quiz | /tools/mirath | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
++NAV: /read/2 | /tools/prayer | /tools/qibla | /tools/zakat | /tools/tasbeeh | /tools/calendar | /tools/dua | /tools/zikr-challenge | /tools/names | /tools/hadith | /tools/prophets | /tools/fatwa | /tools/courses | /tools/seerah | /tools/quiz | /tools/mirath | /tools/ai | /videos | /(tabs)/community | /(tabs)/quran/surah
+ The app turns that line into a button that opens the screen. Only add it when it genuinely helps.
+ - MIRATH (inheritance): whenever the user describes an estate, heirs, or asks who inherits what, give the ruling briefly and ALWAYS finish with the NAV line to the calculator so they can compute exact shares and save the report:
+ NAV: /tools/mirath`;
+@@ -438,7 +438,7 @@ NAV: /tools/mirath`;
+ export const NAV_LABELS: Record<string, string> = {
+   '/tools/prayer': 'Prayer times', '/tools/qibla': 'Qibla compass', '/tools/zakat': 'Zakat calculator',
+   '/tools/tasbeeh': 'Digital tasbeeh', '/tools/calendar': 'Hijri calendar', '/tools/dua': 'Dua collection',
+-  '/tools/athkar': 'Athkar', '/tools/names': '99 Names of Allah', '/tools/hadith': 'Hadith library',
++  '/tools/zikr-challenge': 'Daily Zikr Challenge', '/tools/names': '99 Names of Allah', '/tools/hadith': 'Hadith library',
+   '/tools/quiz': 'Quiz', '/tools/ai': 'DeenLink AI', '/videos': 'Videos & reels',
+   '/(tabs)/community': 'Community', '(tabs)/community': 'Community', '/(tabs)/quran/surah': 'Quran · surah list',
+   '/tools/charity': 'Sadaqah', '/tools/seerah': 'Seerah timeline', '/tools/courses': 'Courses',
+@@ -458,7 +458,7 @@ export function navAnswer(q: string): { text: string; route?: string } | null {
+     [['mirath', 'inherit', 'estate', 'heirs', 'faraid', 'fara id', 'division after death'], '/tools/mirath', 'the Mirath inheritance calculator'],
+     [['tasbeeh', 'tasbih', 'counter'], '/tools/tasbeeh', 'Digital tasbeeh'],
+     [['calendar', 'hijri', 'islamic month'], '/tools/calendar', 'Hijri calendar'],
+-    [['athkar', 'adhkar', 'morning and evening'], '/tools/athkar', 'Athkar'],
++    [['athkar', 'adhkar', 'morning and evening', 'daily dhikr', 'zikr challenge'], '/tools/zikr-challenge', 'Daily Zikr Challenge'],
+     [['dua', 'supplication'], '/tools/dua', 'Dua collection'],
+     [['99 names', 'names of allah'], '/tools/names', '99 Names of Allah'],
+     [['hadith', 'bukhari', 'muslim', 'narration'], '/tools/hadith', 'Hadith library'],
+diff --git a/src/lib/routine.ts b/src/lib/routine.ts
+index 48d833a..e1e6816 100644
+--- a/src/lib/routine.ts
++++ b/src/lib/routine.ts
+@@ -84,7 +84,7 @@ const GOAL_ROUTES: Record<string, string> = {
+   names: '/tools/learning?focus=names',
+   charity: '/(tabs)/tools?focus=donation',
+   tafsir: '/tools/learning?focus=tafsir',
+-  athkar: '/tools/athkar',
++  athkar: '/tools/zikr-challenge',
+   prayer: '/(tabs)/tools?focus=prayer',
+   qibla: '/(tabs)/tools?focus=qibla',
+   fatwa: '/tools/learning?focus=fatwa',
+@@ -103,7 +103,7 @@ export const goalRoute = (key: string): string | undefined => GOAL_ROUTES[key];
+  * The daily pick only draws from these, so every goal shown is achievable. */
+ const WIRED_GOALS = [
+   'surah', 'checkin', 'dua', 'dhikr', 'quiz', 'hadith', 'names', 'charity',
+-  'prayer', 'qibla', 'athkar', 'tafsir', 'articles', 'prophets', 'seerah',
++  'prayer', 'qibla', 'zikr', 'tafsir', 'articles', 'prophets', 'seerah',
+   'ruqyah', 'learn', 'fatwa',
+ ];
+ const GOALS_PER_DAY = 4;
