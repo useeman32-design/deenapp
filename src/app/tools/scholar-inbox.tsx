@@ -14,6 +14,8 @@ import {
   type QuestionThreadMessage,
   type ScholarQueueRow,
 } from '@/api/client';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /* pass 75 (Tier 2) — the SCHOLAR side of Ask Scholars: the queue of questions
  * addressed to the signed-in scholar, with answer / reject / clarify-message
@@ -33,7 +35,7 @@ const PRIO: Record<string, { label: string; color: string }> = {
   normal: { label: 'Normal', color: '#7C8B84' },
 };
 
-export default function ScholarInboxScreen() {
+function ScholarInboxScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const green = isDark ? '#4AE38F' : '#0E7A46';
@@ -257,4 +259,11 @@ export default function ScholarInboxScreen() {
       </Modal>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function ScholarInboxScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Scholar Inbox" />;
+  return <ScholarInboxScreenInner />;
 }

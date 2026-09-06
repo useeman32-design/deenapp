@@ -7,13 +7,15 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { ReciteSearchModal } from '@/components/ReciteSearchModal';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * Qur'an & Hadith hub — pass-14 dash redesign: pattern header with gold
  * accents, two premium cards (emerald Qur'an · gold Hadith), quick-strip of
  * reader + collections shortcuts.
  */
-export default function QuranHub() {
+function QuranHubInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
@@ -268,4 +270,11 @@ export default function QuranHub() {
       />
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function QuranHub() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Qur'an" />;
+  return <QuranHubInner />;
 }

@@ -12,13 +12,15 @@ import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import type { Post, Video } from '@/api/types';
 import { MOCK_FEED, MOCK_VIDEOS } from '@/api/mocks';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * pass 67 — the hashtag screen: everything filed under #tag — posts first
  * (full FeedCards, live likes/comments), then videos whose copy carries the
  * same tag. Reached from Search → Hashtags / Top.
  */
-export default function HashtagScreen() {
+function HashtagScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -107,4 +109,11 @@ export default function HashtagScreen() {
       <VideoModal video={videoOpen} liked={false} onLike={() => {}} onClose={() => setVideoOpen(null)} />
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function HashtagScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Hashtags" />;
+  return <HashtagScreenInner />;
 }

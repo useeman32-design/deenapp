@@ -12,6 +12,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { catIcon, loadGroups } from '@/components/Groups';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * Connections (pass 22) — Instagram-style: Following / Followers / Suggested.
@@ -59,7 +61,7 @@ function GroupLinks() {
   );
 }
 
-export default function Connections() {
+function ConnectionsInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -187,4 +189,11 @@ export default function Connections() {
       </ScrollView>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function Connections() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Connections" />;
+  return <ConnectionsInner />;
 }

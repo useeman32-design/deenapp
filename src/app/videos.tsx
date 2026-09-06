@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
 import type { Post } from '@/api/types';
@@ -541,7 +543,7 @@ function PosterTile({ reel, size, onOpen }: { reel: MockReel; size: number; onOp
 type FeedTab = 'foryou' | 'following' | 'friends';
 type LibraryTab = 'saved' | 'liked' | 'reposts';
 
-export default function VideosFeed() {
+function VideosFeedInner() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
 
@@ -1970,4 +1972,11 @@ function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (r
       </ScrollView>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function VideosFeed() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Videos" />;
+  return <VideosFeedInner />;
 }

@@ -10,6 +10,8 @@ import { AvatarImage } from '@/components/FeedCard';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * Notifications (pass 23) — likes, follows, reposts, mentions and system
@@ -76,7 +78,7 @@ const KIND_META: Record<Notif['kind'], { icon: string; tint: string; label: stri
   system: { icon: 'bell', tint: '#B0A8F0', label: 'APP' },
 };
 
-export default function Notifications() {
+function NotificationsInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -190,4 +192,11 @@ export default function Notifications() {
       </ScrollView>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function Notifications() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Notifications" />;
+  return <NotificationsInner />;
 }

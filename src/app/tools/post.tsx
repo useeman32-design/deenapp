@@ -13,13 +13,15 @@ import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import type { Post } from '@/api/types';
 import { MOCK_COMMENTS, MOCK_FEED } from '@/api/mocks';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * pass 67 — single-post viewer (Search → tap a post, hashtag screen → tap).
  * The post is pulled from the feed pools; comments open in the same live
  * CommentsModal the community feed uses.
  */
-export default function PostScreen() {
+function PostScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -93,4 +95,11 @@ export default function PostScreen() {
       />
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function PostScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Posts" />;
+  return <PostScreenInner />;
 }

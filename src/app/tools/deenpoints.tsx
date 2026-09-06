@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { goBack } from '@/lib/navigation';
 import { haptic } from '@/lib/haptics';
-import { DP_KEY, DP_DEFAULT } from '@/components/DeenPoints';
+import { DP_KEY, DP_DEFAULT, DPIcon } from '@/components/DeenPoints';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive, pointsQuote, type PointsEvent, type PointsPricing } from '@/api/client';
 import { buyDeenPoints, settlePendingPayment } from '@/lib/flutterwave';
@@ -114,6 +114,9 @@ export default function DeenPointsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 14 }} showsVerticalScrollIndicator={false}>
+        {/* pass 80 — hero art */}
+        <Image source={require('../../../assets/img/deenpoints_banner.jpg')} style={{ width: '100%', height: 132, borderRadius: 18 }} resizeMode="cover" />
+
         {/* balance card */}
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(14,122,70,0.06)', padding: 16 }}>
           <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint }}>YOUR BALANCE</T>
@@ -127,6 +130,59 @@ export default function DeenPointsScreen() {
           <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 8, lineHeight: 15 }}>
             Earn points daily (check-in, Qur'an, dhikr, quizzes) or top up below. Spend them on course unlocks and priority scholar questions.
           </T>
+        </View>
+
+        {/* pass 80 — offers (real, server-enforced) */}
+        <View>
+          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint, marginBottom: 9 }}>OFFERS</T>
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.3)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(184,134,11,0.06)', padding: 13 }}>
+              <FontAwesome5 name="fire" size={16} color={isDark ? '#D4AF37' : '#B8860B'} />
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>7-day streak · +20 bonus</T>
+                <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Check in 7 days in a row — every 7th day pays +20 on top of your daily +5.</T>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(14,122,70,0.05)', padding: 13 }}>
+              <FontAwesome5 name="gem" size={16} color={green} />
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>Bulk top-up · +10% points</T>
+                <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Buy 2,500 DeenPoints or more and 10% extra lands free with your purchase.</T>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13 }}>
+              <FontAwesome5 name="book-reader" size={16} color={green} />
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>Learn & earn</T>
+                <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Quizzes +10 · finishing lessons +20 · dhikr & Qur'an goals keep the streak alive.</T>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* pass 80 — ways to earn, each one routes to the module */}
+        <View>
+          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint, marginBottom: 9 }}>EARN MORE</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            {([
+              { icon: 'calendar-check', label: 'Daily check-in', pts: '+5', href: '/(tabs)/profile' },
+              { icon: 'question-circle', label: 'Quizzes', pts: '+10', href: '/tools/quiz' },
+              { icon: 'graduation-cap', label: 'Lessons', pts: '+20', href: '/tools/learning' },
+              { icon: 'praying-hands', label: 'Dhikr goals', pts: '+pts', href: '/tools/tasbeeh' },
+            ] as const).map((o) => (
+              <Pressable key={o.label} onPress={() => { haptic.selection(); router.push(o.href as never); }}
+                style={({ pressed }) => ({ width: '47.6%', borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, gap: 7, opacity: pressed ? 0.8 : 1 })}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <FontAwesome5 name={o.icon as never} size={14} color={green} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <DPIcon size={11} />
+                    <T v="caption" style={{ fontSize: 11, fontWeight: '900', color: green }}>{o.pts}</T>
+                  </View>
+                </View>
+                <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: d.text }}>{o.label}</T>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         {/* buy */}
@@ -157,6 +213,14 @@ export default function DeenPointsScreen() {
               style={{ flex: 1, fontSize: 13, color: d.text, paddingVertical: 11 }}
             />
           </View>
+          {((custom ? parseInt(custom, 10) || 0 : points) >= 2500) ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 11, backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.07)', paddingHorizontal: 11, paddingVertical: 8 }}>
+              <FontAwesome5 name="gift" size={11} color={green} />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: green }}>
+                Bulk bonus active — you receive {Math.floor((custom ? parseInt(custom, 10) || 0 : points) * 1.1).toLocaleString()} pts (+10%)
+              </T>
+            </View>
+          ) : null}
           <Pressable
             onPress={() => { void buy(); }}
             disabled={busy || !isLive()}

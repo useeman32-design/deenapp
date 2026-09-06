@@ -10,6 +10,9 @@ import { useAuth } from '@/context/AuthContext';
 import { isLive, shopCart, shopCartAction, shopCheckout, shopOrders, shopProducts, type ShopCart, type ShopOrder, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_CATEGORIES, SHOP_IMAGES, SHOP_NETWORKS, shopImage } from '@/lib/shop';
 import { payShopOrder } from '@/lib/flutterwave';
+import { useCurrency } from '@/lib/currency';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /* ── DeenLink Shop (pass 78) — explore · cart · orders, worldwide.
  * Own drop-ship products buy in-app (server cart → checkout → order);
@@ -19,7 +22,8 @@ import { payShopOrder } from '@/lib/flutterwave';
 type Tab = 'shop' | 'cart' | 'orders';
 type DemoLine = { product: ShopProduct; qty: number };
 
-export default function ShopScreen() {
+function ShopScreenInner() {
+  const { fmt } = useCurrency();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -153,8 +157,8 @@ export default function ShopScreen() {
         <View style={{ padding: 10 }}>
           <T v="bodyS" numberOfLines={2} style={{ fontSize: 12, fontWeight: '700', color: d.text, minHeight: 34, lineHeight: 16 }}>{p.title}</T>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-            <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: gold }}>${p.price.toFixed(2)}</T>
-            {p.compare_at ? <T v="caption" style={{ fontSize: 10, color: d.faint, textDecorationLine: 'line-through' }}>${p.compare_at.toFixed(2)}</T> : null}
+            <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: gold }}>{fmt(p.price)}</T>
+            {p.compare_at ? <T v="caption" style={{ fontSize: 10, color: d.faint, textDecorationLine: 'line-through' }}>{fmt(p.compare_at)}</T> : null}
           </View>
           {!net ? (
             <T v="caption" style={{ fontSize: 9, color: emerald, fontWeight: '700', marginTop: 3 }}>Free worldwide shipping</T>
@@ -249,7 +253,7 @@ export default function ShopScreen() {
                     {img ? <Image source={img} style={{ width: 62, height: 62, borderRadius: 12 }} resizeMode="cover" /> : null}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <T v="bodyS" numberOfLines={2} style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{it.title}</T>
-                      <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold, marginTop: 3 }}>${it.price.toFixed(2)}</T>
+                      <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold, marginTop: 3 }}>{fmt(it.price)}</T>
                     </View>
                     <View style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
                       <Pressable onPress={() => void changeQty(it, 0)} hitSlop={8}>
@@ -267,7 +271,7 @@ export default function ShopScreen() {
               <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginTop: 4 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext }}>Items ({cart.count})</T>
-                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>${cart.total.toFixed(2)}</T>
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{fmt(cart.total)}</T>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext }}>Shipping</T>
@@ -281,7 +285,7 @@ export default function ShopScreen() {
                 setForm((f) => ({ ...f, name: f.name || (user?.full_name ?? ''), email: f.email || (user?.email ?? '') }));
                 setCheckout(true);
               }} style={{ borderRadius: 15, backgroundColor: gold, paddingVertical: 15, alignItems: 'center', marginTop: 14 }}>
-                <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>Proceed to checkout · ${cart.total.toFixed(2)}</T>
+                <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>Proceed to checkout · {fmt(cart.total)}</T>
               </Pressable>
             </>
           )}
@@ -313,13 +317,13 @@ export default function ShopScreen() {
                     {img ? <Image source={img} style={{ width: 38, height: 38, borderRadius: 9 }} resizeMode="cover" /> : null}
                     <T v="bodyS" numberOfLines={1} style={{ flex: 1, fontSize: 12, color: d.text }}>{it.title}</T>
                     <T v="caption" style={{ fontSize: 11, color: d.subtext }}>×{it.qty}</T>
-                    <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: d.text }}>${(it.price * it.qty).toFixed(2)}</T>
+                    <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: d.text }}>{fmt(it.price * it.qty)}</T>
                   </View>
                 );
               })}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
                 <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{o.ship_to} · {o.created_at.slice(0, 10)}</T>
-                <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold }}>${o.total.toFixed(2)}</T>
+                <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold }}>{fmt(o.total)}</T>
               </View>
             </View>
           ))}
@@ -379,7 +383,7 @@ export default function ShopScreen() {
                   }} style={{ borderRadius: 13, backgroundColor: '#F5A623', paddingHorizontal: 24, paddingVertical: 13, marginTop: 8, minWidth: 230, alignItems: 'center', opacity: payState === 'busy' ? 0.7 : 1 }}>
                     {payState === 'busy' ? <ActivityIndicator color="#fff" /> : (
                       <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: '#fff' }}>
-                        Pay ${placedTotal.toFixed(2)} with Flutterwave
+                        Pay {fmt(placedTotal)} with Flutterwave
                       </T>
                     )}
                   </Pressable>
@@ -403,7 +407,7 @@ export default function ShopScreen() {
                 <TextInput value={form.note} onChangeText={(v) => setForm((f) => ({ ...f, note: v }))} placeholder="Order note (optional)" placeholderTextColor={d.faint} style={inputStyle} />
                 <Pressable disabled={placing} onPress={() => void placeOrder()}
                   style={{ borderRadius: 14, backgroundColor: gold, paddingVertical: 14, alignItems: 'center', marginTop: 4, opacity: placing ? 0.7 : 1 }}>
-                  {placing ? <ActivityIndicator color={isDark ? '#14241C' : '#fff'} /> : <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>Place order · ${(cart?.total ?? 0).toFixed(2)}</T>}
+                  {placing ? <ActivityIndicator color={isDark ? '#14241C' : '#fff'} /> : <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>Place order · {fmt(cart?.total ?? 0)}</T>}
                 </Pressable>
               </ScrollView>
             )}
@@ -412,4 +416,11 @@ export default function ShopScreen() {
       </Modal>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function ShopScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="DeenLink Shop" />;
+  return <ShopScreenInner />;
 }

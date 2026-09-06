@@ -7,10 +7,14 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { isLive, shopSearch, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_CATEGORIES, SHOP_NETWORKS, shopImage } from '@/lib/shop';
+import { useCurrency } from '@/lib/currency';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /* pass 78 — shop search: debounced server query (local filter in demo),
  * suggestion chips, same card language as the shop grid. */
-export default function ShopSearchScreen() {
+function ShopSearchScreenInner() {
+  const { fmt } = useCurrency();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const gold = isDark ? '#D4AF37' : '#B8860B';
@@ -80,7 +84,7 @@ export default function ShopSearchScreen() {
                     {img ? <Image source={img} style={{ width: '100%', height: 120 }} resizeMode="cover" /> : null}
                     <View style={{ padding: 9 }}>
                       <T v="caption" numberOfLines={1} style={{ fontSize: 11, fontWeight: '700', color: d.text }}>{p.title}</T>
-                      <T v="caption" style={{ fontSize: 12, fontWeight: '900', color: gold, marginTop: 2 }}>${p.price.toFixed(2)}</T>
+                      <T v="caption" style={{ fontSize: 12, fontWeight: '900', color: gold, marginTop: 2 }}>{fmt(p.price)}</T>
                     </View>
                   </Pressable>
                 );
@@ -112,7 +116,7 @@ export default function ShopSearchScreen() {
                   </View>
                   <View style={{ padding: 10 }}>
                     <T v="caption" numberOfLines={2} style={{ fontSize: 11.5, fontWeight: '700', color: d.text, minHeight: 30, lineHeight: 15 }}>{p.title}</T>
-                    <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '900', color: gold, marginTop: 4 }}>${p.price.toFixed(2)}</T>
+                    <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '900', color: gold, marginTop: 4 }}>{fmt(p.price)}</T>
                   </View>
                 </Pressable>
               );
@@ -122,4 +126,11 @@ export default function ShopSearchScreen() {
       </ScrollView>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function ShopSearchScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Shop Search" />;
+  return <ShopSearchScreenInner />;
 }

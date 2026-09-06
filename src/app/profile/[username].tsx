@@ -20,6 +20,8 @@ import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
@@ -59,7 +61,7 @@ type ProfileTab = 'posts' | 'questions' | 'videos';
  * Posts / Followers / Following / Charity stats, Follow + Share actions,
  * and Posts / Questions (scholars) / About tabs.
  */
-export default function PublicProfileScreen() {
+function PublicProfileScreenInner() {
   const { username = '', tab: initialTab } = useLocalSearchParams<{ username: string; tab?: string }>();
   const router = useRouter();
   const { theme, isDark } = useTheme();
@@ -794,4 +796,11 @@ export default function PublicProfileScreen() {
       </Modal>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function PublicProfileScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Profiles" />;
+  return <PublicProfileScreenInner />;
 }

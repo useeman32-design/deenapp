@@ -13,6 +13,9 @@ import { CrashBoundary } from '@/components/CrashBoundary';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
+import { initGuest } from '@/lib/guest';
+
+initGuest(); // pass 80 — restore guest flag once per app load
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -28,7 +31,7 @@ function Root() {
    * the reported "shows the app logo, then terminates". Boot must never depend
    * on a resource that might not load: after 8s we proceed regardless. */
   const [booted, setBooted] = useState(false);
-  useEffect(() => {
+useEffect(() => {
     const t = setTimeout(() => setBooted(true), 8000);
     return () => clearTimeout(t);
   }, []);

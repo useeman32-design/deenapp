@@ -30,6 +30,8 @@ import {
   type Role,
 } from '@/components/Groups';
 import type { Post } from '@/api/types';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * Group profile (pass 38 — owner-managed):
@@ -52,7 +54,7 @@ const ADDABLE = [
   { name: 'Hafsa O.', user: 'hafsa.o' },
 ];
 
-export default function GroupScreen() {
+function GroupScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
@@ -722,4 +724,11 @@ function EditGroupSheet({ visible, onClose, group, onSave, isOwner }: { visible:
       </View>
     </Modal>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function GroupScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Groups" />;
+  return <GroupScreenInner />;
 }

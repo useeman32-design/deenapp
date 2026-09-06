@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
+import { enterGuest } from '@/lib/guest';
 
 /**
  * Login — pass-12 redesign (user's mock): full-bleed brand background,
@@ -153,6 +154,11 @@ export default function Login() {
           actionLabel="Sign Up"
           onAction={() => router.push('/(auth)/register')}
         />
+
+        {/* pass 80 — Skip → guest mode (Tools only; everything else asks for login) */}
+        <Pressable onPress={() => { void enterGuest(); }} style={({ pressed }) => ({ alignItems: 'center', marginTop: 14, opacity: pressed ? 0.7 : 1 })}>
+          <T v="caption" style={{ fontSize: 12.5, fontWeight: '700', color: d.subtext }}>Skip — explore as a guest</T>
+        </Pressable>
       </View>
 
       {/* security-question account recovery */}

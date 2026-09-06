@@ -7,10 +7,14 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { isLive, shopCartAction, shopProduct, shopProducts, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_NETWORKS, shopImage } from '@/lib/shop';
+import { useCurrency } from '@/lib/currency';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /* pass 78 — product preview: big art, price story, stock/source badges,
  * qty stepper → Add to cart (own) or deep-link out (affiliate partner). */
-export default function ShopProductScreen() {
+function ShopProductScreenInner() {
+  const { fmt } = useCurrency();
   const { id } = useLocalSearchParams<{ id: string }>();
   const pid = Number(id);
   const { theme, isDark } = useTheme();
@@ -87,8 +91,8 @@ export default function ShopProductScreen() {
           </View>
           <T v="h1" style={{ fontWeight: '900', fontSize: 20, color: d.text, lineHeight: 26 }}>{p.title}</T>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}>
-            <T v="h1" style={{ fontWeight: '900', fontSize: 24, color: gold }}>${p.price.toFixed(2)}</T>
-            {p.compare_at ? <T v="bodyS" style={{ fontSize: 14, color: d.faint, textDecorationLine: 'line-through' }}>${p.compare_at.toFixed(2)}</T> : null}
+            <T v="h1" style={{ fontWeight: '900', fontSize: 24, color: gold }}>{fmt(p.price)}</T>
+            {p.compare_at ? <T v="bodyS" style={{ fontSize: 14, color: d.faint, textDecorationLine: 'line-through' }}>{fmt(p.compare_at)}</T> : null}
           </View>
           <T v="bodyS" style={{ fontSize: 13, color: d.subtext, lineHeight: 21, marginTop: 14 }}>{p.description}</T>
 
@@ -113,7 +117,7 @@ export default function ShopProductScreen() {
                       {rimg ? <Image source={rimg} style={{ width: '100%', height: 96 }} resizeMode="cover" /> : null}
                       <View style={{ padding: 8 }}>
                         <T v="caption" numberOfLines={2} style={{ fontSize: 10.5, fontWeight: '700', color: d.text, minHeight: 28 }}>{r.title}</T>
-                        <T v="caption" style={{ fontSize: 11.5, fontWeight: '900', color: gold, marginTop: 2 }}>${r.price.toFixed(2)}</T>
+                        <T v="caption" style={{ fontSize: 11.5, fontWeight: '900', color: gold, marginTop: 2 }}>{fmt(r.price)}</T>
                       </View>
                     </Pressable>
                   );
@@ -130,7 +134,7 @@ export default function ShopProductScreen() {
           <Pressable onPress={() => { haptic.light(); if (p.affiliate_url) Linking.openURL(p.affiliate_url).catch(() => {}); }}
             style={{ flex: 1, borderRadius: 15, backgroundColor: net.color, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
             <FontAwesome5 name="external-link-alt" size={12} color="#fff" />
-            <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: '#fff' }}>Buy on {net.label} · ${p.price.toFixed(2)}</T>
+            <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: '#fff' }}>Buy on {net.label} · {fmt(p.price)}</T>
           </Pressable>
         ) : (
           <>
@@ -143,7 +147,7 @@ export default function ShopProductScreen() {
               style={{ flex: 1, borderRadius: 15, backgroundColor: added ? emerald : gold, paddingVertical: 15, alignItems: 'center', opacity: busy || !p.in_stock ? 0.7 : 1 }}>
               {busy ? <ActivityIndicator color={isDark ? '#14241C' : '#fff'} /> : (
                 <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>
-                  {added ? '✓ Added to cart' : p.in_stock ? `Add to cart · $${(p.price * qty).toFixed(2)}` : 'Out of stock'}
+                  {added ? '✓ Added to cart' : p.in_stock ? `Add to cart · ${fmt(p.price * qty)}` : 'Out of stock'}
                 </T>
               )}
             </Pressable>
@@ -152,4 +156,11 @@ export default function ShopProductScreen() {
       </View>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function ShopProductScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="DeenLink Shop" />;
+  return <ShopProductScreenInner />;
 }

@@ -24,13 +24,15 @@ import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
 import { isLive, quranStreak, quranStreakLog, quranUnlockReciter } from '@/api/client';
 import { useDeenPoints } from '@/components/DeenPoints';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 type Mode = 'reading' | 'mushaf';
 
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const arNum = (n: number) => String(n).split('').map((d) => AR_DIGITS[Number(d)]).join('');
 
-export default function Reader() {
+function ReaderInner() {
   const { id, ayah: ayahParam } = useLocalSearchParams<{ id: string; ayah?: string }>();
   const startAyah = Number(ayahParam ?? 0) || 1;
   const router = useRouter();
@@ -643,4 +645,11 @@ export default function Reader() {
       ) : null}
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function Reader() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Articles" />;
+  return <ReaderInner />;
 }

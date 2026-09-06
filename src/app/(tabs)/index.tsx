@@ -28,6 +28,8 @@ import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
@@ -152,7 +154,7 @@ function fmtViews(n?: number | null) {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
 }
 
-export default function Home() {
+function HomeInner() {
   /* pass 68 — live unread notifications badge on the bell */
   const [notifUnread, setNotifUnread] = useState(0);
   useEffect(() => {
@@ -1617,3 +1619,10 @@ function HexBadge() {
 }
 
 /* --------------------- Sun path (time-based day arc) --------------------- */
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function Home() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Home" />;
+  return <HomeInner />;
+}

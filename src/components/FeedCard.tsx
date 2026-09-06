@@ -18,6 +18,7 @@ import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
 import { isLive, votePoll } from '@/api/client';
+import { guestBlock } from '@/lib/guest';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -960,13 +961,13 @@ export function FeedCard({
       {/* Actions — Instagram-style, larger */}
       {showActions ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: hairline }}>
-          <Pressable onPress={() => { haptic.light(); onLike?.(post.id); }} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={() => { if (guestBlock('Sign in to like and react to posts.')) return; haptic.light(); onLike?.(post.id); }} hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, opacity: pressed ? 0.6 : 1 })}>
             <HeartIcon size={21} filled={liked} color={liked ? '#E74C3C' : sub} />
             <T v="caption" style={{ fontWeight: '600', color: liked ? '#E74C3C' : sub, fontSize: 14 }}>
               {post.like_count ?? 0}
             </T>
           </Pressable>
-          <Pressable onPress={() => onComments?.(post)} accessibilityLabel="open comments" hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={() => { if (guestBlock('Sign in to comment on posts.')) return; onComments?.(post); }} accessibilityLabel="open comments" hitSlop={8} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 22, opacity: pressed ? 0.6 : 1 })}>
             <ChatIcon size={21} color={sub} />
             <T v="caption" style={{ fontWeight: '600', fontSize: 14, color: sub }}>
               {post.comment_count ?? 0}

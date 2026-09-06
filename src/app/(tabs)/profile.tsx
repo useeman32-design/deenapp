@@ -22,6 +22,8 @@ import { DeenPointsBuyModal, RewardModal, useDeenPoints, formatDP } from '@/comp
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 import { useSaved } from '@/lib/savedPosts';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
@@ -32,7 +34,7 @@ type Tab = 'posts' | 'videos' | 'saved';
  * Personal profile (pass 15) — rebuilt on the public-profile design: pattern
  * header, gold-ring identity card, 4-stat row, tabbed Posts / Settings.
  */
-export default function Profile() {
+function ProfileInner() {
   const { theme, mode, setMode, isDark } = useTheme();
   const uiScale = useUIScale();
   const setUiScale = useSetUIScale();
@@ -61,7 +63,10 @@ export default function Profile() {
   const username = (user?.username as string) || '';
   const bio = (user?.bio as string) || '';
   const aqeedah = (user?.aqeedah as string) || '';
-  const deenpoints = (user?.deenpoints_balance as number) ?? 0;
+  /* pass 80 — the chip follows the SYNCED ledger (dp), not the auth snapshot:
+   * after a check-in the auth object never refreshes, so the balance on screen
+   * used to stay stale until the next app start. */
+  const deenpoints = api.isLive() ? dp.points : ((user?.deenpoints_balance as number) ?? 0);
   const photo = (user?.profile_image_url as string | number | null) ?? null;
 
   const doCheckIn = async () => {
@@ -394,4 +399,11 @@ export default function Profile() {
 
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function Profile() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Your Profile" />;
+  return <ProfileInner />;
 }

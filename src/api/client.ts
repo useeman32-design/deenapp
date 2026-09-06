@@ -472,6 +472,13 @@ export async function pointsQuote(): Promise<PointsPricing | null> {
   return null;
 }
 
+/* pass 80 — display currency by account country (see lib/currency.ts). */
+export async function fxQuote(): Promise<{ currency: string; rate: number } | null> {
+  const r = await request<{ status?: string; currency?: string; rate_usd_to_currency?: number }>('/api/payments/fx_quote.php');
+  if (r.ok && r.data.currency) return { currency: r.data.currency, rate: Number(r.data.rate_usd_to_currency) || 1 };
+  return null;
+}
+
 export type FlwCheckout = {
   public_key: string;
   tx_ref: string;

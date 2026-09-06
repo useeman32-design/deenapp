@@ -10,6 +10,7 @@ import {
 } from '@/api/client';
 import type { User } from '@/api/types';
 import { MOCK_USER } from '@/api/mocks';
+import { exitGuest } from '@/lib/guest';
 
 type AuthValue = {
   user: User | null;
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restoreSession()
       .then(({ user: u, ok }) => {
         if (u) {
-          setUser(u);
+          setUser(u); void exitGuest();
           setIsDemo(!ok); // ok=false with a user means offline demo
         }
       })
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const login = async (identifier: string, password: string, rememberMe = true) => {
       const res = await apiLogin(identifier, password, rememberMe);
       if (res.ok && res.user) {
-        setUser(res.user);
+        setUser(res.user); void exitGuest();
         setIsDemo(false);
         await persistSession(currentSession() ?? '', null, res.user);
         return { ok: true };
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.demo) {
         // Offline → demo mode so the app stays explorable in previews.
         const u: User = { ...MOCK_USER, full_name: prettyName(identifier), username: identifier.split('@')[0] || 'demo' };
-        setUser(u);
+        setUser(u); void exitGuest();
         setIsDemo(true);
         return { ok: true };
       }
@@ -99,14 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: true, needsVerification: true };
       }
       if (res.ok && res.user) {
-        setUser(res.user);
+        setUser(res.user); void exitGuest();
         setIsDemo(false);
         await persistSession(currentSession() ?? '', null, res.user);
         return { ok: true };
       }
       if (res.demo) {
         const u: User = { ...MOCK_USER, full_name: data.full_name, username: data.username, email: data.email };
-        setUser(u);
+        setUser(u); void exitGuest();
         setIsDemo(true);
         return { ok: true };
       }
@@ -115,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     /* pass 66-night — adopt the session the verify_otp response just minted. */
     const adoptSession = async (u: User) => {
-      setUser(u);
+      setUser(u); void exitGuest();
       setIsDemo(false);
       await persistSession(currentSession() ?? '', null, u);
     };

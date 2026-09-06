@@ -1305,3 +1305,23 @@ Gates: harness79 10/10 · repro79 9/9 (all-shortcuts rail, hide/restore, pay
 button graceful, profile-message guard) · repro78 16/16 · harness 73-78 green · tsc 0.
 
 NEXT: admin dashboard audit → iOS/Android store builds.
+
+## Pass 80 — DeenPoints offers · check-in chip fix · local currency · guest mode
+- DeenPoints screen: hero banner art, OFFERS (7-day streak +20 · bulk 2500+ +10% ·
+  learn&earn), EARN MORE grid routing to the modules, bulk-bonus hint on 2500+.
+- Check-in chip bug FIXED: profile chip read the stale auth snapshot; now reads
+  the DeenPoints hook. E2E: 100 → tap Check In → 105 (repro80).
+- Server offers: daily_checkin.php streak bonus (+20 every 7th consecutive day,
+  atomic, ledger+notif) · init_deenpoints.php bulk +10% (charged plain price,
+  bonus stored in points column/meta; verify credits it) · award.php quiz 5→10,
+  learn 2→20 (markGoal wiring already existed; gated by daily rotation).
+- Currency: GET /api/payments/fx_quote.php (user country → Flutterwave ccy, USD
+  fallback; live rates cached) + lib/currency.ts useCurrency/fmt — every shop
+  price (grid, search, detail, cart, orders, pay buttons) renders local ccy.
+  Premium + DeenPoints quotes were already country-aware server-side.
+- Guest mode: login Skip → lib/guest.ts flag; (tabs) layout + index let guests
+  through; 18 non-tools screens wrapped in LoginRequired popup (Log in/Cancel);
+  FeedCard like/comment → guestBlock popup → login. Any login clears the flag.
+- Gates: tsc 0 · repro80 14/14 · server: streak day7 +25/bal 155, repeat 0 ·
+  bulk 3000→3300pts meta+300 charged ₦4500 · quiz +10 idempotent, learn +20 ·
+  fx_quote NGN 1323.32 GHS 11.36 fallback USD.

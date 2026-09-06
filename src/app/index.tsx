@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { storage } from '@/lib/storage';
+import { isGuestNow } from '@/lib/guest';
 
 export default function Index() {
   const { ready, user } = useAuth();
@@ -13,5 +14,6 @@ export default function Index() {
 
   if (!ready || onboarded === null) return null;
   if (user) return <Redirect href="/(tabs)" />;
+  if (isGuestNow()) return <Redirect href="/(tabs)/tools" />; // pass 80 — guests land on Tools
   return <Redirect href={onboarded ? '/(auth)/login' : '/onboarding'} />;
 }

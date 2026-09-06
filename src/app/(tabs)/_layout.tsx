@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { haptic } from '@/lib/haptics';
 import { QuranMiniPlayer } from '@/components/QuranMiniPlayer';
+import { useIsGuest } from '@/lib/guest';
 
 /* ------------------------------------------------------------------ */
 /* Floating glassy tab bar with ONE sliding pill.                      */
@@ -260,7 +261,7 @@ function TabLabels({
 export default function TabsLayout() {
   const { ready, user } = useAuth();
   if (!ready) return null;
-  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!user && !useIsGuest()) return <Redirect href="/(auth)/login" />; // pass 80 — guests may enter (Tools are open)
 
   return (
     <View style={{ flex: 1 }}>

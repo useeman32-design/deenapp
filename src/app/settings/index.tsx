@@ -13,6 +13,8 @@ import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
 import { buyPremium } from '@/lib/flutterwave';
 import { isLive, quotePremium, type PremiumQuote } from '@/api/client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
 
@@ -41,7 +43,7 @@ const PREMIUM_TIERS = [
   { id: 'y', label: 'Yearly', price: '₦12,000', per: '/year', note: '2 months free', best: true },
 ];
 
-export default function SettingsScreen() {
+function SettingsScreenInner() {
   const { theme, mode, setMode, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
@@ -344,4 +346,11 @@ export default function SettingsScreen() {
       />
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function SettingsScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Settings" />;
+  return <SettingsScreenInner />;
 }

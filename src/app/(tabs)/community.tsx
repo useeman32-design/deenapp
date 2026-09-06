@@ -17,6 +17,8 @@ import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useRouter } from 'expo-router';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
@@ -37,7 +39,7 @@ type FeedTab = 'foryou' | 'following' | 'scholars';
  * recent activity. FAB (+) opens the new-post modal with
  * progress indication while the post is being published.
  */
-export default function CommunityScreen() {
+function CommunityScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -1347,4 +1349,11 @@ function SuggestStrip({ dash }: { dash: any }) {
       </ScrollView>
     </View>
   );
+}
+
+/* pass 80 — guest mode: only Tools are available; this module asks for login. */
+export default function CommunityScreen() {
+  const guest = useIsGuest();
+  if (guest) return <LoginRequired module="Community" />;
+  return <CommunityScreenInner />;
 }
