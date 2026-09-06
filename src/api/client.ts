@@ -624,6 +624,57 @@ export async function questionThread(questionId: number): Promise<{ viewer_role:
   return null;
 }
 
+/* ─────────────── pass 78 — DeenLink Shop (e-commerce) ─────────────── */
+export type ShopProduct = {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  price: number;
+  compare_at: number | null;
+  currency: string;
+  category: string;
+  image_key: string;
+  source: 'own' | 'affiliate';
+  network: string | null;
+  affiliate_url: string | null;
+  in_stock: boolean;
+  qty?: number;
+};
+export type ShopCart = { items: ShopProduct[]; count: number; total: number };
+export type ShopOrderItem = { product_id: number | null; title: string; price: number; qty: number; image_key: string };
+export type ShopOrder = { id: number; status: string; total: number; currency: string; created_at: string; ship_to: string; items: ShopOrderItem[] };
+
+export async function shopProducts(category?: string): Promise<ShopProduct[] | null> {
+  const r = await request<{ status?: string; products?: ShopProduct[] }>(`/api/shop/products.php${category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : ''}`);
+  return r.ok && Array.isArray(r.data.products) ? r.data.products : null;
+}
+export async function shopProduct(id: number): Promise<ShopProduct | null> {
+  const r = await request<{ status?: string; product?: ShopProduct }>(`/api/shop/product.php?id=${id}`);
+  return r.ok && r.data.product ? r.data.product : null;
+}
+export async function shopSearch(q: string): Promise<ShopProduct[] | null> {
+  const r = await request<{ status?: string; products?: ShopProduct[] }>(`/api/shop/search.php?q=${encodeURIComponent(q)}`);
+  return r.ok && Array.isArray(r.data.products) ? r.data.products : null;
+}
+export async function shopCart(): Promise<ShopCart | null> {
+  const r = await request<{ status?: string; items?: ShopProduct[]; count?: number; total?: number }>('/api/shop/cart.php', { auth: true });
+  if (r.ok && Array.isArray(r.data.items)) return { items: r.data.items, count: r.data.count ?? 0, total: r.data.total ?? 0 };
+  return null;
+}
+export async function shopCartAction(action: 'add' | 'remove' | 'qty', productId: number, qty = 1): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/shop/cart.php', { method: 'POST', body: { action, product_id: productId, qty }, auth: true });
+  return r.ok && r.data.status === 'success';
+}
+export async function shopCheckout(info: { name: string; email: string; phone: string; country: string; city: string; address: string; note: string }): Promise<{ order_id: number; total: number } | null> {
+  const r = await request<{ status?: string; order_id?: number; total?: number }>('/api/shop/checkout.php', { method: 'POST', body: info, auth: true });
+  return r.ok && r.data.order_id ? { order_id: Number(r.data.order_id), total: Number(r.data.total ?? 0) } : null;
+}
+export async function shopOrders(): Promise<ShopOrder[] | null> {
+  const r = await request<{ status?: string; orders?: ShopOrder[] }>('/api/shop/orders.php', { auth: true });
+  return r.ok && Array.isArray(r.data.orders) ? r.data.orders : null;
+}
+
 /* ─────────────── pass 76 (Tier 3) — real, server-enforced blocking ─────────────── */
 export type BlockedAccount = {
   user_id: number;

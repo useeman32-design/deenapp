@@ -30,12 +30,14 @@ export const QUICK_CATALOG: QuickItem[] = [
   { key: 'inbox', label: 'Inbox', icon: { fa: 'inbox' }, accent: 'emerald', href: '/tools/inbox' },
   { key: 'ai', label: 'DeenLink AI', icon: { fa: 'robot' }, accent: 'gold', href: '/tools/ai' },
   { key: 'ruqyah', label: 'Ruqyah', icon: { fa: 'shield-alt' }, accent: 'emerald', href: '/tools/ruqyah' },
+  /* pass 78 — DeenLink Shop */
+  { key: 'shop', label: 'Shop', icon: { fa: 'shopping-bag' }, accent: 'gold', href: '/shop' },
 ];
 
-export const DEFAULT_QUICK: string[] = ['videos', 'quran', 'hadith', 'dua', 'prayer', 'learning'];
-export const QUICK_MAX = 6;
-// v2: bumped so existing installs pick up the new defaults (Videos first)
-export const QUICK_STORAGE_KEY = 'dl.quickaccess.v3';
+export const DEFAULT_QUICK: string[] = ['shop', 'videos', 'quran', 'hadith', 'dua', 'prayer', 'learning'];
+export const QUICK_MAX = 7;
+// v4: bumped so existing installs pick up the Shop shortcut (pass 78)
+export const QUICK_STORAGE_KEY = 'dl.quickaccess.v4';
 
 /** Resolve stored keys to catalog items (drops unknown keys, keeps order). */
 export function quickItems(keys: string[]): QuickItem[] {

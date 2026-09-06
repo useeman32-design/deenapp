@@ -1257,4 +1257,28 @@ entry-85cb5f8f93b34f1ed3550538f617220b.js — live shows it after the user runs
 `git fetch origin && git reset --hard origin/main` in the API docroot (live was
 still on entry-0d2ee644 = pass 75 when this bug was reported).
 
+## PASS 78 — DeenLink Shop (e-commerce module)
+**Backend (api/shop/, harness78 22/22):** shop_ensure() self-creates
+shop_products/shop_cart/shop_orders/shop_order_items + seeds 13 products
+(9 own drop-ship + 4 affiliate: amazon/aliexpress/jumia/ebay deep links).
+Endpoints: products.php (public, ?category=), product.php, search.php (q>=2),
+cart.php (GET mine / POST add|remove|qty — affiliate add blocked, qty cap 20),
+checkout.php (auth-first, shipping form → order + stock decrement + cart
+clear, transaction), orders.php (mine w/ items). Prices in USD cents.
+
+**Client (tsc 0, repro78 16/16):** assets/shop/ 10 generated images (2 promo
+banners + 8 products). lib/shop.ts: image_key→require map, DEMO_PRODUCTS
+(mirrors seed), SHOP_CATEGORIES/NETWORKS. client.ts: shopProducts/shopProduct/
+shopSearch/shopCart/shopCartAction/shopCheckout/shopOrders + types.
+app/shop/index.tsx: module w/ OWN bottom menu (Shop | Cart | Orders), promo
+carousel, category chips, 2-col grid (sale %, partner badge, free worldwide
+shipping), server-backed cart w/ steppers, checkout sheet → success → orders.
+app/shop/product/[id].tsx: preview, qty stepper, Add-to-cart (own) or
+Buy-on-<Network> deep link (affiliate + commission note), related rail.
+app/shop/search.tsx: debounced search, category suggestions, trending.
+quick-access.ts: +Shop shortcut, DEFAULT_QUICK starts with shop, QUICK_MAX 7,
+storage key v4 (one-time reset so installs pick it up).
+PENDING NEXT TURN: generate 5 missing renders (rehal + 4 affiliate shots) and
+swap the provisional stand-ins in SHOP_IMAGES.
+
 NEXT: admin dashboard audit → iOS/Android store builds.
