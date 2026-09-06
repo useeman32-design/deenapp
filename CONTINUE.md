@@ -1251,4 +1251,10 @@ client.ts: ServerReply + parent_id (videos).
 Gates: harness77 11/11 · repro77 9/9 (chip, row, reopen-from-server) ·
 harness 73-76 57/57 · repro75 12/12 · repro76 8/8 · tsc 0.
 
+**HEADS (pushed):** deenapp master `911344c` · deenlink-api main `b87d98a`
+(web root rebuild — no API change this pass) · gh-pages `3ac0ff5`. New bundle:
+entry-85cb5f8f93b34f1ed3550538f617220b.js — live shows it after the user runs
+`git fetch origin && git reset --hard origin/main` in the API docroot (live was
+still on entry-0d2ee644 = pass 75 when this bug was reported).
+
 NEXT: admin dashboard audit → iOS/Android store builds.
