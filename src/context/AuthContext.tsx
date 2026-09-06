@@ -16,7 +16,7 @@ type AuthValue = {
   /** True when signed in locally because the API was unreachable. */
   isDemo: boolean;
   ready: boolean;
-  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ ok: boolean; message?: string }>;
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ ok: boolean; message?: string; needsVerification?: boolean; email?: string }>;
   register: (data: {
     full_name: string;
     username: string;
@@ -28,6 +28,7 @@ type AuthValue = {
   }) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   updateUser: (patch: Partial<User>) => void;
+  adoptSession: (u: User) => Promise<void>;
 };
 
 const Ctx = createContext<AuthValue>({
@@ -38,6 +39,7 @@ const Ctx = createContext<AuthValue>({
   register: async () => ({ ok: false }),
   logout: async () => {},
   updateUser: () => {},
+  adoptSession: async () => {},
 });
 
 function prettyName(identifier: string): string {
@@ -77,7 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsDemo(true);
         return { ok: true };
       }
-      return { ok: false, message: res.message };
+      /* unverified account: no session was minted — the UI resumes the OTP flow */
+      return { ok: false, message: res.message, needsVerification: !!res.needsVerification, email: res.email };
     };
 
     const register = async (data: {
@@ -90,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       gender?: string;
     }) => {
       const res = await apiRegister(data);
+      /* pass 66-night — an unverified account is NEVER signed in: the server
+       * mints no session at register; the OTP step (verify_otp) mints it. */
+      if (res.ok && res.needsVerification) {
+        return { ok: true, needsVerification: true };
+      }
       if (res.ok && res.user) {
         setUser(res.user);
         setIsDemo(false);
@@ -105,6 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: res.message };
     };
 
+    /* pass 66-night — adopt the session the verify_otp response just minted. */
+    const adoptSession = async (u: User) => {
+      setUser(u);
+      setIsDemo(false);
+      await persistSession(currentSession() ?? '', null, u);
+    };
+
     const logout = async () => {
       await apiLogout().catch(() => {});
       setUser(null);
@@ -113,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const updateUser = (patch: Partial<User>) => setUser((u) => (u ? { ...u, ...patch } : u));
-    return { user, isDemo, ready, login, register, logout, updateUser };
+    return { user, isDemo, ready, login, register, logout, updateUser, adoptSession };
   }, [user, isDemo, ready]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

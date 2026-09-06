@@ -1,5 +1,5 @@
 <!-- =====================================================================
-     LATEST HANDOFF — 2026-09-05 · PASS 62.  *** START HERE ***
+     LATEST HANDOFF — 2026-09-06 · PASS 67.  *** START HERE ***
      Detailed state + pending work: CONTINUE.md (same folder)
      ===================================================================== -->
 
@@ -12,9 +12,9 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `e77036d` (bundle `entry-f0e291bcb7d4404dbacd9042e0804a9f.js`, verified 200) ·
-deenlink-api main `423cb4e` (web build) + `afba407` (chat backend) · deenapp master `e77f0f4` (+ this doc commit)
-⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
+gh-pages `6dbd721` (pass-67 build; entry-78bafc65… 200, content.zip intact) · deenlink-api main `810977f` (**white-screen fix** + pass-67 web build; backend 4446b02 untouched) · deenapp master `39f9c8d` (pass 67 merged over night pass `d21079e`) · backup mirror + content-pack `3208266`
+⚠️ **`app.deenlink.org` needs a manual `git pull` in cPanel Terminal** — the pass-66-era build (`94d1561`) the user pulled white-screened (router patch made `replaceState('//')` → SecurityError; root cause + fix in CONTINUE.md top section). Pulling `810977f` recovers the site AND ships pass 67.
+⚠️ **export-root.sh rule:** root-base builds must keep `BASE=""` — never patch `appendBaseUrl`'s default to `"/"` (every call site omits the arg; `n="/"` collapses paths to `"//"` → boot crash). The `t`-leading-slash guard alone is safe.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
 ## First commands in a new session
@@ -94,7 +94,7 @@ Use `--deepen N` (or `--unshallow` if you need everything).
   centre the counter + circular beads, balance the text. `tools/athkar` is to be **removed**.
 - **Chat presence / last-seen / read receipts:** client already calls `/api/chat/presence.php` but
   **`api/chat/` does not exist in the backend** — endpoints were never built. Backend work, not UI.
-- **Groq key from DB:** read the admin-stored key server-side so AI needs no manual key entry.
+- **Groq key from DB:** DONE (night pass) — `api/deenai/status.php` + `deenai/chat.php` read `ai_provider_keys`; the app hides the key field when connected. Still needs the cPanel `git pull` to go live.
 - **99 Names translations (item 6):** blocked — needs an IslamicAPI key (ha/sw/bn/fr, no Yoruba) + a verified Yoruba source.
   Do NOT generate religious text from memory; a previous attempt produced duplicated/wrong entries and was discarded.
 

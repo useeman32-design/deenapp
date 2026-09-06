@@ -11,6 +11,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getGoal as fetchGoal, getStreak, markActive, consumeGoalPending, claimGoalReward } from '@/lib/routine';
 import { haptic } from '@/lib/haptics';
+
+/* pass 68 — home bell unread badge state lives here; the poll starts in the
+ * component below (30s + on focus), fed by /api/notifications/unread_count.php */
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
 import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
@@ -150,6 +153,20 @@ function fmtViews(n?: number | null) {
 }
 
 export default function Home() {
+  /* pass 68 — live unread notifications badge on the bell */
+  const [notifUnread, setNotifUnread] = useState(0);
+  useEffect(() => {
+    if (!api.isLive()) return;
+    let on = true;
+    const pull = () => api.unreadNotifications().then((c) => { if (on) setNotifUnread(c); }).catch(() => {});
+    pull();
+    const iv = setInterval(pull, 30000);
+    return () => { on = false; clearInterval(iv); };
+  }, []);
+  useFocusEffect(useCallback(() => {
+    if (!api.isLive()) return;
+    api.unreadNotifications().then(setNotifUnread).catch(() => {});
+  }, []));
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const { user } = useAuth();
@@ -159,8 +176,6 @@ export default function Home() {
 
   const [loc, setLoc] = useState<Loc | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [q, setQ] = useState('');
   const [streak, setStreak] = useState({ days: 0, demo: true });
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean; route?: string }[] }>({ done: 0, total: 4, demo: true, items: [] });
   /* pass 42 — Today's Goal modal */
@@ -198,13 +213,27 @@ export default function Home() {
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
   const [shareDesign, setShareDesign] = useState('classic');
-  const togglePostLike = (id: number) =>
+  const togglePostLike = (id: number) => {
+    const willLike = !likedPosts.has(id);
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
+    /* pass 66-night — server-backed likes on live; the optimistic Set keeps
+     * the heart instant. like_count is stored WITHOUT our own like (the card
+     * adds +1 while liked), so subtract ours when the server count includes it. */
+    if (api.isLive()) {
+      void api.toggleLike(id, willLike).then((res) => {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, like_count: Math.max(0, res.like_count - (res.liked_by_me ? 1 : 0)) } : p,
+          ),
+        );
+      });
+    }
+  };
   const toggleVideoLike = (id: number) =>
     setVideoLiked((prev) => {
       const n = new Set(prev);
@@ -347,22 +376,32 @@ export default function Home() {
             })}
           >
             <FontAwesome5 name="bell" size={15} color={d.text} />
-            <View
-              style={{
-                position: 'absolute',
-                top: 7,
-                right: 8,
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: '#E67E22',
-                borderWidth: 1.5,
-                borderColor: d.bg,
-              }}
-            />
+            {notifUnread > 0 ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: notifUnread > 9 ? 3 : 5,
+                  right: notifUnread > 9 ? 2 : 5,
+                  minWidth: notifUnread > 9 ? 17 : 12,
+                  height: notifUnread > 9 ? 17 : 12,
+                  borderRadius: 9,
+                  backgroundColor: '#FF4D4D',
+                  borderWidth: 1.5,
+                  borderColor: d.bg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: 3,
+                }}
+              >
+                <Text style={{ fontSize: notifUnread > 9 ? 8.5 : 7.5, fontWeight: '900', color: '#fff' }}>
+                  {notifUnread > 99 ? '99+' : notifUnread}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
           <Pressable
-            onPress={() => setSearchOpen(true)}
+            onPress={() => { haptic.selection(); router.push('/tools/search'); }}
+            accessibilityLabel="Search"
             style={({ pressed }) => ({
               width: 40,
               height: 40,
@@ -1101,40 +1140,9 @@ export default function Home() {
 
             </ScrollView>
 
-      {/* Search overlay */}
-      {searchOpen ? (
-        <View style={{ position: 'absolute', top: 66, left: 16, right: 16, zIndex: 50 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: d.card,
-              borderRadius: 30,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              paddingHorizontal: 14,
-              shadowColor: '#000',
-              shadowOpacity: 0.25,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 8,
-            }}
-          >
-            <FontAwesome5 name="search" size={13} color={d.faint} />
-            <TextInput
-              value={q}
-              onChangeText={setQ}
-              placeholder="Search accounts by name or username..."
-              placeholderTextColor={d.faint}
-              autoFocus
-              style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13.5*/, color: d.text, paddingVertical: 12, paddingLeft: 9 }}
-            />
-            <Pressable onPress={() => setSearchOpen(false)} style={{ padding: 5 }}>
-              <FontAwesome5 name="times" size={12} color={d.faint} />
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      {/* pass 67 — the old inline account-search overlay is gone: the home 🔍
+       * now opens the full Search screen (/tools/search) with Top / Users /
+       * Videos / Hashtags tabs and recent posts. */}
 
       {/* ── Video viewing modal (reels/shorts-style preview) ── */}
       <VideoModal
@@ -1451,6 +1459,7 @@ export default function Home() {
         visible={!!commentPost}
         post={commentPost}
         seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
 

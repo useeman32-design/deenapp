@@ -10,6 +10,9 @@ import { FeedCard } from '@/components/FeedCard';
 import type { Post } from '@/api/types';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+/* pass 66-night — live groups: list/create/join/post ride the real API when a
+ * real session exists; the local store stays the gh-pages demo. */
+import { groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/api/client';
 
 /**
  * Groups (pass 36) — Facebook-style:
@@ -74,7 +77,32 @@ export async function loadGroups(): Promise<Group[]> {
   try {
     const r = await storage.getItem(GROUP_KEY);
     const saved = JSON.parse(r ?? 'null') as Group[] | null;
-    return saved && saved.length ? saved : SEED;
+    const local = saved && saved.length ? saved : SEED;
+    /* pass 66-night — live groups: the server list leads; locally-created
+     * (not yet synced) groups ride along so nothing the user made vanishes. */
+    if (isLive()) {
+      const rows = await groupsList();
+      if (rows) {
+        const server = rows.map((g): Group => ({
+          id: `srv${g.id}`,
+          name: g.name,
+          desc: g.desc ?? g.bio ?? 'A DeenLink community group.',
+          cat: (['Mosque', 'School', 'Organization', 'Community'].includes(String(g.category)) ? g.category : 'Community') as Group['cat'],
+          open: g.open_join,
+          members: [],
+          memberCount: g.member_count,
+          joined: g.is_member ? 'member' : null,
+          mine: g.is_owner,
+          posts: [],
+          bio: g.bio ?? undefined,
+          cover: g.cover ?? 'emerald',
+          avatar: g.emoji ?? undefined,
+        }));
+        const localOnly = local.filter((g) => !g.id.startsWith('srv'));
+        return [...server, ...localOnly];
+      }
+    }
+    return local;
   } catch {
     return SEED;
   }
@@ -82,6 +110,12 @@ export async function loadGroups(): Promise<Group[]> {
 export function saveGroups(list: Group[]) {
   storage.setItem(GROUP_KEY, JSON.stringify(list)).catch(() => {});
 }
+/** pass 66-night — numeric id behind the `srv<N>` local key. */
+export const srvGroupId = (g: Group | null): number | null => {
+  if (!g || !g.id.startsWith('srv')) return null;
+  const n = Number(g.id.slice(3));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
 
 /* ── group posts as real FeedCards ── */
 const GROUP_MEMBERS: Record<string, Array<{ name: string; user: string; role?: Role }>> = {
@@ -496,7 +530,15 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
               onPress={() => {
                 if (!valid) return;
                 haptic.success();
-                onCreate({ id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover: coverPhoto ?? cover, avatar: avatarPhoto ?? avatar, roles: { [ME]: 'owner' }, following: [] });
+                const g: Group = { id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover: coverPhoto ?? cover, avatar: avatarPhoto ?? avatar, roles: { [ME]: 'owner' }, following: [] };
+                onCreate(g);
+                /* pass 66-night — live creates land in community_groups; the
+                 * local id is swapped for srv<N> so join/post hit the server. */
+                if (isLive() && !isGroupImg(coverPhoto ?? null) && !isGroupImg(avatarPhoto ?? null)) {
+                  void groupCreate({ name: g.name, bio: g.bio || g.desc, category: g.cat, emoji: g.avatar, open_join: g.open }).then((res) => {
+                    if (res) onCreate({ ...g, id: `srv${res.id}` });
+                  });
+                }
               }}
               style={{ borderRadius: 14, backgroundColor: valid ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', paddingVertical: 14 }}
             >

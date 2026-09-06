@@ -9,6 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
+import * as api from '@/api/client';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
@@ -43,6 +44,15 @@ export default function CommunityScreen() {
   const router = useRouter();
 
   const [posts, setPosts] = useState<Post[]>(MOCK_FEED);
+
+  /* pass 66-night — live community feed: server posts lead, mock stays as the
+   * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
+   * feed uses ('foryou' → for-you). */
+  useEffect(() => {
+    api.feed('for-you').then((r) => {
+      if (r.posts && r.posts.length) setPosts(r.posts);
+    }).catch(() => {});
+  }, []);
 
   /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
    * ayahs…) live in lib/userPosts — surface them above the mock feed */
@@ -145,13 +155,29 @@ export default function CommunityScreen() {
     }
   };
 
-  const togglePostLike = (id: number) =>
+  const togglePostLike = (id: number) => {
+    const willLike = !likedPosts.has(id);
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
+    /* pass 66-night — server-backed likes on live (same contract as home feed). */
+    if (api.isLive()) {
+      void api.toggleLike(id, willLike).then((res) => {
+        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, like_count: Math.max(0, res.like_count - (res.liked_by_me ? 1 : 0)) } : p)));
+      });
+    }
+  };
+  /* seed the heart state from server posts once the live feed lands */
+  const likeSeed = useRef(false);
+  useEffect(() => {
+    if (!likeSeed.current && posts.length && posts.some((p) => p.liked_by_me)) {
+      likeSeed.current = true;
+      setLikedPosts((prev) => new Set([...prev, ...posts.filter((p) => p.liked_by_me).map((p) => p.id)]));
+    }
+  }, [posts]);
 
   const q = query.trim().toLowerCase();
   const accResults = useMemo(
@@ -200,6 +226,8 @@ export default function CommunityScreen() {
     // simulate the network/publish round-trip so heavy posts show progress
     setTimeout(() => {
       const np: Post = {
+        /* pass 66-night — live posts get their REAL server id so likes,
+         * comments and poll votes all target the right row. */
         id: Date.now(),
         content_text: t,
         time_ago: 'now',
@@ -240,6 +268,24 @@ export default function CommunityScreen() {
         if (m) (np as { youtube_embed_url?: string }).youtube_embed_url = `https://www.youtube.com/embed/${m[1]}`;
       }
       setPosts((ps) => [np, ...ps]);
+      /* pass 66-night — publish to the server when live: text, YouTube link,
+       * poll options and picked image ride along; the temp id is swapped for
+       * the real post id so likes/comments/poll votes hit the right row. */
+      if (api.isLive()) {
+        const tempId = np.id;
+        void api
+          .createPost(
+            t,
+            ytOn && ytUrl.trim() ? ytUrl.trim() : undefined,
+            pollOn && opts.length >= 2 ? opts : undefined,
+            imageAttach ? [{ uri: imageAttach.uri, name: imageAttach.name, type: 'image/jpeg' }] : undefined,
+          )
+          .then((res) => {
+            if (res.ok && res.id) {
+              setPosts((ps) => ps.map((p) => (p.id === tempId ? { ...p, id: res.id as number } : p)));
+            }
+          });
+      }
       setPosting(false);
       setComposerOpen(false);
       setCDraft('');
@@ -1175,6 +1221,7 @@ export default function CommunityScreen() {
         visible={!!commentPost}
         post={commentPost}
         seed={commentPost ? (MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? []) as SampleComment[] : []}
+        postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,6 +10,7 @@ import { T } from '@/components/T';
 import { FeedCard } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
+import { groupCreatePost, groupJoin, groupPosts as groupPostsApi } from '@/api/client';
 import { haptic } from '@/lib/haptics';
 import { Image as ExpoImage } from 'expo-image';
 import {
@@ -18,6 +20,7 @@ import {
   pickGroupPhoto,
   loadGroups,
   saveGroups,
+  srvGroupId,
   roleOf,
   ROLE_META,
   COVER_STYLES,
@@ -68,7 +71,22 @@ export default function GroupScreen() {
   const [coverOpen, setCoverOpen] = useState(false);
 
   useEffect(() => {
-    loadGroups().then((all) => setGroup(all.find((g) => g.id === id) ?? all[0] ?? null));
+    loadGroups().then((all) => {
+      const g = all.find((x) => x.id === id) ?? all[0] ?? null;
+      setGroup(g);
+      /* pass 66-night — live group: pull the real posts behind the srv id */
+      const sid = srvGroupId(g);
+      if (sid != null) {
+        void groupPostsApi(sid).then((rows) => {
+          if (!rows || !rows.length) return;
+          setGroup((cur) =>
+            cur && cur.id === g.id
+              ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
+              : cur,
+          );
+        });
+      }
+    });
   }, [id]);
 
   const upd = (f: (g: Group) => Group) => {
@@ -87,17 +105,26 @@ export default function GroupScreen() {
     if (!group) return;
     haptic.success();
     upd((x) => ({ ...x, joined: x.open ? 'member' : 'requested', members: x.open ? [...x.members, ME] : x.members, memberCount: x.open ? x.memberCount + 1 : x.memberCount, mine: true }));
+    /* pass 66-night — server membership for live groups */
+    const sid = srvGroupId(group);
+    if (sid != null && group.open) void groupJoin(sid, true);
   };
   const leave = () => {
     if (!group) return;
     haptic.selection();
     upd((x) => ({ ...x, joined: null, members: x.members.filter((m) => m !== ME), memberCount: Math.max(0, x.memberCount - 1) }));
+    const sid = srvGroupId(group);
+    if (sid != null) void groupJoin(sid, false);
   };
   const post = () => {
     if (!composer.trim() || !group) return;
     haptic.light();
-    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text: composer.trim(), at: Date.now() }, ...x.posts] }));
+    const text = composer.trim();
+    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now() }, ...x.posts] }));
     setComposer('');
+    /* pass 66-night — group posts hit the server on live */
+    const sid = srvGroupId(group);
+    if (sid != null) void groupCreatePost(sid, text);
   };
 
   /* ── pass 38 management actions ── */
@@ -172,7 +199,7 @@ export default function GroupScreen() {
             <FontAwesome5 name="mosque" size={64} color="#E8C96A" />
           </View>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             hitSlop={10}
             style={{ position: 'absolute', top: Math.max(insets.top, 10) + 2, left: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center' }}
           >

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { goBack } from '@/lib/navigation';
 import { Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
@@ -13,6 +14,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
+import { getUserProfile, isLive, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -69,8 +71,31 @@ export default function PublicProfileScreen() {
   const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);
   const [following, setFollowing] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  /* pass 66-night — live profile: real stats, bio, photo and follow edge. */
+  const [liveP, setLiveP] = useState<PublicProfile | null>(null);
+  useEffect(() => {
+    if (!isLive() || !username) return;
+    void getUserProfile(username).then((p) => {
+      if (!p) return;
+      setLiveP(p);
+      setFollowing(!!p.following_by_me);
+    });
+  }, [username, liveP]);
 
   const profile: MockProfile | null = useMemo(() => {
+    /* pass 66-night — real accounts surface from the server even when the
+     * bundled demo roster has never heard of them. */
+    if (liveP) {
+      return {
+        username: liveP.username,
+        full_name: liveP.full_name || liveP.username,
+        photo: liveP.profile_image_url ?? null,
+        bio: liveP.bio ?? 'DeenLink community member.',
+        posts_count: liveP.posts ?? 0,
+        followers: liveP.followers ?? 0,
+        following: liveP.following ?? 0,
+      } as MockProfile;
+    }
     const p = MOCK_PROFILES[username];
     if (p) return p;
     const acc = MOCK_ACCOUNTS.find((a) => a.username === username);
@@ -115,7 +140,7 @@ export default function PublicProfileScreen() {
         <T v="bodyS" style={{ color: d.subtext, fontSize: 13, fontWeight: '600' }}>
           We couldn’t find this account.
         </T>
-        <Pressable onPress={() => router.back()} style={{ borderRadius: 10, backgroundColor: d.emerald, paddingHorizontal: 16, paddingVertical: 9 }}>
+        <Pressable onPress={() => goBack(router)} style={{ borderRadius: 10, backgroundColor: d.emerald, paddingHorizontal: 16, paddingVertical: 9 }}>
           <T v="bodyS" style={{ color: isDark ? '#062312' : '#fff', fontWeight: '700', fontSize: 12 }}>
             Go back
           </T>
@@ -124,8 +149,12 @@ export default function PublicProfileScreen() {
     );
   }
 
-  const photo = profile.photo ?? null;
-  const name = profile.full_name;
+  /* pass 66-night — live values win; the mock fills anything the API omits. */
+  const photo = liveP?.profile_image_url ?? profile.photo ?? null;
+  const name = liveP?.full_name || profile.full_name;
+  const bioText = liveP?.bio ?? profile.bio ?? null;
+  const followerCount = liveP ? liveP.followers : profile.followers;
+  const followingCount = liveP ? liveP.following : profile.following;
   const isScholar = !!profile.scholar;
   const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
 
@@ -138,7 +167,10 @@ export default function PublicProfileScreen() {
 
   const toggleFollow = () => {
     haptic.success();
-    setFollowing((v) => !v);
+    const want = !following;
+    setFollowing(want);
+    /* live: the real user_follows edge flips */
+    if (liveP) void srvToggleFollow(liveP.id, want);
   };
 
   const TABS: Array<{ id: ProfileTab; label: string }> = [
@@ -167,7 +199,7 @@ export default function PublicProfileScreen() {
         {/* top bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + 8, paddingBottom: 6 }}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             hitSlop={8}
             style={({ pressed }) => ({
               width: 38,
@@ -214,8 +246,10 @@ export default function PublicProfileScreen() {
                 </Pressable>
               </View>
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <T v="h3" numberOfLines={1} ellipsizeMode="tail" style={{ color: d.text, fontWeight: '800', fontSize: 16.5, flexShrink: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 5 }}>
+                  {/* pass 67 — the FULL name, always: long names wrap onto a
+                   * second line instead of dying as "Abdulrahman Al-H…" */}
+                  <T v="h3" style={{ color: d.text, fontWeight: '800', fontSize: 16.5, flexShrink: 1, lineHeight: 22 }}>
                     {name}
                   </T>
                   {profile.badge ? <VerificationBadge type={profile.badge} size={14} /> : null}
@@ -267,9 +301,9 @@ export default function PublicProfileScreen() {
               </View>
             </View>
 
-            {profile.bio ? (
+            {bioText ? (
               <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>
-                {profile.bio}
+                {bioText}
               </T>
             ) : null}
 
@@ -295,9 +329,9 @@ export default function PublicProfileScreen() {
             {/* stats: Posts / Followers / Following / Charity */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {[
-                { label: 'Posts', value: fmt(Math.max(posts.length, profile.posts_count)), tab: null },
-                { label: 'Followers', value: fmt(profile.followers + (following ? 1 : 0)), tab: 'followers' },
-                { label: 'Following', value: fmt(profile.following), tab: 'following' },
+                { label: 'Posts', value: fmt(Math.max(posts.length, liveP?.posts ?? profile.posts_count)), tab: null },
+                { label: 'Followers', value: fmt(followerCount + (following !== !!liveP?.following_by_me ? (following ? 1 : -1) : 0)), tab: 'followers' },
+                { label: 'Following', value: fmt(followingCount), tab: 'following' },
                 { label: 'Charity', value: '₦ 12.4k', tab: null },
               ].map((s) => {
                 const inner = (

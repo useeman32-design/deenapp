@@ -1,4 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
+import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -735,7 +736,7 @@ export default function VideosFeed() {
       {/* top bar: back · glassy tabs · search */}
       <View style={{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => goBack(router)}
           hitSlop={10}
           style={{
             width: 36,

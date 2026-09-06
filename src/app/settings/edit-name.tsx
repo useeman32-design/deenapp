@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { goBack } from '@/lib/navigation';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -29,7 +30,7 @@ export default function EditName() {
     if (res.ok) {
       haptic.success();
       updateUser({ full_name: name.trim() });
-      router.back();
+      goBack(router);
     } else {
       // The server enforces the "twice within 14 days" limit and returns the message.
       setErr(res.message ?? 'Could not save — check your connection.');

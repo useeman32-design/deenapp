@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState , useRef } from 'react';
+import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -173,7 +174,7 @@ export default function HadithBookScreen() {
       {/* header */}
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => (chapter ? setChapter(null) : router.back())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={() => (chapter ? setChapter(null) : goBack(router))} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name={chapter ? 'chevron-left' : 'arrow-left'} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
           </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>
