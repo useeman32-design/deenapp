@@ -11,6 +11,8 @@ import { loadFatwas, type Fatwa } from '@/lib/ai';
 import { askUnreadCount, directFatwas, isLive, myQuestions, scholars, submitQuestion, type DirectFatwa, type MyQuestion } from '@/api/client';
 import type { Scholar } from '@/api/types';
 import { storage } from '@/lib/storage';
+import { router } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 import { useBookmarks } from '@/lib/bookmarks';
 
 /* Sources we actually have data for. "Direct Fatwa" = questions answered by
@@ -85,6 +87,7 @@ export default function FatwaBrowser() {
   const [askBusy, setAskBusy] = useState(false);
   const [askMsg, setAskMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const live = isLive();
+  const { user } = useAuth();
   useEffect(() => {
     if (!live || source !== 'ask') { return; }
     scholars().then((r) => { setScholarList(r); setAskScholar((cur) => cur ?? (r[0]?.id ?? null)); }).catch(() => {});
@@ -192,6 +195,21 @@ export default function FatwaBrowser() {
           <T v="h2" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 26, lineHeight: 32 }}>{all ? total.toLocaleString() : '—'}</T>
           <T v="caption" style={{ fontSize: 12, color: '#D6F5E2', marginTop: 2 }}>authentic rulings · DeenLink scholars + IslamQA archive</T>
         </View>
+
+        {/* ── pass 75 — scholars answer from their own inbox ── */}
+        {live && user?.user_type === 'scholar' ? (
+          <Pressable onPress={() => { haptic.selection(); router.push('/tools/scholar-inbox'); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(14,122,70,0.3)', backgroundColor: isDark ? 'rgba(74,227,143,0.08)' : 'rgba(29,111,66,0.05)', padding: 13, marginBottom: 14 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isDark ? 'rgba(74,227,143,0.16)' : 'rgba(29,111,66,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="inbox" size={14} color={green} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>Scholar Inbox</T>
+              <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>Answer the questions sent to you</T>
+            </View>
+            <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+          </Pressable>
+        ) : null}
 
         {/* ── SOURCE CARDS ── */}
         <T v="h3" style={{ fontSize: 13, fontWeight: '800', marginBottom: 8 }}>Sources</T>

@@ -401,7 +401,7 @@ export async function toggleFollow(userId: number, desired: boolean): Promise<bo
   const r = await request<{ status?: string }>('/api/users/toggle_follow.php', { method: 'POST', body: { user_id: userId, desired_following: desired }, auth: true });
   return r.ok;
 }
-export type PublicProfile = { id: number; full_name: string; username: string; bio?: string | null; profile_image_url?: string | null; followers: number; following: number; posts: number; following_by_me?: boolean; is_private?: number };
+export type PublicProfile = { id: number; full_name: string; username: string; bio?: string | null; profile_image_url?: string | null; followers: number; following: number; posts: number; following_by_me?: boolean; is_private?: number; user_type?: string };
 /* pass 67 — the Search screen's Users tab rides the real account search. */
 export type AccountResult = { id: number; username: string; full_name: string; user_type?: string; posts_count?: number; followers_count?: number; verification_badge?: string | null; profile_image_url?: string | null };
 export async function searchAccounts(q: string, limit = 20): Promise<AccountResult[] | null> {
@@ -557,6 +557,101 @@ export async function myQuestions(): Promise<{ questions: MyQuestion[]; counts: 
 export async function askUnreadCount(): Promise<number> {
   const r = await request<{ status?: string; unread_answered_count?: number }>('/api/questions/unread_answered_count.php', { auth: true });
   return r.ok ? Number(r.data.unread_answered_count ?? 0) : 0;
+}
+
+/* ─────────────── pass 75 (Tier 2) — Ask Scholars: the SCHOLAR side ─────────────── */
+export type ScholarQueueRow = {
+  id: number;
+  title: string;
+  question_text?: string;
+  category?: string | null;
+  privacy?: string;
+  priority_level?: string;
+  status: string;
+  answer_text?: string | null;
+  rejection_reason?: string | null;
+  asked_at?: string;
+  answered_at?: string | null;
+  asker_id: number;
+  asker_name: string;
+  asker_username: string;
+  asker_profile_image_url?: string | null;
+};
+
+/** The signed-in scholar's question queue (403 for everyone else). */
+export async function scholarQueue(
+  tab: 'to_answer' | 'reviewing' | 'answered' | 'rejected' | 'all' = 'to_answer',
+): Promise<{ questions: ScholarQueueRow[]; counts: Record<string, number> } | null> {
+  const r = await request<{ status?: string; questions?: ScholarQueueRow[]; counts?: Record<string, number> }>(
+    `/api/questions/scholar_list.php?tab=${tab}`, { auth: true },
+  );
+  if (r.ok && Array.isArray(r.data.questions)) { return { questions: r.data.questions, counts: r.data.counts ?? {} }; }
+  return null;
+}
+
+/** Answer / mark reviewing / reject / message a question as the scholar. */
+export async function scholarRespond(
+  questionId: number,
+  action: 'answer' | 'reviewing' | 'reject' | 'message',
+  text: string,
+): Promise<boolean> {
+  const key = action === 'answer' ? 'answer_text' : action === 'reject' ? 'rejection_reason' : 'message_text';
+  const r = await request<{ status?: string }>('/api/questions/respond.php', {
+    method: 'POST', body: { question_id: questionId, action, [key]: text }, auth: true,
+  });
+  return r.ok && r.data.status === 'success';
+}
+
+export type QuestionThreadMessage = {
+  id: number;
+  sender_role: 'scholar' | 'asker';
+  sender_name: string;
+  sender_username: string;
+  sender_profile_image_url?: string | null;
+  message_type: string;
+  message_text: string;
+  created_time_ago?: string;
+};
+
+/** The Q&A message thread — works for BOTH the asker and the scholar. */
+export async function questionThread(questionId: number): Promise<{ viewer_role: string; messages: QuestionThreadMessage[] } | null> {
+  const r = await request<{ status?: string; viewer_role?: string; messages?: QuestionThreadMessage[] }>(
+    `/api/questions/thread.php?question_id=${questionId}`, { auth: true },
+  );
+  if (r.ok && Array.isArray(r.data.messages)) { return { viewer_role: r.data.viewer_role ?? '', messages: r.data.messages }; }
+  return null;
+}
+
+/** Report an account (settings → account tools, profile overflow). */
+export async function reportAccount(userId: number, reason: string): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/users/report_account.php', {
+    method: 'POST', body: { user_id: userId, reason }, auth: true,
+  });
+  return r.ok && r.data.status === 'success';
+}
+
+/* ─────────────── pass 75 (Tier 2) — wallpaper store ─────────────── */
+export type StoreWallpaper = {
+  id: number;
+  name: string;
+  image_url: string;
+  price_points: number;
+  purchased: boolean;
+  category_name?: string;
+};
+
+export async function wallpaperStore(): Promise<StoreWallpaper[] | null> {
+  const r = await request<{ status?: string; wallpapers?: StoreWallpaper[] }>('/api/wallpapers/list.php', { auth: true });
+  if (r.ok && Array.isArray(r.data.wallpapers)) { return r.data.wallpapers; }
+  return null;
+}
+
+export async function wallpaperUnlock(wallpaperId: number): Promise<{ ok: boolean; spent?: number; new_balance?: number; message?: string }> {
+  const r = await request<{ status?: string; spent?: number; new_balance?: number; message?: string }>('/api/wallpapers/unlock.php', {
+    method: 'POST', body: { wallpaper_id: wallpaperId }, auth: true,
+  });
+  if (r.ok && r.data.status === 'success') { return { ok: true, spent: r.data.spent, new_balance: r.data.new_balance }; }
+  return { ok: false, message: r.data.message ?? 'Could not unlock' };
 }
 
 export async function getUserProfile(username: string): Promise<PublicProfile | null> {
@@ -900,9 +995,10 @@ export type DirectFatwa = {
 
 /** Direct fatwas — public questions answered by verified DeenLink scholars
  * (api/questions/public_list.php). Empty in demo/offline mode. */
-export async function directFatwas(limit = 30): Promise<DirectFatwa[]> {
+export async function directFatwas(limit = 30, scholarUserId?: number): Promise<DirectFatwa[]> {
+  const byScholar = scholarUserId ? `&scholar_user_id=${scholarUserId}` : '';
   const r = await request<{ status?: string; questions?: DirectFatwa[] }>(
-    `/api/questions/public_list.php?limit=${limit}&sort=newest`,
+    `/api/questions/public_list.php?limit=${limit}&sort=newest${byScholar}`,
   );
   if (r.ok && Array.isArray(r.data.questions)) return r.data.questions;
   return [];

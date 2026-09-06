@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient as SvgLg, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { saveSvgRefAsJpg, shareSvgRef, type SvgRefHandle } from '@/lib/svgExport';
 import { DeenPointsPill } from '@/components/DeenPoints';
+import { isLive, wallpaperStore, wallpaperUnlock, type StoreWallpaper } from '@/api/client';
 
 /**
  * pass 35 — wallpapers, rebuilt. Every wallpaper is generated live as an SVG
@@ -36,6 +37,9 @@ const WALLS: Wall[] = [
 ];
 
 const W = 1080;
+
+/* pass 75 (Tier 2) — the DeenLink wallpaper STORE: admin-curated images,
+ * some free, some unlocked with DeenPoints (server ledger does the spend). */
 const H = 1920;
 
 function WallSvg({ wall, ref }: { wall: Wall; ref?: React.RefObject<SvgRefHandle> }) {
@@ -110,6 +114,33 @@ export default function Wallpapers() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const exportRef = useRef<SvgRefHandle>(null);
+  const [store, setStore] = useState<StoreWallpaper[] | null>(null);
+  const [storeSel, setStoreSel] = useState<StoreWallpaper | null>(null);
+  const [unlocking, setUnlocking] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isLive()) { return; }
+    wallpaperStore().then(setStore).catch(() => {});
+  }, []);
+  const doUnlock = async (w: StoreWallpaper) => {
+    haptic.light();
+    setUnlocking(w.id);
+    const r = await wallpaperUnlock(w.id).catch(() => ({ ok: false as const, message: 'Could not unlock' }));
+    setUnlocking(null);
+    if (!r.ok) { setToast(r.message || 'Could not unlock'); return; }
+    haptic.success();
+    setStore((prev) => (prev ?? []).map((x) => (x.id === w.id ? { ...x, purchased: true } : x)));
+    setStoreSel((cur) => (cur && cur.id === w.id ? { ...cur, purchased: true } : cur));
+    setToast(r.spent ? `Unlocked for ${r.spent} DeenPoints ✓` : 'Unlocked ✓');
+  };
+  const shareStore = async (w: StoreWallpaper) => {
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: w.name, url: w.image_url });
+        return;
+      }
+      await Share.share({ message: `${w.name} — DeenLink wallpaper`, url: w.image_url, title: w.name });
+    } catch { /* dismissed */ }
+  };
 
   const doShare = async () => {
     if (!sel || busy) return;
@@ -158,7 +189,65 @@ export default function Wallpapers() {
             </Pressable>
           ))}
         </View>
+
+        {/* ── pass 75: server-curated gallery (free + DeenPoints unlocks) ── */}
+        {store && store.length ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <FontAwesome5 name="store" size={12} color="#D4AF37" />
+              <T v="h3" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>DeenLink Gallery</T>
+              <T v="caption" style={{ fontSize: 10, color: d.faint, marginLeft: 'auto' }}>Some unlock with DeenPoints</T>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {store.map((w) => (
+                <Pressable key={w.id} onPress={() => { haptic.selection(); setStoreSel(w); }}
+                  style={{ width: '48%', aspectRatio: 9 / 16, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
+                  <Image source={{ uri: w.image_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  {!w.purchased && w.price_points > 0 ? (
+                    <View style={{ position: 'absolute', top: 8, right: 8, borderRadius: 999, backgroundColor: 'rgba(6,15,10,0.78)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.55)', paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <FontAwesome5 name="lock" size={8} color="#E8C96A" />
+                      <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: '#E8C96A' }}>{w.price_points}</T>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
+
+      {/* store wallpaper preview */}
+      <Modal visible={!!storeSel} transparent animationType="fade" onRequestClose={() => setStoreSel(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.94)' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setStoreSel(null)}>
+            <View style={{ flex: 1, margin: 12, borderRadius: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              {storeSel ? <Image source={{ uri: storeSel.image_url }} style={{ width: '100%', height: '100%' }} resizeMode="contain" /> : null}
+            </View>
+          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 10, padding: 14, paddingBottom: Math.max(insets.bottom, 14) + 6 }}>
+            {storeSel && !storeSel.purchased && storeSel.price_points > 0 ? (
+              <Pressable onPress={() => void doUnlock(storeSel)}
+                style={{ flex: 1, borderRadius: 14, height: 48, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                {unlocking === storeSel.id ? <ActivityIndicator size="small" color="#E8C96A" /> : <FontAwesome5 name="lock-open" size={13} color="#E8C96A" />}
+                <T v="button" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 13 }}>Unlock · {storeSel.price_points} pts</T>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable onPress={() => storeSel && void Linking.openURL(storeSel.image_url).catch(() => {})}
+                  style={{ flex: 1, borderRadius: 14, height: 48, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                  <FontAwesome5 name="expand" size={13} color="#E8C96A" />
+                  <T v="button" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 13 }}>Open full size</T>
+                </Pressable>
+                <Pressable onPress={() => storeSel && void shareStore(storeSel)}
+                  style={{ flex: 1, borderRadius: 14, height: 48, borderWidth: 1.5, borderColor: 'rgba(74,227,143,0.5)', backgroundColor: 'rgba(74,227,143,0.12)', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                  <FontAwesome5 name="share-alt" size={13} color="#4AE38F" />
+                  <T v="button" style={{ color: '#4AE38F', fontWeight: '800', fontSize: 13 }}>Share</T>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* fullscreen preview + save/share */}
       <Modal visible={!!sel} transparent animationType="fade" onRequestClose={() => setSel(null)}>

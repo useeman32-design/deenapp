@@ -1160,6 +1160,38 @@ http://app.deenlink.org (same-origin client+API via /tmp/dlrouter.php on port 80
 login · search rows · SPA+hard-nav profiles · history/clear · request note · shelf ·
 accept → thread + server follow.
 
-Heads: deenlink-api main d49cede · deenapp master ac039c9 · gh-pages 2387fea.
-NEXT: Tier 2 (Ask Scholars both sides, wallpapers, account tools) → Tier 3 → admin
-dashboard audit → iOS/Android store builds.
+---
+
+## PASS 75 (Tier 2)
+
+**Ask Scholars — scholar side (the missing half):**
+- NEW `src/app/tools/scholar-inbox.tsx`: queue tabs (To answer/Answered/Rejected with
+  counts), question cards (asker, priority chip, preview), detail sheet with thread
+  messages + composer (Publish answer / Ask for details / Reject-with-reason modes).
+- Entry: Fatwa & Rulings shows a "Scholar Inbox" card when user.user_type === 'scholar'
+  (me.php already resolves approved scholars server-side).
+- client.ts: scholarQueue / scholarRespond / questionThread (both roles) +
+  ScholarQueueRow/QuestionThreadMessage types.
+- Asker side was already live (pass 69); profile Questions tab now loads the scholar's
+  real answered questions (public_list.php?scholar_user_id=…, PublicProfile.user_type).
+
+**Wallpapers:** wallpapers.tsx gained a server-backed "DeenLink Gallery" (admin-curated
+images, free or DeenPoints-priced): lock badge, unlock (server ledger spends points),
+open full size + share. Local SVG generator untouched.
+
+**Account tools:** report-account flag on public profiles (sheet with 5 reasons →
+users/report_account.php → account_reports). Avatar gallery already shipped in pass 50
+(AvatarPicker, 62 gendered presets).
+
+**Server fixes:** wallpapers/unlock.php threw a 500 AFTER spending points — the ledger
+helper's CREATE TABLE IF NOT EXISTS causes an implicit commit, so the final $pdo->commit()
+blew up ("no active transaction"); now guarded with inTransaction().
+
+Gates: tsc clean · export clean · harness70 18/18 · 71 10/10 · 72 26/26 · 73 8/8 ·
+74 13/13 · **75 18/18** (scholar queue guard → submit → queue → message → answer →
+asker my_list/unread/mark-read → public list · wallpaper free/paid unlock, no
+double-charge · report row) · **repro75 E2E 12/12** (inbox entry → queue → answer via
+UI → answered tab → profile report sheet → gallery section) · repro74b 17/17 re-run.
+
+Heads: deenlink-api main <API> · deenapp master <APP> · gh-pages <GHP>.
+NEXT: Tier 3 → admin dashboard audit → iOS/Android store builds.

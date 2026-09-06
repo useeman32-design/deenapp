@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +15,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
-import { getUserProfile, isLive, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
+import { directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -77,10 +77,15 @@ export default function PublicProfileScreen() {
   const [shareOpen, setShareOpen] = useState(false);
   /* pass 66-night — live profile: real stats, bio, photo and follow edge. */
   const [liveP, setLiveP] = useState<PublicProfile | null>(null);
+  /* pass 75 — a real scholar's answered questions come from the server */
+  const [liveQAs, setLiveQAs] = useState<Array<{ q: string; a: string }> | null>(null);
+  /* pass 75 — account tools: report this account (server account_reports) */
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   /* pass 74 — WAIT for the session restore: on a hard navigation (web refresh
    * or an MPA route hop) this screen mounts before /me resolves, isLive() is
    * still false, the fetch was skipped and real accounts showed "not found". */
-  const { ready } = useAuth();
+  const { ready, user } = useAuth();
   useEffect(() => {
     if (!ready || !isLive() || !username) return;
     void getUserProfile(username).then((p) => {
@@ -89,6 +94,12 @@ export default function PublicProfileScreen() {
       setFollowing(!!p.following_by_me);
     });
   }, [username, ready]);
+  useEffect(() => {
+    if (!liveP || liveP.user_type !== 'scholar') return;
+    void directFatwas(30, liveP.id).then((rows) => {
+      if (rows.length) setLiveQAs(rows.map((r) => ({ q: r.question || r.title, a: r.answer })));
+    });
+  }, [liveP]);
 
   const profile: MockProfile | null = useMemo(() => {
     /* pass 66-night — real accounts surface from the server even when the
@@ -141,7 +152,10 @@ export default function PublicProfileScreen() {
     () => MOCK_FEED.filter((p) => p.user.username === username),
     [username],
   );
-  const answered = profile?.scholar ? (ANSWERED[username] ?? []) : [];
+  /* live scholar → the server's answered questions win over the demo set */
+  const answered = (liveP?.user_type === 'scholar' || profile?.scholar)
+    ? (liveQAs ?? ANSWERED[username] ?? [])
+    : [];
 
   if (!profile) {
     if (!ready) {
@@ -446,6 +460,25 @@ export default function PublicProfileScreen() {
                   Share
                 </T>
               </Pressable>
+              {liveP && user && liveP.username !== user.username ? (
+                <Pressable
+                  onPress={() => { haptic.selection(); setReportOpen(true); }}
+                  accessibilityLabel="Report account"
+                  style={({ pressed }) => ({
+                    width: 42,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    backgroundColor: d.bgSoft,
+                    paddingVertical: 10,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <FontAwesome5 name="flag" size={11} color="#E05252" />
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </View>
@@ -692,6 +725,38 @@ export default function PublicProfileScreen() {
         link={`https://deenlink.org/profile/${profile.username}`}
         noImage
       />
+
+      {/* pass 75 — report this account */}
+      <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setReportOpen(false)}>
+          <Pressable style={{ backgroundColor: d.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 30 }} onPress={() => undefined}>
+            <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, marginBottom: 14 }} />
+            <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text, marginBottom: 4 }}>Report @{profile.username}</T>
+            <T v="caption" style={{ fontSize: 11, color: d.faint, marginBottom: 12 }}>Tell us what is wrong — our moderation team reviews every report.</T>
+            {['Spam or scam', 'Harassment or hate speech', 'Impersonation or fake account', 'Inappropriate content', 'Something else'].map((reason) => (
+              <Pressable
+                key={reason}
+                disabled={reportBusy}
+                onPress={() => {
+                  haptic.light();
+                  setReportBusy(true);
+                  void reportAccount(liveP?.id ?? 0, reason).then((ok) => {
+                    setReportBusy(false);
+                    setReportOpen(false);
+                    if (ok) { Alert.alert('Report sent', 'JazakAllah khair — our moderation team will review this account.'); }
+                    else { Alert.alert('Could not send', 'Please try again in a moment.'); }
+                  });
+                }}
+                style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 9, opacity: reportBusy ? 0.6 : 1 }}
+              >
+                <FontAwesome5 name="flag" size={10} color="#E05252" />
+                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{reason}</T>
+                {reportBusy ? <ActivityIndicator size="small" color={d.faint} style={{ marginLeft: 'auto' }} /> : null}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
