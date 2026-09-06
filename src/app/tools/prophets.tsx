@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 import { themeFor } from '@/data/prophetThemes';
 import { prophetChapters, prophetFull } from '@/api/client';
 
@@ -46,6 +47,8 @@ export default function ProphetsStories() {
   const [lang, setLang] = useState<'en' | 'ha'>('en');
   /* pass 45 — paged reading: Next / Previous + scroll-to-top + progress */
   const [page, setPage] = useState(0);
+  /* pass 69 — server-synced favourites for each story */
+  const bmProphet = useBookmarks('prophet');
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -135,6 +138,9 @@ export default function ProphetsStories() {
                   <FontAwesome5 name="chevron-left" size={13} color="#F2F7F3" />
                 </Pressable>
                 <View style={{ flex: 1 }} />
+                <Pressable onPress={() => { haptic.light(); void bmProphet.toggle(open.slug, { name: open.name }); }} hitSlop={10} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="star" size={13} solid={bmProphet.has(open.slug)} color={bmProphet.has(open.slug) ? '#E8C96A' : '#F2F7F3'} />
+                </Pressable>
                 {/* language pill: EN full text / HA Hausa summary */}
                 <View style={{ flexDirection: 'row', borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.32)', padding: 2 }}>
                   {(['en', 'ha'] as const).map((l) => (
@@ -329,6 +335,9 @@ export default function ProphetsStories() {
                     <View style={{ width: `${pct}%`, height: 4, borderRadius: 2, backgroundColor: pct >= 100 ? '#D4AF37' : isDark ? '#4AE38F' : '#1D6F42' }} />
                   </View>
                 </View>
+                <Pressable onPress={() => { haptic.light(); void bmProphet.toggle(c.slug, { name: c.name }); }} hitSlop={10} style={{ padding: 7 }}>
+                  <FontAwesome5 name="star" size={13} solid={bmProphet.has(c.slug)} color={bmProphet.has(c.slug) ? '#E8C96A' : d.faint} />
+                </Pressable>
                 {pct >= 100 ? (
                   <FontAwesome5 name="check-circle" size={16} color="#D4AF37" />
                 ) : pct > 0 ? (

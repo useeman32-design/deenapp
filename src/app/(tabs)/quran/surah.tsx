@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { QURAN, JUZ_START } from '@/data/quran';
 import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
 import { ensureQuranCorpus, findAyahFuzzy, searchQuranCorpus } from '@/lib/quranSearch';
 import { markActive, markGoal } from '@/lib/routine';
@@ -45,8 +46,14 @@ export default function SurahList() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
-  const [favs, setFavs] = useState<number[]>([]);
-  const [ayahMarks, setAyahMarks] = useState<Array<{ surah: number; ayah: number }>>([]);
+  /* pass 69 — favourites + saved ayahs come from the unified bookmark store */
+  const bmSurah = useBookmarks('surah');
+  const bmAyah = useBookmarks('ayah');
+  const favs = useMemo(() => bmSurah.list.map((i) => Number(i.item_id)), [bmSurah.list]);
+  const ayahMarks = useMemo(
+    () => bmAyah.list.map((i) => { const [sn, an] = i.item_id.split(':'); return { surah: Number(sn), ayah: Number(an) }; }),
+    [bmAyah.list],
+  );
   const [deepSearch, setDeepSearch] = useState(false);
   /* pass 34: Quran Shazam deep-link — ?q=<dictated arabic> opens the search
    * prefilled and runs the corpus scan immediately */
@@ -76,19 +83,6 @@ export default function SurahList() {
           setLastRead(JSON.parse(r));
         } catch {}
     });
-    storage.getItem('dl.quran.ayahMarks').then((r) => {
-      if (r)
-        try {
-          const all: Record<string, number[]> = JSON.parse(r);
-          setAyahMarks(Object.entries(all).flatMap(([sn, ayahs]) => ayahs.map((a) => ({ surah: Number(sn), ayah: a }))));
-        } catch {}
-    });
-    storage.getItem('dl.quran.favs').then((r) => {
-      if (r)
-        try {
-          setFavs(JSON.parse(r));
-        } catch {}
-    });
   }, []);
 
   // reading-progress hero (defaults: Al-Yusuf, Juz 12, 60%)
@@ -99,11 +93,7 @@ export default function SurahList() {
 
   const toggleFav = (number: number) => {
     haptic.light();
-    setFavs((f) => {
-      const next = f.includes(number) ? f.filter((x) => x !== number) : [...f, number];
-      storage.setItem('dl.quran.favs', JSON.stringify(next));
-      return next;
-    });
+    void bmSurah.toggle(String(number));
   };
 
   const open = (number: number) => {

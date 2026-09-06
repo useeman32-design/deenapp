@@ -972,3 +972,35 @@ theme-color meta · bubble user-select none · input auto + font Manrope · shar
 "Replying to aisha_yusuf" + cancel · chip shows scrolled up, click → gap 0 · send from top →
 bubble visible · own hold-menu Reply/Forward/Copy/Info/Delete · Info Delivered + Seen/Not-seen ·
 forward screen "Forward to 1" · their menu has no Info/Delete · zero JS errors.
+
+## PASS 69 — Ask Scholars + unified bookmarks + live payments (Flutterwave)
+
+**Backend (deenlink-api `f77cc5f`, harness69 23/23):**
+- `api/bookmarks/{common,toggle,list}.php` — one `user_bookmarks` table for EVERY kind
+  (hadith, ayah `surah:ayah`, surah, prophet, seerah, fatwa, video, post); payload JSON ≤4 KB.
+- `api/deenpoints/history.php` — `{balance, events[]}` for the new ledger screen.
+- `init_deenpoints.php` + NEW `init_donation.php`/`init_premium.php` redirect mode
+  (`redirect:true` + validated `redirect_url` → server creates the tx with the SECRET key via
+  Flutterwave /v3/payments → hosted-checkout link for the native app; 502 on FLW failure).
+- verify.php already credits donation/premium/deenpoints by `purpose` — untouched.
+
+**Client (this repo):**
+- `src/lib/bookmarks.ts` — module store, local mirror `dl.bookmarks.v1` first, server overwrite
+  when live; `useBookmarks(kind)`. `src/lib/savedPosts.ts` upgraded: kind `post` with compact
+  snapshot payloads (≤600-char body) so the Saved tab syncs across devices.
+- `src/lib/flutterwave.ts` — ONE payment runner: web = v3.js inline + verify; native = redirect
+  mode + `dl.flw.pending_tx` settled on focus. Exposes buyDeenPoints / donate / buyPremium.
+- `src/app/tools/deenpoints.tsx` — live balance card, presets+custom, quote-driven pricing
+  (₦1.5/pt + FX), Flutterwave buy, ledger history. All DeenPoints entry points (settings row,
+  profile chip, DeenPointsPill everywhere, charity chip) now route here; the mock buy modal is
+  no longer opened.
+- `src/app/tools/fatwa.tsx` — Ask Scholars source chip: scholar picker (users.id), categories,
+  public/private, DeenPoints bonus, My Questions w/ unread badge; saved rulings now keyed by
+  stable `d<id>`/`i<idx>` in the bookmark store.
+- Bookmark wiring: hadith reader, Quran favs + saved ayahs (surah list & reader share it),
+  seerah, videos saved, prophet stories (NEW star, reader + hub cards), posts (savedStore).
+- charity.tsx pays for real when live (inline/hosted), demo fallback kept; settings premium
+  sheet shows quote_premium pricing and buys via init_premium.
+
+**Gates:** tsc clean · harness69 23/23 (donation init inline, redirect-scheme 400, quote
+premium, premium init dl_pm_*) · web+root exports + headless boot probe before deploy.

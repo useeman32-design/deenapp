@@ -38,6 +38,7 @@ import * as Clipboard from 'expo-clipboard';
 import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 import { addUserReel, subscribeUserReels, userReels } from '@/lib/reelStore';
 import { addUserPost, listUserPosts } from '@/lib/userPosts';
 
@@ -518,7 +519,9 @@ export default function VideosFeed() {
   const [index, setIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
-  const [saved, setSaved] = useState<Set<number>>(new Set());
+  /* pass 69 — saved reels live in the unified server-synced bookmark store */
+  const bmVideo = useBookmarks('video');
+  const saved = useMemo(() => new Set(bmVideo.list.map((i) => Number(i.item_id))), [bmVideo.list]);
   const [reposted, setReposted] = useState<Set<number>>(new Set());
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
   const [shareReel, setShareReel] = useState<MockReel | null>(null);
@@ -572,13 +575,6 @@ export default function VideosFeed() {
   }, [storeTick]);
 
   useEffect(() => {
-    storage.getItem(SAVES_KEY).then((raw) => {
-      if (raw) {
-        try {
-          setSaved(new Set(JSON.parse(raw) as number[]));
-        } catch { /* ignore */ }
-      }
-    });
     storage.getItem(REPOST_KEY).then((raw) => {
       if (raw) {
         try {
@@ -629,18 +625,7 @@ export default function VideosFeed() {
     });
 
   const toggleSave = (id: number) => {
-    let added = false;
-    setSaved((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else {
-        n.add(id);
-        added = true;
-      }
-      storage.setItem(SAVES_KEY, JSON.stringify([...n])).catch(() => {});
-      return n;
-    });
-    if (added) showToast('Added to your saved videos');
+    void bmVideo.toggle(String(id)).then((on) => { if (on) showToast('Added to your saved videos'); });
   };
 
   const toggleRepost = (id: number) => {

@@ -419,6 +419,127 @@ export async function notificationsMarkAllRead(): Promise<void> {
   await request('/api/notifications/mark_read.php', { method: 'POST', body: { all: true }, auth: true });
 }
 
+/* ─────────────── pass 69 — bookmarks (unified, every save button) ─────────────── */
+export type BookmarkItem = { kind: string; item_id: string; payload: unknown; created_at: string };
+
+export async function bookmarksList(kind?: string): Promise<BookmarkItem[] | null> {
+  const r = await request<{ status?: string; items?: BookmarkItem[] }>(`/api/bookmarks/list.php${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`, { auth: true });
+  if (r.ok && Array.isArray(r.data.items)) { return r.data.items; }
+  return null;
+}
+
+export async function bookmarkToggle(kind: string, itemId: string, payload?: unknown): Promise<{ bookmarked: boolean } | null> {
+  const r = await request<{ status?: string; bookmarked?: boolean }>('/api/bookmarks/toggle.php', { method: 'POST', body: { kind, item_id: itemId, payload }, auth: true });
+  if (r.ok && typeof r.data.bookmarked === 'boolean') { return { bookmarked: r.data.bookmarked }; }
+  return null;
+}
+
+/* ─────────────── pass 69 — DeenPoints: history + Flutterwave purchase ─────────────── */
+export type PointsEvent = { delta: number; balance_after: number; event_type: string; ref: string | null; created_at: string };
+
+export async function deenpointsHistory(limit = 40): Promise<{ balance: number; events: PointsEvent[] } | null> {
+  const r = await request<{ status?: string; balance?: number; events?: PointsEvent[] }>(`/api/deenpoints/history.php?limit=${limit}`, { auth: true });
+  if (r.ok && typeof r.data.balance === 'number') { return { balance: r.data.balance, events: Array.isArray(r.data.events) ? r.data.events : [] }; }
+  return null;
+}
+
+export type PointsPricing = { price_per_point_ngn: number; currency: string; rate_ngn_to_currency: number; supported_currencies?: string[]; country?: string };
+
+export async function pointsQuote(): Promise<PointsPricing | null> {
+  const r = await request<{ status?: string; pricing?: PointsPricing }>('/api/payments/flutterwave/quote_deenpoints.php');
+  if (r.ok && r.data.pricing) { return r.data.pricing; }
+  return null;
+}
+
+export type FlwCheckout = {
+  public_key: string;
+  tx_ref: string;
+  amount: number;
+  currency: string;
+  payment_options?: string;
+  customer?: { email?: string; name?: string; phone_number?: string };
+  customizations?: { title?: string; description?: string; logo?: string };
+};
+
+/** Start a DeenPoints purchase. Web → inline `checkout` payload for
+ * FlutterwaveCheckout(); native → `redirect_url` hosted-checkout link. */
+export async function pointsInit(points: number, opts?: { redirect?: boolean; redirectUrl?: string }): Promise<{ checkout?: FlwCheckout; mode?: string; tx_ref?: string; redirect_url?: string; message?: string } | null> {
+  const body: Record<string, unknown> = { points };
+  if (opts?.redirect) { body.redirect = true; if (opts.redirectUrl) { body.redirect_url = opts.redirectUrl; } }
+  const r = await request<{ status?: string; checkout?: FlwCheckout; mode?: string; tx_ref?: string; redirect_url?: string; message?: string }>('/api/payments/flutterwave/init_deenpoints.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success') { return r.data; }
+  return null;
+}
+
+/** Server-side verification + crediting (idempotent). Call after checkout
+ * closes (web) or when the user returns from the hosted page (native). */
+export async function pointsVerify(txRef: string): Promise<{ ok: boolean; balance?: number; message?: string } | null> {
+  const r = await request<{ status?: string; message?: string; deenpoints_balance?: number }>('/api/payments/flutterwave/verify.php', { method: 'POST', body: { tx_ref: txRef }, auth: true });
+  if (r.ok && r.data.status === 'success') { return { ok: true, balance: r.data.deenpoints_balance, message: r.data.message }; }
+  return { ok: false, message: r.data.message ?? 'Verification failed' };
+}
+
+/* ─────────────── pass 69 — donations + premium (same Flutterwave plumbing) ─────────────── */
+export type PayInit = { checkout?: FlwCheckout; mode?: string; tx_ref?: string; redirect_url?: string; message?: string };
+
+/** Start a donation (Sadaqah/Zakat/…). Web → inline checkout; native → hosted page. */
+export async function donationInit(donationType: string, amount: number, opts?: { redirect?: boolean; redirectUrl?: string; note?: string; currency?: string }): Promise<PayInit | null> {
+  const body: Record<string, unknown> = { donation_type: donationType, amount };
+  if (opts?.currency) { body.currency = opts.currency; }
+  if (opts?.note) { body.note = opts.note; }
+  if (opts?.redirect) { body.redirect = true; if (opts.redirectUrl) { body.redirect_url = opts.redirectUrl; } }
+  const r = await request<{ status?: string } & PayInit>('/api/payments/flutterwave/init_donation.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success') { return r.data; }
+  return null;
+}
+
+export type PremiumQuote = {
+  premium_enabled: boolean;
+  currency: string;
+  monthly: number;
+  annual: number;
+  monthly_usd?: number;
+  annual_usd?: number;
+  annual_saves_usd?: number;
+};
+
+export async function quotePremium(): Promise<PremiumQuote | null> {
+  const r = await request<{ status?: string } & PremiumQuote>('/api/payments/flutterwave/quote_premium.php', { auth: true });
+  if (r.ok && r.data.status === 'success') { return r.data; }
+  return null;
+}
+
+export async function premiumInit(plan: 'monthly' | 'annual', opts?: { redirect?: boolean; redirectUrl?: string }): Promise<PayInit | null> {
+  const body: Record<string, unknown> = { plan };
+  if (opts?.redirect) { body.redirect = true; if (opts.redirectUrl) { body.redirect_url = opts.redirectUrl; } }
+  const r = await request<{ status?: string } & PayInit>('/api/payments/flutterwave/init_premium.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success') { return r.data; }
+  return null;
+}
+
+/* ─────────────── pass 69 — Ask Scholars (my side of the questions API) ─────────────── */
+export type MyQuestion = {
+  id: number;
+  title: string;
+  question?: string;
+  status: string;
+  answer?: string | null;
+  answered_at?: string | null;
+  created_at?: string;
+  scholar?: { id?: number; name?: string; username?: string } | null;
+};
+
+export async function myQuestions(): Promise<{ questions: MyQuestion[]; counts: Record<string, number> } | null> {
+  const r = await request<{ status?: string; questions?: MyQuestion[]; counts?: Record<string, number> }>('/api/questions/my_list.php', { auth: true });
+  if (r.ok && Array.isArray(r.data.questions)) { return { questions: r.data.questions, counts: r.data.counts ?? {} }; }
+  return null;
+}
+
+export async function askUnreadCount(): Promise<number> {
+  const r = await request<{ status?: string; unread_answered_count?: number }>('/api/questions/unread_answered_count.php', { auth: true });
+  return r.ok ? Number(r.data.unread_answered_count ?? 0) : 0;
+}
+
 export async function getUserProfile(username: string): Promise<PublicProfile | null> {
   const r = await request<{ status?: string; user?: PublicProfile }>(`/api/users/get_user_profile.php?u=${encodeURIComponent(username)}`, { auth: true });
   return r.ok && r.data.user ? r.data.user : null;
@@ -535,6 +656,7 @@ export async function submitQuestion(payload: {
   details: string;
   privacy?: 'public' | 'private';
   category?: string;
+  additional_deenpoints?: number;
 }): Promise<{ ok: boolean; demo?: boolean }> {
   const r = await request<{ status?: string; message?: string }>('/api/questions/submit.php', {
     method: 'POST',

@@ -9,6 +9,7 @@ import { loadBook, loadBookMeta, type ContentHadith, type MetaChapter } from '@/
 import { hadithNumbers } from '@/lib/hadithNum';
 import { fetchHadithTranslation, hadithTrLangsFor, HADITH_TR_LANGS, type HadithTrLang } from '@/lib/hadithTr';
 import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -53,7 +54,12 @@ export default function HadithBookScreen() {
   const [trLang, setTrLang] = useState<HadithTrLang | null>(null);
   const [trs, setTrs] = useState<Record<number, string | null>>({});
   const [loading, setLoading] = useState(false);
-  const [marks, setMarks] = useState<Set<string>>(new Set());
+  /* pass 69 — marks live in the unified bookmark store (server-synced) */
+  const bmHadith = useBookmarks('hadith');
+  const marks = useMemo(
+    () => new Set(bmHadith.list.filter((i) => i.item_id.startsWith(`${book.id}:`)).map((i) => i.item_id.slice(String(book.id).length + 1))),
+    [bmHadith.list, book.id],
+  );
   const [limit, setLimit] = useState(25);
   const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
 
@@ -80,12 +86,6 @@ export default function HadithBookScreen() {
       });
     /* pass 23: do NOT auto-restore the last chapter — opening a book always
      * shows its CHAPTER LIST first (continue via the hero button) */
-    storage.getItem(`dl.hadith.marks.${book.id}`).then((r) => {
-      if (r)
-        try {
-          setMarks(new Set(JSON.parse(r)));
-        } catch {}
-    });
   }, [book.id]);
 
   const openChapter = (id: string) => {
@@ -160,13 +160,7 @@ export default function HadithBookScreen() {
 
   const toggleMark = (id: string) => {
     haptic.light();
-    setMarks((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      storage.setItem(`dl.hadith.marks.${book.id}`, JSON.stringify(Array.from(next)));
-      return next;
-    });
+    void bmHadith.toggle(`${book.id}:${id}`);
   };
 
   return (

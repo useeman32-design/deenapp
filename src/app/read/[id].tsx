@@ -16,6 +16,7 @@ import { ActivityIndicator, Modal, TextInput } from 'react-native';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { Image } from 'expo-image';
 import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuranAudio, RECITERS } from '@/context/QuranAudioContext';
 import { T } from '@/components/T';
@@ -39,7 +40,12 @@ export default function Reader() {
   const audio = useQuranAudio();
 
   const [data, setData] = useState<SurahContent | null>(null);
-  const [marks, setMarks] = useState<Set<number>>(new Set());
+  /* pass 69 — ayah bookmarks live in the unified server-synced store */
+  const bmAyah = useBookmarks('ayah');
+  const marks = useMemo(
+    () => new Set(bmAyah.list.filter((i) => i.item_id.startsWith(`${n}:`)).map((i) => Number(i.item_id.split(':')[1]))),
+    [bmAyah.list, n],
+  );
   /* pass 32: keep the mushaf view when a page swipe crosses into another
    * surah — the router.replace remount would otherwise dump the reader back
    * into reading mode mid-swipe. */
@@ -92,13 +98,7 @@ export default function Reader() {
       })
       .catch(() => {});
     storage.setItem('dl.quran.last', JSON.stringify({ surah: n, ayah: startAyah, at: new Date().toISOString() })).catch(() => {});
-    storage.getItem('dl.quran.ayahMarks').then((r) => {
-      if (r)
-        try {
-          const all: Record<string, number[]> = JSON.parse(r);
-          setMarks(new Set(all[n] ?? []));
-        } catch {}
-    });
+
     return () => {
       alive = false;
     };
@@ -163,20 +163,7 @@ export default function Reader() {
 
   const toggleAyahMark = (num: number) => {
     haptic.light();
-    setMarks((prev) => {
-      const next = new Set(prev);
-      if (next.has(num)) next.delete(num);
-      else next.add(num);
-      storage.getItem('dl.quran.ayahMarks').then((r) => {
-        let all: Record<string, number[]> = {};
-        try {
-          all = r ? JSON.parse(r) : {};
-        } catch {}
-        all[n] = Array.from(next);
-        storage.setItem('dl.quran.ayahMarks', JSON.stringify(all));
-      });
-      return next;
-    });
+    void bmAyah.toggle(`${n}:${num}`);
   };
 
   const reciterName = RECITERS.find((r) => r.id === audio.reciter)?.name ?? RECITERS[0].name;

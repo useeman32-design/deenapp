@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { goBack } from '@/lib/navigation';
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,8 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
+import { buyPremium } from '@/lib/flutterwave';
+import { isLive, quotePremium, type PremiumQuote } from '@/api/client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const deenPointsLogo = require('../../../assets/img/deenpoints.png');
@@ -48,6 +50,41 @@ export default function SettingsScreen() {
   const deenpoints = (user?.deenpoints_balance as number) ?? 0;
 
   const [sheet, setSheet] = useState<null | 'premium' | 'notif' | 'privacy' | 'about' | 'socials'>(null);
+  /* pass 69 — live premium pricing + Flutterwave checkout */
+  const [pq, setPq] = useState<PremiumQuote | null>(null);
+  const [payingTier, setPayingTier] = useState<string | null>(null);
+  useEffect(() => {
+    if (sheet === 'premium' && isLive()) { quotePremium().then((q) => { if (q) setPq(q); }).catch(() => {}); }
+  }, [sheet]);
+  const buyPlan = async (tierId: string) => {
+    haptic.selection();
+    const plan: 'monthly' | 'annual' = tierId === 'y' ? 'annual' : 'monthly';
+    if (!isLive()) {
+      Alert.alert('Premium checkout', 'This demo build has no payments — checkout opens in the live app.');
+      return;
+    }
+    if (pq && !pq.premium_enabled) {
+      Alert.alert('Coming soon', 'Premium checkout is not open yet. We will notify you when it launches.');
+      return;
+    }
+    setPayingTier(tierId);
+    const r = await buyPremium(plan).catch(() => null);
+    setPayingTier(null);
+    if (r?.ok && r.verified) {
+      Alert.alert('Welcome to Premium ✨', 'Your subscription is now active.');
+      setSheet(null);
+    } else if (r?.ok) {
+      Alert.alert('Almost there', r.message ?? 'Complete the payment in your browser and Premium unlocks when you return.');
+    } else {
+      Alert.alert('Checkout failed', r?.message ?? 'Could not start the payment. Please try again.');
+    }
+  };
+  const tierPrice = (t: { id: string; price: string }) => {
+    if (!pq || !pq.premium_enabled) return t.price;
+    const val = t.id === 'y' ? pq.annual : pq.monthly;
+    const sym = pq.currency === 'NGN' ? '₦' : `${pq.currency} `;
+    return `${sym}${val.toLocaleString()}`;
+  };
   const [dpOpen, setDpOpen] = useState(false);
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
   const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true });
@@ -148,7 +185,7 @@ export default function SettingsScreen() {
           <Divider />
           <Row icon="user-edit" label="Edit Profile" desc="Name, bio, aqeedah & photo" tint="#5BC8F5" onPress={() => router.push('/settings/edit-profile')} />
           <Divider />
-          <Row icon="gift" image={deenPointsLogo} label="DeenPoints" desc="Buy points & see your balance" tint={d.gold} onPress={() => setDpOpen(true)} />
+          <Row icon="gift" image={deenPointsLogo} label="DeenPoints" desc="Buy points & see your balance" tint={d.gold} onPress={() => router.push('/tools/deenpoints')} />
           <Divider />
           <Row icon="bell" label="Notifications" desc="Prayer, community & AI alerts" tint="#E8C96A" onPress={() => setSheet('notif')} />
           <Divider />
@@ -188,7 +225,7 @@ export default function SettingsScreen() {
             {PREMIUM_TIERS.map((t) => (
               <Pressable
                 key={t.id}
-                onPress={() => { haptic.selection(); Alert.alert('Premium checkout', 'In-app purchases are coming soon. We will notify you when checkout opens.'); }}
+                onPress={() => { void buyPlan(t.id); }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1.5, borderColor: t.best ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: t.best ? (isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.05)') : 'transparent', padding: 14, marginBottom: 8 }}
               >
                 <View style={{ flex: 1 }}>
@@ -198,10 +235,10 @@ export default function SettingsScreen() {
                   </View>
                   <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2 }}>{t.note}</T>
                 </View>
-                <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{t.price}<T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{t.per}</T></T>
+                <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{payingTier === t.id ? 'Opening…' : tierPrice(t)}<T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{t.per}</T></T>
               </Pressable>
             ))}
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>Checkout opens soon. Premium never includes fatwas — those stay free with the scholars.</T>
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>{pq && !pq.premium_enabled ? 'Checkout opens soon. ' : ''}Payments are secured by Flutterwave. Premium never includes fatwas — those stay free with the scholars.</T>
           </Sheet>
         </View>
       </Modal>

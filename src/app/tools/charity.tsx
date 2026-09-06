@@ -1,6 +1,7 @@
 import { formatDP } from '@/components/DeenPoints';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -15,6 +16,8 @@ import { Image } from 'react-native';
 import { fetchNisab } from '@/lib/islamicApi';
 import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
 import { markGoal } from '@/lib/routine';
+import { donate } from '@/lib/flutterwave';
+import { isLive } from '@/api/client';
 
 /**
  * Donations (pass 34 — full rebuild):
@@ -37,6 +40,8 @@ type Dono = {
   at: number;
   ref: string;
   reported?: boolean;
+  /* pass 69 — set while a hosted-checkout payment is still confirming */
+  pending?: boolean;
 };
 
 const K: string[] = [];
@@ -178,6 +183,7 @@ export default function Donations() {
   const [view, setView] = useState<'menu' | 'form' | 'paying' | 'done' | 'history'>('menu');
   const [buyPoints, setBuyPoints] = useState(false);
   const dp = useDeenPoints();
+  const router = useRouter();
   /* pass 35 — zakat calculator sheet */
   const [calc, setCalc] = useState(false);
   const [nisab, setNisab] = useState<{ gold: number; silver: number; rate: string; currency: string } | null>(null);
@@ -214,28 +220,43 @@ export default function Donations() {
     setRecipients((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]));
   };
 
-  const pay = () => {
+  const pay = async () => {
     markGoal('charity'); // pass 44 — Today's Goal auto-detect
     if (!valid) return;
     haptic.success();
     setView('paying');
-    setTimeout(() => {
+    const code = cur.split(' ')[0];
+    const finish = (verified: boolean, ref: string) => {
       const dono: Dono = {
         id: `d${Date.now()}`,
         cat,
         recipient,
         amount: amt,
-        currency: cur.split(' ')[0],
+        currency: code,
         feePct: FEE_PCT,
         at: Date.now(),
-        ref: `DL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        ref,
+        pending: !verified,
       };
       const next = [dono, ...history];
       setHistory(next);
       store.save(next);
       setLast(dono);
       setView('done');
-    }, 1600);
+    };
+    /* pass 69 — live: real Flutterwave checkout (inline on web, hosted page on
+     * native); the server records the donation and verify.php confirms it */
+    if (isLive()) {
+      const r = await donate(cat, amt, { note: recipient, currency: code }).catch(() => null);
+      if (!r || !r.ok) {
+        setView('form');
+        Alert.alert('Payment failed', r?.message ?? 'Could not start the payment. Please try again.');
+        return;
+      }
+      finish(r.verified, r.txRef ?? `DL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+      return;
+    }
+    setTimeout(() => finish(true, `DL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`), 1600);
   };
 
   const share = (dono: Dono) => {
@@ -291,7 +312,7 @@ export default function Donations() {
             {/* DeenPoints balance chip → purchase modal */}
             <Pressable
               accessibilityLabel="deenpoints balance"
-              onPress={() => { haptic.selection(); setBuyPoints(true); }}
+              onPress={() => { haptic.selection(); router.push('/tools/deenpoints'); }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 10, marginBottom: 14 }}
             >
               <DPIcon size={15} />
@@ -470,7 +491,7 @@ export default function Donations() {
 
             <Pressable
               accessibilityLabel="pay donation"
-              onPress={pay}
+              onPress={() => { void pay(); }}
               disabled={!valid}
               style={({ pressed }) => ({ borderRadius: 15, backgroundColor: valid ? CAT.tint : d.cardBorder, alignItems: 'center', paddingVertical: 15, opacity: pressed ? 0.85 : 1 })}
             >
@@ -495,7 +516,7 @@ export default function Donations() {
             </View>
             <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: d.text, marginTop: 14 }}>JazakAllahu khairan!</T>
             <T v="bodyS" style={{ color: d.subtext, marginTop: 5, textAlign: 'center', lineHeight: 19 }}>
-              Your {cat === 'zakat' ? 'zakat' : cat === 'sadaqah' ? 'sadaqah' : 'contribution'} of {last.currency} {last.amount.toLocaleString()} has been received.
+              Your {cat === 'zakat' ? 'zakat' : cat === 'sadaqah' ? 'sadaqah' : 'contribution'} of {last.currency} {last.amount.toLocaleString()} {last.pending ? 'is being confirmed — it lands the moment the payment completes.' : 'has been received.'}
             </T>
 
             {/* pass 35 — branded receipt */}

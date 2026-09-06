@@ -132,7 +132,7 @@ export default function Profile() {
             accessibilityLabel="get deenpoints"
             onPress={() => {
               haptic.light();
-              setBuyOpen(true);
+              router.push('/tools/deenpoints');
             }}
             hitSlop={8}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.08)', borderRadius: 16, paddingHorizontal: 9, paddingVertical: 6, marginRight: 8, opacity: pressed ? 0.75 : 1 })}

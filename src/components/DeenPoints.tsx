@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, TextInput, ActivityIndicator, Animated, Easing, Modal, Pressable, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
+import { deenpointsHistory, isLive } from '@/api/client';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -55,6 +57,17 @@ export function useDeenPoints() {
       if (Number.isFinite(n)) setPoints(n);
       setReady(true);
     }).catch(() => setReady(true));
+    /* pass 69 — live balance from the server ledger (demo keeps the local coin) */
+    if (isLive()) {
+      deenpointsHistory(1)
+        .then((res) => {
+          if (res && Number.isFinite(res.balance)) {
+            setPoints(res.balance);
+            storage.setItem(DP_KEY, String(res.balance)).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const add = (n: number) => setPoints((p) => {
@@ -243,11 +256,13 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
 export function DeenPointsPill() {
   const { points } = useDeenPoints();
   const { isDark } = useTheme();
-  const [open, setOpen] = useState(false);
+  /* pass 69 — the pill now opens the LIVE DeenPoints screen (Flutterwave buy +
+   * ledger) instead of the old mock modal */
+  const router = useRouter();
   return (
     <>
       <Pressable
-        onPress={() => { haptic.selection(); setOpen(true); }}
+        onPress={() => { haptic.selection(); router.push('/tools/deenpoints'); }}
         accessibilityLabel="DeenPoints — tap to top up"
         style={({ pressed }) => ({
           flexDirection: 'row',
@@ -265,7 +280,6 @@ export function DeenPointsPill() {
         <DPIcon size={12} />
         <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: '#B8860B' }}>{formatDP(points)}</T>
       </Pressable>
-      <DeenPointsBuyModal visible={open} onClose={() => setOpen(false)} />
     </>
   );
 }

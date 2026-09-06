@@ -12,6 +12,7 @@ import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
+import { bmHydrate } from '@/lib/bookmarks';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -47,6 +48,13 @@ function Root() {
   useEffect(() => {
     if (Platform.OS === 'web' || !user) return;
     initPushNotifications().catch(() => {});
+  }, [user?.id]);
+
+  /* pass 69 — unified bookmark mirror: local first (instant UI), then the
+   * server list overwrites it when signed in */
+  useEffect(() => {
+    if (!user) return;
+    void bmHydrate();
   }, [user?.id]);
 
   /* pass 29: warm the Qur'an corpus in the background — the first

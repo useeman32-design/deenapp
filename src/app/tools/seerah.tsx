@@ -9,7 +9,7 @@ import { SEERAH, type SeerahEvent } from '@/data/seerah';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
 
 const CLAMP = 160; // chars shown before "Read more"
 
@@ -24,28 +24,15 @@ export default function Seerah() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [q, setQ] = useState('');
-  const [marks, setMarks] = useState<Set<number>>(new Set());
+  /* pass 69 — server-synced bookmarks */
+  const bmSeerah = useBookmarks('seerah');
+  const marks = useMemo(() => new Set(bmSeerah.list.map((i) => Number(i.item_id))), [bmSeerah.list]);
   const [open, setOpen] = useState<SeerahEvent | null>(null);
   const [onlyMarked, setOnlyMarked] = useState(false);
 
-  useEffect(() => {
-    storage.getItem('dl.seerah.marks').then((r) => {
-      if (r)
-        try {
-          setMarks(new Set(JSON.parse(r)));
-        } catch {}
-    });
-  }, []);
-
   const toggleMark = (id: number) => {
     haptic.light();
-    setMarks((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      storage.setItem('dl.seerah.marks', JSON.stringify(Array.from(next))).catch(() => {});
-      return next;
-    });
+    void bmSeerah.toggle(String(id));
   };
 
   const list = useMemo(() => {
