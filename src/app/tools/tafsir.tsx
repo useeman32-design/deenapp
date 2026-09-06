@@ -1,4 +1,5 @@
 import { markGoal } from '@/lib/routine';
+import { goBack } from '@/lib/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -106,7 +107,7 @@ export default function Tafsir() {
   if (view === 'books') {
     return (
       <View style={{ flex: 1, backgroundColor: d.bg }}>
-        <Header title="Tafsir Library" sub="Choose a book of tafsir" onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as never))} />
+        <Header title="Tafsir Library" sub="Choose a book of tafsir" onBack={() => (router.canGoBack() ? goBack(router) : router.replace('/(tabs)' as never))} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
           {TAFSIR_BOOKS.map((b) => (
             <Pressable

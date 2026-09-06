@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { goBack } from '@/lib/navigation';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ export default function QuickAccessEditor() {
       {/* header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 }}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => goBack(router)}
           hitSlop={10}
           style={({ pressed }) => ({
             width: 38,

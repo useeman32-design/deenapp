@@ -159,8 +159,6 @@ export default function Home() {
 
   const [loc, setLoc] = useState<Loc | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [q, setQ] = useState('');
   const [streak, setStreak] = useState({ days: 0, demo: true });
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean; route?: string }[] }>({ done: 0, total: 4, demo: true, items: [] });
   /* pass 42 — Today's Goal modal */
@@ -198,13 +196,27 @@ export default function Home() {
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
   const [shareDesign, setShareDesign] = useState('classic');
-  const togglePostLike = (id: number) =>
+  const togglePostLike = (id: number) => {
+    const willLike = !likedPosts.has(id);
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
+    /* pass 66-night — server-backed likes on live; the optimistic Set keeps
+     * the heart instant. like_count is stored WITHOUT our own like (the card
+     * adds +1 while liked), so subtract ours when the server count includes it. */
+    if (api.isLive()) {
+      void api.toggleLike(id, willLike).then((res) => {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, like_count: Math.max(0, res.like_count - (res.liked_by_me ? 1 : 0)) } : p,
+          ),
+        );
+      });
+    }
+  };
   const toggleVideoLike = (id: number) =>
     setVideoLiked((prev) => {
       const n = new Set(prev);
@@ -362,7 +374,8 @@ export default function Home() {
             />
           </Pressable>
           <Pressable
-            onPress={() => setSearchOpen(true)}
+            onPress={() => { haptic.selection(); router.push('/tools/search'); }}
+            accessibilityLabel="Search"
             style={({ pressed }) => ({
               width: 40,
               height: 40,
@@ -1101,40 +1114,9 @@ export default function Home() {
 
             </ScrollView>
 
-      {/* Search overlay */}
-      {searchOpen ? (
-        <View style={{ position: 'absolute', top: 66, left: 16, right: 16, zIndex: 50 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: d.card,
-              borderRadius: 30,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              paddingHorizontal: 14,
-              shadowColor: '#000',
-              shadowOpacity: 0.25,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 8,
-            }}
-          >
-            <FontAwesome5 name="search" size={13} color={d.faint} />
-            <TextInput
-              value={q}
-              onChangeText={setQ}
-              placeholder="Search accounts by name or username..."
-              placeholderTextColor={d.faint}
-              autoFocus
-              style={{ flex: 1, fontFamily: 'Poppins-Medium', fontSize: 16 /*13.5*/, color: d.text, paddingVertical: 12, paddingLeft: 9 }}
-            />
-            <Pressable onPress={() => setSearchOpen(false)} style={{ padding: 5 }}>
-              <FontAwesome5 name="times" size={12} color={d.faint} />
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      {/* pass 67 — the old inline account-search overlay is gone: the home 🔍
+       * now opens the full Search screen (/tools/search) with Top / Users /
+       * Videos / Hashtags tabs and recent posts. */}
 
       {/* ── Video viewing modal (reels/shorts-style preview) ── */}
       <VideoModal
@@ -1451,6 +1433,7 @@ export default function Home() {
         visible={!!commentPost}
         post={commentPost}
         seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
 

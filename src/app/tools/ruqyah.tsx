@@ -1,4 +1,5 @@
 import { markGoal } from '@/lib/routine';
+import { goBack } from '@/lib/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -99,7 +100,7 @@ export default function Ruqyah() {
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18 }}>
           <Pressable
-            onPress={() => { haptic.light(); router.back(); }}
+            onPress={() => { haptic.light(); goBack(router); }}
             accessibilityLabel="Back"
             hitSlop={10}
             style={{ width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}

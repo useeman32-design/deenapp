@@ -1,4 +1,5 @@
 import { markGoal } from '@/lib/routine';
+import { goBack } from '@/lib/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Modal, Platform, Pressable, View } from 'react-native';
@@ -92,7 +93,7 @@ export default function Qibla() {
         return (
           <Pressable
             accessibilityLabel="back"
-            onPress={() => { haptic.light(); router.back(); }}
+            onPress={() => { haptic.light(); goBack(router); }}
             hitSlop={10}
             style={{
               width: 38,

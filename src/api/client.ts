@@ -196,10 +196,15 @@ export async function login(identifier: string, password: string, rememberMe = t
     return { ok: true as const, user: r.data.user, demo: false };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
+  /* pass 66-night — an UNVERIFIED account gets 403 needs_verification: the UI
+   * resumes the OTP flow instead of signing in or showing a dead error. */
+  const needsVerification = !!(r.data as { needs_verification?: boolean }).needs_verification;
   return {
     ok: false as const,
     user: null,
     demo: r.networkError,
+    needsVerification,
+    email: (r.data as { email?: string }).email,
     message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Invalid credentials'),
   };
 }
@@ -227,16 +232,21 @@ export async function register(payload: {
       gender: payload.gender,
     },
   });
-  if (r.ok && r.data.user) {
+  /* pass 66-night — with email verification on, the server creates the account
+   * but grants NO session: the OTP step grants it. `needsVerification` tells the
+   * UI to show the code screen without signing anyone in. */
+  const needsVerification = !!(r.data as { needs_verification?: boolean }).needs_verification;
+  if (r.ok && (r.data.user || needsVerification)) {
     live = true;
-    await fetchCsrf();
-    return { ok: true as const, user: r.data.user, demo: false };
+    if (r.data.user) await fetchCsrf();
+    return { ok: true as const, user: r.data.user ?? null, demo: false, needsVerification };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
   return {
     ok: false as const,
     user: null,
     demo: r.networkError,
+    needsVerification: false,
     message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Registration failed'),
   };
 }
@@ -250,14 +260,138 @@ export async function logout() {
 
 /* -------------------------------- Feed -------------------------------- */
 
+/* pass 66-night — server polls arrive as {options:[{id,label,votes}], my_vote, total};
+ * map them into the client PollOption shape the FeedCard already renders. */
+function mapServerPoll(p: unknown): import('@/api/types').PostPoll | null {
+  const poll = p as { options?: Array<{ id: number; label: string; votes: number }>; my_vote?: number | null } | null;
+  if (!poll || !Array.isArray(poll.options) || !poll.options.length) return null;
+  return {
+    options: poll.options.map((o) => ({ id: o.id, text: o.label, votes: o.votes })),
+    voted: poll.my_vote ?? null,
+  };
+}
+
 export async function feed(tab: FeedTab = 'for-you', cursor = 0): Promise<FeedResponse> {
   const r = await request<FeedResponse>(`/api/feed/get_posts.php?tab=${tab}&limit=20&cursor=${cursor}`);
-  if (r.ok && Array.isArray(r.data.posts)) return r.data;
+  if (r.ok && Array.isArray(r.data.posts)) {
+    for (const p of r.data.posts) {
+      const sp = mapServerPoll(p.poll);
+      if (sp) p.poll = sp;
+    }
+    return r.data;
+  }
   return {
     status: 'success',
     posts: MOCK_FEED.filter((p) => (tab === 'for-you' ? true : tab === 'scholars' ? p.user.scholar : p.user.verification_badge)),
     next_cursor: null,
   };
+}
+
+/* pass 66-night — the whole comment tree is server-backed on live: threaded
+ * replies (one level of nesting, tree-shaped server-side), per-comment and
+ * per-reply likes, and counts that both sides of the conversation agree on. */
+export type ServerReply = {
+  id: number;
+  text: string;
+  created_at: string;
+  time_ago?: string;
+  like_count: number;
+  liked_by_me: boolean;
+  user: { id: number; name: string; username: string; profile_image_url?: string | null };
+  replies?: ServerReply[];
+};
+export type ServerComment = ServerReply & { is_post_creator?: boolean; reply_count?: number };
+export async function getComments(postId: number): Promise<ServerComment[] | null> {
+  const r = await request<{ status?: string; comments?: ServerComment[] }>(`/api/feed/get_comments.php?post_id=${postId}`, { auth: true });
+  return r.ok && Array.isArray(r.data.comments) ? r.data.comments : null;
+}
+export async function addComment(postId: number, text: string): Promise<{ id: number; count: number } | null> {
+  const r = await request<{ status?: string; comment_id?: number; comment_count?: number }>('/api/feed/add_comment.php', { method: 'POST', body: { post_id: postId, text }, auth: true });
+  return r.ok && r.data.comment_id ? { id: r.data.comment_id as number, count: r.data.comment_count ?? 0 } : null;
+}
+export async function addReply(postId: number, commentId: number, text: string, parentReplyId = 0): Promise<{ id: number } | null> {
+  const r = await request<{ status?: string; reply_id?: number }>('/api/feed/add_reply.php', { method: 'POST', body: { post_id: postId, comment_id: commentId, parent_reply_id: parentReplyId, text }, auth: true });
+  return r.ok && r.data.reply_id ? { id: r.data.reply_id as number } : null;
+}
+export async function toggleCommentLike(commentId: number, desired: boolean): Promise<{ liked: boolean; like_count: number } | null> {
+  const r = await request<{ status?: string; liked?: boolean; like_count?: number }>('/api/feed/toggle_comment_like.php', { method: 'POST', body: { comment_id: commentId, desired_liked: desired }, auth: true });
+  return r.ok ? { liked: !!r.data.liked, like_count: r.data.like_count ?? 0 } : null;
+}
+export async function toggleReplyLike(replyId: number, desired: boolean): Promise<{ liked: boolean; like_count: number } | null> {
+  const r = await request<{ status?: string; liked?: boolean; like_count?: number }>('/api/feed/toggle_reply_like.php', { method: 'POST', body: { reply_id: replyId, desired_liked: desired }, auth: true });
+  return r.ok ? { liked: !!r.data.liked, like_count: r.data.like_count ?? 0 } : null;
+}
+export async function deletePost(postId: number): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/feed/delete_post.php', { method: 'POST', body: { post_id: postId }, auth: true });
+  return r.ok;
+}
+export async function reportPost(postId: number, reason: string): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/feed/report_post.php', { method: 'POST', body: { post_id: postId, reason }, auth: true });
+  return r.ok;
+}
+
+/* pass 66-night — groups, server-backed (schema self-creates in common.php). */
+export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string };
+export async function groupsList(): Promise<GroupRow[] | null> {
+  const r = await request<{ status?: string; groups?: GroupRow[] }>('/api/groups/list.php', { auth: true });
+  return r.ok && Array.isArray(r.data.groups) ? r.data.groups : null;
+}
+export async function groupGet(id: number): Promise<GroupRow | null> {
+  const r = await request<{ status?: string; group?: GroupRow }>(`/api/groups/get.php?id=${id}`, { auth: true });
+  return r.ok && r.data.group ? r.data.group : null;
+}
+export async function groupJoin(id: number, join: boolean): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
+  return r.ok;
+}
+export async function groupCreate(data: { name: string; bio?: string; category?: string; emoji?: string; open_join?: boolean }): Promise<{ id: number } | null> {
+  const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
+  return r.ok && r.data.id ? { id: r.data.id as number } : null;
+}
+export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
+  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
+  return r.ok && Array.isArray(r.data.posts) ? r.data.posts : null;
+}
+export async function groupCreatePost(groupId: number, contentText: string): Promise<{ id: number } | null> {
+  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', body: { group_id: groupId, content_text: contentText }, auth: true });
+  return r.ok && r.data.id ? { id: r.data.id as number } : null;
+}
+
+/* pass 66-night — polls ride on posts; options+votes live in their own tables. */
+export type PollRow = { post_id: number; options: Array<{ id: number; label: string; votes: number }>; my_vote: number | null; total: number };
+export async function votePoll(postId: number, optionId: number): Promise<PollRow | null> {
+  const r = await request<PollRow & { status?: string }>('/api/feed/poll_vote.php', { method: 'POST', body: { post_id: postId, option_id: optionId }, auth: true });
+  return r.ok && Array.isArray((r.data as PollRow).options) ? (r.data as PollRow) : null;
+}
+
+/* pass 66-night — link preview: the server fetches og:title/description/image so
+ * shared URLs render as cards (CORS-safe on every platform). */
+export type LinkPreview = { url: string; title?: string; description?: string; image?: string | null; site?: string };
+export async function linkPreview(url: string): Promise<LinkPreview | null> {
+  const r = await request<LinkPreview & { status?: string }>(`/api/feed/link_preview.php?url=${encodeURIComponent(url)}`);
+  return r.ok && r.data.url ? (r.data as LinkPreview) : null;
+}
+
+/* pass 66-night — connections (follow graph) against the real tables. */
+export type ConnectionRow = { id: number; name: string; username: string; user_type?: string; profile_image_url?: string | null; following_by_me?: boolean; follows_me?: boolean; is_me?: boolean; mutual_count?: number; followers_count?: number };
+export async function getConnections(tab: 'following' | 'followers' | 'suggestions', q = ''): Promise<{ items: ConnectionRow[]; counts: { followers: number; following: number } } | null> {
+  const r = await request<{ status?: string; items?: ConnectionRow[]; counts?: { followers: number; following: number } }>(`/api/users/get_connections.php?tab=${tab}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { auth: true });
+  return r.ok && Array.isArray(r.data.items) ? { items: r.data.items, counts: r.data.counts ?? { followers: 0, following: 0 } } : null;
+}
+export async function toggleFollow(userId: number, desired: boolean): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/users/toggle_follow.php', { method: 'POST', body: { user_id: userId, desired_following: desired }, auth: true });
+  return r.ok;
+}
+export type PublicProfile = { id: number; full_name: string; username: string; bio?: string | null; profile_image_url?: string | null; followers: number; following: number; posts: number; following_by_me?: boolean; is_private?: number };
+/* pass 67 — the Search screen's Users tab rides the real account search. */
+export type AccountResult = { id: number; username: string; full_name: string; user_type?: string; posts_count?: number; followers_count?: number; verification_badge?: string | null; profile_image_url?: string | null };
+export async function searchAccounts(q: string, limit = 20): Promise<AccountResult[] | null> {
+  const r = await request<{ status?: string; results?: AccountResult[] }>(`/api/users/search_accounts.php?q=${encodeURIComponent(q)}&limit=${limit}`, { auth: true });
+  return r.ok && Array.isArray(r.data.results) ? r.data.results : null;
+}
+export async function getUserProfile(username: string): Promise<PublicProfile | null> {
+  const r = await request<{ status?: string; user?: PublicProfile }>(`/api/users/get_user_profile.php?u=${encodeURIComponent(username)}`, { auth: true });
+  return r.ok && r.data.user ? r.data.user : null;
 }
 
 export async function toggleLike(postId: number, desired: boolean): Promise<{ like_count: number; liked_by_me: boolean }> {
@@ -269,15 +403,31 @@ export async function toggleLike(postId: number, desired: boolean): Promise<{ li
   return { like_count: 0, liked_by_me: desired };
 }
 
-export async function createPost(contentText: string, youtubeUrl?: string): Promise<{ ok: boolean; post?: Post }> {
+export async function createPost(
+  contentText: string,
+  youtubeUrl?: string,
+  pollOptions?: string[],
+  images?: Array<{ uri: string; name?: string; type?: string }>,
+): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
   if (youtubeUrl) form.append('youtube_url', youtubeUrl);
-  const r = await request<{ status?: string; post?: Post; id?: number }>('/api/feed/create_post.php', {
+  if (pollOptions && pollOptions.length >= 2) form.append('poll_options', JSON.stringify(pollOptions.slice(0, 6)));
+  if (images && images.length) {
+    for (const img of images.slice(0, 5)) {
+      if (typeof window !== 'undefined' && img.uri.startsWith('blob:')) {
+        const blob = await fetch(img.uri).then((r) => r.blob());
+        form.append('images[]', new File([blob], img.name ?? 'photo.jpg', { type: blob.type || 'image/jpeg' }));
+      } else {
+        form.append('images[]', { uri: img.uri, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
+      }
+    }
+  }
+  const r = await request<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', {
     method: 'POST',
     form,
   });
-  if (r.ok) return { ok: true, post: r.data.post };
+  if (r.ok) return { ok: true, post: r.data.post, id: r.data.post_id ?? r.data.id ?? null };
   return { ok: false };
 }
 
@@ -510,9 +660,11 @@ export async function checkEmailAvailable(email: string): Promise<{ available: b
   if (r.ok) return { available: !!r.data.available, message: r.data.message };
   return { available: false, message: r.data?.message ?? 'Could not check email' };
 }
-export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean }> {
-  const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean }>('/api/auth/verify_otp.php', { body: { email, code } });
-  return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError };
+export async function verifyOtp(email: string, code: string): Promise<{ ok: boolean; verified?: boolean; message?: string; wrong?: boolean; expired?: boolean; networkError?: boolean; user?: User | null }> {
+  const r = await request<{ status?: string; message?: string; verified?: boolean; wrong?: boolean; expired?: boolean; user?: User | null }>('/api/auth/verify_otp.php', { body: { email, code } });
+  /* the session cookie rides on this response; `user` lets the caller adopt it */
+  if (r.ok && r.data.user) await fetchCsrf();
+  return { ok: r.ok, verified: !!r.data.verified, message: r.data.message, wrong: !!r.data.wrong, expired: !!r.data.expired, networkError: r.networkError, user: r.data.user ?? null };
 }
 
 /** Request an email change — the server emails a confirmation link to the CURRENT address. */
@@ -563,7 +715,22 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 
 /* Slice 9 — live chat (DM + group). */
 export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string };
-export type ChatMessage = { id: number; sender_id: number; body: string; media_url: string | null; created_at: string; username?: string; read_at?: string | null };
+/* pass 63 contract (client types were never landed with the UI, so replies,
+ * quotes and deletes had no types): messages.php returns `deleted` for soft-
+ * deleted rows and a resolved `reply_to` quote ({id, kind, body, username});
+ * a soft-deleted row comes back with body '' and media_url null. */
+export type ChatReplyRef = { id: number; kind: 'msg' | 'share'; body: string; username: string };
+export type ChatMessage = {
+  id: number;
+  sender_id: number;
+  body: string;
+  media_url: string | null;
+  created_at: string;
+  username?: string;
+  read_at?: string | null;
+  deleted?: boolean;
+  reply_to?: ChatReplyRef | null;
+};
 export async function chatConversations(): Promise<ChatConversation[] | null> {
   const r = await request<{ status?: string; conversations?: ChatConversation[] }>('/api/chat/conversations.php', { auth: true });
   return r.ok && Array.isArray(r.data.conversations) ? r.data.conversations : null;
@@ -582,13 +749,39 @@ export async function chatStartDMByUsername(username: string): Promise<number | 
   const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
   return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
 }
-export async function chatSend(conversationId: number, body: string): Promise<{ id: number; created_at?: string } | null> {
-  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', { method: 'POST', body: { conversation_id: conversationId, body }, auth: true });
+/** pass 63 — optional quote: the row you are replying to, and whether it is a
+ *  plain message or an in-app share. The server verifies it belongs to this
+ *  conversation and stores the reference. */
+export async function chatSend(
+  conversationId: number,
+  body: string,
+  replyTo?: { id: number; kind: 'msg' | 'share' },
+): Promise<{ id: number; created_at?: string } | null> {
+  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', {
+    method: 'POST',
+    body: {
+      conversation_id: conversationId,
+      body,
+      reply_to_id: replyTo?.id,
+      reply_to_kind: replyTo?.kind,
+    },
+    auth: true,
+  });
   return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
+}
+/** pass 63 — soft-delete YOUR OWN message ('msg') or share ('share'): the row
+ *  stays and every client renders "Message deleted" (WhatsApp's behaviour). */
+export async function chatDelete(conversationId: number, targetKind: 'msg' | 'share', targetId: number): Promise<boolean> {
+  const r = await request<{ status?: string; deleted?: boolean }>('/api/chat/delete.php', {
+    method: 'POST',
+    body: { conversation_id: conversationId, target_kind: targetKind, target_id: targetId },
+    auth: true,
+  });
+  return r.ok && !!r.data.deleted;
 }
 /* pass 62 — in-app shares and emoji reactions, server-backed so BOTH sides of a
  * conversation see the same thread instead of two local-only copies. */
-export type ChatShare = { id: number; sender_id: number; kind: string; title: string; payload: Record<string, string> | null; created_at: string; username?: string };
+export type ChatShare = { id: number; sender_id: number; kind: string; title: string; payload: Record<string, string> | null; created_at: string; username?: string; deleted?: boolean };
 export type ChatReaction = { target_kind: 'msg' | 'share'; target_id: number; user_id: number; emoji: string; username?: string | null };
 export type ChatThreadData = { messages: ChatMessage[]; shares: ChatShare[]; reactions: ChatReaction[] };
 /** One round trip for a whole thread: messages + shares + every reaction on them. */
@@ -619,6 +812,13 @@ export async function aiCacheLookup(q: string): Promise<string | null> {
   return r.ok && r.data.hit && r.data.answer ? String(r.data.answer) : null;
 }
 export async function aiCacheSave(question: string, answer: string): Promise<void> { await request('/api/deenai/cache_save.php', { method: 'POST', body: { question, answer } }); }
+
+/* pass 66-night — does the live server hold an active provider key? When yes,
+ * the app hides its manual key field entirely: the cloud key answers. */
+export async function aiServerStatus(): Promise<{ connected: boolean }> {
+  const r = await request<{ connected?: boolean }>('/api/deenai/status.php');
+  return { connected: !!r.data.connected };
+}
 
 /* pass 53 — server-side AI using DB-stored Groq key (no manual key entry) */
 export async function deenAiChatServer(question: string, messages?: Array<{ role: string; content: string }>, model?: string): Promise<{ ok: boolean; answer?: string; model?: string; error?: string }> {
