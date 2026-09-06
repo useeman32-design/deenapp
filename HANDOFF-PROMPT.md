@@ -12,7 +12,7 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `2e28963` (night pass) · deenlink-api main `94d1561` (night-pass web build + backend 4446b02; 450 api/admin/vendor files, 0 backend files in web-build diff) · deenapp master `a1bdaa7` (night pass merged over pass-66 `c224e12`)
+gh-pages `711c7e9` (night pass + content pack restored) · deenlink-api main `94d1561` (night-pass web build + backend 4446b02; 450 api/admin/vendor files, 0 backend files in web-build diff) · deenapp master `0cc7346` (night pass merged over pass-66 `c224e12`) · backup mirror + content-pack `1283534`
 ⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
