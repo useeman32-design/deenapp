@@ -687,6 +687,11 @@ export interface MockReel {
   saves: number;
   views: number;
   music: string;
+  /* pass 70 — real server reels merged into the feed carry these */
+  liveId?: number;
+  accountName?: string;
+  accountPic?: string | null;
+  reposts?: number;
 }
 
 /** TikTok-style vertical feed samples (bundled mp4s, no network needed). */

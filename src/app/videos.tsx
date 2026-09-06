@@ -1,4 +1,6 @@
 import { buildShareUrl } from '@/lib/share';
+import { isLive, videos as fetchLiveVideos, videosRepost } from '@/api/client';
+import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -98,6 +100,7 @@ function ReelItem({
   liked,
   saved,
   reposted,
+  reposts,
   speed,
   onLike,
   onSave,
@@ -114,6 +117,7 @@ function ReelItem({
   liked: boolean;
   saved: boolean;
   reposted: boolean;
+  reposts: number;
   speed: number;
   onLike: (id: number) => void;
   onSave: (id: number) => void;
@@ -129,8 +133,8 @@ function ReelItem({
     () =>
       MOCK_ACCOUNTS.find((a) => a.username === reel.username) ?? {
         username: reel.username,
-        full_name: reel.username === 'abdalrahman' ? 'Abdulrahman Al-Harbi' : reel.username,
-        photo: null as number | null,
+        full_name: reel.accountName ?? (reel.username === 'abdalrahman' ? 'Abdulrahman Al-Harbi' : reel.username),
+        photo: (reel.accountPic ?? null) as number | null,
         badge: undefined,
         fields: null,
       },
@@ -342,6 +346,7 @@ function ReelItem({
         {railButton('heart', (reel.likes + (liked ? 1 : 0)).toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
         {railButton('comment', String(reel.comments), () => onComments(reel))}
         {railButton('bookmark', (reel.saves + (saved ? 1 : 0)).toLocaleString(), () => { haptic.light(); onSave(reel.id); }, saved ? '#E8C96A' : undefined)}
+        {railButton('retweet', reposts.toLocaleString(), () => { haptic.light(); onRepost(reel.id); }, reposted ? '#4AE38F' : undefined)}
         {railButton('share', 'Share', () => { haptic.light(); onShare(reel); })}
         {railButton('ellipsis-h', '', () => { haptic.light(); onMore(reel); })}
       </View>
@@ -523,6 +528,9 @@ export default function VideosFeed() {
   const bmVideo = useBookmarks('video');
   const saved = useMemo(() => new Set(bmVideo.list.map((i) => Number(i.item_id))), [bmVideo.list]);
   const [reposted, setReposted] = useState<Set<number>>(new Set());
+  /* pass 70 — real server reels + live repost counts (id = 500000 + server id) */
+  const [liveReels, setLiveReels] = useState<MockReel[]>([]);
+  const [liveReposts, setLiveReposts] = useState<Record<number, number>>({});
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
   const [shareReel, setShareReel] = useState<MockReel | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -582,6 +590,34 @@ export default function VideosFeed() {
         } catch { /* ignore */ }
       }
     });
+    /* pass 70 — pull real reels from the videos API so other people's uploads
+     * show up and reposts hit the server (mock clips stay as the demo bed) */
+    if (!isLive()) return;
+    fetchLiveVideos('reel').then((list) => {
+      const rows = (list ?? []).filter((v) => (v.videoType ?? v.video_type) === 'reel' || v.liveId !== undefined || v.sourceUrl || v.source_url);
+      const mapped: MockReel[] = rows.map((v: Video) => ({
+        id: 500000 + Number(v.id),
+        liveId: Number(v.id),
+        src: { uri: String(v.sourceUrl ?? v.source_url ?? '') },
+        poster: { uri: String(v.posterUrl ?? v.poster_url ?? '') },
+        username: String(v.accountUsername ?? 'deenlink'),
+        accountName: String(v.accountName ?? v.accountUsername ?? 'DeenLink'),
+        accountPic: (v.accountPic as string | null) ?? null,
+        caption: String(v.title ?? v.description ?? ''),
+        likes: Number(v.likes ?? 0),
+        comments: Number(v.comments ?? 0),
+        saves: 0,
+        views: Number(v.views ?? 0),
+        music: 'Original audio',
+        reposts: Number(v.reposts ?? 0),
+      }));
+      setLiveReels(mapped);
+      const already = rows.filter((v) => v.repostedByMe).map((v) => 500000 + Number(v.id));
+      if (already.length) setReposted((prev) => new Set([...prev, ...already]));
+      const counts: Record<number, number> = {};
+      for (const v of rows) counts[Number(v.id)] = Number(v.reposts ?? 0);
+      setLiveReposts((prev) => ({ ...prev, ...counts }));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -590,15 +626,15 @@ export default function VideosFeed() {
 
   const reels = useMemo(() => {
     void storeTick;
-    const mine: MockReel[] = [...userReels, ...commReels];
+    const mine: MockReel[] = [...liveReels, ...userReels, ...commReels];
     if (feedTab === 'following') {
-      return [...mine.filter((r) => r.username === 'abdalrahman'), ...MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username))];
+      return [...liveReels, ...mine.filter((r) => r.username === 'abdalrahman'), ...MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username))];
     }
     if (feedTab === 'friends') {
       return MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username) || r.repostedBy != null);
     }
     return [...mine, ...MOCK_REELS];
-  }, [feedTab, storeTick, commReels]);
+  }, [feedTab, storeTick, commReels, liveReels, userReels]);
 
   useEffect(() => {
     if (params.start) {
@@ -629,18 +665,34 @@ export default function VideosFeed() {
   };
 
   const toggleRepost = (id: number) => {
-    let added = false;
-    setReposted((s) => {
+    const flip = () => setReposted((s) => {
       const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else {
-        n.add(id);
-        added = true;
-      }
+      if (n.has(id)) n.delete(id); else n.add(id);
       storage.setItem(REPOST_KEY, JSON.stringify([...n])).catch(() => {});
       return n;
     });
-    showToast(added ? 'Reposted — your followers can see it' : 'Repost removed');
+    const target = [...liveReels, ...userReels, ...commReels, ...MOCK_REELS].find((r) => r.id === id);
+    const liveId = target?.liveId;
+    /* pass 70 — server-backed reposts for real reels (the owner gets a
+     * notification); mock clips keep the local behaviour */
+    if (liveId != null && isLive()) {
+      const wasReposted = reposted.has(id);
+      flip();
+      setLiveReposts((prev) => ({ ...prev, [liveId]: Math.max(0, (prev[liveId] ?? target?.reposts ?? 0) + (wasReposted ? -1 : 1)) }));
+      void videosRepost(liveId, 'toggle').then((res) => {
+        if (!res) {
+          flip();
+          setLiveReposts((prev) => ({ ...prev, [liveId]: Math.max(0, (prev[liveId] ?? 0) + (wasReposted ? 1 : -1)) }));
+          showToast('Could not repost — check your connection');
+          return;
+        }
+        setLiveReposts((prev) => ({ ...prev, [liveId]: res.repost_count }));
+        showToast(res.reposted ? 'Reposted — your followers can see it' : 'Repost removed');
+      });
+      return;
+    }
+    flip();
+    showToast(!reposted.has(id) ? 'Reposted — your followers can see it' : 'Repost removed');
   };
 
   const downloadReel = async (reel: MockReel) => {
@@ -823,6 +875,7 @@ export default function VideosFeed() {
             liked={liked.has(item.id)}
             saved={saved.has(item.id)}
             reposted={reposted.has(item.id)}
+            reposts={item.liveId != null && liveReposts[item.liveId] != null ? liveReposts[item.liveId] : (item.reposts ?? 0)}
             speed={speed}
             onLike={toggleLike}
             onSave={toggleSave}

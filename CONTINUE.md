@@ -1004,3 +1004,25 @@ forward screen "Forward to 1" · their menu has no Info/Delete · zero JS errors
 
 **Gates:** tsc clean · harness69 23/23 (donation init inline, redirect-scheme 400, quote
 premium, premium init dl_pm_*) · web+root exports + headless boot probe before deploy.
+
+## PASS 70 — account discovery + suggested accounts + live video reposts
+
+User report: fresh accounts invisible in search, comment authors not clickable to a
+profile, suggested-accounts mocked, video reposts local-only. Root causes found:
+- The DEPLOYED site predated pass 68 (old bare `/username` navigation = the errors the
+  user saw). Current code routes every profile tap to `/profile/[username]` (verified:
+  comments modal, search results, suggestions, notifications).
+- `videos()` in client.ts read `r.data.videos` but list.php returns `items` → the app
+  NEVER loaded live videos (silent mock fallback since forever). Fixed.
+- Backend `videos_update_metric_counts()` never recounted `reposts_count` → repost.php
+  always answered 0. Fixed (+ shaper now exposes `reposts` and `repostedByMe`).
+- suggestions.tsx was 100% MOCK_ACCOUNTS. Now: get_connections.php?tab=suggestions +
+  toggle_follow.php (optimistic, revert on failure), skeleton loader, demo fallback.
+
+**New client wiring:** videos.tsx merges REAL reels (id = 500000+serverId, liveId kept)
+into the feed; retweet rail button with live count; toggleRepost → /api/videos/repost.php
+(optimistic + revert + toast; owner gets a push notification server-side).
+**harness70.py: 18/18 PASS** — register A+B → search by username+name → profile by
+username → follow → suggestions include → post → comment (author username exposed) →
+chat start-by-username + send + recipient sees conversation → repost toggle/undo/explicit
++ list repostedByMe + own-reel rejected. harness69 re-run: 23/23 (no regression).

@@ -110,6 +110,19 @@ export interface Video {
   duration?: string | number | null;
   view_count?: number;
   like_count?: number;
+  /* pass 70 — the videos API shapes rows in camelCase (see list.php shaper) */
+  videoType?: string;
+  sourceUrl?: string | null;
+  posterUrl?: string | null;
+  accountName?: string | null;
+  accountUsername?: string | null;
+  accountPic?: string | null;
+  likes?: number;
+  comments?: number;
+  views?: number;
+  reposts?: number;
+  likedByMe?: boolean;
+  repostedByMe?: boolean;
   [k: string]: unknown;
 }
 

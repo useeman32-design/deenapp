@@ -585,9 +585,23 @@ export async function createPost(
 /* --------------------------- Other endpoints --------------------------- */
 
 export async function videos(type: 'daily' | 'reel' | 'all' = 'daily'): Promise<Video[]> {
-  const r = await request<{ status?: string; videos?: Video[] }>(`/api/videos/list.php?type=${type}&limit=20&source=homepage`);
-  if (r.ok && Array.isArray(r.data.videos)) return r.data.videos;
+  const r = await request<{ status?: string; videos?: Video[]; items?: Video[] }>(`/api/videos/list.php?type=${type}&limit=20&source=homepage`);
+  /* pass 70 — list.php returns `items` (the old `videos` key never existed, so
+   * the app silently fell back to mock clips forever) */
+  if (r.ok) {
+    const list = r.data.items ?? r.data.videos;
+    if (Array.isArray(list) && list.length) return list;
+  }
   return MOCK_VIDEOS;
+}
+
+/* pass 70 — server-backed video reposts (notifications included). */
+export async function videosRepost(videoId: number, action: 'repost' | 'undo' | 'toggle' = 'toggle'): Promise<{ reposted: boolean; repost_count: number } | null> {
+  const r = await request<{ status?: string; reposted?: boolean; repost_count?: number }>('/api/videos/repost.php', { method: 'POST', body: { video_id: videoId, action }, auth: true });
+  if (r.ok && r.data.status === 'success' && typeof r.data.reposted === 'boolean') {
+    return { reposted: r.data.reposted, repost_count: Number(r.data.repost_count ?? 0) };
+  }
+  return null;
 }
 
 export async function courses(): Promise<Course[]> {
