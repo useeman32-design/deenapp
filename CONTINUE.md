@@ -1049,3 +1049,38 @@ chat start-by-username + send + recipient sees conversation → repost toggle/un
 
 **harness71.py: 10/10** (check-in +5, balance, ledger, dup=0, award +3, both notifications
 with source text, flat real counts). harness69 23/23 + harness70 18/18 re-run.
+
+## PASS 72 — TIER 1 WIRING (video engagement, courses, donations, qur'an extras)
+
+1. **Video engagement suite** (videos.tsx + CommentsModal + search.tsx): server likes
+   (optimistic + revert, authoritative like_count from toggle_like), real comment threads
+   (list/add/reply via parent_id/like/delete — CommentsModal takes videoId), saves mirror
+   into video_bookmarks (bookmark store stays canonical for the Library), add_view once
+   per reel per session (server dedupes 6h), Report + Not Interested hit the real
+   endpoints, Videos tab in search uses videos/search.php (debounced, merged with local).
+   Backend: admin/videos/common.php now emits savedByMe (+likedByMe/repostedByMe) so the
+   rail hydrates on load.
+2. **Courses progression** (courses.tsx): courseGet on open → real modules/lessons beat
+   the bundled CURRICULUM; deenpoints courses show an UNLOCK gate (cost + balance);
+   unlock spends points (dp.sync) + auto-enrolls; complete_lesson records server-side;
+   finishing a certificate course surfaces certificate_no + verification_code.
+3. **Donation history** (charity.tsx): my_history rows (all devices incl. web checkouts)
+   merge into the local receipt list, deduped by tx_ref, server copy wins.
+4. **Qur'an extras**: QuranAudioContext pulls admin-managed reciters (reciters.php —
+   endpoint emits `key`, normalized to reciter_key client-side) and builds URLs generically
+   (absolute_ayah = base/{global}.fmt, surah_ayah = base/SSSAAA.fmt); read screen logs the
+   daily streak (streak.php POST on mount, 🔥 chip in the reciter sheet) and premium
+   reciters unlock with DeenPoints inline.
+5. **Backend bugs fixed in production paths** (would 500 live):
+   - videos/search.php + upload.php + download.php called videos_ensure_tables_cached()
+     which only existed in the .phpp DECOY → ported into the real common.php.
+   - unlock_points.php + unlock_reciter.php died with "no active transaction" when the
+     ledger DDL (first run) implicitly committed → commits now guarded by inTransaction().
+
+**harness72.py: 26/26** (likes/comments/threads/comment-likes/saves/flags/views-dedupe/
+report/not-interested/search/unlike · course lock→unlock→enroll→complete→certificate ·
+donation history+summary · streak log/read + reciter unlock). harness71 10/10, harness70
+18/18, harness69 23/23 re-run. probe72 (5 routes) ALL OK on BOTH bases (/deenapp + root).
+
+Heads: deenlink-api main cff76f2 · deenapp master c637754 · gh-pages 34099e9 · backup c637754.
+NEXT per user: Tier 2/3 inventory → admin dashboard audit → iOS/Android store builds.

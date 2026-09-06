@@ -251,4 +251,6 @@ pass 60 — it had zero inbound links, which is why pass 57 was invisible). Reac
   clone it fresh: `git clone --depth 1 https://x-access-token:$(cat deenapp/.token)@github.com/useeman32-design/deenlink-api.git`.
 
 **Still open:** Report/Block in the inbox are client-side only (no `api/reports/`, no `user_blocks`).
-Next per the user: test the chat end-to-end → registration flow → posts, likes and comments.
+Pass 72 (Tier 1) shipped: video engagement suite, courses progression/unlock/certificates,
+donation-history merge, qur'an streak + premium reciters (harness72 26/26; see CONTINUE.md).
+Next per the user: Tier 2/3 wiring → admin dashboard audit → iOS/Android store builds.
