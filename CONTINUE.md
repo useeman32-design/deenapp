@@ -1193,5 +1193,5 @@ asker my_list/unread/mark-read → public list · wallpaper free/paid unlock, no
 double-charge · report row) · **repro75 E2E 12/12** (inbox entry → queue → answer via
 UI → answered tab → profile report sheet → gallery section) · repro74b 17/17 re-run.
 
-Heads: deenlink-api main <API> · deenapp master <APP> · gh-pages <GHP>.
+Heads: deenlink-api main c827b97 · deenapp master d1187e7 · gh-pages 19c1cda.
 NEXT: Tier 3 → admin dashboard audit → iOS/Android store builds.
