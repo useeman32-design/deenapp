@@ -37,10 +37,12 @@ import type {
 
 /* pass 44 — when the web app is self-hosted on app.deenlink.org it talks to its
    SAME origin (no CORS); anywhere else (gh-pages, native) use the env/prod API. */
-const BASE =
+export const BASE =
   typeof window !== 'undefined' && /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin)
     ? window.location.origin
     : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
+/** pass 73 — friendly alias for components that resolve relative upload paths */
+export const API_ORIGIN = BASE;
 const TIMEOUT = 9000;
 
 /**
@@ -155,7 +157,7 @@ export async function restoreSession(): Promise<{ user: User | null; ok: boolean
   // cookie automatically. So ALWAYS probe /me instead of bailing (which used to
   // log the user out on every page refresh).
   const me = await request<{ status: string; user?: User }>('/api/auth/me.php');
-  if (me.ok && me.data.user) return { user: me.data.user, ok: true };
+  if (me.ok && me.data.user) return { user: hydrateUser(me.data.user), ok: true };
 
   if (!me.networkError) {
     // Server says the session is invalid.
@@ -185,6 +187,21 @@ export async function fetchCsrf(): Promise<string | null> {
   return csrf;
 }
 
+/* pass 73 — auth/me + login only return the raw `profile_image` FILENAME while
+ * every screen reads `profile_image_url`; without this the uploaded photo
+ * vanished on every refresh (\"that's not my avatar\"). Normalize once here. */
+export function hydrateUser<T extends Record<string, unknown>>(u: T): T {
+  const out = { ...u } as T & { profile_image?: string | null; profile_image_url?: string | null };
+  const isDefault = (s: string) => !s || s === 'default_profile.jpg' || s.endsWith('/img/default_profile.jpg');
+  let url = String(out.profile_image_url ?? '');
+  if (isDefault(url)) {
+    const raw = String(out.profile_image ?? '');
+    url = isDefault(raw) ? '' : raw.startsWith('http') ? raw : `${BASE}/uploads/profile/${raw}`;
+  }
+  out.profile_image_url = url;
+  return out;
+}
+
 export async function login(identifier: string, password: string, rememberMe = true) {
   const r = await request<{ status: string; user?: User; message?: string }>('/api/auth/login.php', {
     method: 'POST',
@@ -193,7 +210,7 @@ export async function login(identifier: string, password: string, rememberMe = t
   if (r.ok && r.data.user) {
     live = true;
     await fetchCsrf();
-    return { ok: true as const, user: r.data.user, demo: false };
+    return { ok: true as const, user: hydrateUser(r.data.user), demo: false };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
   /* pass 66-night — an UNVERIFIED account gets 403 needs_verification: the UI

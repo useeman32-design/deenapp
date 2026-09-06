@@ -139,6 +139,12 @@ export default function Onboarding() {
             ref={scrollRef}
             horizontal
             pagingEnabled
+            /* pass 73 — one slide per swipe on Android: without snap + fast
+             * deceleration a fling carried the pager across several slides */
+            snapToInterval={WIDTH}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum
             showsHorizontalScrollIndicator={false}
             scrollEventThrottle={16}
             /* pass 44 — track the pager on every scroll so the dots follow both

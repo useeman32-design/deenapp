@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Share, View 
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import { MOCK_ACCOUNTS } from '@/api/mocks';
+import { FriendsPicker, type FriendShare } from '@/components/SendToFriends';
 import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
@@ -111,28 +111,20 @@ export function ContentShareSheet({
           <T v="caption" style={{ color: theme.subtext, fontWeight: '800', fontSize: 10.5, letterSpacing: 0.8, paddingHorizontal: 16, marginBottom: 4 }}>
             SEND TO
           </T>
-          {/* friends — ALWAYS visible (like the videos sheet, pass 22) */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, gap: 2 }}>
-            {MOCK_ACCOUNTS.map((a) => (
-              <Pressable
-                key={a.username}
-                onPress={() => {
-                  haptic.success();
-                  setSent(a.username);
-                  setTimeout(() => {
-                    onClose();
-                    setSent(null);
-                  }, 550);
+          {/* pass 73 — multi-select + real search, delivered as a server-backed
+              chat share (was single-tap mock rows that delivered nothing) */}
+          {card ? (
+            <View style={{ paddingTop: 8 }}>
+              <FriendsPicker
+                share={{
+                  kind: (KIND_MAP[card.kind] === 'verse' ? 'ayah' : KIND_MAP[card.kind] === 'post' ? 'post' : KIND_MAP[card.kind] === 'hadith' ? 'hadith' : 'dua') as FriendShare['kind'],
+                  title: (card.meaning ?? '').slice(0, 160) || 'Shared from DeenLink',
+                  sub: card.ref || undefined,
                 }}
-                style={{ alignItems: 'center', width: 74, paddingVertical: 7, gap: 5, opacity: sent === a.username ? 0.45 : 1 }}
-              >
-                <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={`${theme.primary}26`} border={theme.border} />
-                <T v="caption" numberOfLines={1} style={{ color: sent === a.username ? theme.primary : theme.subtext, fontSize: 9.5, fontWeight: '700' }}>
-                  {sent === a.username ? 'Sent' : `@${a.username}`}
-                </T>
-              </Pressable>
-            ))}
-          </ScrollView>
+                onDone={() => setTimeout(onClose, 1400)}
+              />
+            </View>
+          ) : null}
 
           <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
             <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: previewUrl }).catch(() => {}); }} />

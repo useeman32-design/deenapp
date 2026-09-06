@@ -179,7 +179,7 @@ export default function Profile() {
           <View style={{ backgroundColor: d.card, borderRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 16, gap: 12 }}>
             <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
               <View style={{ borderWidth: 2, borderColor: d.gold, borderRadius: 40, padding: 2.5 }}>
-                <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" />
+                <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" gender={(user?.gender as string | undefined) ?? null} />
               </View>
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>

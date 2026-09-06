@@ -35,6 +35,7 @@ import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
+import { FriendsPicker } from '@/components/SendToFriends';
 import { CommentsModal } from '@/components/CommentsModal';
 import * as Clipboard from 'expo-clipboard';
 import { HeartIcon } from '@/components/Icons';
@@ -938,6 +939,9 @@ export default function VideosFeed() {
         snapToInterval={VH}
         snapToAlignment="start"
         decelerationRate="fast"
+        /* pass 73 — one reel per swipe: momentum used to carry the fling
+         * through several intervals (user report: scrolls too much) */
+        disableIntervalMomentum
         showsVerticalScrollIndicator={false}
         getItemLayout={(_, i) => ({ length: VH, offset: VH * i, index: i })}
         onViewableItemsChanged={onViewableItemsChanged}
@@ -1415,29 +1419,22 @@ export default function VideosFeed() {
                 }} />
               </View>
             ) : (
-              <View style={{ paddingHorizontal: 8 }}>
-                <T v="caption" style={{ color: 'rgba(242,247,243,0.55)', fontWeight: '800', fontSize: 10, letterSpacing: 0.7, paddingHorizontal: 10, marginBottom: 6 }}>
-                  SEND TO
+              <View style={{ paddingHorizontal: 8, paddingTop: 2 }}>
+                <T v="caption" style={{ color: 'rgba(242,247,243,0.55)', fontWeight: '800', fontSize: 10, letterSpacing: 0.7, paddingHorizontal: 10, marginBottom: 8 }}>
+                  SEND TO — MARK AS MANY AS YOU LIKE
                 </T>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                  {MOCK_ACCOUNTS.map((a) => (
-                    <Pressable
-                      key={a.username}
-                      onPress={() => {
-                        haptic.success();
-                        setSendToOpen(false);
-                        setMoreReel(null);
-                        showToast(`Sent to @${a.username}`);
-                      }}
-                      style={{ alignItems: 'center', width: 76, paddingVertical: 8, gap: 5 }}
-                    >
-                      <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint="rgba(46,204,113,0.16)" border="rgba(255,255,255,0.2)" />
-                      <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 9.5, fontWeight: '700' }}>
-                        @{a.username}
-                      </T>
-                    </Pressable>
-                  ))}
-                </View>
+                {/* pass 73 — multi-select + real search; delivers a real chat share */}
+                <FriendsPicker
+                  dark
+                  share={{ kind: 'reel', title: moreReel?.caption || 'Check out this reel', sub: moreReel ? `@${moreReel.username} · DeenLink` : undefined }}
+                  onDone={(n2) => {
+                    setTimeout(() => {
+                      setSendToOpen(false);
+                      setMoreReel(null);
+                      showToast(`Sent to ${n2} friend${n2 > 1 ? 's' : ''}`);
+                    }, 900);
+                  }}
+                />
               </View>
             )}
           </View>

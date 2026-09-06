@@ -12,6 +12,8 @@ import { haptic } from '@/lib/haptics';
 import { BookmarkIcon, ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 import { savedStore } from '@/lib/savedPosts';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
+import { DefaultAvatar } from '@/components/AvatarPicker';
+import { API_ORIGIN } from '@/api/client';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
@@ -42,27 +44,37 @@ const YouTubeFrame = ({ src, height = 208, title }: { src: string; height?: numb
 );
 export { YouTubeFrame };
 
-/** Resolves a profile image that may be a bundled asset (number) or a URL (string). */
+/** Resolves a profile image that may be a bundled asset (number) or a URL (string).
+ * pass 73 — accounts with no photo now get the SAME gendered default art as the
+ * edit-profile screen (was initials), and bare filenames resolve against the
+ * API's uploads dir instead of rendering nothing. */
 export function AvatarImage({
   source,
   name,
   size,
   tint,
   border,
+  gender,
 }: {
   source?: string | number | null;
   name: string;
   size: number;
   tint: string;
   border: string;
+  gender?: string | null;
 }) {
-  const initials = name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase();
+  const str0 = typeof source === 'string' ? source.trim() : '';
+  const isDefaultName = str0 === '' || str0 === 'default_profile.jpg' || str0.endsWith('/img/default_profile.jpg');
+  const uri =
+    typeof source === 'number'
+      ? null
+      : !str0 || isDefaultName
+        ? null
+        : str0.startsWith('http') || str0.startsWith('data:')
+          ? str0
+          : str0.includes('/')
+            ? str0
+            : `${API_ORIGIN}/uploads/profile/${str0}`;
   return (
     <View
       style={{
@@ -77,16 +89,14 @@ export function AvatarImage({
         justifyContent: 'center',
       }}
     >
-      {source != null && source !== '' ? (
+      {source != null && (typeof source === 'number' || uri) ? (
         <Image
-          source={typeof source === 'number' ? source : { uri: String(source) }}
+          source={typeof source === 'number' ? source : { uri: uri as string }}
           style={{ width: size, height: size, borderRadius: size / 2 }}
           resizeMode="cover"
         />
       ) : (
-        <T v="bodyS" style={{ color: '#fff', fontSize: size * 0.32, fontWeight: '700' }}>
-          {initials}
-        </T>
+        <DefaultAvatar gender={gender} size={size} />
       )}
     </View>
   );
@@ -534,7 +544,7 @@ export function FeedCard({
           }}
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
-          <AvatarImage source={img} name={name} size={42} tint={`${accent}26`} border={dash ? dash.greenBorder : hairline} />
+          <AvatarImage source={img} name={name} size={42} tint={`${accent}26`} border={dash ? dash.greenBorder : hairline} gender={(user as { gender?: string }).gender ?? null} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
           <Pressable hitSlop={4} onPress={() => router.push(`/profile/${user.username}`)}>

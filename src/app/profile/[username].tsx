@@ -242,7 +242,7 @@ export default function PublicProfileScreen() {
                   }}
                   style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
                 >
-                  <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" />
+                  <AvatarImage source={photo} name={name} size={76} tint={d.bgSoft} border="transparent" gender={((liveP as { gender?: string } | null)?.gender ?? null) as string | null} />
                 </Pressable>
               </View>
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
