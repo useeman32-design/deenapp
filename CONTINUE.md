@@ -1194,4 +1194,34 @@ double-charge · report row) · **repro75 E2E 12/12** (inbox entry → queue →
 UI → answered tab → profile report sheet → gallery section) · repro74b 17/17 re-run.
 
 Heads: deenlink-api main c827b97 · deenapp master d1187e7 · gh-pages 19c1cda.
-NEXT: Tier 3 → admin dashboard audit → iOS/Android store builds.
+## PASS 76 (Tier 3 — real block + chat reports, user-selected)
+**Backend (deenlink-api, harness76 18/18):**
+- NEW `api/lib/blocks.php`: blocks_ensure() (self-creates `user_blocks`
+  (blocker_id, blocked_id, created_at) PK both), blocks_between(), blocks_has().
+- NEW `api/users/block_action.php`: POST {username, action:block|unblock} →
+  {status, blocked}. Block: INSERT IGNORE + all DM conversations between the
+  pair → 'declined' (hidden from inbox; chat-table-missing guarded). Unblock:
+  DELETE + their 'declined' DMs → 'request' (recipient must re-accept).
+  Self-block → 400.
+- NEW `api/users/blocks_list.php`: GET → {blocks:[{user_id, username,
+  full_name, profile_image_url, blocked_at}]}.
+- Enforcement (403 code:'blocked'): chat/common.php +chat_dm_peer/
+  +chat_guard_blocked used by send.php (BEFORE pass-74 request rules so
+  'blocked' wins), send_share.php, start.php, start_username.php;
+  users/toggle_follow.php (after interaction_guard); users/search_accounts.php
+  filters BOTH directions via conditional NOT EXISTS (params become
+  [$like,$like,$me,$me,$q,$q] when logged in).
+
+**Client (tsc 0, repro76 8/8):**
+- client.ts: blockUser(username, block) + myBlocks() + BlockedAccount type.
+- CommunityInbox: block-confirm now calls blockUser → hides thread
+  (hiddenConvs) + closes it; report sheet submits reportAccount(peer.id,
+  "<reason>[: details]") — peerMap now keeps c.peer.id.
+- profile/[username].tsx: red user-slash block button beside the report flag
+  (user-check + Unblock when active), server-backed toggle + Alert.
+- NEW settings/blocked-accounts.tsx (list + one-tap unblock, spinners);
+  Privacy & Safety sheet row now routes there (was a stub Alert).
+
+**Gates:** harness 73 8/8 · 74 13/13 · 75 18/18 · 76 18/18 · repro76 8/8 · tsc 0.
+
+NEXT: admin dashboard audit → iOS/Android store builds.

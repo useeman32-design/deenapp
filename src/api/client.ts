@@ -622,6 +622,30 @@ export async function questionThread(questionId: number): Promise<{ viewer_role:
   return null;
 }
 
+/* ─────────────── pass 76 (Tier 3) — real, server-enforced blocking ─────────────── */
+export type BlockedAccount = {
+  user_id: number;
+  username: string;
+  full_name: string;
+  profile_image_url?: string | null;
+  blocked_at?: string;
+};
+
+/** Block or unblock an account — the server seals DMs, follows and search. */
+export async function blockUser(username: string, block: boolean): Promise<boolean> {
+  const r = await request<{ status?: string; blocked?: boolean }>('/api/users/block_action.php', {
+    method: 'POST', body: { username, action: block ? 'block' : 'unblock' }, auth: true,
+  });
+  return r.ok && r.data.status === 'success';
+}
+
+/** The accounts I have blocked (settings → blocked accounts). */
+export async function myBlocks(): Promise<BlockedAccount[] | null> {
+  const r = await request<{ status?: string; blocks?: BlockedAccount[] }>('/api/users/blocks_list.php', { auth: true });
+  if (r.ok && Array.isArray(r.data.blocks)) { return r.data.blocks; }
+  return null;
+}
+
 /** Report an account (settings → account tools, profile overflow). */
 export async function reportAccount(userId: number, reason: string): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/users/report_account.php', {

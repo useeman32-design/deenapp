@@ -15,7 +15,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
-import { directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
+import { blockUser, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -82,6 +82,9 @@ export default function PublicProfileScreen() {
   /* pass 75 — account tools: report this account (server account_reports) */
   const [reportOpen, setReportOpen] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
+  /* pass 76 (Tier 3) — block/unblock, server-enforced */
+  const [iBlocked, setIBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
   /* pass 74 — WAIT for the session restore: on a hard navigation (web refresh
    * or an MPA route hop) this screen mounts before /me resolves, isLive() is
    * still false, the fetch was skipped and real accounts showed "not found". */
@@ -460,6 +463,38 @@ export default function PublicProfileScreen() {
                   Share
                 </T>
               </Pressable>
+              {liveP && user && liveP.username !== user.username ? (
+                <Pressable
+                  disabled={blockBusy}
+                  onPress={() => {
+                    haptic.light();
+                    setBlockBusy(true);
+                    void blockUser(liveP.username, !iBlocked).then((ok) => {
+                      setBlockBusy(false);
+                      if (ok) {
+                        setIBlocked((v) => !v);
+                        Alert.alert(iBlocked ? 'Unblocked' : `Blocked @${liveP.username}`, iBlocked ? 'They can message and find you again.' : 'They can no longer message, follow or find you. Manage this in Settings → Privacy & Safety.');
+                      } else {
+                        Alert.alert('Could not update', 'Please try again in a moment.');
+                      }
+                    });
+                  }}
+                  accessibilityLabel={iBlocked ? 'Unblock account' : 'Block account'}
+                  style={({ pressed }) => ({
+                    width: 42,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    backgroundColor: iBlocked ? 'rgba(224,82,82,0.12)' : d.bgSoft,
+                    paddingVertical: 10,
+                    opacity: pressed || blockBusy ? 0.6 : 1,
+                  })}
+                >
+                  <FontAwesome5 name={iBlocked ? 'user-check' : 'user-slash'} size={11} color="#E05252" />
+                </Pressable>
+              ) : null}
               {liveP && user && liveP.username !== user.username ? (
                 <Pressable
                   onPress={() => { haptic.selection(); setReportOpen(true); }}

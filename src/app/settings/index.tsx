@@ -268,7 +268,7 @@ export default function SettingsScreen() {
             <SettingToggleRow label="Show online status" desc="Others can see when you're active" on={priv.showOnline} onChange={(v) => { const nx = { ...priv, showOnline: v }; setPriv(nx); persist('dl.priv', nx); }} />
             <Divider />
             <SettingToggleRow label="Personalized content" desc="Tailor feed & suggestions" on={priv.personalized} onChange={(v) => { const nx = { ...priv, personalized: v }; setPriv(nx); persist('dl.priv', nx); }} />
-            <Pressable onPress={() => { haptic.selection(); Alert.alert('Blocked accounts', 'Manage blocked accounts from a profile’s report menu.'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
+            <Pressable onPress={() => { haptic.selection(); setSheet(null); router.push('/settings/blocked-accounts'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
               <FontAwesome5 name="ban" size={13} color="#FF7B7B" />
               <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Blocked accounts</T>
               <FontAwesome5 name="chevron-right" size={10} color={d.faint} />

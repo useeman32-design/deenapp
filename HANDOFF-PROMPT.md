@@ -253,5 +253,8 @@ pass 60 — it had zero inbound links, which is why pass 57 was invisible). Reac
 **Still open:** Report/Block in the inbox are client-side only (no `api/reports/`, no `user_blocks`).
 Pass 72 (Tier 1) + pass 73 (avatar persistence + default art everywhere, multi-send with
 search, Android pager control, /profile-refresh 403 fix) shipped — see CONTINUE.md.
-Next per the user: Tier 2 (Ask Scholars, wallpapers, account tools) → Tier 3 → admin
-dashboard audit → iOS/Android store builds.
+Tier 2 shipped (pass 75). Tier 3 shipped (pass 76): server-enforced blocking —
+`user_blocks` + `api/users/block_action.php` / `blocks_list.php`, 403 code:'blocked'
+on DM send/share/start + follow, search hides both directions, inbox block/report
+wired, settings/blocked-accounts screen, unblock reopens DMs as message requests.
+Next per the user: admin dashboard audit → iOS/Android store builds.

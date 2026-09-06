@@ -102,7 +102,7 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, isLive } from '@/api/client';
+import { blockUser, chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, isLive, reportAccount } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 
@@ -341,7 +341,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   /* pass 74 — message requests: incoming (they messaged me, I don't follow
    * them back yet), outgoing (mine, capped at 3 until accepted) and declined */
   const [reqMap, setReqMap] = useState<Record<string, { convId: number; photo?: string | null; name?: string }>>({});
-  const [peerMap, setPeerMap] = useState<Record<string, { name?: string; photo?: string | null }>>({});
+  const [peerMap, setPeerMap] = useState<Record<string, { id?: number; name?: string; photo?: string | null }>>({});
   const [outRequests, setOutRequests] = useState<Set<string>>(new Set());
   const [hiddenConvs, setHiddenConvs] = useState<Set<string>>(new Set());
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -639,14 +639,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const m: Record<string, string> = {};
     const ids: Record<string, number> = {};
     const reqs: Record<string, { convId: number; photo?: string | null; name?: string }> = {};
-    const peers: Record<string, { name?: string; photo?: string | null }> = {};
+    const peers: Record<string, { id?: number; name?: string; photo?: string | null }> = {};
     const mine = new Set<string>();
     const gone = new Set<string>();
     cs.forEach((c) => {
       const u = c.with_username || c.peer?.username;
       if (!u) { return; }
       if (c.peer_seen) { m[u] = String(c.peer_seen); }
-      peers[u] = { name: c.with_name || undefined, photo: c.with_photo ?? null };
+      peers[u] = { id: c.peer?.id, name: c.with_name || undefined, photo: c.with_photo ?? null };
       const st = c.conv_status ?? 'active';
       if (st === 'declined') { gone.add(u); return; }
       if (st === 'request') {
@@ -1528,7 +1528,16 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             })}
             <TextInput value={reportDesc} onChangeText={setReportDesc} multiline placeholder="Add details (optional)…" placeholderTextColor={d.faint}
               style={{ borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, backgroundColor: d.bg, color: d.text, fontSize: 13, paddingHorizontal: 13, paddingVertical: 11, minHeight: 76, textAlignVertical: 'top', marginTop: 4, fontFamily: 'Poppins-Regular' }} />
-            <Pressable onPress={() => { haptic.success(); setReportOpen(false); setReportType(null); setReportDesc(''); setReported(true); }} disabled={!reportType}
+            <Pressable onPress={() => {
+              haptic.success();
+              const who = thread?.friend;
+              const pid = who ? peerMap[who]?.id : undefined;
+              const label = REPORT_TYPES.find((r) => r.id === reportType)?.label ?? 'Report';
+              if (live && pid) {
+                void reportAccount(pid, reportDesc.trim() ? `${label}: ${reportDesc.trim()}` : label);
+              }
+              setReportOpen(false); setReportType(null); setReportDesc(''); setReported(true);
+            }} disabled={!reportType}
               style={{ marginTop: 14, borderRadius: 14, backgroundColor: reportType ? '#E05252' : d.cardBorder, paddingVertical: 14, alignItems: 'center', opacity: reportType ? 1 : 0.6 }}>
               <T v="bodyS" style={{ fontWeight: '800', fontSize: 14, color: reportType ? '#fff' : d.faint }}>Submit report</T>
             </Pressable>
@@ -1549,7 +1558,18 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               <Pressable onPress={() => setBlockOpen(false)} style={{ flex: 1, borderRadius: 13, borderWidth: 1.5, borderColor: d.cardBorder, paddingVertical: 12, alignItems: 'center' }}>
                 <T v="bodyS" style={{ fontWeight: '700', fontSize: 13, color: d.text }}>Cancel</T>
               </Pressable>
-              <Pressable onPress={() => { haptic.medium(); setBlockOpen(false); setBlocked(true); }} style={{ flex: 1, borderRadius: 13, backgroundColor: '#E05252', paddingVertical: 12, alignItems: 'center' }}>
+              <Pressable onPress={() => {
+                haptic.medium();
+                const who = thread?.friend;
+                if (live && who) {
+                  void blockUser(who, true).then((ok) => {
+                    if (!ok) { Alert.alert('Could not block', 'Please try again in a moment.'); return; }
+                    setHiddenConvs((prev) => new Set(prev).add(who));
+                    setOpenFriend(null);
+                  });
+                }
+                setBlockOpen(false); setBlocked(true);
+              }} style={{ flex: 1, borderRadius: 13, backgroundColor: '#E05252', paddingVertical: 12, alignItems: 'center' }}>
                 <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: '#fff' }}>Block</T>
               </Pressable>
             </View>
