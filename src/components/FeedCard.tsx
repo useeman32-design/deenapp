@@ -15,6 +15,7 @@ import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
+import { isLive, votePoll } from '@/api/client';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -389,7 +390,8 @@ export function FeedCard({
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
   const [pollState, setPollState] = useState<{ voted: number | null; options: Array<{ id: number; text: string; votes: number }> }>(() => ({
-    voted: null,
+    /* pass 66-night — server polls arrive already voted so the card opens truthful */
+    voted: post.poll?.voted ?? null,
     options: post.poll?.options ?? [],
   }));
   const [reportType, setReportType] = useState<string | null>(null);
@@ -763,6 +765,7 @@ export function FeedCard({
                   onPress={() => {
                     haptic.selection();
                     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    const retract = pollState.voted === opt.id;
                     setPollState((prev) => {
                       // tapping the same option again retracts the vote
                       if (prev.voted === opt.id) {
@@ -779,6 +782,17 @@ export function FeedCard({
                         }),
                       };
                     });
+                    /* pass 66-night — live polls record the vote on the server;
+                     * the response is the source of truth for counts. */
+                    if (isLive() && !retract) {
+                      void votePoll(post.id, opt.id).then((res) => {
+                        if (!res) return;
+                        setPollState({
+                          voted: res.my_vote,
+                          options: res.options.map((o) => ({ id: o.id, text: o.label, votes: o.votes })),
+                        });
+                      });
+                    }
                   }}
                   style={({ pressed }) => ({
                     position: 'relative',

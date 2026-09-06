@@ -268,8 +268,10 @@ function BackHeader({ onBack, title }: { onBack: () => void; title: string }) {
 
 export default function Register() {
   const { isDark } = useTheme();
-  const { register } = useAuth();
+  const { register, login, adoptSession } = useAuth();
   const router = useRouter();
+  /* the password used for this signup, so a link-verified email can sign in */
+  const lastPassword = useRef('');
 
   const [screen, setScreen] = useState<'choose' | 'form' | 'gmail'>('choose');
   const [accountType, setAccountType] = useState<'user' | 'scholar'>('user');
@@ -358,6 +360,7 @@ export default function Register() {
 
   const doRegister = async (data: { full_name: string; username: string; email: string; password: string }) => {
     setBusy(true); setError('');
+    lastPassword.current = data.password;
     /* DB enum: 'male'/'female' lowercase */
     const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined });
     if (res.ok) { setBusy(false); setOtpEmail(data.email); } // pass 44 — show the 6-digit OTP step
@@ -736,8 +739,22 @@ export default function Register() {
         <Modal visible transparent animationType="fade">
           <OtpVerify
             email={otpEmail}
-            onVerified={() => { setOtpEmail(null); router.replace('/(tabs)'); }}
-            onCancel={() => { setOtpEmail(null); router.replace('/(tabs)'); }}
+            onVerified={(u) => {
+              setOtpEmail(null);
+              if (u) {
+                /* verify_otp minted the session — adopt it */
+                void adoptSession(u).then(() => router.replace('/(tabs)'));
+              } else {
+                /* verified via the email LINK in another tab: sign in normally */
+                void login(otpEmail, lastPassword.current).then((r) => {
+                  if (r.ok) router.replace('/(tabs)');
+                });
+              }
+            }}
+            /* pass 66-night — cancel must NOT sign anyone in. It returns to the
+             * form with every field kept, so the email can be corrected and the
+             * signup resubmitted (the pending row is reused server-side). */
+            onCancel={() => setOtpEmail(null)}
           />
         </Modal>
       ) : null}

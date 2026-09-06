@@ -18,7 +18,7 @@ import { FORCE_DEMO, sendOtp, verifyOtp, checkEmailVerified } from '@/api/client
  */
 const R = 58; // ring radius the boxes fly to
 
-export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVerified: () => void; onCancel: () => void }) {
+export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVerified: (user?: import('@/api/types').User | null) => void; onCancel: () => void }) {
   const { theme } = useTheme();
   const d = theme.dash;
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -33,8 +33,11 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   const progress = useRef(new Animated.Value(0)).current; // 0→1 success timeline (3s)
   const spin = useRef(new Animated.Value(0)).current;     // ring-of-boxes rotation
   const lockTilt = useRef(new Animated.Value(0)).current; // wiggle on unlock
-  const fade = useRef(new Animated.Value(1)).current;     // final slow fade-out
+  const fade = useRef(new Animated.Value(1)).current; // final slow fade-out
   const doneRef = useRef(false); // guards the success celebration so it plays once
+  /* the verify response carries the freshly-minted session user; the email-link
+   * poll path has none (the caller then signs in with the known password) */
+  const verifiedUser = useRef<import('@/api/types').User | null>(null);
 
   const send = () => {
     setCooldown(30);
@@ -110,7 +113,7 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
     }, 2100);
     setTimeout(() => haptic.success(), 2700);
     setTimeout(() => Animated.timing(fade, { toValue: 0, duration: 700, easing: Easing.ease, useNativeDriver: true }).start(), 5200);
-    setTimeout(onVerified, 6000);
+    setTimeout(() => onVerified(verifiedUser.current), 6000);
   };
 
   const verify = () => {
@@ -119,7 +122,7 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
     Keyboard.dismiss();
     setStatus('verifying');
     if (!live) { if (code === '123456') succeed(); else doWrong(); return; }
-    verifyOtp(email, code).then((r) => { if (r.verified) succeed(); else doWrong(); });
+    verifyOtp(email, code).then((r) => { if (r.verified) { verifiedUser.current = r.user ?? null; succeed(); } else doWrong(); });
   };
 
   const shakeX = shake.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] });

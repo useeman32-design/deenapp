@@ -13,6 +13,12 @@ import { AvatarImage } from '@/components/FeedCard';
 import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { useRouter } from 'expo-router';
+/* pass 66-night — live comments: the sheet reads/writes the server thread when
+ * the session is real. Server reply ids are namespaced (+1e9) so they can never
+ * collide with comment ids in the shared liked-map. */
+import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLive, toggleCommentLike, toggleReplyLike, type ServerComment } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
+const REPLY_OFF = 1_000_000_000;
 
 const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
 
@@ -274,12 +280,15 @@ export function CommentsModal({
   seed,
   onClose,
   inline = false,
+  postId = null,
 }: {
   visible: boolean;
   post: Post | null;
   seed: SampleComment[];
   onClose: () => void;
   inline?: boolean;
+  /** pass 66-night — real post id → the thread reads/writes the server. */
+  postId?: number | null;
 }) {
   const { theme, isDark } = useTheme();
   const router = useRouter();
@@ -302,6 +311,48 @@ export function CommentsModal({
   /* pass 40 — @DeenLink AI: mentions get an in-thread AI reply (like Grok on X) */
   const [aiTyping, setAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
+  /* pass 66-night — live mode: the thread is a real server conversation. */
+  const { user: authUser } = useAuth();
+  const live = postId != null && postId > 0 && isLive();
+  const me = live && authUser ? { name: authUser.full_name || authUser.username, handle: authUser.username } : ME;
+  const mapServer = (c: ServerComment): SampleComment => ({
+    id: c.id,
+    name: c.user?.name || c.user?.username || 'DeenLink',
+    handle: c.user?.username || 'deenlink',
+    avatar: c.user?.profile_image_url ?? null,
+    text: c.text,
+    time: c.time_ago || '',
+    likes: c.like_count,
+    liked: c.liked_by_me,
+    replies: (c.replies ?? []).map((r) => ({
+      id: r.id + REPLY_OFF,
+      name: r.user?.name || r.user?.username || 'DeenLink',
+      handle: r.user?.username || 'deenlink',
+      avatar: r.user?.profile_image_url ?? null,
+      text: r.text,
+      time: r.time_ago || '',
+      likes: r.like_count,
+      liked: r.liked_by_me,
+    })),
+  });
+  useEffect(() => {
+    if (!visible || !live || !postId) return;
+    let dead = false;
+    (async () => {
+      const rows = await getComments(postId);
+      if (dead || !rows) return;
+      const mapped = rows.map(mapServer);
+      setItems(mapped);
+      const l: Record<number, boolean> = {};
+      for (const c of mapped) {
+        if (c.liked) l[c.id] = true;
+        c.replies?.forEach((r) => { if (r.liked) l[r.id] = true; });
+      }
+      setLikedMap(l);
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, postId, live]);
   /* pass 41 — typing "@" opens the mention picker: DeenLink AI first, then friends/search */
   const mentionMatch = /@([A-Za-z0-9_.]*)$/.exec(draft);
   const mentionQuery = (mentionMatch?.[1] ?? '').toLowerCase();
@@ -438,13 +489,30 @@ export function CommentsModal({
   const img = (user as { profile_image_url?: string | number | null }).profile_image_url ?? null;
 
   const isLiked = (id: number) => !!likedMap[id];
-  const toggleLike = (id: number) =>
+  const toggleLike = (id: number) => {
+    const want = !likedMap[id];
     setLikedMap((m) => {
       const n = { ...m };
       if (n[id]) delete n[id];
       else n[id] = true;
       return n;
     });
+    if (!live) return;
+    const isReply = id >= REPLY_OFF;
+    const call = isReply ? toggleReplyLike(id - REPLY_OFF, want) : toggleCommentLike(id, want);
+    void call.then((res) => {
+      if (!res) return;
+      setItems((prev) =>
+        prev.map((c) => {
+          if (isReply) {
+            if (!(c.replies ?? []).some((r) => r.id === id)) return c;
+            return { ...c, replies: (c.replies ?? []).map((r) => (r.id === id ? { ...r, likes: res.like_count, liked: res.liked } : r)) };
+          }
+          return c.id === id ? { ...c, likes: res.like_count, liked: res.liked } : c;
+        }),
+      );
+    });
+  };
 
   const toggleReplies = (id: number) =>
     setOpenReplies((s) => {
@@ -493,9 +561,35 @@ export function CommentsModal({
     const t = draft.trim();
     if (!t) return;
     haptic.light();
-    const nc: SampleComment = { id: Date.now(), name: ME.name, handle: ME.handle, avatar: null, text: t, time: 'now', likes: 0 };
+    const tempId = Date.now();
+    const nc: SampleComment = { id: tempId, name: me.name, handle: me.handle, avatar: null, text: t, time: 'now', likes: 0 };
+    /* pass 66-night — optimistic push; the server id swaps in when it answers. */
+    const target = replyingTo;
     pushComment(nc);
     setDraft('');
+    if (live && postId) {
+      if (target) {
+        const isReply = target.id >= REPLY_OFF;
+        const parent = isReply
+          ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
+          : items.find((c) => c.id === target.id);
+        void srvAddReply(postId, parent ? parent.id : target.id, t, isReply ? target.id - REPLY_OFF : 0).then((res) => {
+          if (!res) return;
+          setItems((prev) =>
+            prev.map((c) =>
+              (c.replies ?? []).some((r) => r.id === tempId)
+                ? { ...c, replies: (c.replies ?? []).map((r) => (r.id === tempId ? { ...r, id: res.id + REPLY_OFF } : r)) }
+                : c,
+            ),
+          );
+        });
+      } else {
+        void srvAddComment(postId, t).then((res) => {
+          if (!res) return;
+          setItems((prev) => prev.map((c) => (c.id === tempId ? { ...c, id: res.id } : c)));
+        });
+      }
+    }
     /* pass 40 — mention @DeenLink (or @deenlink ai / @ai) → the AI answers
      * in-thread: it VERIFIES the post's claims against our library and
      * answers the question, grounded in what it can actually retrieve. */

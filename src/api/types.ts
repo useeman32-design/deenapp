@@ -60,6 +60,8 @@ export interface PostPoll {
   options: PollOption[];
   /** Poll length in hours (composer picker). */
   duration?: number;
+  /** pass 66-night — server polls carry whose-voted-what so the card opens voted. */
+  voted?: number | null;
 }
 
 export interface Post {

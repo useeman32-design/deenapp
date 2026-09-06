@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, ImageBackground, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
+import { Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
+import { findUrl, LinkPreviewCard } from '@/components/LinkPreview';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { useRouter } from 'expo-router';
@@ -35,8 +36,12 @@ type ShareItem = {
   /* pass 62 — server timestamp "YYYY-MM-DD HH:MM:SS"; '' until the server
    * confirms, which also sorts an optimistic card to the bottom. */
   at?: string;
+  /* pass 63 — soft-deleted on the server: the slot stays, the content is gone */
+  deleted?: boolean;
 };
-type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string };
+/* pass 63 — the quoted row when you reply to something */
+type Quote = { who: string; text: string };
+type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null; createdAt?: string; readAt?: string | null };
 /* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
  * somebody else left, so I can see their reaction and still add my own. */
 type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string> };
@@ -97,8 +102,9 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { chatConversations, chatPresence, chatReact, chatRead, chatSend, chatSendShare, chatStartDMByUsername, chatThread, isLive } from '@/api/client';
+import { chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatSend, chatSendShare, chatStartDMByUsername, chatThread, isLive } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import * as Clipboard from 'expo-clipboard';
 
 if (Platform.OS === 'android') { UIManager.setLayoutAnimationEnabledExperimental?.(true); }
 
@@ -137,6 +143,166 @@ function SlideIn({ children, style, animate }: { children: React.ReactNode; styl
   );
 }
 
+/**
+ * pass 63 — the SEND animation.
+ *
+ * Messages never animated at all: `renderMsg` returned a plain <View>, so a new
+ * bubble simply popped into existence ("it just goes directly"). Every row now
+ * springs in from the side it was sent from, with the composer-side offset so it
+ * reads as leaving your hand.
+ */
+function BubbleIn({ mine, animate, children, style }: { mine: boolean; animate: boolean; children: React.ReactNode; style?: object }) {
+  const a = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  useEffect(() => {
+    if (!animate) { return; }
+    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 7, tension: 110 }).start();
+  }, [a, animate]);
+  return (
+    <Animated.View style={[style, { opacity: a, transform: [
+      { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+      { translateX: a.interpolate({ inputRange: [0, 1], outputRange: [mine ? 26 : -26, 0] }) },
+      { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+    ] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * pass 63 — slide a bubble right to reply (WhatsApp).
+ *
+ * Mouse drags are deliberately NOT claimed: on the web that same horizontal drag
+ * is how you highlight text to copy it, so `pointerType === 'mouse'` opts out and
+ * selection keeps working. Touch gets the swipe, the mouse gets the highlight.
+ */
+function SwipeReply({ onReply, children, tint, style }: { onReply: () => void; children: React.ReactNode; tint: string; style?: object }) {
+  const x = useRef(new Animated.Value(0)).current;
+  const cb = useRef(onReply);
+  cb.current = onReply;
+  const tx = x.interpolate({ inputRange: [0, 60, 84, 200], outputRange: [0, 60, 72, 84], extrapolate: 'clamp' });
+  const fade = x.interpolate({ inputRange: [0, 34], outputRange: [0, 1], extrapolate: 'clamp' });
+
+  /* pass 65 — raw touch + mouse handlers instead of PanResponder.
+   * The bubble is a Pressable, and on native a Pressable claims the responder on
+   * touch-start, so a wrapper PanResponder never saw the gesture (swipe "did
+   * nothing"). Touch and mouse events fire no matter who wins the responder, so
+   * they are the reliable path on both native and web. */
+  const startX = useRef<number | null>(null);
+  const lastDx = useRef(0);
+  const nodeRef = useRef<{ addEventListener?: (t: string, f: (e: { clientX: number }) => void) => void; removeEventListener?: (t: string, f: (e: { clientX: number }) => void) => void } | null>(null);
+
+  const begin = (px: number) => { startX.current = px; lastDx.current = 0; };
+  const move = (px: number) => {
+    if (startX.current == null) { return; }
+    const dx = px - startX.current;
+    lastDx.current = dx;
+    if (dx > 0) { x.setValue(Math.min(dx, 200)); }
+  };
+  const end = () => {
+    if (startX.current == null) { return; }
+    const go = lastDx.current > 58;
+    startX.current = null;
+    lastDx.current = 0;
+    Animated.spring(x, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
+    if (go) { cb.current(); }
+  };
+
+  /* web mouse: a click-drag on a bubble swipes it on desktop */
+  useEffect(() => {
+    if (Platform.OS !== 'web') { return; }
+    const el = nodeRef.current;
+    if (!el?.addEventListener) { return; }
+    const md = (e: { clientX: number }) => begin(e.clientX);
+    const mm = (e: { clientX: number }) => { if (startX.current != null) { move(e.clientX); } };
+    const mu = () => end();
+    el.addEventListener('mousedown', md);
+    window.addEventListener('mousemove', mm);
+    window.addEventListener('mouseup', mu);
+    return () => {
+      el.removeEventListener?.('mousedown', md);
+      window.removeEventListener('mousemove', mm);
+      window.removeEventListener('mouseup', mu);
+    };
+  }, []);
+
+  return (
+    <View style={style}>
+      <Animated.View
+        ref={nodeRef as never}
+        style={{ transform: [{ translateX: tx }] }}
+        onTouchStart={(e) => begin(e.nativeEvent.touches[0]?.pageX ?? 0)}
+        onTouchMove={(e) => move(e.nativeEvent.touches[0]?.pageX ?? 0)}
+        onTouchEnd={end}
+        onTouchCancel={end}
+      >
+        {/* rides WITH the bubble so it is visible on either alignment; it only
+            fades in after ~34px of drag, by which point there is room for it */}
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', left: -24, top: 0, bottom: 0, width: 20, alignItems: 'center', justifyContent: 'center', opacity: fade }}>
+          <FontAwesome5 name="reply" size={12} color={tint} />
+        </Animated.View>
+        {children}
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * pass 63 — one emoji in the picker, popping in on its own schedule.
+ *
+ * The old panel faded the whole strip in from opacity 0.4 on a SHARED
+ * Animated.Value; that is what made the emojis look washed-out and "shoddy".
+ * Each one now owns its value, springs from 0.2 with a stagger, and gets a real
+ * lineHeight so the glyph is never clipped.
+ */
+function PickerEmoji({ emoji, delay, onPress }: { emoji: string; delay: number; onPress: () => void }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 4, tension: 150, delay }).start();
+  }, [a, delay]);
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => ({ transform: [{ scale: pressed ? 1.28 : 1 }], paddingHorizontal: 3, paddingVertical: 2 })}>
+      <Animated.Text style={{ fontSize: 29, lineHeight: 38, textAlign: 'center', includeFontPadding: false, opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }, { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}>
+        {emoji}
+      </Animated.Text>
+    </Pressable>
+  );
+}
+
+/** pass 63 — a panel that springs up instead of appearing instantly. */
+function SheetIn({ children, style }: { children: React.ReactNode; style?: object }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(a, { toValue: 1, useNativeDriver: true, friction: 9, tension: 120 }).start();
+  }, [a]);
+  return (
+    <Animated.View style={[style, { opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/** pass 64 — one row of the floating frosted-glass action menu. */
+function MenuRow({ first, icon, label, color, line, onPress }: { first?: boolean; icon: string; label: string; color: string; line: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderTopColor: line, opacity: pressed ? 0.55 : 1, backgroundColor: pressed ? 'rgba(255,255,255,0.05)' : 'transparent' })}
+    >
+      <FontAwesome5 name={icon as never} size={12} color={color} />
+      <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '600', color }}>{label}</T>
+    </Pressable>
+  );
+}
+
+/** pass 63 — the dimming backdrop behind a focused message. */
+function FadeIn({ children, style, duration = 170 }: { children: React.ReactNode; style?: object; duration?: number }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration, useNativeDriver: true }).start();
+  }, [a, duration]);
+  return <Animated.View style={[style, { opacity: a }]}>{children}</Animated.View>;
+}
+
 const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
   { id: 'spam', label: 'Spam or scam', icon: 'ban' },
   { id: 'harassment', label: 'Harassment or bullying', icon: 'user-slash' },
@@ -158,8 +324,33 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const [convIds, setConvIds] = useState<Record<string, number>>({});
   const [threads, setThreads] = useState<Thread[]>(SEED);
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
-  const [emojiFor, setEmojiFor] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  /* pass 63 — press-and-hold focus (WhatsApp-style sheet), reply quoting,
+   * forwarding, and the "copied" confirmation. */
+  const [focus, setFocus] = useState<{ id: string; kind: 'msg' | 'share' } | null>(null);
+  /* pass 64 — the action menu is anchored to the pressed bubble (not a bottom
+   * sheet), so we record where that bubble is on screen when it is held. */
+  const [focusPos, setFocusPos] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [focusMode, setFocusMode] = useState<'menu' | 'info'>('menu');
+  const rowRefs = useRef<Record<string, { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>>({});
+  const [replyTo, setReplyTo] = useState<{ id: string; kind: 'msg' | 'share'; who: string; text: string } | null>(null);
+  /* pass 64 — forward is a full screen with multi-select, not a one-tap list. */
+  const [forward, setForward] = useState<{ kind: 'msg' | 'share'; text: string; kindOf?: Kind } | null>(null);
+  const [forwardPicked, setForwardPicked] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState(false);
+  /* pass 64 — track the keyboard so the composer can drop its safe-area padding
+   * while it is up (that leftover padding was the white bar under the field). */
+  const [kbOpen, setKbOpen] = useState(false);
+  /* pass 66 — scroll position. `atBottom` drives the jump-to-latest button:
+   * read an old message and the list stops auto-yanking you down, and a
+   * chevron appears over the composer to glide back to the newest bubble. */
+  const [atBottom, setAtBottom] = useState(true);
+  const [composerH, setComposerH] = useState(96);
+  const [fabIn, setFabIn] = useState(new Animated.Value(0));
+  /* one shared value is RIGHT here: every unfocused row dims together. (The
+   * reaction bug was the opposite case — one value shared by independent rows.) */
+  const dim = useRef(new Animated.Value(1)).current;
+  const inputRef = useRef<TextInput>(null);
   /* pass 58 — presence from the real API + the ••• menu, report sheet and block */
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState(false);
@@ -171,7 +362,8 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const [reported, setReported] = useState(false);
   const freshIds = useRef<Set<string>>(new Set());
   const lastTap = useRef<{ id: string; t: number }>({ id: '', t: 0 });
-  const pop = useRef(new Animated.Value(0)).current;
+  /* pass 63 — the old shared `pop` value is gone entirely: the picker now uses
+   * per-emoji springs (PickerEmoji) and the rows use their own mount springs. */
   const scroller = useRef<ScrollView>(null);
 
   /* restore persisted chats */
@@ -188,18 +380,42 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     storage.setItem(STORE, JSON.stringify(next)).catch(() => {});
   };
 
-  const popIn = () => {
-    pop.setValue(0);
-    Animated.spring(pop, { toValue: 1, useNativeDriver: false, friction: 4, tension: 70 }).start();
+  /* pass 64 — native keyboard show/hide (web is handled by the body background). */
+  useEffect(() => {
+    const on = () => setKbOpen(true);
+    const off = () => setKbOpen(false);
+    const subs = [Keyboard.addListener('keyboardDidShow', on), Keyboard.addListener('keyboardDidHide', off)];
+    return () => subs.forEach((s) => s.remove());
+  }, []);
+
+  /* pass 63 — press and hold: dim every other row, focus this one, and offer
+   * Reply / Forward / Copy / Delete exactly like WhatsApp. */
+  const openFocus = (id: string, kind: 'msg' | 'share') => {
+    haptic.medium();
+    setFocusMode('menu');
+    /* pass 64 — anchor the menu to the bubble's real on-screen position. */
+    const node = rowRefs.current[id];
+    if (node?.measureInWindow) {
+      node.measureInWindow((x, y, w, h) => setFocusPos({ x, y, w, h }));
+    } else {
+      setFocusPos(null);
+    }
+    setFocus({ id, kind });
+    Animated.timing(dim, { toValue: 0.15, duration: 180, useNativeDriver: true }).start();
   };
+  const closeFocus = () => {
+    setFocus(null);
+    setFocusMode('menu');
+    Animated.timing(dim, { toValue: 1, duration: 160, useNativeDriver: true }).start();
+  };
+
+  /** pass 63 — DOUBLE-TAP reacts instantly with the default emoji. The picker is
+   *  what press-and-hold gives you, so the two gestures no longer overlap. */
   const onTapItem = (id: string) => {
     const now = Date.now();
     const dbl = lastTap.current.id === id && now - lastTap.current.t < 320;
-    lastTap.current = { id, t: now };
-    if (dbl) {
-      haptic.light();
-      setEmojiFor(id);
-    }
+    lastTap.current = { id: '', t: 0 };
+    if (dbl) { react(id, EMOJIS[0]); }
   };
 
   const thread = threads.find((t) => t.friend === openFriend) ?? null;
@@ -241,8 +457,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const next = prev === e ? '' : e;
     const reactions = { ...thread.reactions, [id]: next };
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, reactions } : t)));
-    setEmojiFor(null);
-    popIn();
+    if (focus) { closeFocus(); }
     /* pass 62 — the reaction is on screen instantly; now make it real so the
      * other person sees it. Tapping the same emoji again sends '' = remove. */
     if (!live) { return; }
@@ -255,6 +470,118 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       const r = await chatReact(cid, target.kind, target.id, next).catch(() => ({ ok: false, emoji: null }));
       if (!r.ok) { revertReaction(who, id, prev); }
     })();
+  };
+
+  /** pass 63 — the plain text of a row, used by Copy and by the reply quote. */
+  const rowText = (id: string): string => {
+    if (!thread) { return ''; }
+    const m = thread.chat.find((c) => c.id === id);
+    if (m) { return m.text; }
+    const s = thread.items.find((x) => x.id === id);
+    return s ? s.title : '';
+  };
+
+  /** pass 63 — slide-to-reply (or Reply in the sheet): quote the row above the
+   *  composer and put the cursor in the box, ready to type. */
+  const openReply = (id: string) => {
+    if (!thread) { return; }
+    const m = thread.chat.find((c) => c.id === id);
+    const s = !m ? thread.items.find((x) => x.id === id) : null;
+    if (!m && !s) { return; }
+    const mine = m ? m.dir === 'me' : s!.dir === 'me';
+    setReplyTo({
+      id,
+      kind: m ? 'msg' : 'share',
+      who: mine ? 'You' : thread.friend,
+      text: m ? m.text : s!.title,
+    });
+    closeFocus();
+    setTimeout(() => inputRef.current?.focus(), 80);
+  };
+
+  /** pass 63 — Copy. This is the reliable way to copy on a phone; on the web you
+   *  can also just drag-select the text (mouse drags are not claimed as swipes). */
+  const copyRow = (id: string) => {
+    const text = rowText(id);
+    Clipboard.setStringAsync(text).then(() => {
+      haptic.success();
+      setCopied(true);
+      setTimeout(() => { setCopied(false); closeFocus(); }, 850);
+    }).catch(() => { closeFocus(); });
+  };
+
+  const applyDelete = (who: string, id: string, kind: 'msg' | 'share') => {
+    setThreads((prev) => prev.map((t) => (t.friend === who
+      ? kind === 'msg'
+        ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, deleted: true, text: '' } : c)) }
+        : { ...t, items: t.items.map((x) => (x.id === id ? { ...x, deleted: true, title: '' } : x)) }
+      : t)));
+  };
+
+  /** pass 63 — delete YOUR OWN row. Optimistic locally, then `delete.php`; the
+   *  server only ever deletes a row you sent, so the two cannot disagree. */
+  const deleteRow = (id: string, kind: 'msg' | 'share') => {
+    if (!thread) { return; }
+    const who = thread.friend;
+    haptic.medium();
+    closeFocus();
+    applyDelete(who, id, kind);
+    if (!live) { return; }
+    const target = targetOf(id);
+    if (!target) { return; }
+    void (async () => {
+      const cid = await resolveCid(who);
+      if (!cid) { return; }
+      await chatDelete(cid, kind, target.id).catch(() => false);
+    })();
+  };
+
+  /** pass 63 — Forward: send the same content into another conversation. */
+  const startForward = (id: string, kind: 'msg' | 'share') => {
+    if (!thread) { return; }
+    const m = thread.chat.find((c) => c.id === id);
+    const s = !m ? thread.items.find((x) => x.id === id) : null;
+    if (!m && !s) { return; }
+    closeFocus();
+    setForwardPicked(new Set());
+    setForward(kind === 'msg'
+      ? { kind: 'msg', text: m!.text }
+      : { kind: 'share', text: s!.title, kindOf: s!.kind });
+  };
+
+  /** pass 64 — send the same payload into one conversation (optimistic then real). */
+  const forwardTo = (to: string, payload: { kind: 'msg' | 'share'; text: string; kindOf?: Kind }) => {
+    haptic.success();
+    const tmp = uid();
+    setThreads((prev) => prev.map((t) => (t.friend === to
+      ? payload.kind === 'msg'
+        ? { ...t, chat: [...t.chat, { id: tmp, text: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
+        : { ...t, items: [...t.items, { id: tmp, kind: (payload.kindOf ?? 'post') as Kind, title: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
+      : t)));
+    if (!live) { return; }
+    void (async () => {
+      const cid = await resolveCid(to);
+      if (!cid) { return; }
+      const made = payload.kind === 'msg'
+        ? await chatSend(cid, payload.text).catch(() => null)
+        : await chatSendShare(cid, String(payload.kindOf ?? 'post'), payload.text).catch(() => null);
+      if (!made) { return; }
+      const nid = payload.kind === 'msg' ? `s${made.id}` : `h${made.id}`;
+      setThreads((prev) => prev.map((t) => (t.friend === to
+        ? payload.kind === 'msg'
+          ? { ...t, chat: t.chat.map((c) => (c.id === tmp ? { ...c, id: nid, at: made.created_at || c.at } : c)) }
+          : { ...t, items: t.items.map((x) => (x.id === tmp ? { ...x, id: nid, at: made.created_at || x.at } : x)) }
+        : t)));
+    })();
+  };
+
+  /** pass 64 — forward the held payload to every picked conversation at once. */
+  const doForwardMany = (friends: string[]) => {
+    if (!forward || !friends.length) { return; }
+    const payload = forward;
+    setForward(null);
+    setForwardPicked(new Set());
+    friends.forEach((to) => forwardTo(to, payload));
   };
 
   /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username */
@@ -298,6 +625,10 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         id: `s${m.id}`, text: m.body, ago: (m.created_at || '').slice(11, 16),
         dir: m.sender_id === user?.id ? 'me' as const : 'them' as const,
         at: m.created_at || '',
+        deleted: !!m.deleted,
+        reply: m.reply_to ? { who: m.reply_to.username ?? '', text: m.reply_to.body } : null,
+        createdAt: m.created_at || '',
+        readAt: m.read_at ?? null,
       }));
       /* server shares replace the bundled demo cards for this person */
       const items: ShareItem[] = data.shares.map((s) => ({
@@ -307,6 +638,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         ago: (s.created_at || '').slice(11, 16),
         dir: s.sender_id === user?.id ? 'me' as const : 'them' as const,
         at: s.created_at || '',
+        deleted: !!s.deleted,
         arabic: s.payload?.arabic,
         refLabel: s.payload?.refLabel,
         sub: s.payload?.sub,
@@ -321,7 +653,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       });
       [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
       setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
-      setTimeout(() => scroller.current?.scrollToEnd({ animated: false }), 60);
+      setTimeout(() => {
+        scroller.current?.scrollToEnd({ animated: false });
+        /* web: the RNW ref is null in this build, so land on the newest row via the DOM */
+        if (Platform.OS === 'web') {
+          const node = webScrollNode();
+          if (node) node.scrollTop = node.scrollHeight;
+        }
+      }, 60);
     }).catch(() => {});
     chatRead(cid).catch(() => {});
   }, [live, openFriend, convIds, user?.id]);
@@ -332,6 +671,77 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     return !!t && (Date.now() - new Date(t.replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
   }, [seenMap]);
 
+  /* pass 66 — JS-driven smooth scroll on web. Browser `behavior:'smooth'` is
+   * not dependable (headless shells ignore it entirely) and RN-web's animated
+   * scrollToEnd measures the content on the frame it is called, so a send from
+   * the very TOP of a long thread glided to where the list *was*, not to the
+   * new bubble. Easing scrollTop through rAF gives the same feel everywhere
+   * and always resolves against the final layout. */
+  const webSmoothToBottom = (node: HTMLElement) => {
+    const from = node.scrollTop;
+    const dur = 340;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const to = node.scrollHeight - node.clientHeight;
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      node.scrollTop = from + (to - from) * e;
+      if (k < 1) requestAnimationFrame(step);
+      else node.scrollTop = node.scrollHeight; /* content grew mid-glide */
+    };
+    requestAnimationFrame(step);
+  };
+
+  /* pass 64 — follow the new bubble with a smooth cascade so the send animation
+   * is on screen while it plays. The old single 80ms scroll jumped past it. */
+  /* pass 66 — on web the ScrollView ref comes back null in this RNW build (the
+   * forwarded ref never lands on the class), so the DOM node is resolved
+   * directly: the thread list is the tallest scrollable element under #root.
+   * Native keeps the normal ref path. */
+  const webScrollNode = (): HTMLElement | null => {
+    const rootEl = typeof document !== 'undefined' ? document.getElementById('root') : null;
+    if (!rootEl) return null;
+    const els = [...rootEl.querySelectorAll('*')].filter(
+      (e) => (e as HTMLElement).scrollHeight > (e as HTMLElement).clientHeight + 40 && /auto|scroll/.test(getComputedStyle(e).overflowY),
+    ) as HTMLElement[];
+    return els.sort((a, b) => b.scrollHeight - a.scrollHeight)[0] ?? null;
+  };
+
+  const smoothScrollBottom = () => {
+    [0, 60, 160, 300].forEach((t) => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), t));
+    if (Platform.OS !== 'web') return;
+    [0, 120, 320].forEach((t) => {
+      setTimeout(() => {
+        const node = webScrollNode();
+        if (node) webSmoothToBottom(node);
+      }, t);
+    });
+  };
+
+  /* pass 66 — are we close enough to the latest row to call it "at the bottom"?
+   * The state only flips at the 60px boundary, so the scroll stream is cheap. */
+  const onThreadScroll = (e: { nativeEvent: { contentOffset: { y: number }; layoutMeasurement: { height: number }; contentSize: { height: number } } }) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 60;
+    setAtBottom((p) => (p === near ? p : near));
+  };
+
+  /* pass 66 — the jump chip fades in/out. Opacity goes through style on web, so
+   * the native driver would drop the animation there; native still gets it. */
+  useEffect(() => {
+    Animated.timing(fabIn, {
+      toValue: !!thread && !atBottom ? 1 : 0,
+      duration: 170,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [thread?.friend, atBottom, fabIn]);
+
+  /* a thread always opens at its newest message, so switching peers must not
+   * inherit the other person's scroll position (and the chip must not show). */
+  useEffect(() => {
+    setAtBottom(true);
+  }, [openFriend]);
+
   const sendChat = () => {
     const text = draft.trim();
     if (!text || !thread) return;
@@ -341,20 +751,28 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     const id = uid();
     freshIds.current.add(id);
     LayoutAnimation.configureNext({ duration: 220, update: { type: LayoutAnimation.Types.easeInEaseOut } });
-    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const, at: '' }];
+    /* pass 63 — carry the quote into the optimistic bubble so it appears with the
+     * message instead of arriving a round trip later. */
+    const quote = replyTo;
+    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const, at: '', reply: quote ? { who: quote.who, text: quote.text } : null }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDrafts((m) => ({ ...m, [thread.friend]: '' }));
-    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+    setReplyTo(null);
+    smoothScrollBottom();
 
     /* pass 60 — the bubble is already on screen; now make it real. If there is no
      * conversation with this person yet (e.g. you tapped Message on their
      * profile), one is created by username and reused next time. */
     if (live) {
       const who = thread.friend;
+      /* only a row that already has a server id can be quoted server-side; a
+       * demo row stays a local-only quote rather than failing the whole send. */
+      const qt = quote ? targetOf(quote.id) : null;
+      const replyArg = qt ? { id: qt.id, kind: quote!.kind } : undefined;
       void (async () => {
         const cid = await resolveCid(who);
         if (!cid) { markFailed(who, id); return; }
-        const sent = await chatSend(cid, text).catch(() => null);
+        const sent = await chatSend(cid, text, replyArg).catch(() => null);
         if (!sent) { markFailed(who, id); return; }
         setThreads((prev) => prev.map((t) => (t.friend === who
           ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, at: sent.created_at || c.at } : c)) }
@@ -379,7 +797,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     freshIds.current.add(id);
     const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '' }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, items } : t)));
-    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+    smoothScrollBottom();
 
     /* pass 62 — shares are server-backed too, so the other person receives the
      * card (and can react to it) instead of it living only on my device. */
@@ -413,19 +831,29 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             const reaction = th.reactions[it.id];
             /* pass 62 — their reaction, so I can see it and still add my own */
             const peer = th.others?.[it.id];
+            const isFocus = focus?.id === it.id;
             return (
-              <SlideIn key={it.id} animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
+              <Animated.View key={it.id} style={{ opacity: isFocus ? 1 : dim }}>
+              <SlideIn animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 {!mine ? <AvatarImage source={acc(th.friend).photo ?? null} name={acc(th.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
+                {/* pass 66 — shares/posts slide to reply too. The swipe used to
+                 * live only on plain message bubbles, so an app item (ayah,
+                 * hadith, post, reel…) could not be replied to by sliding; the
+                 * width cap moves to the wrapper so the bubble keeps its shape. */}
+                <SwipeReply onReply={() => openReply(it.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
                 <Pressable
+                  ref={(r) => { rowRefs.current[it.id] = r as never; }}
                   onPress={() => onTapItem(it.id)}
+                  onLongPress={() => openFocus(it.id, 'share')}
+                  delayLongPress={260}
                   style={({ pressed }) => ({
-                    maxWidth: '76%',
                     borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: mine ? 'rgba(74,227,143,0.45)' : d.cardBorder,
+                    borderWidth: isFocus ? 1.5 : 1,
+                    borderColor: isFocus ? '#4AE38F' : mine ? 'rgba(74,227,143,0.45)' : d.cardBorder,
                     backgroundColor: mine ? 'rgba(31,143,92,0.12)' : d.card,
                     padding: 11,
                     opacity: pressed ? 0.85 : 1,
+                    ...(isFocus ? { shadowColor: 'rgba(74,227,143,0.5)', shadowOpacity: 0.9, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 16, transform: [{ scale: 1.03 }] } : null),
                   })}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -436,7 +864,9 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                   </View>
 
                   {/* pass 32: each sharable type previews the way it really looks */}
-                  {it.kind === 'reel' && it.thumb != null ? (
+                  {it.deleted ? (
+                    <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, fontStyle: 'italic', color: d.faint }}>Message deleted</T>
+                  ) : it.kind === 'reel' && it.thumb != null ? (
                     <View style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 7 }}>
                       <ImageBackground source={it.thumb} style={{ width: '100%', height: 128, justifyContent: 'center', alignItems: 'center' }} resizeMode="cover">
                         <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
@@ -497,42 +927,75 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         {peer ? <PopEmoji emoji={peer} size={13} /> : null}
-                        <Pressable onPress={() => { haptic.light(); setEmojiFor(it.id); }} hitSlop={8}>
+                        <Pressable onPress={() => openFocus(it.id, 'share')} hitSlop={8}>
                           <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>React</T>
                         </Pressable>
                       </View>
                     )}
                   </View>
                 </Pressable>
+                </SwipeReply>
                 {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
               </SlideIn>
+              </Animated.View>
             );
   };
 
   const renderMsg = (th: Thread, m: ChatMsg) => {
-
-            const mine = m.dir === 'me';
-            const reaction = th.reactions[m.id];
-            const peer = th.others?.[m.id];
-            return (
-              <View key={m.id} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
-                <Pressable
-                  onLongPress={() => {
-                    haptic.light();
-                    setEmojiFor(m.id);
-                  }}
-                  delayLongPress={260}
-                  onPress={() => onTapItem(m.id)}
-                  style={{ maxWidth: '76%', borderRadius: 16, borderBottomRightRadius: mine ? 5 : 16, borderBottomLeftRadius: mine ? 16 : 5, backgroundColor: mine ? '#1F8F5C' : d.card, borderWidth: 1, borderColor: mine ? 'transparent' : d.cardBorder, paddingHorizontal: 13, paddingVertical: 9 }}
-                >
-                  <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: mine ? '#FFFFFF' : d.text }}>{m.text}</T>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                    <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
-                    {reaction ? <PopEmoji emoji={reaction} size={11} /> : peer ? <PopEmoji emoji={peer} size={11} /> : null}
+    const mine = m.dir === 'me';
+    const reaction = th.reactions[m.id];
+    const peer = th.others?.[m.id];
+    const isFocus = focus?.id === m.id;
+    return (
+      /* pass 63 — unfocused rows dim while one is held; the held row stays lit */
+      <Animated.View key={m.id} style={{ opacity: isFocus ? 1 : dim }}>
+        <BubbleIn mine={mine} animate={freshIds.current.has(m.id)}>
+          <View style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
+            <SwipeReply onReply={() => openReply(m.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
+              <Pressable
+                ref={(r) => { rowRefs.current[m.id] = r as never; }}
+                onLongPress={() => openFocus(m.id, 'msg')}
+                delayLongPress={260}
+                onPress={() => onTapItem(m.id)}
+                style={{
+                  borderRadius: 16,
+                  borderBottomRightRadius: mine ? 5 : 16,
+                  borderBottomLeftRadius: mine ? 16 : 5,
+                  backgroundColor: mine ? '#1F8F5C' : d.card,
+                  borderWidth: isFocus ? 1.5 : 1,
+                  borderColor: isFocus ? '#4AE38F' : mine ? 'transparent' : d.cardBorder,
+                  paddingHorizontal: 13,
+                  paddingVertical: 9,
+                  /* pass 64 — the held bubble pops: bigger, glowing, green ring */
+                  ...(isFocus ? { shadowColor: 'rgba(74,227,143,0.5)', shadowOpacity: 0.9, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 16, transform: [{ scale: 1.05 }] } : null),
+                }}
+              >
+                {/* pass 63 — the quoted row when this message is a reply */}
+                {m.reply ? (
+                  <View style={{ borderLeftWidth: 2.5, borderLeftColor: mine ? 'rgba(255,255,255,0.8)' : '#4AE38F', backgroundColor: mine ? 'rgba(0,0,0,0.15)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.04)'), borderRadius: 4, paddingLeft: 7, paddingRight: 6, paddingVertical: 4, marginBottom: 6 }}>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 9, fontWeight: '800', color: mine ? '#FFFFFF' : (isDark ? '#4AE38F' : '#1D6F42') }}>{m.reply.who}</T>
+                    <T v="caption" numberOfLines={2} style={{ fontSize: 10, lineHeight: 14, color: mine ? 'rgba(255,255,255,0.85)' : d.subtext, marginTop: 1 }}>{m.reply.text || 'Message deleted'}</T>
                   </View>
-                </Pressable>
-              </View>
-            );
+                ) : null}
+                {m.deleted ? (
+                  <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, fontStyle: 'italic', color: mine ? 'rgba(255,255,255,0.8)' : d.faint }}>Message deleted</T>
+                ) : (
+                  /* pass 64 — NOT selectable: nothing on the page highlights (the
+                   * global user-select:none does the rest). Copy lives in the sheet. */
+                  <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: mine ? '#FFFFFF' : d.text }}>{m.text}</T>
+                )}
+                {/* pass 66-night — messages containing a URL unfold an og-preview card */}
+                {!m.deleted && findUrl(m.text) ? <LinkPreviewCard url={findUrl(m.text) as string} dark={mine ? true : isDark} compact /> : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                  <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
+                  {reaction ? <PopEmoji emoji={reaction} size={11} /> : peer ? <PopEmoji emoji={peer} size={11} /> : null}
+                </View>
+              </Pressable>
+            </SwipeReply>
+          </View>
+        </BubbleIn>
+      </Animated.View>
+    );
   };
 
   /* pass 62 — with real timestamps on both sides, shares and messages are
@@ -545,6 +1008,49 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         ...thread.chat.map((m) => ({ kind: 'msg' as const, m, at: m.at || '9999' })),
       ].sort((a, b) => a.at.localeCompare(b.at))
     : [];
+
+  /* pass 63 — facts about the focused row: only my own rows can be deleted, and
+   * a row that is already deleted has nothing left to delete. */
+  const focusRow: ChatMsg | ShareItem | null = !thread || !focus
+    ? null
+    : focus.kind === 'msg'
+      ? thread.chat.find((c) => c.id === focus.id) ?? null
+      : thread.items.find((x) => x.id === focus.id) ?? null;
+  const focusMine = focusRow?.dir === 'me';
+  const deletedRow = !!focusRow?.deleted;
+  const focusMsg = focus?.kind === 'msg' ? (focusRow as ChatMsg | null) : null;
+
+  /* pass 64 — where to float the frosted-glass menu so it hugs the held bubble
+   * instead of rising from the bottom. Prefer just under it; flip above when it
+   * would clip the screen edge. */
+  const MENU_W = 250;
+  const SCREEN_W = Dimensions.get('window').width;
+  const SCREEN_H = Dimensions.get('window').height;
+  const glassLine = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(20,36,28,0.08)';
+  const menuGlass = {
+    overflow: 'hidden',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)',
+    backgroundColor: isDark ? 'rgba(13,22,18,0.66)' : 'rgba(255,255,255,0.66)',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 20,
+    backdropFilter: 'blur(18px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+  };
+  const menuGeom = focusPos
+    ? (() => {
+        const rows = 3 + (focusMine && !deletedRow && focus?.kind === 'msg' ? 1 : 0) + (focusMine && !deletedRow ? 1 : 0);
+        const estH = focusMode === 'info' ? 130 : 58 + rows * 45;
+        const left = Math.max(10, Math.min(focusPos.x, SCREEN_W - MENU_W - 10));
+        let top = focusPos.y + focusPos.h + 10;
+        if (top + estH > SCREEN_H - 10) { top = Math.max(10, focusPos.y - estH - 10); }
+        return { left, top };
+      })()
+    : null;
 
   const body = (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7' }}>
@@ -619,16 +1125,43 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         </ScrollView>
       ) : (
         /* ── thread: shares + chat + composer ── */
-        <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={scroller}
+          contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={onThreadScroll}
+          scrollEventThrottle={48}
+        >
           {flow.map((row) => (row.kind === 'share' ? renderShare(thread, row.it) : renderMsg(thread, row.m)))}
 
           <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 9, fontStyle: 'italic' }}>Double-tap to react · shares are in-app content only</T>
         </ScrollView>
       )}
 
+      {/* pass 66 — jump to latest. Floating over the list, above the composer
+       * (whose real height we measure, so the chip never hides the field). */}
+      {thread && !atBottom ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={{ position: 'absolute', left: 0, right: 0, bottom: composerH + 12, alignItems: 'center', zIndex: 30, opacity: fabIn }}
+        >
+          <Pressable
+            onPress={() => { smoothScrollBottom(); setAtBottom(true); }}
+            accessibilityLabel="Jump to latest message"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(18,34,25,0.94)' : 'rgba(255,255,255,0.96)', paddingHorizontal: 13, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 6 }}
+          >
+            <FontAwesome5 name="chevron-down" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Latest</T>
+          </Pressable>
+        </Animated.View>
+      ) : null}
+
       {/* composer — chat back + quick in-app shares */}
       {thread ? (
-        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}>
+        <View
+          onLayout={(e) => setComposerH(e.nativeEvent.layout.height)}
+          style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: kbOpen ? 8 : Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {([
               ['ayah', 'book-open', 'Share ayah'],
@@ -648,16 +1181,30 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               </Pressable>
             ))}
           </ScrollView>
+          {/* pass 63 — the quote you are replying to, with a way to cancel it */}
+          {replyTo ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 11, paddingVertical: 7 }}>
+              <View style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: '#4AE38F' }} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Replying to {replyTo.who}</T>
+                <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.subtext, marginTop: 1 }}>{replyTo.text}</T>
+              </View>
+              <Pressable onPress={() => setReplyTo(null)} hitSlop={8}>
+                <FontAwesome5 name="times" size={12} color={d.faint} />
+              </Pressable>
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 13 }}>
               <TextInput
+                ref={inputRef}
                 value={draft}
                 onChangeText={setDraft}
                 placeholder="Type something…"
                 placeholderTextColor={d.faint}
                 returnKeyType="send"
                 onSubmitEditing={sendChat}
-                style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Poppins-Regular' }}
+                style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Manrope' }}
               />
             </View>
             <Pressable onPress={sendChat} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
@@ -731,20 +1278,108 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         </View>
       </Modal>
 
-      {/* emoji panel */}
-      {emojiFor ? (
-        <Pressable style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,8,6,0.55)', justifyContent: 'flex-end' }} onPress={() => setEmojiFor(null)}>
-          <Pressable style={{ paddingBottom: 24 + insets.bottom, paddingHorizontal: 14 }}>
-            <View style={{ borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? '#0C1712' : '#FFFFFF', paddingVertical: 14, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
-              {EMOJIS.map((e, i) => (
-                <Pressable key={e} onPress={() => react(emojiFor, e)} style={({ pressed }) => ({ transform: [{ scale: pressed ? 1.35 : 1 }] })}>
-                  <Animated.Text style={{ fontSize: 30, opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }), marginTop: i % 2 === 0 ? 0 : 10 }}>{e}</Animated.Text>
-                </Pressable>
-              ))}
+      {/* pass 63 — press and hold: everything else dims, the held row stays lit,
+          and a WhatsApp-style sheet offers a reaction strip plus
+          Reply / Forward / Copy / Delete. (Delete only shows on your own rows —
+          the server refuses to delete anyone else's.) */}
+      {focus ? (
+        <>
+          {/* pass 64 — transparent catcher: any tap outside dismisses, and it adds
+              NO colour, so the held bubble is never covered. The other rows dim
+              through `dim`, which makes the held one stand out. */}
+          <Pressable style={{ position: 'absolute', inset: 0, zIndex: 60 }} onPress={closeFocus} />
+          {menuGeom ? (
+            <View style={{ position: 'absolute', zIndex: 70, left: menuGeom.left, top: menuGeom.top, width: MENU_W }}>
+              <SheetIn>
+                {/* frosted-glass card hugging the bubble */}
+                <View style={menuGlass as never}>
+                  {focusMode === 'menu' ? (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: glassLine }}>
+                        {EMOJIS.map((e, i) => (
+                          <PickerEmoji key={e} emoji={e} delay={i * 40} onPress={() => react(focus.id, e)} />
+                        ))}
+                      </View>
+                      <MenuRow first icon="reply" label="Reply" color={d.text} line={glassLine} onPress={() => openReply(focus.id)} />
+                      <MenuRow icon="share" label="Forward" color={d.text} line={glassLine} onPress={() => startForward(focus.id, focus.kind)} />
+                      <MenuRow icon={copied ? 'check' : 'copy'} label={copied ? 'Copied ✓' : 'Copy'} color={copied ? '#4AE38F' : d.text} line={glassLine} onPress={() => copyRow(focus.id)} />
+                      {focusMine && !deletedRow && focus.kind === 'msg' ? (
+                        <MenuRow icon="info-circle" label="Info" color={d.text} line={glassLine} onPress={() => setFocusMode('info')} />
+                      ) : null}
+                      {focusMine && !deletedRow ? (
+                        <MenuRow icon="trash" label="Delete" color="#E05252" line={glassLine} onPress={() => deleteRow(focus.id, focus.kind)} />
+                      ) : null}
+                    </>
+                  ) : (
+                    /* pass 64 — Info: when my message was delivered and seen */
+                    <View style={{ paddingVertical: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+                        <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Message info</T>
+                        <Pressable onPress={() => setFocusMode('menu')} hitSlop={8}><FontAwesome5 name="chevron-left" size={12} color={d.faint} /></Pressable>
+                      </View>
+                      <View style={{ height: 1, backgroundColor: glassLine, marginHorizontal: 12 }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <FontAwesome5 name="check" size={12} color="#4AE38F" />
+                        <T v="bodyS" style={{ flex: 1, fontSize: 12.5, color: d.text }}>Delivered</T>
+                        <T v="caption" style={{ fontSize: 11, color: d.faint }}>{(focusMsg?.createdAt || '').slice(11, 16) || '—'}</T>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <FontAwesome5 name="check-double" size={12} color={focusMsg?.readAt ? '#4AE38F' : d.faint} />
+                        <T v="bodyS" style={{ flex: 1, fontSize: 12.5, color: d.text }}>{focusMsg?.readAt ? 'Seen' : 'Not seen yet'}</T>
+                        <T v="caption" style={{ fontSize: 11, color: d.faint }}>{focusMsg?.readAt ? String(focusMsg.readAt).slice(11, 16) : ''}</T>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </SheetIn>
             </View>
-          </Pressable>
-        </Pressable>
+          ) : null}
+        </>
       ) : null}
+
+      {/* pass 64 — forward is now a full screen: tick as many people as you like,
+          then send to all of them in one tap. */}
+      <Modal visible={!!forward} transparent animationType="slide" onRequestClose={() => setForward(null)}>
+        <View style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7', paddingTop: insets.top + 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 10 }}>
+            <Pressable onPress={() => setForward(null)} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="times" size={13} color={d.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T v="h2" numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: d.text }}>Forward message</T>
+              <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: d.faint }}>{forwardPicked.size} selected</T>
+            </View>
+          </View>
+          <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, paddingHorizontal: 16, paddingBottom: 6 }}>“{forward?.text}”</T>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 92 }}>
+            {MOCK_ACCOUNTS.map((a) => {
+              const on = forwardPicked.has(a.username);
+              return (
+                <Pressable
+                  key={a.username}
+                  onPress={() => { haptic.selection(); setForwardPicked((p) => { const n = new Set(p); if (n.has(a.username)) n.delete(a.username); else n.add(a.username); return n; }); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 13 }}
+                >
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: d.text }}>{a.full_name}</T>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: d.faint }}>@{a.username}</T>
+                  </View>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.6, borderColor: on ? '#1F8F5C' : d.cardBorder, backgroundColor: on ? '#1F8F5C' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                    {on ? <FontAwesome5 name="check" size={10} color="#fff" /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 14), backgroundColor: isDark ? 'rgba(7,16,12,0.92)' : 'rgba(246,250,247,0.92)', borderTopWidth: 1, borderTopColor: d.cardBorder }}>
+            <Pressable disabled={!forwardPicked.size} onPress={() => doForwardMany([...forwardPicked])} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: forwardPicked.size ? '#1F8F5C' : d.cardBorder, paddingVertical: 13, opacity: forwardPicked.size ? 1 : 0.5 }}>
+              <FontAwesome5 name="share" size={12} color="#fff" />
+              <T v="bodyS" style={{ fontSize: 13.5, fontWeight: '800', color: '#fff' }}>Forward{forwardPicked.size ? ` to ${forwardPicked.size}` : ''}</T>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 

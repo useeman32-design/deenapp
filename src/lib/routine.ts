@@ -217,6 +217,13 @@ export async function setGoal(key: string, val: boolean): Promise<void> {
 export async function markGoal(key: string): Promise<void> {
   /* pass 52 — only real, known activities can ever be recorded */
   if (!GOAL_META[key]) return;
+  /* pass 66-night — visiting a module only completes it as a GOAL when it is
+   * actually among today's rotated four. Before this, any wired module (say
+   * the qibla compass on a day qibla isn't a goal) still landed in the pending
+   * list, so home celebrated "you completed a goal" for an activity that was
+   * never on the day's list. */
+  const today = await daySetStable();
+  if (!today.includes(key)) return;
   const k = `dl.goal.${dayKey()}`;
   const raw = await storage.getItem(k);
   let rec: Record<string, boolean> = {};

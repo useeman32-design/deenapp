@@ -1,5 +1,5 @@
 <!-- =====================================================================
-     LATEST HANDOFF — 2026-09-05 · PASS 62.  *** START HERE ***
+     LATEST HANDOFF — 2026-09-06 · PASS 66.  *** START HERE ***
      Detailed state + pending work: CONTINUE.md (same folder)
      ===================================================================== -->
 
@@ -12,8 +12,7 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `e77036d` (bundle `entry-f0e291bcb7d4404dbacd9042e0804a9f.js`, verified 200) ·
-deenlink-api main `423cb4e` (web build) + `afba407` (chat backend) · deenapp master `e77f0f4` (+ this doc commit)
+gh-pages `c98f38e` (pass 66) · deenlink-api main `2a1e096` (pass-66 web build, 439 api/admin/vendor files untouched) · deenapp master `pass-66 commit`
 ⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 

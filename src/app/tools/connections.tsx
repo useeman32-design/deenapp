@@ -4,6 +4,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED } from '@/api/mocks';
+import * as api from '@/api/client';
+import type { ConnectionRow } from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useTheme } from '@/context/ThemeContext';
 import { catIcon, loadGroups } from '@/components/Groups';
@@ -65,13 +67,38 @@ export default function Connections() {
   type Tab2 = Tab | 'groups';
   const [tab, setTab] = useState<Tab2>((['following', 'followers', 'suggested'] as const).includes(tabParam as Tab) ? (tabParam as Tab) : 'following');
   const [followed, setFollowed] = useState<string[]>(MOCK_FOLLOWED);
+  /* pass 66-night — live connections: the real follow graph replaces the demo
+   * roster; the follow button toggles user_follows on the server. */
+  const [liveItems, setLiveItems] = useState<ConnectionRow[] | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  useEffect(() => {
+    if (!api.isLive() || tab === 'groups') { setLiveItems(null); return; }
+    setLiveLoading(true);
+    api
+      .getConnections(tab === 'suggested' ? 'suggestions' : tab)
+      .then((res) => {
+        if (!res) return;
+        setLiveItems(res.items);
+        setFollowed((f) => {
+          const n = new Set(f);
+          for (const it of res.items) if (it.following_by_me) n.add(it.username);
+          return [...n];
+        });
+      })
+      .finally(() => setLiveLoading(false));
+  }, [tab]);
 
   const list = useMemo(() => {
     if (tab === 'groups') return [];
+    if (liveItems) {
+      return liveItems
+        .filter((a) => !a.is_me)
+        .map((a) => ({ username: a.username, full_name: a.name || a.username, photo: (a.profile_image_url ?? null) as string | number | null, fields: '' }));
+    }
     if (tab === 'following') return MOCK_ACCOUNTS.filter((a) => followed.includes(a.username));
     if (tab === 'followers') return MOCK_ACCOUNTS.filter((a, i) => i % 2 === 1 || followed.includes(a.username));
     return MOCK_ACCOUNTS.filter((a) => !followed.includes(a.username));
-  }, [tab, followed]);
+  }, [tab, followed, liveItems]);
 
   const TABS: Array<{ id: Tab2; label: string; icon: string }> = [
     { id: 'following', label: 'Following', icon: 'user-check' },
@@ -118,10 +145,17 @@ export default function Connections() {
           </View>
         ) : null}
         {tab !== 'groups' && list.length === 0 ? (
-          <View style={{ alignItems: 'center', gap: 8, marginTop: 50 }}>
-            <FontAwesome5 name={tab === 'following' ? 'user-check' : 'users'} size={22} color={d.faint} />
-            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5 }}>{tab === 'following' ? 'You are not following anyone yet.' : 'Nothing here yet.'}</T>
-          </View>
+          liveLoading ? (
+            <View style={{ alignItems: 'center', gap: 8, marginTop: 50 }}>
+              <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>Loading connections…</T>
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center', gap: 8, marginTop: 50 }}>
+              <FontAwesome5 name={tab === 'following' ? 'user-check' : 'users'} size={22} color={d.faint} />
+              <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5 }}>{tab === 'following' ? 'You are not following anyone yet.' : 'Nothing here yet.'}</T>
+            </View>
+          )
         ) : null}
         {list.map((a) => {
           const isF = followed.includes(a.username);
@@ -138,6 +172,9 @@ export default function Connections() {
                 onPress={() => {
                   haptic.light();
                   setFollowed((f) => (isF ? f.filter((x) => x !== a.username) : [...f, a.username]));
+                  /* live: toggle the real follow edge */
+                  const row = liveItems?.find((x) => x.username === a.username);
+                  if (row) void api.toggleFollow(row.id, !isF);
                 }}
                 style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: isF ? d.cardBorder : 'transparent', backgroundColor: isF ? 'transparent' : '#1F8F5C' }}
               >

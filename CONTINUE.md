@@ -1,5 +1,41 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
+# ── NIGHT PASS (2026-09-06) — OTP gate + live posts/comments/polls/groups + AI cloud key ──
+Backend (deenlink-api main 4446b02, PUSHED — needs cPanel git pull):
+- OTP GATE: register never logs in (needs_verification:true, zero cookies);
+  login 403s unverified; me.php kills stale sessions; verify_otp mints session
+  (account_status via user_moderation_status — users.account_status is NOT a
+  column; fixed after harness caught the fatal).
+- deenai/status.php: connected probe (ai_provider_keys) — app hides the API-key
+  field when cloud AI is connected.
+- POLLS: create_post poll_options (2-6); get_posts attaches poll payload;
+  poll_vote.php / poll_get.php (one vote per poll, vote moves). Tables
+  post_poll_options/post_poll_votes self-create (DDL runs PRE-transaction —
+  implicit-commit bug found by harness).
+- GROUPS: api/groups/ (community_groups + group_members self-creating schema,
+  posts.group_id column): list/get/join/create/posts/create_post. Harness 20/20.
+- feed/link_preview.php: server og-scrape (SSRF-guarded, 64KB range, 6s timeout).
+- notifications.php get_bool_setting now function_exists-guarded.
+
+Client (this commit):
+- register/login/OtpVerify: cancel NEVER logs in; verified OTP adopts session;
+  login path handles needsVerification with the same modal.
+- CommentsModal: live threads (get_comments/add_comment/add_reply/comment+reply
+  likes) — server reply ids namespaced +1e9; feed + community like toggles call
+  toggle_like and rebase counts; composer publishes via create_post (text,
+  YouTube, poll options, image) and swaps in the real post id.
+- FeedCard polls: server-voted state + votePoll sync.
+- Groups: loadGroups merges server rows (srv<id> keys); create/join/leave/post
+  hit the API on live; group screen pulls real posts.
+- Connections + public profile: real follow graph (get_connections,
+  toggle_follow, get_user_profile); live values win over mock.
+- LinkPreview card: chat bubbles with URLs unfold og-preview cards.
+- routine.ts markGoal: only counts modules actually in today's rotation.
+- ai.tsx: cloud-connected banner replaces the key field when status says connected.
+Gates: tsc --noEmit exit 0; backend harness 20/20 (php -S 8201 + mariadb 3311,
+register→OTP→post→poll→comment→reply→likes→groups→connections→preview→ai).
+
+
 # ── pass 44 (2026-09-02) — 13-item user pass + safe-area + real tsc gate ──
 All pushed to master (b19735e safe-area/tsc; then 44b/44c/44d; final batch
 after). Gates: tsc --noEmit exit 0 (REAL this time), export-web.sh exit 0.
@@ -816,3 +852,41 @@ that fills `$_SESSION` from an `X-Test-User` header, served by `php -S 127.0.0.1
 Seed `users(id, username, full_name, profile_image, deleted_at)`.
 Never test POST endpoints with `php runner.php` — `php://input` is empty in the CLI SAPI.
 Never `pkill -f "php -S"` — it kills the shell (exit -1); use a fresh port.
+
+## ── pass 66 (2026-09-06) — pro full-bleed canvas, shares slide-to-reply, scroll UX ──
+
+Shipped: gh-pages `c98f38e` · deenlink-api main `2a1e096` · master (this commit).
+
+**What landed**
+1. `_layout.tsx`: global `user-select:none` + Manrope/Sora `@font-face` RESTORED (pass-65 session had
+   clobbered them), then the dark-body hack replaced with the pro approach: `html,body,#root` paint
+   `var(--app-bg)` everywhere (overscroll margins, desktop letterbox), `overscroll-behavior:none`,
+   and a theme effect writes `--app-bg` + `<meta name="theme-color">` = `theme.background` on every
+   theme change. Verified light `#F5F5F5` / dark `#0B0F14` — seamless in both, no white, no mismatch.
+2. `NetPill` (lib/net.tsx) now insets by `useSafeAreaInsets().top` so it never sits in the native
+   status-bar zone.
+3. `CommunityInbox`: share/app-item cards wrapped in `SwipeReply` (slide-to-reply everywhere);
+   send-from-top smooth-scrolls via a rAF ease-out animator (`webSmoothToBottom`) because headless
+   shells ignore `behavior:'smooth'` AND RN-web's `scrollToEnd` measures at call time;
+   `atBottom` tracking + "Latest" jump chip above the composer (measured composer height).
+4. `src/api/client.ts` finally carries the pass-63 contract that was missing from master
+   (master DID NOT compile!): `ChatMessage.deleted/reply_to`, `ChatShare.deleted`, 3-arg
+   `chatSend`, `chatDelete`. Backend already served all of it.
+5. Build blockers fixed permanently: `assets/img/articles/*.jpg` (6, procedural, script
+   `scripts/make-article-art.py`) and `assets/avatars/{male,female}/*.jpg` (62, randomuser.me
+   portraits) were `require()`d by source but NEVER committed — clean clones could not export.
+   Both dirs are now committed.
+
+**Quirks discovered (do not re-investigate)**
+- RN-web `ScrollView` ref comes back NULL on web in this build (forwarded ref never lands);
+  web scroll code must resolve the node from the DOM — see `webScrollNode()`.
+- headless chrome-headless-shell ignores `scrollTo({behavior:'smooth'})`; drive scrollTop via rAF.
+- `/tmp` AND `node_modules` AND `dist` AND `.cache/ms-playwright` are wiped between turns;
+  `dist-root/` is NOT snapshot-excluded → it inflates workspace storage. DELETE it right after the
+  deenlink-api deploy. (That plus the 68 new committed images ≈ the storage jump the user saw.)
+
+**probe66 gate (headless, all true):** canvas var/body/root bg == theme · overscroll none ·
+theme-color meta · bubble user-select none · input auto + font Manrope · share card mouse-drag →
+"Replying to aisha_yusuf" + cancel · chip shows scrolled up, click → gap 0 · send from top →
+bubble visible · own hold-menu Reply/Forward/Copy/Info/Delete · Info Delivered + Seen/Not-seen ·
+forward screen "Forward to 1" · their menu has no Info/Delete · zero JS errors.

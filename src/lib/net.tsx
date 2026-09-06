@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Animated, Platform, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Global connectivity UX (pass 28).
@@ -61,6 +62,11 @@ export function NetPill() {
   const [s, setS] = useState<NetState>(state);
   const [shown, setShown] = useState(false);
   const [anim] = useState(() => new Animated.Value(0));
+  /* pass 66 — the pill is pinned to the very top of the window, and on a native
+   * build that top IS the status-bar zone: the pill used to sit under the
+   * carrier/clock row. Inset it so it lands just below the system bar, and keep
+   * the same small gap on web (insets.top is 0 there). */
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     subs.add(setS);
@@ -99,7 +105,7 @@ export function NetPill() {
     >
       <View
         style={{
-          marginTop: 6,
+          marginTop: insets.top + 6,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 7,

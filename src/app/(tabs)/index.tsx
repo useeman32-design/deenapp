@@ -198,13 +198,27 @@ export default function Home() {
   const [dhShareView, setDhShareView] = useState(false);
   const [shareCard, setShareCard] = useState<{ status: 'loading' | 'ready' | 'error'; url?: string }>({ status: 'loading' });
   const [shareDesign, setShareDesign] = useState('classic');
-  const togglePostLike = (id: number) =>
+  const togglePostLike = (id: number) => {
+    const willLike = !likedPosts.has(id);
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
+    /* pass 66-night — server-backed likes on live; the optimistic Set keeps
+     * the heart instant. like_count is stored WITHOUT our own like (the card
+     * adds +1 while liked), so subtract ours when the server count includes it. */
+    if (api.isLive()) {
+      void api.toggleLike(id, willLike).then((res) => {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, like_count: Math.max(0, res.like_count - (res.liked_by_me ? 1 : 0)) } : p,
+          ),
+        );
+      });
+    }
+  };
   const toggleVideoLike = (id: number) =>
     setVideoLiked((prev) => {
       const n = new Set(prev);
@@ -1451,6 +1465,7 @@ export default function Home() {
         visible={!!commentPost}
         post={commentPost}
         seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
 

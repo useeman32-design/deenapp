@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
+import { OtpVerify } from '@/components/OtpVerify';
 
 /**
  * Login — pass-12 redesign (user's mock): full-bleed brand background,
@@ -16,13 +17,15 @@ import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton,
  */
 export default function Login() {
   const { theme, isDark } = useTheme();
-  const { login } = useAuth();
+  const { login, adoptSession } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  /* pass 66-night — unverified account tries to sign in: resume the OTP flow */
+  const [otpEmail, setOtpEmail] = useState<string | null>(null);
 
   /* security-question account recovery */
   const d = theme.dash;
@@ -77,6 +80,10 @@ export default function Login() {
     setBusy(false);
     if (res.ok) {
       router.replace('/(tabs)');
+    } else if (res.needsVerification) {
+      /* account exists but never finished the email check — no session was
+       * issued; finish the 6-digit step right here */
+      setOtpEmail(res.email || id);
     } else {
       setErr(res.message || 'Invalid email or password.');
       haptic.medium();
@@ -191,6 +198,20 @@ export default function Login() {
           </View>
         </View>
       </Modal>
+
+      {otpEmail ? (
+        <Modal visible transparent animationType="fade">
+          <OtpVerify
+            email={otpEmail}
+            onVerified={(u) => {
+              setOtpEmail(null);
+              if (u) void adoptSession(u).then(() => router.replace('/(tabs)'));
+              else void login(otpEmail, password, remember).then((r) => { if (r.ok) router.replace('/(tabs)'); });
+            }}
+            onCancel={() => setOtpEmail(null)}
+          />
+        </Modal>
+      ) : null}
     </AuthShell>
   );
 }
