@@ -1160,6 +1160,6 @@ http://app.deenlink.org (same-origin client+API via /tmp/dlrouter.php on port 80
 login · search rows · SPA+hard-nav profiles · history/clear · request note · shelf ·
 accept → thread + server follow.
 
-Heads: deenlink-api main <API_HEAD> · deenapp master <APP_HEAD> · gh-pages <GHP_HEAD>.
+Heads: deenlink-api main d49cede · deenapp master ac039c9 · gh-pages 2387fea.
 NEXT: Tier 2 (Ask Scholars both sides, wallpapers, account tools) → Tier 3 → admin
 dashboard audit → iOS/Android store builds.
