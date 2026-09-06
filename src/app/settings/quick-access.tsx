@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { goBack } from '@/lib/navigation';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -11,55 +11,105 @@ import { storage } from '@/lib/storage';
 import {
   DEFAULT_QUICK,
   QUICK_CATALOG,
-  QUICK_MAX,
   QUICK_STORAGE_KEY,
-  quickItems,
+  parseQuickPrefs,
+  resolveQuick,
   type QuickItem,
+  type QuickPrefs,
 } from '@/lib/quick-access';
 
 /**
- * Manage the home-screen Quick Access shortcuts:
- * pick which of the 14 features appear (max 5) and in which order.
- * Saved to localStorage / AsyncStorage instantly; the home tab re-reads it on focus.
+ * pass 79 — the home rail lists EVERY shortcut; this screen only REMOVES
+ * (hides) or REARRANGES them. Order + hidden set persist as v5 prefs; the
+ * home tab re-reads on focus.
  */
 export default function QuickAccessEditor() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [keys, setKeys] = useState<string[]>(DEFAULT_QUICK);
+  const [prefs, setPrefs] = useState<QuickPrefs>({ order: [...DEFAULT_QUICK], hidden: [] });
 
   useEffect(() => {
     storage.getItem(QUICK_STORAGE_KEY).then((raw) => {
-      if (!raw) return;
-      try {
-        const arr = JSON.parse(raw) as string[];
-        const items = quickItems(arr);
-        if (items.length) setKeys(items.map((i) => i.key));
-      } catch {
-        /* corrupt data → keep defaults */
-      }
+      const p = parseQuickPrefs(raw);
+      if (p) setPrefs(p);
     });
   }, []);
 
-  const save = (next: string[]) => {
-    setKeys(next);
+  /* the full catalog in display order: saved order first, then the rest */
+  const fullOrder = useMemo(() => {
+    const byKey = new Map(QUICK_CATALOG.map((c) => [c.key, c] as const));
+    const out: QuickItem[] = [];
+    const seen = new Set<string>();
+    for (const k of [...prefs.order, ...DEFAULT_QUICK]) {
+      const it = byKey.get(k);
+      if (it && !seen.has(k)) { out.push(it); seen.add(k); }
+    }
+    for (const it of QUICK_CATALOG) {
+      if (!seen.has(it.key)) { out.push(it); seen.add(it.key); }
+    }
+    return out;
+  }, [prefs.order]);
+
+  const hiddenSet = useMemo(() => new Set(prefs.hidden), [prefs.hidden]);
+  const visible = fullOrder.filter((it) => !hiddenSet.has(it.key));
+  const hiddenItems = fullOrder.filter((it) => hiddenSet.has(it.key));
+
+  const save = (next: QuickPrefs) => {
+    setPrefs(next);
     storage.setItem(QUICK_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
   };
 
-  const items = quickItems(keys);
-  const available = QUICK_CATALOG.filter((c) => !keys.includes(c.key));
-  const atMax = keys.length >= QUICK_MAX;
-
-  const move = (i: number, dir: -1 | 1) => {
+  const move = (key: string, dir: -1 | 1) => {
+    const keys = fullOrder.map((i) => i.key);
+    const i = keys.indexOf(key);
     const j = i + dir;
-    if (j < 0 || j >= keys.length) return;
-    const next = [...keys];
-    [next[i], next[j]] = [next[j], next[i]];
-    save(next);
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    save({ ...prefs, order: keys });
   };
-  const remove = (i: number) => save(keys.filter((_, k) => k !== i));
-  const add = (key: string) => !atMax && save([...keys, key]);
+  const toggleHidden = (key: string) => {
+    const hidden = hiddenSet.has(key) ? prefs.hidden.filter((k) => k !== key) : [...prefs.hidden, key];
+    save({ ...prefs, hidden });
+  };
+
+  const Row = ({ it, i, count }: { it: QuickItem; i: number; count: number }) => (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: d.card,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: d.cardBorder,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        gap: 10,
+        opacity: hiddenSet.has(it.key) ? 0.55 : 1,
+      }}
+    >
+      <Chip item={it} />
+      <View style={{ flex: 1 }}>
+        <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 13 }}>
+          {it.label}
+        </T>
+      </View>
+      {hiddenSet.has(it.key) ? null : (
+        <>
+          <RoundBtn disabled={i === 0} onPress={() => move(it.key, -1)}>
+            <FontAwesome5 name="chevron-up" size={11} color={i === 0 ? d.faint : d.text} />
+          </RoundBtn>
+          <RoundBtn disabled={i === count - 1} onPress={() => move(it.key, 1)}>
+            <FontAwesome5 name="chevron-down" size={11} color={i === count - 1 ? d.faint : d.text} />
+          </RoundBtn>
+        </>
+      )}
+      <RoundBtn onPress={() => toggleHidden(it.key)} danger={hiddenSet.has(it.key)}>
+        <FontAwesome5 name={hiddenSet.has(it.key) ? 'eye-slash' : 'eye'} size={11} color={hiddenSet.has(it.key) ? d.faint : (isDark ? '#FF7B7B' : '#C0392B')} />
+      </RoundBtn>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg, paddingTop: insets.top }}>
@@ -88,123 +138,36 @@ export default function QuickAccessEditor() {
             Quick Access
           </T>
           <T v="caption" style={{ color: d.subtext, fontSize: 11 }}>
-            Choose up to {QUICK_MAX} shortcuts and their order
+            All shortcuts live on your home rail — hide or rearrange them here
           </T>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* selected */}
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 6, marginBottom: 10 }}>
           <T v="caption" style={{ color: d.subtext, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.2 }}>
-            YOUR SHORTCUTS
+            SHOWN ON HOME ({visible.length})
           </T>
           <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>
-            {keys.length}/{QUICK_MAX}
-          </T>
-        </View>
-
-        {items.length === 0 ? (
-          <View style={{ backgroundColor: d.card, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, padding: 22, alignItems: 'center' }}>
-            <T v="bodyS" style={{ color: d.subtext, textAlign: 'center' }}>
-              No shortcuts yet — add some below.
-            </T>
-          </View>
-        ) : (
-          <View style={{ gap: 10 }}>
-            {items.map((it, i) => (
-              <View
-                key={it.key}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: d.card,
-                  borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  gap: 10,
-                }}
-              >
-                <FontAwesome5 name="grip-vertical" size={13} color={d.faint} style={{ marginHorizontal: 2 }} />
-                <Chip item={it} />
-                <View style={{ flex: 1 }}>
-                  <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 13 }}>
-                    {it.label}
-                  </T>
-                </View>
-                <RoundBtn disabled={i === 0} onPress={() => move(i, -1)}>
-                  <FontAwesome5 name="chevron-up" size={11} color={i === 0 ? d.faint : d.text} />
-                </RoundBtn>
-                <RoundBtn disabled={i === keys.length - 1} onPress={() => move(i, 1)}>
-                  <FontAwesome5 name="chevron-down" size={11} color={i === keys.length - 1 ? d.faint : d.text} />
-                </RoundBtn>
-                <RoundBtn onPress={() => remove(i)} danger>
-                  <FontAwesome5 name="times" size={11} color={isDark ? '#FF7B7B' : '#C0392B'} />
-                </RoundBtn>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* available */}
-        <View style={{ marginTop: 26, marginBottom: 10 }}>
-          <T v="caption" style={{ color: d.subtext, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.2 }}>
-            ADD ANOTHER
+            eye = hide · arrows = order
           </T>
         </View>
         <View style={{ gap: 10 }}>
-          {available.map((it) => (
-            <Pressable
-              key={it.key}
-              onPress={() => add(it.key)}
-              disabled={atMax}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: d.card,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: d.cardBorder,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                gap: 10,
-                opacity: atMax ? 0.45 : pressed ? 0.85 : 1,
-              })}
-            >
-              <Chip item={it} />
-              <View style={{ flex: 1 }}>
-                <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 13 }}>
-                  {it.label}
-                </T>
-              </View>
-              {/* The plus is a real button now — tapping it adds immediately. */}
-              <Pressable
-                onPress={() => add(it.key)}
-                disabled={atMax}
-                hitSlop={8}
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 15,
-                  backgroundColor: d.bgSoft,
-                  borderWidth: 1,
-                  borderColor: atMax ? d.cardBorder : d.emerald,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <FontAwesome5 name="plus" size={12} color={atMax ? d.faint : d.emerald} />
-              </Pressable>
-            </Pressable>
-          ))}
-          {available.length === 0 ? (
-            <T v="caption" style={{ color: d.faint, fontSize: 11 }}>
-              All features are already shortcuts.
-            </T>
-          ) : null}
+          {visible.map((it, i) => <Row key={it.key} it={it} i={i} count={visible.length} />)}
         </View>
+
+        {hiddenItems.length > 0 ? (
+          <>
+            <View style={{ marginTop: 26, marginBottom: 10 }}>
+              <T v="caption" style={{ color: d.subtext, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.2 }}>
+                HIDDEN ({hiddenItems.length}) — tap the eye to bring back
+              </T>
+            </View>
+            <View style={{ gap: 10 }}>
+              {hiddenItems.map((it, i) => <Row key={it.key} it={it} i={i} count={hiddenItems.length} />)}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );

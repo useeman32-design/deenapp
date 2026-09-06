@@ -1281,4 +1281,27 @@ storage key v4 (one-time reset so installs pick it up).
 PENDING NEXT TURN: generate 5 missing renders (rehal + 4 affiliate shots) and
 swap the provisional stand-ins in SHOP_IMAGES.
 
+## PASS 79 — shop payments (Flutterwave) · all-shortcuts quick access · pay-in-app
+**Payments answer for the user:** web already used the inline Flutterwave modal
+(in-page); NATIVE used the system browser — now opens the IN-APP browser
+(expo-web-browser openAuthSessionAsync: Custom Tabs / SFSafariViewController)
+with Linking fallback, and verifies immediately on return.
+- API: payments purpose ENUM + 'shop' (3 sites); init_shop.php (order-based,
+  country FX like premium, auth-before-csrf, records shop_orders.pay_tx_ref);
+  verify.php 'shop' branch marks the order paid. shop_ensure adds pay_tx_ref.
+- Client: shopPayInit + payShopOrder; order-placed sheet shows
+  "Pay $X with Flutterwave" (live only) → verified → paid copy; graceful msg
+  when unconfigured/cancelled. Orders list already renders paid/pending chip.
+**Quick access (user request):** home rail now lists ALL 20 shortcuts
+(scrollable). Storage v5 {order,hidden}; parseQuickPrefs accepts legacy arrays.
+Editor = remove(hide)/rearrange only — no more max-6 picker. QUICK_MAX→20.
+**Shop art:** remaining 5 renders generated (rehal + 4 affiliate); SHOP_IMAGES
+now maps every product to its dedicated image.
+**Live diagnosis this pass:** live served entry-f2b33f98 = PASS 73 build —
+that's why replying-to + profile-message "bugs" persisted; both fixed in 74/77
+and verified via probes on the current build (probe-msg: chat opens; the
+pass-74 auto-start effect is intact). User must re-pull (fetch + reset --hard).
+Gates: harness79 10/10 · repro79 9/9 (all-shortcuts rail, hide/restore, pay
+button graceful, profile-message guard) · repro78 16/16 · harness 73-78 green · tsc 0.
+
 NEXT: admin dashboard audit → iOS/Android store builds.

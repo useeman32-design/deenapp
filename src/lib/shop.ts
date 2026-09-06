@@ -4,8 +4,7 @@
  * presentation helpers. */
 import type { ShopProduct } from '@/api/client';
 
-/* Bundled product art. The five affiliate/rehal shots are provisional
- * stand-ins until the dedicated renders land (image limit per turn). */
+/* Bundled product art — every product has its dedicated render. */
 export const SHOP_IMAGES: Record<string, number> = {
   banner_hero: require('@/assets/shop/banner_hero.jpg'),
   banner_promo: require('@/assets/shop/banner_promo.jpg'),
@@ -17,12 +16,11 @@ export const SHOP_IMAGES: Record<string, number> = {
   abaya: require('@/assets/shop/abaya.jpg'),
   kufi_cap: require('@/assets/shop/kufi_cap.jpg'),
   attar_set: require('@/assets/shop/attar_set.jpg'),
-  /* provisional stand-ins (swap for the dedicated renders next pass) */
-  rehal: require('@/assets/shop/attar_set.jpg'),
-  aff_quran_pen: require('@/assets/shop/tasbih_counter.jpg'),
-  aff_led_misbaha: require('@/assets/shop/tasbih_counter.jpg'),
-  aff_travel_set: require('@/assets/shop/prayer_mat.jpg'),
-  aff_thobe: require('@/assets/shop/jalabiya.jpg'),
+  rehal: require('@/assets/shop/rehal.jpg'),
+  aff_quran_pen: require('@/assets/shop/aff_quran_pen.jpg'),
+  aff_led_misbaha: require('@/assets/shop/aff_led_misbaha.jpg'),
+  aff_travel_set: require('@/assets/shop/aff_travel_set.jpg'),
+  aff_thobe: require('@/assets/shop/aff_thobe.jpg'),
 };
 
 export function shopImage(key: string | null | undefined): number | null {

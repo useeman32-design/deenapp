@@ -35,9 +35,46 @@ export const QUICK_CATALOG: QuickItem[] = [
 ];
 
 export const DEFAULT_QUICK: string[] = ['shop', 'videos', 'quran', 'hadith', 'dua', 'prayer', 'learning'];
-export const QUICK_MAX = 7;
-// v4: bumped so existing installs pick up the Shop shortcut (pass 78)
-export const QUICK_STORAGE_KEY = 'dl.quickaccess.v4';
+/* pass 79 — the home rail now lists EVERY shortcut; the editor only removes
+ * or rearranges them, so QUICK_MAX only bounds legacy saved selections. */
+export const QUICK_MAX = 20;
+export const QUICK_STORAGE_KEY = 'dl.quickaccess.v5';
+
+/** v5 storage: explicit order + hidden set. Legacy v3/v4 arrays = order only. */
+export type QuickPrefs = { order: string[]; hidden: string[] };
+
+export function parseQuickPrefs(raw: string | null): QuickPrefs | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (Array.isArray(v)) return { order: v.filter((k): k is string => typeof k === 'string'), hidden: [] };
+    if (v && typeof v === 'object') {
+      const o = v as { order?: unknown; hidden?: unknown };
+      return {
+        order: Array.isArray(o.order) ? o.order.filter((k): k is string => typeof k === 'string') : [],
+        hidden: Array.isArray(o.hidden) ? o.hidden.filter((k): k is string => typeof k === 'string') : [],
+      };
+    }
+  } catch { /* corrupt → defaults */ }
+  return null;
+}
+
+/** Every visible shortcut: saved order first, then the rest of the catalog. */
+export function resolveQuick(prefs: QuickPrefs | null, orderPrefix: string[] = []): QuickItem[] {
+  const hidden = new Set(prefs?.hidden ?? []);
+  const order = [...(prefs?.order ?? []), ...orderPrefix];
+  const byKey = new Map(QUICK_CATALOG.map((c) => [c.key, c] as const));
+  const out: QuickItem[] = [];
+  const seen = new Set<string>();
+  for (const k of order) {
+    const it = byKey.get(k);
+    if (it && !hidden.has(k) && !seen.has(k)) { out.push(it); seen.add(k); }
+  }
+  for (const it of QUICK_CATALOG) {
+    if (!hidden.has(it.key) && !seen.has(it.key)) { out.push(it); seen.add(it.key); }
+  }
+  return out;
+}
 
 /** Resolve stored keys to catalog items (drops unknown keys, keeps order). */
 export function quickItems(keys: string[]): QuickItem[] {

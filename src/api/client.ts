@@ -670,6 +670,14 @@ export async function shopCheckout(info: { name: string; email: string; phone: s
   const r = await request<{ status?: string; order_id?: number; total?: number }>('/api/shop/checkout.php', { method: 'POST', body: info, auth: true });
   return r.ok && r.data.order_id ? { order_id: Number(r.data.order_id), total: Number(r.data.total ?? 0) } : null;
 }
+/** pass 79 — start the Flutterwave payment for a shop order (web inline / native hosted). */
+export async function shopPayInit(orderId: number, opts?: { redirect?: boolean; redirectUrl?: string }): Promise<PayInit | null> {
+  const body: Record<string, unknown> = { order_id: orderId };
+  if (opts?.redirect) { body.redirect = true; if (opts.redirectUrl) { body.redirect_url = opts.redirectUrl; } }
+  const r = await request<{ status?: string } & PayInit>('/api/payments/flutterwave/init_shop.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success') { return r.data; }
+  return null;
+}
 export async function shopOrders(): Promise<ShopOrder[] | null> {
   const r = await request<{ status?: string; orders?: ShopOrder[] }>('/api/shop/orders.php', { auth: true });
   return r.ok && Array.isArray(r.data.orders) ? r.data.orders : null;

@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptics';
 import { useAuth } from '@/context/AuthContext';
 import { isLive, shopCart, shopCartAction, shopCheckout, shopOrders, shopProducts, type ShopCart, type ShopOrder, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_CATEGORIES, SHOP_IMAGES, SHOP_NETWORKS, shopImage } from '@/lib/shop';
+import { payShopOrder } from '@/lib/flutterwave';
 
 /* ── DeenLink Shop (pass 78) — explore · cart · orders, worldwide.
  * Own drop-ship products buy in-app (server cart → checkout → order);
@@ -39,6 +40,9 @@ export default function ShopScreen() {
   const [checkout, setCheckout] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState<number | null>(null);
+  const [placedTotal, setPlacedTotal] = useState(0);
+  const [payState, setPayState] = useState<'idle' | 'busy' | 'paid' | 'failed'>('idle');
+  const [payMsg, setPayMsg] = useState('');
   const [form, setForm] = useState({ name: '', email: '', phone: '', country: '', city: '', address: '', note: '' });
 
   /* promo banner carousel */
@@ -107,6 +111,7 @@ export default function ShopScreen() {
       setDemoLines([]);
       setPlacing(false);
       setPlaced(id);
+      setPlacedTotal(cart?.total ?? 0);
       haptic.success();
       return;
     }
@@ -115,6 +120,7 @@ export default function ShopScreen() {
     if (res) {
       haptic.success();
       setPlaced(res.order_id);
+      setPlacedTotal(res.total);
       loadCart();
     } else {
       haptic.medium();
@@ -347,8 +353,8 @@ export default function ShopScreen() {
       </View>
 
       {/* ── checkout sheet ── */}
-      <Modal visible={checkout} transparent animationType="slide" onRequestClose={() => { setCheckout(false); setPlaced(null); }}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => { if (!placing) { setCheckout(false); setPlaced(null); } }}>
+      <Modal visible={checkout} transparent animationType="slide" onRequestClose={() => { setCheckout(false); setPlaced(null); setPayState('idle'); setPayMsg(''); }}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => { if (!placing) { setCheckout(false); setPlaced(null); setPayState('idle'); setPayMsg(''); } }}>
           <Pressable style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 18, paddingTop: 14, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '88%' }} onPress={() => {}}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, alignSelf: 'center', marginBottom: 12 }} />
             {placed ? (
@@ -358,10 +364,28 @@ export default function ShopScreen() {
                 </View>
                 <T v="h2" style={{ fontWeight: '900', fontSize: 17, color: d.text }}>Order #{placed} placed!</T>
                 <T v="caption" style={{ color: d.faint, textAlign: 'center', lineHeight: 18 }}>
-                  Jazakum Allahu khayran. We will email you a payment link and tracking updates. Free worldwide shipping 🌍
+                  {payState === 'paid'
+                    ? 'Payment confirmed ✓ — we will email tracking updates. Free worldwide shipping 🌍'
+                    : 'Jazakum Allahu khayran. Pay securely with Flutterwave — card, bank transfer, USSD or mobile money.'}
                 </T>
-                <Pressable onPress={() => { setCheckout(false); setPlaced(null); setTab('orders'); }} style={{ borderRadius: 13, backgroundColor: gold, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 }}>
-                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: isDark ? '#14241C' : '#fff' }}>View my orders</T>
+                {payMsg ? <T v="caption" style={{ color: '#E05252', textAlign: 'center', fontSize: 10.5, lineHeight: 15 }}>{payMsg}</T> : null}
+                {!live ? null : payState === 'paid' ? null : (
+                  <Pressable disabled={payState === 'busy'} onPress={() => {
+                    setPayState('busy'); setPayMsg('');
+                    void payShopOrder(placed).then((r) => {
+                      if (r.verified) { setPayState('paid'); haptic.success(); loadOrders(); }
+                      else { setPayState('failed'); setPayMsg(r.message ?? 'Payment not completed — you can retry from Orders.'); }
+                    });
+                  }} style={{ borderRadius: 13, backgroundColor: '#F5A623', paddingHorizontal: 24, paddingVertical: 13, marginTop: 8, minWidth: 230, alignItems: 'center', opacity: payState === 'busy' ? 0.7 : 1 }}>
+                    {payState === 'busy' ? <ActivityIndicator color="#fff" /> : (
+                      <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: '#fff' }}>
+                        Pay ${placedTotal.toFixed(2)} with Flutterwave
+                      </T>
+                    )}
+                  </Pressable>
+                )}
+                <Pressable onPress={() => { setCheckout(false); setPlaced(null); setPayState('idle'); setPayMsg(''); setTab('orders'); }} style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 }}>
+                  <T v="bodyS" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>View my orders</T>
                 </Pressable>
               </View>
             ) : (

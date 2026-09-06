@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
-import { donationInit, pointsInit, pointsVerify, premiumInit, type FlwCheckout, type PayInit } from '@/api/client';
+import * as WebBrowser from 'expo-web-browser';
+import { donationInit, pointsInit, pointsVerify, premiumInit, shopPayInit, type FlwCheckout, type PayInit } from '@/api/client';
 import { storage } from '@/lib/storage';
 
 /**
@@ -62,14 +63,28 @@ export async function runPayment(init: (redirect: boolean, redirectUrl?: string)
     if (v?.ok) { return { ok: true, verified: true, balance: v.balance, message: v.message, txRef: r0.checkout.tx_ref }; }
     return { ok: true, verified: false, message: v?.message ?? 'Payment not completed.', txRef: r0.checkout.tx_ref };
   }
-  /* native — hosted checkout in the system browser */
+  /* native (pass 79) — hosted checkout in the IN-APP browser (Custom Tabs /
+   * SFSafariViewController overlay) so the user never leaves DeenLink;
+   * falls back to the system browser only if the overlay cannot open. */
   const r0 = await init(true, 'deenlink://pay-done');
   const link = r0?.redirect_url;
   const tx = r0?.tx_ref;
   if (!link || !tx) { return { ok: false, verified: false, message: 'Could not start the payment. Check that Flutterwave is configured.' }; }
   await storage.setItem(PENDING_KEY, tx).catch(() => {});
-  await Linking.openURL(link).catch(() => {});
-  return { ok: true, verified: false, message: 'Complete the payment in your browser — it lands when you come back.', txRef: tx };
+  let opened = false;
+  try {
+    const res = await WebBrowser.openAuthSessionAsync(link, 'deenlink://pay-done');
+    opened = res.type !== 'dismiss';
+    /* Returned from the overlay already? Verify right away (idempotent). */
+    if (opened) {
+      const v = await pointsVerify(tx);
+      await storage.setItem(PENDING_KEY, '').catch(() => {});
+      if (v?.ok) { return { ok: true, verified: true, balance: v.balance, message: v.message, txRef: tx }; }
+      return { ok: true, verified: false, message: v?.message ?? 'Payment not completed.', txRef: tx };
+    }
+  } catch { opened = false; }
+  if (!opened) { await Linking.openURL(link).catch(() => {}); }
+  return { ok: true, verified: false, message: 'Complete the payment — it lands when you come back.', txRef: tx };
 }
 
 /** Buy DeenPoints. Returns after the server has had its verification shot. */
@@ -86,6 +101,11 @@ export function donate(donationType: string, amount: number, opts?: { note?: str
 /** Subscribe to Premium — live Flutterwave checkout. */
 export function buyPremium(plan: 'monthly' | 'annual'): Promise<PayResult> {
   return runPayment((redirect, redirectUrl) => premiumInit(plan, redirect ? { redirect: true, redirectUrl } : undefined));
+}
+
+/** Pay a DeenLink Shop order (pass 79). Web → inline modal; native → in-app browser. */
+export function payShopOrder(orderId: number): Promise<PayResult> {
+  return runPayment((redirect, redirectUrl) => shopPayInit(orderId, redirect ? { redirect: true, redirectUrl } : undefined));
 }
 
 /** Native: verify the parked tx_ref when the user returns from the browser. */

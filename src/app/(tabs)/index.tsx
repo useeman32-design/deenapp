@@ -22,7 +22,7 @@ import * as api from '@/api/client';
 import type { Post, Scholar, Video } from '@/api/types';
 import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
-import { DEFAULT_QUICK, QUICK_STORAGE_KEY, loadQuickDefaults, quickItems, type QuickItem } from '@/lib/quick-access';
+import { DEFAULT_QUICK, QUICK_STORAGE_KEY, loadQuickDefaults, parseQuickPrefs, resolveQuick, type QuickItem } from '@/lib/quick-access';
 import { dailyAyah, dailyHadith } from '@/lib/daily';
 import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
@@ -62,29 +62,29 @@ const scholarAvatar1 = require('../../../assets/img/scholar-1.jpg');
 const scholarAvatar2 = require('../../../assets/img/scholar-2.jpg');
 const scholarAvatar3 = require('../../../assets/img/scholar-3.jpg');
 
-/** Read the user's saved Quick-Access shortcuts (falls back to the default five). */
+/** pass 79 — the rail lists EVERY shortcut (scrollable); saved prefs only
+ *  decide order and which ones the user removed in the editor. */
 function useQuickAccess(): QuickItem[] {
-  const [keys, setKeys] = useState<string[]>(DEFAULT_QUICK);
+  const [items, setItems] = useState<QuickItem[]>(() => resolveQuick(null, DEFAULT_QUICK));
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       storage.getItem(QUICK_STORAGE_KEY).then(async (raw) => {
         if (!alive) return;
-        if (!raw) { const def = await loadQuickDefaults(); if (alive) setKeys(def); return; }
-        try {
-          const arr = JSON.parse(raw) as string[];
-          const items = quickItems(arr);
-          if (items.length) setKeys(items.map((i) => i.key));
-        } catch {
-          /* ignore corrupt data */
+        if (!raw) {
+          const def = await loadQuickDefaults();
+          if (alive) setItems(resolveQuick(null, def));
+          return;
         }
+        const prefs = parseQuickPrefs(raw);
+        if (alive) setItems(resolveQuick(prefs, DEFAULT_QUICK));
       });
       return () => {
         alive = false;
       };
     }, [])
   );
-  return quickItems(keys);
+  return items;
 }
 
 /* ------------------------------ Campaigns ------------------------------ */
