@@ -246,7 +246,7 @@ function CommentRow({
                 key={r.id}
                 c={r}
                 isReply
-                replyTo={c.name}
+                replyTo={r.parentId != null ? (c.replies!.find((x) => x.id === (r.parentId as number) + REPLY_OFF)?.name ?? c.name) : c.name}
                 isLiked={isLiked}
                 onToggleLike={onToggleLike}
                 onReply={onReply}
@@ -338,6 +338,7 @@ export function CommentsModal({
       time: r.time_ago || '',
       likes: r.like_count,
       liked: r.liked_by_me,
+      parentId: r.parent_reply_id ?? null, /* pass 74 — direct parent */
     })),
   });
   /* pass 72 — reels load from the videos comments API */
@@ -564,10 +565,12 @@ export function CommentsModal({
   const pushComment = (nc: SampleComment) => {
     setItems((prev) => {
       if (replyingTo) {
+        /* pass 74 — a reply-to-a-reply carries the direct parent for the label */
+        const child = replyingTo.id >= REPLY_OFF ? { ...nc, parentId: replyingTo.id } : nc;
         return prev.map((c) => {
-          if (c.id === replyingTo.id) return { ...c, replies: [...(c.replies ?? []), nc] };
+          if (c.id === replyingTo.id) return { ...c, replies: [...(c.replies ?? []), child] };
           const ri = (c.replies ?? []).find((r) => r.id === replyingTo.id);
-          if (ri) return { ...c, replies: [...(c.replies ?? []), nc] };
+          if (ri) return { ...c, replies: [...(c.replies ?? []), child] };
           return c;
         });
       }

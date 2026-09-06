@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   MOCK_ACCOUNTS,
   MOCK_FEED,
@@ -71,16 +72,23 @@ export default function PublicProfileScreen() {
   const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);
   const [following, setFollowing] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  /* pass 74 — was declared below the `if (!profile)` early return: the first
+   * successful fetch changed the hook count and crashed the screen (#310). */
+  const [shareOpen, setShareOpen] = useState(false);
   /* pass 66-night — live profile: real stats, bio, photo and follow edge. */
   const [liveP, setLiveP] = useState<PublicProfile | null>(null);
+  /* pass 74 — WAIT for the session restore: on a hard navigation (web refresh
+   * or an MPA route hop) this screen mounts before /me resolves, isLive() is
+   * still false, the fetch was skipped and real accounts showed "not found". */
+  const { ready } = useAuth();
   useEffect(() => {
-    if (!isLive() || !username) return;
+    if (!ready || !isLive() || !username) return;
     void getUserProfile(username).then((p) => {
       if (!p) return;
       setLiveP(p);
       setFollowing(!!p.following_by_me);
     });
-  }, [username, liveP]);
+  }, [username, ready]);
 
   const profile: MockProfile | null = useMemo(() => {
     /* pass 66-night — real accounts surface from the server even when the
@@ -125,7 +133,9 @@ export default function PublicProfileScreen() {
       };
     }
     return null;
-  }, [username]);
+    /* pass 74 — MUST recompute when liveP lands, else a hard-nav mount
+     * freezes the memo at null and real accounts show "couldn't find". */
+  }, [username, liveP]);
 
   const posts = useMemo(
     () => MOCK_FEED.filter((p) => p.user.username === username),
@@ -134,6 +144,14 @@ export default function PublicProfileScreen() {
   const answered = profile?.scholar ? (ANSWERED[username] ?? []) : [];
 
   if (!profile) {
+    if (!ready) {
+      /* session still restoring — never flash "not found" for a real account */
+      return (
+        <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={d.emerald} />
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
         <FontAwesome5 name="question-circle" size={30} color={d.faint} />
@@ -162,8 +180,6 @@ export default function PublicProfileScreen() {
     haptic.light();
     setShareOpen(true);
   };
-
-  const [shareOpen, setShareOpen] = useState(false);
 
   const toggleFollow = () => {
     haptic.success();

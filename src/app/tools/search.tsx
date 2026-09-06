@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { storage } from '@/lib/storage';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +31,9 @@ export function tagsOf(posts: Post[]): Array<{ tag: string; count: number }> {
 }
 
 const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
+
+/* pass 74 — persisted search history */
+const HIST_KEY = 'dl.search.history.v1';
 
 /* pass 68 — "breathing" skeleton: soft blocks pulsing like the app's item
  * loaders, shaped per tab so the layout never jumps when data lands. */
@@ -130,6 +134,32 @@ export default function SearchScreen() {
   const [users, setUsers] = useState<AccountResult[] | null>(null);
   const [loading, setLoading] = useState<Record<Tab, boolean>>({ top: false, users: false, videos: false, hashtags: false });
   const [recentMore, setRecentMore] = useState(false);
+  /* pass 74 — search history (persisted) with clear + show more/less */
+  const [history, setHistory] = useState<string[]>([]);
+  const [histMore, setHistMore] = useState(false);
+  useEffect(() => {
+    storage.getItem(HIST_KEY).then((raw: string | null) => {
+      if (!raw) { return; }
+      try { const a = JSON.parse(raw) as unknown; if (Array.isArray(a)) { setHistory(a.filter((x) => typeof x === 'string').slice(0, 20)); } } catch { /* ignore */ }
+    }).catch(() => {});
+  }, []);
+  const pushHistory = (term: string) => {
+    const t = term.trim();
+    if (t.length < 2) { return; }
+    setHistory((prev) => {
+      const next = [t, ...prev.filter((x) => x.toLowerCase() !== t.toLowerCase())].slice(0, 20);
+      storage.setItem(HIST_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+  const clearHistory = () => { setHistory([]); storage.removeItem(HIST_KEY).catch(() => {}); };
+  /* save once the user pauses on a term of 2+ chars */
+  useEffect(() => {
+    if (q.trim().length < 2) { return; }
+    const to = setTimeout(() => pushHistory(q), 1600);
+    return () => clearTimeout(to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
   /* pass 68 — server-side post search + follow state for user rows */
   const [qPosts, setQPosts] = useState<Post[] | null>(null);
@@ -196,7 +226,9 @@ export default function SearchScreen() {
   /* Users tab loads from the real account search the first time it opens (or
    * the query changes while it is open). Demo mode filters the mock roster. */
   useEffect(() => {
-    if (!searching || tab !== 'users') return;
+    /* pass 74 — the Top tab shows up to 3 account matches, so it needs the
+     * account search too, not just the dedicated People tab. */
+    if (!searching || (tab !== 'users' && tab !== 'top')) return;
     if (!api.isLive()) {
       setUsers(
         MOCK_ACCOUNTS.filter((a) => a.full_name.toLowerCase().includes(query) || a.username.toLowerCase().includes(query))
@@ -249,14 +281,6 @@ export default function SearchScreen() {
           ) : (
             <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, color: isF ? d.subtext : (isDark ? '#4AE38F' : '#0E7A46') }}>{isF ? 'Following' : 'Follow'}</T>
           )}
-        </Pressable>
-        <Pressable
-          onPress={() => { haptic.light(); router.push(`/tools/inbox?u=${u.username}`); }}
-          hitSlop={6}
-          accessibilityLabel={`Message ${u.username}`}
-          style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? 'rgba(74,227,143,0.10)' : 'rgba(29,111,66,0.06)', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <FontAwesome5 name="comment-dots" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
         </Pressable>
       </Pressable>
     );
@@ -335,10 +359,10 @@ export default function SearchScreen() {
     const bestVideo = matchedVideos[0];
     const bestTag = matchedTags[0];
     const bestAcc = acc?.[0];
-    return { bestAcc, bestPost, bestVideo, bestTag, restPosts: matchedPosts.filter((p) => p !== bestPost).slice(0, 4), restTags: matchedTags.filter((t) => t !== bestTag).slice(0, 3) };
+    return { bestAcc, bestPost, bestVideo, bestTag, restPosts: matchedPosts.filter((p) => p !== bestPost).slice(0, 4), restTags: matchedTags.filter((t) => t !== bestTag).slice(0, 3), topAccs: (acc ?? []).slice(0, 3) }; /* pass 74 — up to 3 top accounts */
   }, [users, matchedPosts, matchedVideos, matchedTags, query]);
 
-  const recent = matchedPosts.slice(0, recentMore ? 20 : 5);
+  const recent = matchedPosts.slice(0, recentMore ? 15 : 5); /* pass 74 — 15 on show more */
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -389,15 +413,39 @@ export default function SearchScreen() {
         {!searching ? (
           /* ── idle: recent posts ── */
           <View>
+            {history.length ? (
+              <View style={{ marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <SectionLabel>Search history</SectionLabel>
+                  <Pressable onPress={() => { haptic.light(); clearHistory(); }} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <FontAwesome5 name="trash" size={10.5} color={d.faint} />
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.faint }}>Clear</T>
+                  </Pressable>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {(histMore ? history.slice(0, 15) : history.slice(0, 7)).map((h) => (
+                    <Pressable key={h} onPress={() => { haptic.selection(); setQ(h); }}
+                      style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 12, paddingVertical: 7 }}>
+                      <T v="caption" style={{ fontWeight: '700', fontSize: 11.5, color: d.text }}>{h}</T>
+                    </Pressable>
+                  ))}
+                </View>
+                {history.length > 7 ? (
+                  <Pressable onPress={() => { haptic.light(); setHistMore((v) => !v); }} hitSlop={6} style={{ marginTop: 8 }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11, color: isDark ? '#4AE38F' : '#1D6F42' }}>{histMore ? 'Show less' : 'Show more'}</T>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
             <SectionLabel>Recent posts</SectionLabel>
             {!posts ? <Skeleton rows={4} shape="post" tint={d.bgSoft} card={d.card} border={d.cardBorder} /> : null}
             {recent.map((p, i) => <RowIn key={p.id} i={i}><PostRow p={p} /></RowIn>)}
-            {posts && !recentMore && matchedPosts.length > 5 ? (
+            {posts && matchedPosts.length > 5 ? (
               <Pressable
-                onPress={() => { haptic.light(); setRecentMore(true); }}
+                onPress={() => { haptic.light(); setRecentMore((v) => !v); }}
                 style={{ borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', paddingVertical: 12, marginTop: 2 }}
               >
-                <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>See more posts</T>
+                <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>{recentMore ? 'Show less' : 'See more posts'}</T>
               </Pressable>
             ) : null}
             {posts && !matchedPosts.length ? (
@@ -410,7 +458,7 @@ export default function SearchScreen() {
             {loading.top && !topMix.bestPost && !topMix.bestAcc ? (
               <Skeleton rows={3} shape="post" tint={d.bgSoft} card={d.card} border={d.cardBorder} />
             ) : null}
-            {topMix.bestAcc ? <RowIn i={0}><SectionLabel>Top account</SectionLabel><UserRow u={topMix.bestAcc} /></RowIn> : null}
+            {topMix.topAccs.length ? <RowIn i={0}><SectionLabel>{`Top account${topMix.topAccs.length > 1 ? 's' : ''}`}</SectionLabel>{topMix.topAccs.map((a) => <UserRow key={`${a.id}-${a.username}`} u={a} />)}</RowIn> : null}
             {topMix.bestPost ? <RowIn i={1}><SectionLabel>Top post</SectionLabel><PostRow p={topMix.bestPost} /></RowIn> : null}
             {topMix.bestVideo ? <RowIn i={2}><SectionLabel>Top video</SectionLabel><VideoRow v={topMix.bestVideo} /></RowIn> : null}
             {topMix.bestTag ? <RowIn i={3}><SectionLabel>Top hashtag</SectionLabel><TagRow t={topMix.bestTag} /></RowIn> : null}

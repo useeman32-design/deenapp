@@ -357,6 +357,7 @@ function ReelItem({
       {/* bottom info */}
       <View style={{ position: 'absolute', left: 14, right: 76, bottom: 96 }}>
         {reel.repostedBy ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Pressable
             onPress={() => onOpenProfile(reel.repostedBy as string)}
             style={({ pressed }) => ({
@@ -371,7 +372,6 @@ function ReelItem({
               paddingLeft: 3,
               paddingRight: 9,
               paddingVertical: 3,
-              marginBottom: 8,
               opacity: pressed ? 0.7 : 1,
             })}
           >
@@ -388,6 +388,28 @@ function ReelItem({
               );
             })()}
           </Pressable>
+          {/* pass 74 — repost this reel yourself, right beside the pill */}
+          <Pressable
+            onPress={() => { haptic.light(); onRepost(reel.id); }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: reposted ? 'rgba(74,227,143,0.16)' : 'rgba(10,20,14,0.45)',
+              borderWidth: 1,
+              borderColor: reposted ? 'rgba(74,227,143,0.55)' : 'rgba(255,255,255,0.16)',
+              borderRadius: 999,
+              paddingHorizontal: 9,
+              paddingVertical: 5,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <FontAwesome5 name={reposted ? 'check' : 'retweet'} size={9} color="#4AE38F" />
+            <T v="caption" style={{ color: reposted ? '#4AE38F' : 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '800' }}>
+              {reposted ? 'Reposted' : 'Repost'}
+            </T>
+          </Pressable>
+          </View>
         ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
           <Pressable

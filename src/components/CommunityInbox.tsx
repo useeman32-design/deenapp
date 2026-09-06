@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, ImageBackground, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, TextInput, UIManager, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -102,7 +102,7 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, isLive } from '@/api/client';
+import { chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, isLive } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 
@@ -338,6 +338,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
    * bundled demo threads on gh-pages where there is no backend. */
   const live = isLive() && !!user && !isDemo;
   const [convIds, setConvIds] = useState<Record<string, number>>({});
+  /* pass 74 — message requests: incoming (they messaged me, I don't follow
+   * them back yet), outgoing (mine, capped at 3 until accepted) and declined */
+  const [reqMap, setReqMap] = useState<Record<string, { convId: number; photo?: string | null; name?: string }>>({});
+  const [peerMap, setPeerMap] = useState<Record<string, { name?: string; photo?: string | null }>>({});
+  const [outRequests, setOutRequests] = useState<Set<string>>(new Set());
+  const [hiddenConvs, setHiddenConvs] = useState<Set<string>>(new Set());
+  const [requestsOpen, setRequestsOpen] = useState(false);
+  const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>(SEED);
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -459,7 +467,10 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       }
     }
   };
-  const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u) ?? MOCK_ACCOUNTS[0];
+  /* pass 74 — real peers resolve to their server name/photo; the old
+   * MOCK_ACCOUNTS[0] fallback labelled every live DM with a mock person. */
+  const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u)
+    ?? { username: u, full_name: peerMap[u]?.name || u, photo: peerMap[u]?.photo ?? null };
 
   /** pass 62 — a client row id → its server target. `s12` is message 12, `h7` is
    *  share 7. Demo/failed rows have no server id and keep reacting locally. */
@@ -620,34 +631,96 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     friends.forEach((to) => forwardTo(to, payload));
   };
 
-  /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username */
+  /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username.
+   * pass 74 — conversations are sorted: incoming requests go to the Message
+   * Requests shelf, declined ones are hidden, everything else is a thread. */
+  const refreshConvs = () => chatConversations().then((cs) => {
+    if (!cs) { return; }
+    const m: Record<string, string> = {};
+    const ids: Record<string, number> = {};
+    const reqs: Record<string, { convId: number; photo?: string | null; name?: string }> = {};
+    const peers: Record<string, { name?: string; photo?: string | null }> = {};
+    const mine = new Set<string>();
+    const gone = new Set<string>();
+    cs.forEach((c) => {
+      const u = c.with_username || c.peer?.username;
+      if (!u) { return; }
+      if (c.peer_seen) { m[u] = String(c.peer_seen); }
+      peers[u] = { name: c.with_name || undefined, photo: c.with_photo ?? null };
+      const st = c.conv_status ?? 'active';
+      if (st === 'declined') { gone.add(u); return; }
+      if (st === 'request') {
+        if (c.requested_by != null && user?.id != null && c.requested_by !== user.id) {
+          reqs[u] = { convId: c.id, photo: c.with_photo ?? null, name: c.with_name || c.title || u };
+          return; /* not a main-list thread until accepted */
+        }
+        mine.add(u); /* my outgoing request stays visible in the main list */
+      }
+      ids[u] = c.id;
+    });
+    setSeenMap(m);
+    setConvIds(ids);
+    setReqMap(reqs);
+    setPeerMap(peers);
+    setOutRequests(mine);
+    setHiddenConvs(gone);
+    /* live conversations become threads; demo threads stay so shares still work */
+    if (live) {
+      setThreads((prev) => {
+        const have = new Set(prev.map((t) => t.friend));
+        const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
+        return add.length ? [...add, ...prev] : prev;
+      });
+    }
+  }).catch(() => {});
   useEffect(() => {
     chatPresence().catch(() => {});
-    const pull = () => chatConversations().then((cs) => {
-      if (!cs) { return; }
-      const m: Record<string, string> = {};
-      const ids: Record<string, number> = {};
-      cs.forEach((c) => {
-        const u = c.with_username || c.peer?.username;
-        if (!u) { return; }
-        ids[u] = c.id;
-        if (c.peer_seen) { m[u] = String(c.peer_seen); }
-      });
-      setSeenMap(m);
-      setConvIds(ids);
-      /* live conversations become threads; demo threads stay so shares still work */
-      if (live) {
-        setThreads((prev) => {
-          const have = new Set(prev.map((t) => t.friend));
-          const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
-          return add.length ? [...add, ...prev] : prev;
-        });
-      }
-    }).catch(() => {});
-    pull();
-    const iv = setInterval(() => { chatPresence().catch(() => {}); pull(); }, 60000);
+    void refreshConvs();
+    const iv = setInterval(() => { chatPresence().catch(() => {}); void refreshConvs(); }, 60000);
     return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live]);
+
+  /* pass 74 — arriving via the profile Message button (?u=) for a peer with
+   * no conversation yet: start the DM so the thread actually opens (it used
+   * to sit on the bare list), and refresh so the request state lands. */
+  useEffect(() => {
+    if (!live || !openFriend) { return; }
+    if (threads.some((t) => t.friend === openFriend)) { return; }
+    let dead = false;
+    const who = openFriend;
+    void (async () => {
+      const cid = await chatStartDMByUsername(who).catch(() => null);
+      if (dead || !cid) { return; }
+      setConvIds((m) => ({ ...m, [who]: cid }));
+      setThreads((prev) => (prev.some((t) => t.friend === who)
+        ? prev
+        : [{ friend: who, items: [], chat: [], reactions: {} }, ...prev]));
+      await refreshConvs();
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, openFriend, threads]);
+
+  /* pass 74 — accept / block / report a message request */
+  const actOnRequest = async (uname: string, action: 'accept' | 'block' | 'report') => {
+    const r = reqMap[uname];
+    if (!r || reqBusy) { return; }
+    haptic.light();
+    setReqBusy(uname);
+    const ok = await chatRequestAction(r.convId, action).catch(() => false);
+    setReqBusy(null);
+    if (!ok) { Alert.alert('Could not update', 'Please try again in a moment.'); return; }
+    if (action === 'accept') {
+      await refreshConvs();
+      setOpenFriend(uname);
+      setRequestsOpen(false);
+    } else {
+      if (action === 'report') { Alert.alert('Reported', 'JazakAllah khair — our moderation team will review this account.'); }
+      await refreshConvs();
+      if (Object.keys(reqMap).length <= 1) { setRequestsOpen(false); }
+    }
+  };
 
   /* pass 60/62 — opening a live thread pulls the real history (messages + shares
    * + every reaction on them) in ONE call and marks it read. */
@@ -904,7 +977,11 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         if (!cid) { markFailed(who, id); return; }
         chatTyping(cid, false).catch(() => {});
         const sent = await chatSend(cid, text, replyArg).catch(() => null);
-        if (!sent) { markFailed(who, id); return; }
+        if (!sent) {
+          markFailed(who, id);
+          if (outRequests.has(who)) { Alert.alert('Request pending', `You can send up to 3 messages until @${who} accepts your request.`); }
+          return;
+        }
         setThreads((prev) => prev.map((t) => (t.friend === who
           ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, at: sent.created_at || c.at } : c)) }
           : t)));
@@ -1208,7 +1285,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             </T>
           </Pressable>
           <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
-            {thread ? (isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
+            {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
           </T>
         </View>
         <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
@@ -1222,10 +1299,69 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         ) : null}
       </View>
 
-      {!thread ? (
+      {requestsOpen && !thread ? (
+        /* ── pass 74: message requests — accept (they join your chats and you
+           follow them), block or report ── */
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Pressable onPress={() => { haptic.selection(); setRequestsOpen(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 11, paddingVertical: 7 }}>
+              <FontAwesome5 name="chevron-left" size={11} color={d.text} />
+              <T v="caption" style={{ fontWeight: '800', color: d.text }}>Back</T>
+            </Pressable>
+            <T v="body" style={{ fontWeight: '800', fontSize: 15, color: d.text, marginLeft: 12 }}>Message requests</T>
+          </View>
+          {Object.keys(reqMap).length === 0 ? (
+            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 36 }}>No pending requests.</T>
+          ) : (
+            Object.entries(reqMap).map(([uname, r]) => (
+              <View key={uname} style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+                  <AvatarImage source={r.photo ?? null} name={r.name || uname} size={44} tint={d.bgSoft} border={d.cardBorder} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>{r.name || uname}</T>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>@{uname} · wants to message you</T>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 11 }}>
+                  <Pressable disabled={reqBusy === uname} onPress={() => void actOnRequest(uname, 'accept')}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 11, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingVertical: 10, opacity: reqBusy === uname ? 0.6 : 1 }}>
+                    {reqBusy === uname ? <ActivityIndicator size="small" color="#062312" /> : <FontAwesome5 name="check" size={11} color="#062312" />}
+                    <T v="caption" style={{ fontWeight: '900', fontSize: 11.5, color: '#062312' }}>Accept & follow</T>
+                  </Pressable>
+                  <Pressable disabled={reqBusy === uname} onPress={() => void actOnRequest(uname, 'block')}
+                    style={{ borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: d.text }}>Block</T>
+                  </Pressable>
+                  <Pressable disabled={reqBusy === uname} onPress={() => Alert.alert('Report this account?', 'We will review their messages and account.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Report', style: 'destructive', onPress: () => void actOnRequest(uname, 'report') },
+                    ])}
+                    style={{ borderRadius: 11, borderWidth: 1, borderColor: 'rgba(255,123,123,0.5)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11.5, color: '#FF7B7B' }}>Report</T>
+                  </Pressable>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      ) : !thread ? (
         /* ── friends who shared with you ── */
         <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {threads.map((t) => {
+          {/* pass 74 — message requests shelf */}
+          {Object.keys(reqMap).length > 0 ? (
+            <Pressable onPress={() => { haptic.selection(); setRequestsOpen(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)', padding: 13, marginBottom: 12 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(212,175,55,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="user-clock" size={15} color="#B8870B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Message requests</T>
+                <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>{Object.keys(reqMap).length} person{Object.keys(reqMap).length > 1 ? 's' : ''} waiting · tap to review</T>
+              </View>
+              <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+            </Pressable>
+          ) : null}
+          {threads.filter((t) => !hiddenConvs.has(t.friend)).map((t) => {
             const a = acc(t.friend);
             const unread = t.items.filter((x) => x.dir === 'them').length + t.chat.filter((c) => c.dir === 'them').length;
             return (

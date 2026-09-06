@@ -220,6 +220,9 @@ export type SampleComment = {
   likes: number;
   liked?: boolean;
   replies?: SampleComment[];
+  /* pass 74 — for nested replies: the id (REPLY_OFF-based) of the direct
+   * parent reply, so the label reads "replying to <parent author>" */
+  parentId?: number | null;
 };
 
 /* Instagram-style sample comments (with nested replies + emoji). */

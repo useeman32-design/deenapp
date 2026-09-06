@@ -1118,6 +1118,48 @@ resurfaced new-agent-update/ (pass-53, never merged per Correction 27 — moved 
 re-applied pass-73 patches. Also self-inflicted: a python splice truncated client.ts
 (`s[:i]+"export "+s[i:end+1]` drops the tail) — use s[:i]+"export "+s[i:] for inserts.
 
-Heads: deenlink-api main 64b0f03 · deenapp master 8ae1e98 · gh-pages eca2748 · backup 8ae1e98.
+---
+
+## PASS 74 (this pass)
+
+1. **Profile "we couldn't find this account" — FIXED (three stacked bugs)**:
+   a) the profile useMemo had deps [username] only — when liveP landed the memo
+   never recomputed, so real accounts stayed not-found forever → deps [username, liveP];
+   b) the fetch effect deps [username, liveP] re-fired on every setLiveP (endless
+   refetch loop) → [username, ready]; plus ready-gating so a hard-nav mount before
+   restoreSession no longer skips the fetch;
+   c) `useState(shareOpen)` sat BELOW the `if (!profile)` early return → the first
+   successful fetch changed the hook count and crashed the screen (React #310),
+   which on web fell through the catch-all to `/?username=` → moved up with the hooks.
+2. **Search rows**: message button REMOVED (messaging lives on the profile) — Follow kept.
+3. **Message requests (end to end)**: start.php + start_username.php open stranger DMs as
+   `request` (follow-gated, requested_by set); send.php caps the requester at 3
+   (403 request_limit), auto-accepts on recipient reply, declined → 403;
+   conversations.php exposes conv_status/requested_by/with_name; NEW request_action.php
+   (accept → active + accepter follows requester · block → declined · report → declined +
+   account_reports row). Inbox: "Message requests" shelf → panel with Accept & follow /
+   Block / Report (Alert confirm); outgoing requests show "3-message limit" header note
+   and an Alert when the 4th send fails; ?u= deep link now STARTS the conversation so the
+   thread actually opens (was: bare list). acc() mock fallback replaced with real
+   with_name/with_photo (live DMs showed a mock person's name).
+4. **Nested replies**: get_comments' parent_reply_id now flows through client →
+   CommentsModal; "Replying to X" names the DIRECT parent author, optimistic replies
+   carry parentId too.
+5. **Search empty state**: persisted history (dl.search.history.v1, chips, >7 → Show
+   more/less, Clear), Recent posts 5 → 15 with Show less.
+6. **Top tab**: up to 3 account matches (users fetch now also runs on the Top tab — it
+   never did, so live Top never showed accounts).
+7. **Videos**: Repost button beside the "Reposted by" pill (same server-backed onRepost
+   as the rail, shows Reposted state).
+8. Drive-by: api/defaults/get.php required a non-existent config/config.php → 500 on
+   every app boot (live too) → now config/db.php.
+
+Gates: tsc clean · expo export clean · harness70 18/18 · 71 10/10 · 72 26/26 · 73 8/8 ·
+74 13/13 (incl. start_username request status) · repro74b E2E 17/17 on
+http://app.deenlink.org (same-origin client+API via /tmp/dlrouter.php on port 80):
+login · search rows · SPA+hard-nav profiles · history/clear · request note · shelf ·
+accept → thread + server follow.
+
+Heads: deenlink-api main <API_HEAD> · deenapp master <APP_HEAD> · gh-pages <GHP_HEAD>.
 NEXT: Tier 2 (Ask Scholars both sides, wallpapers, account tools) → Tier 3 → admin
 dashboard audit → iOS/Android store builds.

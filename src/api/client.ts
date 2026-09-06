@@ -316,6 +316,8 @@ export type ServerReply = {
   liked_by_me: boolean;
   user: { id: number; name: string; username: string; profile_image_url?: string | null };
   replies?: ServerReply[];
+  /* pass 74 — get_comments.php returns the direct parent for nested replies */
+  parent_reply_id?: number | null;
 };
 export type ServerComment = ServerReply & { is_post_creator?: boolean; reply_count?: number };
 export async function getComments(postId: number): Promise<ServerComment[] | null> {
@@ -1126,7 +1128,11 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 }
 
 /* Slice 9 — live chat (DM + group). */
-export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string };
+export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string;
+  /* pass 74 — message requests: 'request' until the recipient accepts, 'declined' once blocked/reported */
+  conv_status?: 'request' | 'active' | 'declined'; requested_by?: number | null;
+  /* pass 74 — peer display name so the inbox never shows a mock label */
+  with_name?: string | null };
 /* pass 63 contract (client types were never landed with the UI, so replies,
  * quotes and deletes had no types): messages.php returns `deleted` for soft-
  * deleted rows and a resolved `reply_to` quote ({id, kind, body, username});
@@ -1226,6 +1232,16 @@ export async function chatTyping(conversationId: number, typing: boolean): Promi
   await request('/api/chat/typing.php', { method: 'POST', body: { conversation_id: conversationId, typing: typing ? 1 : 0 }, auth: true });
 }
 /** Share in-app content into a conversation. Returns its server id + timestamp. */
+/* pass 74 — act on a message request (accept = activate + follow the requester) */
+export async function chatRequestAction(conversationId: number, action: 'accept' | 'block' | 'report'): Promise<boolean> {
+  const r = await request<{ status?: string; action?: string }>('/api/chat/request_action.php', {
+    method: 'POST',
+    body: { conversation_id: conversationId, action },
+    auth: true,
+  });
+  return r.ok && r.data.status === 'success';
+}
+
 export async function chatSendShare(conversationId: number, kind: string, title: string, payload?: Record<string, unknown>): Promise<{ id: number; created_at?: string } | null> {
   const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send_share.php', { method: 'POST', body: { conversation_id: conversationId, kind, title, payload }, auth: true });
   return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
