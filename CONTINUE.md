@@ -1232,4 +1232,23 @@ Live pending user cPanel pull: `git fetch origin && git reset --hard origin/main
 in the deenlink-api docroot, then Ctrl+Shift+R; verify page source contains
 entry-264d7354.
 
+## PASS 77 — nested comment replies: "Replying to ›" must name the DIRECT parent
+User report: A comments → B replies to A → C replies to B ⇒ UI showed
+"replying to › A" (root author) instead of B — and after reload C's reply
+vanished. Root causes (client; API was already correct — harness77 11/11):
+- get_comments.php + videos/list_comments.php return reply TREES (reply-to-
+  reply nests inside its parent) but CommentsModal.mapServer mapped only ONE
+  level → every deeper reply was dropped on load ("View 1 reply" instead of 2).
+- The optimistic row stored the OFFSET id as parentId while the label lookup
+  adds REPLY_OFF again → double offset → not found → fallback to the root
+  comment author (exactly the reported symptom right after posting).
+Fixes (CommentsModal.tsx): mapServer now DFS-flattens the tree keeping
+parentId = parent_reply_id ?? parent_id (videos); optimistic child stores
+replyingTo.id - REPLY_OFF; feed send guards temp Date.now ids
+(< 100_000_000_000) so no garbage parent_reply_id ships; videos reply-to-
+reply now passes the REPLY's id as parent_id (was the root comment id).
+client.ts: ServerReply + parent_id (videos).
+Gates: harness77 11/11 · repro77 9/9 (chip, row, reopen-from-server) ·
+harness 73-76 57/57 · repro75 12/12 · repro76 8/8 · tsc 0.
+
 NEXT: admin dashboard audit → iOS/Android store builds.

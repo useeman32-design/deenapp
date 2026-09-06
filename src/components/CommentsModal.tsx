@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 /* pass 66-night — live comments: the sheet reads/writes the server thread when
  * the session is real. Server reply ids are namespaced (+1e9) so they can never
  * collide with comment ids in the shared liked-map. */
-import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLive, toggleCommentLike, toggleReplyLike, videosCommentAdd, videosCommentLike, videosComments, type ServerComment } from '@/api/client';
+import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLive, toggleCommentLike, toggleReplyLike, videosCommentAdd, videosCommentLike, videosComments, type ServerComment, type ServerReply } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 const REPLY_OFF = 1_000_000_000;
 
@@ -329,17 +329,31 @@ export function CommentsModal({
     time: c.time_ago || '',
     likes: c.like_count,
     liked: c.liked_by_me,
-    replies: (c.replies ?? []).map((r) => ({
-      id: r.id + REPLY_OFF,
-      name: r.user?.name || r.user?.username || 'DeenLink',
-      handle: r.user?.username || 'deenlink',
-      avatar: r.user?.profile_image_url ?? null,
-      text: r.text,
-      time: r.time_ago || '',
-      likes: r.like_count,
-      liked: r.liked_by_me,
-      parentId: r.parent_reply_id ?? null, /* pass 74 — direct parent */
-    })),
+    replies: (() => {
+      /* pass 77 — get_comments/list_comments return a TREE (a reply to a
+       * reply nests inside its parent). Flatten it DFS so every level
+       * renders, and keep parentId = the DIRECT parent so "replying to ›"
+       * names the right person (feed: parent_reply_id · videos: parent_id). */
+      const flat: NonNullable<SampleComment['replies']> = [];
+      const walk = (rows?: ServerReply[]) => {
+        for (const r of rows ?? []) {
+          flat.push({
+            id: r.id + REPLY_OFF,
+            name: r.user?.name || r.user?.username || 'DeenLink',
+            handle: r.user?.username || 'deenlink',
+            avatar: r.user?.profile_image_url ?? null,
+            text: r.text,
+            time: r.time_ago || '',
+            likes: r.like_count,
+            liked: r.liked_by_me,
+            parentId: (r.parent_reply_id ?? r.parent_id) ?? null,
+          });
+          walk(r.replies);
+        }
+      };
+      walk(c.replies);
+      return flat;
+    })(),
   });
   /* pass 72 — reels load from the videos comments API */
   useEffect(() => {
@@ -566,7 +580,7 @@ export function CommentsModal({
     setItems((prev) => {
       if (replyingTo) {
         /* pass 74 — a reply-to-a-reply carries the direct parent for the label */
-        const child = replyingTo.id >= REPLY_OFF ? { ...nc, parentId: replyingTo.id } : nc;
+        const child = replyingTo.id >= REPLY_OFF ? { ...nc, parentId: replyingTo.id - REPLY_OFF } : nc;
         return prev.map((c) => {
           if (c.id === replyingTo.id) return { ...c, replies: [...(c.replies ?? []), child] };
           const ri = (c.replies ?? []).find((r) => r.id === replyingTo.id);
@@ -597,12 +611,18 @@ export function CommentsModal({
     pushComment(nc);
     setDraft('');
     if (liveVideo && videoId) {
+      const vIsReply = !!target && target.id >= REPLY_OFF;
       const parent = target
-        ? (target.id >= REPLY_OFF
+        ? (vIsReply
             ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
             : items.find((c) => c.id === target.id))
         : null;
-      void videosCommentAdd(videoId, t, parent ? parent.id : undefined).then((res) => {
+      /* pass 77 — reply-to-reply on a video: parent_id = the reply being
+       * answered (server resolves "replying to" from it), not the root comment */
+      const vParentId = vIsReply && target && target.id < 100_000_000_000
+        ? target.id - REPLY_OFF
+        : (parent ? parent.id : undefined);
+      void videosCommentAdd(videoId, t, vParentId).then((res) => {
         if (!res) return;
         setItems((prev) =>
           prev.map((c) =>
@@ -618,7 +638,7 @@ export function CommentsModal({
         const parent = isReply
           ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
           : items.find((c) => c.id === target.id);
-        void srvAddReply(postId, parent ? parent.id : target.id, t, isReply ? target.id - REPLY_OFF : 0).then((res) => {
+        void srvAddReply(postId, parent ? parent.id : target.id, t, isReply && target.id < 100_000_000_000 ? target.id - REPLY_OFF : 0).then((res) => {
           if (!res) return;
           setItems((prev) =>
             prev.map((c) =>

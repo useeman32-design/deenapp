@@ -318,6 +318,8 @@ export type ServerReply = {
   replies?: ServerReply[];
   /* pass 74 — get_comments.php returns the direct parent for nested replies */
   parent_reply_id?: number | null;
+  /* pass 77 — videos list_comments.php returns parent_id (comment OR reply) */
+  parent_id?: number | null;
 };
 export type ServerComment = ServerReply & { is_post_creator?: boolean; reply_count?: number };
 export async function getComments(postId: number): Promise<ServerComment[] | null> {
