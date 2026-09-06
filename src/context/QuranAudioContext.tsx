@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { isLive, quranReciters } from '@/api/client';
+import type { ServerReciter } from '@/api/client';
 import { netBus } from '@/lib/net';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { QURAN } from '@/data/quran';
@@ -35,7 +37,26 @@ export const RECITERS = [
 export type LoopCfg = { surah: number; from: number; to: number; perAyah: number; cycles: number };
 
 const RECITER_CFG = (id: string) => RECITERS.find((r) => r.id === id);
+
+/* pass 72 — server-managed reciter registry: admin can add any reciter with a
+ * base_url + url_mode; URLs are built generically. Keyed by reciter_key, which
+ * doubles as the `reciter` id when picking a dynamic reciter. */
+let DYN: Record<string, ServerReciter> = {};
+const dynUrl = (reciter: string, globalAyah: number, surah?: number, ayah?: number): string | null => {
+  const d = DYN[reciter];
+  if (!d) return null;
+  const base = String(d.base_url ?? '').replace(/\/+$/, '');
+  if (!base) return null;
+  const fmt = String(d.audio_format ?? 'mp3');
+  if (d.url_mode === 'surah_ayah' && surah != null && ayah != null) {
+    return `${base}/${String(surah).padStart(3, '0')}${String(ayah).padStart(3, '0')}.${fmt}`;
+  }
+  return `${base}/${globalAyah}.${fmt}`;
+};
+
 const ayahAudio = (reciter: string, globalAyah: number, surah?: number, ayah?: number) => {
+  const dyn = dynUrl(reciter, globalAyah, surah, ayah);
+  if (dyn) return dyn;
   const cfg = RECITER_CFG(reciter) as { src?: string; folder?: string } | undefined;
   if (cfg?.src === 'everyayah' && cfg.folder && surah != null && ayah != null) {
     const s3 = String(surah).padStart(3, '0');
@@ -105,6 +126,9 @@ type AudioState = {
   toggle: () => void;
   setReciter: (id: string) => void;
   cycleRate: () => void;
+  /* pass 72 — admin-managed reciters (extras + unlock state) */
+  serverReciters: ServerReciter[];
+  refreshReciters: () => void;
 };
 
 const Ctx = createContext<AudioState | null>(null);
@@ -116,7 +140,20 @@ export function useQuranAudio() {
 }
 
 export function QuranAudioProvider({ children }: { children: React.ReactNode }) {
-  const [surah, setSurah] = useState<number | null>(null);
+
+  /* pass 72 — pull the admin-managed reciter list once at boot */
+  const [serverReciters, setServerReciters] = useState<ServerReciter[]>([]);
+  const refreshReciters = () => {
+    if (!isLive()) return;
+    void quranReciters().then((res) => {
+      if (!res) return;
+      const idx: Record<string, ServerReciter> = {};
+      for (const r of res.reciters) idx[r.reciter_key] = r;
+      DYN = idx;
+      setServerReciters(res.reciters);
+    });
+  };
+  useEffect(() => { refreshReciters(); }, []);  const [surah, setSurah] = useState<number | null>(null);
   const [ayah, setAyah] = useState(1);
   const [reciter, setReciterState] = useState<string>('ar.alafasy');
   const [playing, setPlaying] = useState(false);
@@ -439,8 +476,10 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         setReciterState(id);
       },
       cycleRate: () => setRate((r) => (r === 1 ? 1.25 : r === 1.25 ? 1.5 : r === 1.5 ? 0.75 : 1)),
+      serverReciters,
+      refreshReciters,
     }),
-    [surah, ayah, reciter, playing, loading, rate, player, standby, announcement, progress],
+    [surah, ayah, reciter, playing, loading, rate, player, standby, announcement, progress, serverReciters],
   );
 
   /* Both engines need a mounted media element — on WEB expo-video only creates

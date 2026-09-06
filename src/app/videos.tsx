@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { isLive, videos as fetchLiveVideos, videosRepost } from '@/api/client';
+import { isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -101,6 +101,7 @@ function ReelItem({
   saved,
   reposted,
   reposts,
+  likeCount,
   speed,
   onLike,
   onSave,
@@ -118,6 +119,7 @@ function ReelItem({
   saved: boolean;
   reposted: boolean;
   reposts: number;
+  likeCount: number;
   speed: number;
   onLike: (id: number) => void;
   onSave: (id: number) => void;
@@ -343,7 +345,7 @@ function ReelItem({
 
       {/* right action rail — like · comment · save · share · ••• */}
       <View style={{ position: 'absolute', right: 12, bottom: 152, gap: 13 }}>
-        {railButton('heart', (reel.likes + (liked ? 1 : 0)).toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
+        {railButton('heart', likeCount.toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
         {railButton('comment', String(reel.comments), () => onComments(reel))}
         {railButton('bookmark', (reel.saves + (saved ? 1 : 0)).toLocaleString(), () => { haptic.light(); onSave(reel.id); }, saved ? '#E8C96A' : undefined)}
         {railButton('retweet', reposts.toLocaleString(), () => { haptic.light(); onRepost(reel.id); }, reposted ? '#4AE38F' : undefined)}
@@ -531,6 +533,10 @@ export default function VideosFeed() {
   /* pass 70 — real server reels + live repost counts (id = 500000 + server id) */
   const [liveReels, setLiveReels] = useState<MockReel[]>([]);
   const [liveReposts, setLiveReposts] = useState<Record<number, number>>({});
+  /* pass 72 — authoritative like counts for server reels + one view per reel
+   * per session (add_view also de-dupes server-side per 6h) */
+  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
+  const viewedRef = useRef<Set<number>>(new Set());
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
   const [shareReel, setShareReel] = useState<MockReel | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -614,9 +620,16 @@ export default function VideosFeed() {
       setLiveReels(mapped);
       const already = rows.filter((v) => v.repostedByMe).map((v) => 500000 + Number(v.id));
       if (already.length) setReposted((prev) => new Set([...prev, ...already]));
+      const likedInit = rows.filter((v) => v.likedByMe).map((v) => 500000 + Number(v.id));
+      if (likedInit.length) setLiked((prev) => new Set([...prev, ...likedInit]));
       const counts: Record<number, number> = {};
-      for (const v of rows) counts[Number(v.id)] = Number(v.reposts ?? 0);
+      const likes: Record<number, number> = {};
+      for (const v of rows) {
+        counts[Number(v.id)] = Number(v.reposts ?? 0);
+        likes[500000 + Number(v.id)] = Number(v.likes ?? 0);
+      }
       setLiveReposts((prev) => ({ ...prev, ...counts }));
+      setLikeCounts((prev) => ({ ...prev, ...likes }));
     }).catch(() => {});
   }, []);
 
@@ -636,6 +649,16 @@ export default function VideosFeed() {
     return [...mine, ...MOCK_REELS];
   }, [feedTab, storeTick, commReels, liveReels, userReels]);
 
+  /* pass 72 — count a view the first time a server reel fills the screen */
+  useEffect(() => {
+    if (!isLive()) return;
+    const r = reels[index];
+    const lid = r?.liveId;
+    if (lid == null || viewedRef.current.has(lid)) return;
+    viewedRef.current.add(lid);
+    void videosView(lid);
+  }, [index, reels]);
+
   useEffect(() => {
     if (params.start) {
       const i = reels.findIndex((r) => String(r.id) === params.start);
@@ -652,16 +675,39 @@ export default function VideosFeed() {
     setTimeout(() => setToast(null), 1800);
   };
 
-  const toggleLike = (id: number) =>
-    setLiked((s) => {
+  const toggleLike = (id: number) => {
+    const flip = () => setLiked((s) => {
       const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      if (n.has(id)) n.delete(id); else n.add(id);
       return n;
     });
+    const target = liveReels.find((r) => r.id === id);
+    /* pass 72 — real likes for server reels (optimistic, revert on failure) */
+    if (target?.liveId != null && isLive()) {
+      const was = liked.has(id);
+      flip();
+      setLikeCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? target.likes ?? 0) + (was ? -1 : 1)) }));
+      void videosLike(target.liveId).then((res) => {
+        if (!res) {
+          flip();
+          setLikeCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + (was ? 1 : -1)) }));
+          return;
+        }
+        setLikeCounts((prev) => ({ ...prev, [id]: res.like_count }));
+      });
+      return;
+    }
+    flip();
+  };
 
   const toggleSave = (id: number) => {
-    void bmVideo.toggle(String(id)).then((on) => { if (on) showToast('Added to your saved videos'); });
+    const target = liveReels.find((r) => r.id === id);
+    void bmVideo.toggle(String(id)).then((on) => {
+      if (on) showToast('Added to your saved videos');
+      /* pass 72 — mirror the flag into the video engagement table too, so
+       * saved_by_me + admin stats stay accurate for server reels */
+      if (target?.liveId != null && isLive()) void videosSave(target.liveId, on);
+    });
   };
 
   const toggleRepost = (id: number) => {
@@ -876,6 +922,7 @@ export default function VideosFeed() {
             saved={saved.has(item.id)}
             reposted={reposted.has(item.id)}
             reposts={item.liveId != null && liveReposts[item.liveId] != null ? liveReposts[item.liveId] : (item.reposts ?? 0)}
+            likeCount={item.liveId != null && likeCounts[item.id] != null ? likeCounts[item.id] : item.likes + (liked.has(item.id) ? 1 : 0)}
             speed={speed}
             onLike={toggleLike}
             onSave={toggleSave}
@@ -1354,8 +1401,18 @@ export default function VideosFeed() {
                   ))}
                 </View>
 
-                <MoreRow icon="flag" label="Report" tint="#FF7B7B" onPress={() => { setMoreReel(null); Alert.alert('Report submitted', 'JazakAllah khair — our moderation team will review this video.'); }} />
-                <MoreRow icon="eye-slash" label="Not interested" tint="rgba(242,247,243,0.7)" onPress={() => { setMoreReel(null); showToast('You’ll see fewer videos like this'); }} />
+                <MoreRow icon="flag" label="Report" tint="#FF7B7B" onPress={() => {
+                  const lid = moreReel?.liveId;
+                  setMoreReel(null);
+                  if (lid != null && isLive()) void videosReport(lid, 'Reported from reel viewer');
+                  Alert.alert('Report submitted', 'JazakAllah khair — our moderation team will review this video.');
+                }} />
+                <MoreRow icon="eye-slash" label="Not interested" tint="rgba(242,247,243,0.7)" onPress={() => {
+                  const lid = moreReel?.liveId;
+                  setMoreReel(null);
+                  if (lid != null && isLive()) void videosNotInterested(lid);
+                  showToast('You’ll see fewer videos like this');
+                }} />
               </View>
             ) : (
               <View style={{ paddingHorizontal: 8 }}>
@@ -1406,6 +1463,7 @@ export default function VideosFeed() {
         visible={!!commentPost}
         inline={Platform.OS !== 'web'}
         post={commentPost}
+        videoId={commentReel?.liveId ?? null}
         seed={(commentPost ? (REEL_COMMENTS[commentPost.id] ?? []) as SampleComment[] : [])}
         onClose={() => setCommentReel(null)}
       />

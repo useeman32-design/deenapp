@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,8 @@ import { useQuranAudio, RECITERS } from '@/context/QuranAudioContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
+import { isLive, quranStreak, quranStreakLog, quranUnlockReciter } from '@/api/client';
+import { useDeenPoints } from '@/components/DeenPoints';
 
 type Mode = 'reading' | 'mushaf';
 
@@ -56,6 +58,15 @@ export default function Reader() {
     (globalThis as unknown as { __dlReadMode?: Mode }).__dlReadMode = mode;
   }, [mode]);
   const [reciterOpen, setReciterOpen] = useState(false);
+  /* pass 72 — reading streak + premium reciter unlocks */
+  const dp = useDeenPoints();
+  const [streak, setStreak] = useState<number | null>(null);
+  const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isLive()) return;
+    void quranStreakLog();
+    void quranStreak().then((r) => { if (r) setStreak(r.current); });
+  }, []);
   const [barOpen, setBarOpen] = useState(true);
   const [barW, setBarW] = useState(300);
   const [lang, setLang] = useState<TrLang>('en');
@@ -553,9 +564,12 @@ export default function Reader() {
         <View style={{ position: 'absolute', inset: 0, zIndex: 90, backgroundColor: 'rgba(4,8,6,0.7)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setReciterOpen(false)} />
           <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 16 }}>
-            <T v="body" style={{ color: d.text, fontWeight: '800', fontSize: 15, marginBottom: 12 }}>
+            <T v="body" style={{ color: d.text, fontWeight: '800', fontSize: 15, marginBottom: streak != null && streak > 0 ? 4 : 12 }}>
               Choose a reciter
             </T>
+            {streak != null && streak > 0 ? (
+              <T v="caption" style={{ color: d.faint, marginBottom: 10 }}>🔥 {streak}-day reading streak — keep it alive by reading today</T>
+            ) : null}
             {RECITERS.map((r) => {
               const on = audio.reciter === r.id;
               return (
@@ -573,6 +587,54 @@ export default function Reader() {
                     {r.name}
                   </T>
                   {on ? <FontAwesome5 name="check" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
+                </Pressable>
+              );
+            })}
+            {/* pass 72 — admin-managed extra reciters (some unlock with DeenPoints) */}
+            {audio.serverReciters.map((sr) => {
+              if (RECITERS.some((b) => b.id === sr.reciter_key)) return null;
+              const on = audio.reciter === sr.reciter_key;
+              const locked = sr.is_free === false && !sr.is_unlocked;
+              const initials = sr.name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('');
+              const pick = () => {
+                haptic.light();
+                if (!locked) {
+                  audio.setReciter(sr.reciter_key);
+                  setReciterOpen(false);
+                  return;
+                }
+                setUnlockingKey(sr.reciter_key);
+                void quranUnlockReciter(sr.reciter_key).then((res) => {
+                  setUnlockingKey(null);
+                  if (!res.ok) { Alert.alert('Could not unlock', res.message ?? 'Try again in a moment.'); return; }
+                  if (res.balance != null) void dp.sync(res.balance);
+                  audio.refreshReciters();
+                  audio.setReciter(sr.reciter_key);
+                  setReciterOpen(false);
+                });
+              };
+              return (
+                <Pressable
+                  key={sr.reciter_key}
+                  onPress={pick}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 6, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.4)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? 'rgba(74,227,143,0.15)' : 'rgba(29,111,66,0.1)', borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                    <T v="caption" style={{ fontWeight: '900', color: isDark ? '#4AE38F' : '#1D6F42' }}>{initials}</T>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="body" numberOfLines={1} style={{ color: d.text, fontWeight: '700', fontSize: 13 }}>
+                      {sr.name}{sr.country ? ` · ${sr.country}` : ''}
+                    </T>
+                    {locked ? <T v="caption" style={{ color: '#B8870B', fontWeight: '800', fontSize: 10, marginTop: 2 }}>🔒 {sr.price ?? 0} DeenPoints to unlock</T> : null}
+                  </View>
+                  {unlockingKey === sr.reciter_key ? (
+                    <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  ) : on ? (
+                    <FontAwesome5 name="check" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  ) : locked ? (
+                    <FontAwesome5 name="lock" size={12} color="#B8870B" />
+                  ) : null}
                 </Pressable>
               );
             })}

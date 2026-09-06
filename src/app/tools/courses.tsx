@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -10,6 +10,8 @@ import { PageHero } from '@/components/PageHero';
 import { ChevronRightIcon, GraduationCapIcon, StarIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { useDeenPoints } from '@/components/DeenPoints';
+import type { ServerCourse } from '@/api/client';
 
 /**
  * Islamic Courses & Lectures (pass 32): the course list opens a REAL learning
@@ -90,6 +92,21 @@ const QUIZZES: Record<string, QuizQ[]> = {
     { q: 'The "Feynman test" of understanding is to…', a: ['read aloud fast', 'explain it in two minutes without notes', 'memorise the headings', 'teach only seniors'], correct: 1, why: 'Explain the lesson aloud in two minutes, notes closed.' },
   ],
 };
+/* pass 72 — server course → player lessons (flattened across modules) */
+const stripHtml = (h: string) =>
+  h.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, '\n').trim();
+const serverLessons = (sc: ServerCourse): Lesson[] =>
+  ((sc.modules ?? []).flatMap((m) => (m.lessons ?? []).map((l) => ({
+    title: l.title,
+    minutes: parseInt(String(l.duration_label ?? ''), 10) || 4,
+    kind: (l.video_url || l.lesson_type === 'video' ? 'lecture' : 'reading') as Lesson['kind'],
+    body: stripHtml(String(l.content_html ?? '')).split(/\n{2,}/).filter(Boolean),
+  })))) as Lesson[];
+const serverLessonIds = (sc: ServerCourse): number[] =>
+  (sc.modules ?? []).flatMap((m) => (m.lessons ?? []).map((l) => l.id));
+
 const quizFor = (c: Course): QuizQ[] => QUIZZES[c.slug ?? ''] ?? QUIZZES.default;
 
 export default function Courses() {
@@ -101,6 +118,11 @@ export default function Courses() {
   /* per-course progress: { [courseId]: number[] (completed lesson indexes) } */
   const [progress, setProgress] = useState<Record<string, number[]>>({});
 
+  /* pass 72 — live course detail (modules, access, certificates) */
+  const dp = useDeenPoints();
+  const [serverCourse, setServerCourse] = useState<ServerCourse | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     api.courses()
@@ -111,15 +133,64 @@ export default function Courses() {
     }).catch(() => {});
   }, []);
 
+  const openCourseCta = (c: Course) => {
+    haptic.selection();
+    setServerCourse(null);
+    setOpenCourse(c);
+    if (!api.isLive()) return;
+    void api.courseGet(c.id).then((sc) => {
+      if (!sc) return;
+      setServerCourse(sc);
+      if (sc.user_state && sc.user_state.is_enrolled === false) {
+        void api.courseEnroll(c.id).then((e) => { if (e) setServerCourse(e); });
+      }
+    });
+  };
+
+  const doUnlock = () => {
+    if (!serverCourse) return;
+    setUnlocking(true);
+    void api.courseUnlockPoints(serverCourse.id).then((res) => {
+      setUnlocking(false);
+      if (!res.ok) { Alert.alert('Could not unlock', res.message ?? 'Try again in a moment.'); return; }
+      if (res.balance != null) void dp.sync(res.balance);
+      const cid = serverCourse.id;
+      void api.courseGet(cid).then((sc) => {
+        if (!sc) return;
+        setServerCourse(sc);
+        if (sc.user_state && sc.user_state.is_enrolled === false) {
+          void api.courseEnroll(cid).then((e) => { if (e) setServerCourse(e); });
+        }
+      });
+    });
+  };
+
   const toggleDone = (courseId: number, li: number) => {
     haptic.light();
+    let nextCount = 0;
     setProgress((prev) => {
       const cur = prev[courseId] ?? [];
       const next = cur.includes(li) ? cur.filter((x) => x !== li) : [...cur, li];
+      nextCount = next.length;
       const out = { ...prev, [courseId]: next };
       storage.setItem('dl.courses.progress.v1', JSON.stringify(out)).catch(() => {});
       return out;
     });
+    /* pass 72 — record the completion on the server too (certificate engine) */
+    if (api.isLive() && serverCourse && serverCourse.id === courseId) {
+      const lid = serverLessonIds(serverCourse)[li];
+      if (lid != null) {
+        void api.courseCompleteLesson(courseId, lid).then((res) => {
+          if (!res.ok) return;
+          const cert = res.certificate as { certificate_no?: string; verification_code?: string } | null;
+          const code = cert?.verification_code ?? cert?.certificate_no;
+          const total = serverLessonIds(serverCourse).length;
+          if (code && nextCount >= total) {
+            Alert.alert('Certificate earned 🎓', `Your certificate no. is ${cert?.certificate_no ?? code} · verification code ${code}. Keep it safe — anyone can verify it on DeenLink.`);
+          }
+        });
+      }
+    }
   };
 
   /* web parity: course tabs — all / tafsir / fiqh / aqeedah / arabic / tauhid */
@@ -178,7 +249,7 @@ export default function Courses() {
             return (
               <Pressable
                 key={c.id}
-                onPress={() => { haptic.selection(); setOpenCourse(c); }}
+                onPress={() => openCourseCta(c)}
                 style={({ pressed }) => ({ backgroundColor: theme.card, borderRadius: 16, padding: 16, opacity: pressed ? 0.9 : 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 })}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -217,17 +288,42 @@ export default function Courses() {
         </View>
       </ScrollView>
 
-      {openCourse ? <CoursePlayer course={openCourse} progress={progress[openCourse.id] ?? []} onToggle={(li) => toggleDone(openCourse.id, li)} onClose={() => setOpenCourse(null)} /> : null}
+      {openCourse ? <CoursePlayer course={openCourse} progress={progress[openCourse.id] ?? []} onToggle={(li) => toggleDone(openCourse.id, li)} onClose={() => { setOpenCourse(null); setServerCourse(null); }} server={serverCourse} onUnlock={doUnlock} unlocking={unlocking} /> : null}
     </View>
   );
 }
 
 /* ── the learning player: curriculum list ⇄ lesson reader ── */
-function CoursePlayer({ course, progress, onToggle, onClose }: { course: Course; progress: number[]; onToggle: (li: number) => void; onClose: () => void }) {
+function CoursePlayer({ course, progress, onToggle, onClose, server, onUnlock, unlocking }: { course: Course; progress: number[]; onToggle: (li: number) => void; onClose: () => void; server?: ServerCourse | null; onUnlock?: () => void; unlocking?: boolean }) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [li, setLi] = useState<number | null>(null);
-  const lessons = lessonsFor(course);
+  /* pass 72 — real modules beat the bundled curriculum when they exist */
+  const lessons = server?.modules?.length ? serverLessons(server) : lessonsFor(course);
+  const locked = !!(server && server.access_type === 'deenpoints' && server.user_state && server.user_state.has_access === false);
+  if (locked) {
+    return (
+      <Modal visible animationType="slide" onRequestClose={onClose}>
+        <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top + 8, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name="lock" size={24} color="#B8870B" />
+          </View>
+          <T v="h2" style={{ marginTop: 18, fontWeight: '900' }}>{course.title}</T>
+          <T v="body" style={{ marginTop: 8, color: theme.subtext, textAlign: 'center' }}>
+            This course unlocks with {server?.deen_points_cost ?? 0} DeenPoints. Your balance: {server?.user_state?.deenpoints_balance ?? 0} pts.
+          </T>
+          <Pressable onPress={() => { haptic.light(); onUnlock?.(); }} disabled={unlocking}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, paddingVertical: 14, paddingHorizontal: 26, borderRadius: 14, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', opacity: pressed || unlocking ? 0.7 : 1 })}>
+            {unlocking ? <ActivityIndicator size="small" color="#0E1410" /> : <FontAwesome5 name="unlock" size={12} color="#0E1410" />}
+            <T v="button" style={{ fontSize: 13, fontWeight: '900', color: '#0E1410' }}>{unlocking ? 'UNLOCKING…' : 'UNLOCK COURSE'}</T>
+          </Pressable>
+          <Pressable onPress={onClose} style={{ marginTop: 14, paddingVertical: 10 }}>
+            <T v="caption" style={{ fontWeight: '700' }}>Maybe later</T>
+          </Pressable>
+        </View>
+      </Modal>
+    );
+  }
   /* pass 42 — quiz session state */
   const [quizOn, setQuizOn] = useState(false);
   const [qi, setQi] = useState(0);

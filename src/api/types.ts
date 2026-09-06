@@ -123,6 +123,7 @@ export interface Video {
   reposts?: number;
   likedByMe?: boolean;
   repostedByMe?: boolean;
+  savedByMe?: boolean;
   [k: string]: unknown;
 }
 

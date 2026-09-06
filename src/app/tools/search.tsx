@@ -133,6 +133,8 @@ export default function SearchScreen() {
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
   /* pass 68 — server-side post search + follow state for user rows */
   const [qPosts, setQPosts] = useState<Post[] | null>(null);
+  /* pass 72 — real video search (server LIKE) */
+  const [qVideos, setQVideos] = useState<Video[] | null>(null);
   const [followed, setFollowed] = useState<Record<string, boolean>>({});
   const [followBusy, setFollowBusy] = useState<Record<string, boolean>>({});
 
@@ -160,16 +162,31 @@ export default function SearchScreen() {
     return () => { on = false; clearTimeout(t); };
   }, [query, searching]);
 
+  useEffect(() => {
+    if (!searching || !api.isLive()) { setQVideos(null); return; }
+    let on = true;
+    const t = setTimeout(() => {
+      setLoading((l) => ({ ...l, videos: true }));
+      api.videosSearch(query, 12)
+        .then((r) => { if (on) setQVideos(r); })
+        .catch(() => {})
+        .finally(() => { if (on) setLoading((l) => ({ ...l, videos: false })); });
+    }, 320);
+    return () => { on = false; clearTimeout(t); };
+  }, [query, searching]);
+
   const matchedPosts = useMemo(() => {
     const local = (posts ?? []).filter((p) => !searching || (p.content_text ?? '').toLowerCase().includes(query) || (p.user?.full_name ?? '').toLowerCase().includes(query) || (p.user?.username ?? '').toLowerCase().includes(query));
     if (!searching || !qPosts?.length) { return local; }
     const seen = new Set(qPosts.map((p) => p.id));
     return [...qPosts, ...local.filter((p) => !seen.has(p.id))];
   }, [posts, qPosts, query, searching]);
-  const matchedVideos = useMemo(
-    () => (videos ?? []).filter((v) => !searching || (v.title ?? '').toLowerCase().includes(query) || (v.description ?? '').toLowerCase().includes(query)),
-    [videos, query, searching],
-  );
+  const matchedVideos = useMemo(() => {
+    const local = (videos ?? []).filter((v) => !searching || (v.title ?? '').toLowerCase().includes(query) || (v.description ?? '').toLowerCase().includes(query));
+    if (!searching || !qVideos?.length) { return local; }
+    const seen = new Set(qVideos.map((v) => v.id));
+    return [...qVideos, ...local.filter((v) => !seen.has(v.id))];
+  }, [videos, qVideos, query, searching]);
   const allTags = useMemo(() => tagsOf(posts ?? []), [posts]);
   const matchedTags = useMemo(
     () => allTags.filter((t) => !searching || t.tag.includes(query.replace(/^#/, ''))),

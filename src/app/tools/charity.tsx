@@ -17,7 +17,7 @@ import { fetchNisab } from '@/lib/islamicApi';
 import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
 import { markGoal } from '@/lib/routine';
 import { donate } from '@/lib/flutterwave';
-import { isLive } from '@/api/client';
+import { donationHistory, isLive } from '@/api/client';
 
 /**
  * Donations (pass 34 — full rebuild):
@@ -200,7 +200,38 @@ export default function Donations() {
   const [history, setHistory] = useState<Dono[]>([]);
   const [openReceipt, setOpenReceipt] = useState<Dono | null>(null);
 
-  useEffect(() => { store.load().then(setHistory).catch(() => {}); }, []);
+  /* pass 72 — merge the server-side donation ledger (all devices, incl.
+   * web checkouts) into this list; local rows keyed by the same tx ref are
+   * replaced by the authoritative server copy */
+  useEffect(() => {
+    store.load().then((local) => {
+      setHistory(local);
+      if (!isLive()) return;
+      void donationHistory(1, 50).then((res) => {
+        if (!res?.items?.length) return;
+        const mapped: Dono[] = res.items
+          .filter((it) => String(it.tx_status ?? it.status ?? '') !== 'failed')
+          .map((it) => {
+            const cats = Array.isArray(it.recipient_categories) ? (it.recipient_categories as string[]) : [];
+            return {
+              id: `srv-${it.id}`,
+              cat: (String(it.donation_type ?? 'sadaqah') === 'zakat' ? 'zakat' : 'sadaqah') as Cat,
+              recipient: cats.join(', ') || String(it.note ?? 'Donation'),
+              amount: Number(it.amount ?? 0),
+              currency: String(it.currency ?? 'NGN'),
+              feePct: 0,
+              at: Date.parse(String(it.created_at ?? '').replace(' ', 'T') + 'Z') || Date.now(),
+              ref: String(it.tx_ref ?? ''),
+              reported: Number((it.complaint as { id?: number } | undefined)?.id ?? 0) > 0,
+              pending: String(it.tx_status ?? '') === 'pending',
+            };
+          });
+        const refs = new Set(mapped.map((m) => m.ref).filter(Boolean));
+        const kept = local.filter((l) => !l.ref || !refs.has(l.ref));
+        setHistory([...mapped, ...kept].sort((a, b) => b.at - a.at));
+      });
+    }).catch(() => {});
+  }, []);
 
   const cur = CURRENCIES[curIdx];
   const amt = Number(amount.replace(/[^0-9.]/g, ''));

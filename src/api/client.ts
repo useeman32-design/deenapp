@@ -595,6 +595,225 @@ export async function videos(type: 'daily' | 'reel' | 'all' = 'daily'): Promise<
   return MOCK_VIDEOS;
 }
 
+/* ─────────────── pass 72 — Tier 1: video engagement, courses, donation history, qur'an extras ─────────────── */
+
+/* ---- videos engagement ---- */
+export async function videosLike(videoId: number, desired?: boolean): Promise<{ liked: boolean; like_count: number } | null> {
+  const body: Record<string, unknown> = { video_id: videoId };
+  if (desired !== undefined) body.desired_liked = desired;
+  const r = await request<{ status?: string; liked?: boolean; like_count?: number }>('/api/videos/toggle_like.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success' && typeof r.data.liked === 'boolean') return { liked: r.data.liked, like_count: Number(r.data.like_count ?? 0) };
+  return null;
+}
+
+export type VideoComment = {
+  id: number;
+  text: string;
+  created_at?: string;
+  time_ago?: string;
+  like_count?: number;
+  liked_by_me?: boolean | number;
+  is_mine?: boolean | number;
+  user?: { id?: number; name?: string; username?: string; profile_image_url?: string | null } | null;
+  replies?: VideoComment[] | null;
+  [k: string]: unknown;
+};
+
+export async function videosComments(videoId: number): Promise<VideoComment[] | null> {
+  const r = await request<{ status?: string; comments?: VideoComment[] }>(`/api/videos/list_comments.php?video_id=${videoId}`, { auth: true });
+  if (r.ok && Array.isArray(r.data.comments)) return r.data.comments;
+  return null;
+}
+
+export async function videosCommentAdd(videoId: number, text: string, parentId?: number): Promise<{ comment_id: number; comment_count: number } | null> {
+  const body: Record<string, unknown> = { video_id: videoId, text };
+  if (parentId) body.parent_id = parentId;
+  const r = await request<{ status?: string; comment_id?: number; comment_count?: number }>('/api/videos/add_comment.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success' && r.data.comment_id) return { comment_id: Number(r.data.comment_id), comment_count: Number(r.data.comment_count ?? 0) };
+  return null;
+}
+
+export async function videosCommentDelete(videoId: number, commentId: number): Promise<number | null> {
+  const r = await request<{ status?: string; comment_count?: number }>('/api/videos/delete_comment.php', { method: 'POST', body: { video_id: videoId, comment_id: commentId }, auth: true });
+  if (r.ok && r.data.status === 'success') return Number(r.data.comment_count ?? 0);
+  return null;
+}
+
+export async function videosCommentLike(commentId: number, desired?: boolean): Promise<{ liked: boolean; like_count: number } | null> {
+  const body: Record<string, unknown> = { comment_id: commentId };
+  if (desired !== undefined) body.desired_liked = desired;
+  const r = await request<{ status?: string; liked?: boolean; like_count?: number }>('/api/videos/toggle_comment_like.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success' && typeof r.data.liked === 'boolean') return { liked: r.data.liked, like_count: Number(r.data.like_count ?? 0) };
+  return null;
+}
+
+export async function videosSave(videoId: number, desired?: boolean): Promise<boolean | null> {
+  const body: Record<string, unknown> = { video_id: videoId };
+  if (desired !== undefined) body.desired_saved = desired;
+  const r = await request<{ status?: string; saved?: boolean }>('/api/videos/bookmark.php', { method: 'POST', body, auth: true });
+  if (r.ok && r.data.status === 'success' && typeof r.data.saved === 'boolean') return r.data.saved;
+  return null;
+}
+
+export async function videosView(videoId: number): Promise<void> {
+  await request('/api/videos/add_view.php', { method: 'POST', body: { video_id: videoId }, auth: true }).catch(() => {});
+}
+
+export async function videosReport(videoId: number, reason: string, hideAccount = false): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/videos/report.php', { method: 'POST', body: { video_id: videoId, reason, hide_account: hideAccount }, auth: true });
+  return r.ok && r.data.status === 'success';
+}
+
+export async function videosNotInterested(videoId: number, reason = ''): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/videos/not_interested.php', { method: 'POST', body: { video_id: videoId, reason }, auth: true });
+  return r.ok && r.data.status === 'success';
+}
+
+export async function videosSearch(q: string, limit = 12): Promise<Video[] | null> {
+  const r = await request<{ status?: string; videos?: Video[] }>(`/api/videos/search.php?q=${encodeURIComponent(q)}&limit=${limit}`, { auth: true });
+  if (r.ok && Array.isArray(r.data.videos)) return r.data.videos;
+  return null;
+}
+
+/* ---- courses ---- */
+export type ServerLesson = { id: number; title: string; slug?: string; lesson_type?: string; duration_label?: string; content_html?: string; video_url?: string; is_preview?: boolean | number; [k: string]: unknown };
+export type ServerCourse = {
+  id: number;
+  title: string;
+  slug?: string;
+  access_type?: 'free' | 'paid' | 'deenpoints';
+  deen_points_cost?: number;
+  has_certificate?: boolean | number;
+  total_lessons?: number;
+  summary?: string;
+  description?: string;
+  level?: string;
+  category?: string;
+  instructor_name?: string;
+  cover_image_url?: string;
+  modules?: Array<{ id: number; title: string; lessons: ServerLesson[] }>;
+  enrolled?: boolean | number;
+  has_access?: boolean | number;
+  completed_lesson_ids?: number[];
+  user_state?: {
+    is_logged_in?: boolean;
+    is_enrolled?: boolean;
+    has_access?: boolean;
+    deenpoints_balance?: number;
+    completed_lessons?: number;
+    required_lessons?: number;
+    progress_percent?: number;
+    resume_lesson_id?: number;
+    certificate?: { certificate_no?: string; verification_code?: string; issued_at?: string } | null;
+  } | null;
+  [k: string]: unknown;
+};
+
+export async function courseGet(courseId?: number, slug?: string): Promise<ServerCourse | null> {
+  const qs = courseId ? `course_id=${courseId}` : `slug=${encodeURIComponent(slug ?? '')}`;
+  const r = await request<{ status?: string; course?: ServerCourse }>(`/api/courses/get.php?${qs}`, { auth: true });
+  if (r.ok && r.data.course) return r.data.course;
+  return null;
+}
+
+export async function courseEnroll(courseId: number): Promise<ServerCourse | null> {
+  const r = await request<{ status?: string; course?: ServerCourse }>('/api/courses/enroll.php', { method: 'POST', body: { course_id: courseId }, auth: true });
+  if (r.ok && r.data.status === 'success') return r.data.course ?? null;
+  return null;
+}
+
+export async function courseUnlockPoints(courseId: number): Promise<{ ok: boolean; balance?: number; message?: string }> {
+  const r = await request<{ status?: string; message?: string; new_balance?: number; balance?: number; deenpoints_balance?: number }>('/api/courses/unlock_points.php', { method: 'POST', body: { course_id: courseId }, auth: true });
+  if (r.ok && r.data.status === 'success') {
+    const bal = Number(r.data.deenpoints_balance ?? r.data.new_balance ?? r.data.balance ?? NaN);
+    return { ok: true, balance: Number.isFinite(bal) ? bal : undefined, message: r.data.message };
+  }
+  return { ok: false, message: r.data.message ?? 'Could not unlock this course' };
+}
+
+export async function courseCompleteLesson(courseId: number, lessonId: number): Promise<{ ok: boolean; certificate?: Record<string, unknown> | null; message?: string }> {
+  const r = await request<{ status?: string; message?: string; certificate?: Record<string, unknown> | null }>('/api/courses/complete_lesson.php', { method: 'POST', body: { course_id: courseId, lesson_id: lessonId }, auth: true });
+  if (r.ok && r.data.status === 'success') return { ok: true, certificate: r.data.certificate ?? null, message: r.data.message };
+  return { ok: false, message: r.data.message };
+}
+
+export async function courseCertificate(courseId: number): Promise<Record<string, unknown> | null> {
+  const r = await request<{ status?: string; certificate?: Record<string, unknown> }>(`/api/courses/certificate.php?course_id=${courseId}`, { auth: true });
+  if (r.ok && r.data.certificate) return r.data.certificate;
+  return null;
+}
+
+/* ---- donations history ---- */
+export type DonationRow = {
+  id?: number;
+  status?: string;
+  amount?: string | number;
+  currency?: string;
+  purpose?: string;
+  donation_type?: string;
+  note?: string;
+  created_at?: string;
+  tx_ref?: string;
+  [k: string]: unknown;
+};
+
+export async function donationHistory(page = 1, perPage = 20): Promise<{ items: DonationRow[]; total: number } | null> {
+  const r = await request<{ status?: string; items?: DonationRow[]; total?: number }>(`/api/donations/my_history.php?page=${page}&per_page=${perPage}`, { auth: true });
+  if (r.ok && Array.isArray(r.data.items)) return { items: r.data.items, total: Number(r.data.total ?? r.data.items.length) };
+  return null;
+}
+
+export async function donationSummary(): Promise<{ total: number; count: number; currency: string } | null> {
+  const r = await request<{ status?: string; total?: number; count?: number; currency?: string }>('/api/donations/my_summary.php', { auth: true });
+  if (r.ok && r.data.status === 'success') return { total: Number(r.data.total ?? 0), count: Number(r.data.count ?? 0), currency: String(r.data.currency ?? 'NGN') };
+  return null;
+}
+
+/* ---- qur'an extras ---- */
+export type ServerReciter = {
+  reciter_key: string;
+  name: string;
+  country?: string;
+  style?: string;
+  base_url: string;
+  audio_format?: string;
+  url_mode?: 'absolute_ayah' | 'surah_ayah';
+  is_free?: boolean;
+  price?: number;
+  is_unlocked?: boolean;
+  is_locked?: boolean;
+  sort_order?: number;
+};
+
+export async function quranReciters(): Promise<{ reciters: ServerReciter[]; balance: number } | null> {
+  const r = await request<{ status?: string; reciters?: Array<ServerReciter & { key?: string }>; user?: { deenpoints_balance?: number }; balance?: number }>('/api/quran/reciters.php', { auth: true });
+  if (r.ok && Array.isArray(r.data.reciters)) {
+    /* the endpoint emits `key`; normalize to reciter_key for the client */
+    const reciters = r.data.reciters.map((x) => ({ ...x, reciter_key: String(x.reciter_key ?? x.key ?? '') }));
+    return { reciters, balance: Number(r.data.user?.deenpoints_balance ?? r.data.balance ?? 0) };
+  }
+  return null;
+}
+
+export async function quranUnlockReciter(reciterKey: string): Promise<{ ok: boolean; balance?: number; message?: string }> {
+  const r = await request<{ status?: string; message?: string; new_balance?: number }>('/api/quran/unlock_reciter.php', { method: 'POST', body: { reciter_key: reciterKey }, auth: true });
+  if (r.ok && r.data.status === 'success') {
+    const bal = Number(r.data.new_balance ?? NaN);
+    return { ok: true, balance: Number.isFinite(bal) ? bal : undefined, message: r.data.message };
+  }
+  return { ok: false, message: r.data.message ?? 'Could not unlock this reciter' };
+}
+
+export async function quranStreak(): Promise<{ current: number; best: number } | null> {
+  const r = await request<{ status?: string; streak?: { current?: number; best?: number } }>('/api/quran/streak.php', { auth: true });
+  if (r.ok && r.data.streak) return { current: Number(r.data.streak.current ?? 0), best: Number(r.data.streak.best ?? 0) };
+  return null;
+}
+
+export async function quranStreakLog(): Promise<void> {
+  await request('/api/quran/streak.php', { method: 'POST', body: {}, auth: true }).catch(() => {});
+}
+
 /* pass 70 — server-backed video reposts (notifications included). */
 export async function videosRepost(videoId: number, action: 'repost' | 'undo' | 'toggle' = 'toggle'): Promise<{ reposted: boolean; repost_count: number } | null> {
   const r = await request<{ status?: string; reposted?: boolean; repost_count?: number }>('/api/videos/repost.php', { method: 'POST', body: { video_id: videoId, action }, auth: true });

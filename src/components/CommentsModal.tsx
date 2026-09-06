@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 /* pass 66-night — live comments: the sheet reads/writes the server thread when
  * the session is real. Server reply ids are namespaced (+1e9) so they can never
  * collide with comment ids in the shared liked-map. */
-import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLive, toggleCommentLike, toggleReplyLike, type ServerComment } from '@/api/client';
+import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLive, toggleCommentLike, toggleReplyLike, videosCommentAdd, videosCommentLike, videosComments, type ServerComment } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 const REPLY_OFF = 1_000_000_000;
 
@@ -281,6 +281,7 @@ export function CommentsModal({
   onClose,
   inline = false,
   postId = null,
+  videoId = null,
 }: {
   visible: boolean;
   post: Post | null;
@@ -289,6 +290,9 @@ export function CommentsModal({
   inline?: boolean;
   /** pass 66-night — real post id → the thread reads/writes the server. */
   postId?: number | null;
+  /** pass 72 — real video (reel) id → the thread reads/writes the VIDEO
+   * comments API instead (reels are not posts server-side). */
+  videoId?: number | null;
 }) {
   const { theme, isDark } = useTheme();
   const router = useRouter();
@@ -313,7 +317,8 @@ export function CommentsModal({
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string; handle: string } | null>(null);
   /* pass 66-night — live mode: the thread is a real server conversation. */
   const { user: authUser } = useAuth();
-  const live = postId != null && postId > 0 && isLive();
+  const liveVideo = videoId != null && videoId > 0 && isLive();
+  const live = (postId != null && postId > 0 && isLive()) || liveVideo;
   const me = live && authUser ? { name: authUser.full_name || authUser.username, handle: authUser.username } : ME;
   const mapServer = (c: ServerComment): SampleComment => ({
     id: c.id,
@@ -335,8 +340,27 @@ export function CommentsModal({
       liked: r.liked_by_me,
     })),
   });
+  /* pass 72 — reels load from the videos comments API */
   useEffect(() => {
-    if (!visible || !live || !postId) return;
+    if (!visible || !liveVideo || !videoId) return;
+    let dead = false;
+    (async () => {
+      const rows = (await videosComments(videoId)) as unknown as ServerComment[] | null;
+      if (dead || !rows) return;
+      const mapped = rows.map(mapServer);
+      setItems(mapped);
+      const l: Record<number, boolean> = {};
+      for (const c of mapped) {
+        if (c.liked) l[c.id] = true;
+        c.replies?.forEach((r) => { if (r.liked) l[r.id] = true; });
+      }
+      setLikedMap(l);
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, videoId, liveVideo]);
+  useEffect(() => {
+    if (!visible || !live || liveVideo || !postId) return;
     let dead = false;
     (async () => {
       const rows = await getComments(postId);
@@ -499,7 +523,9 @@ export function CommentsModal({
     });
     if (!live) return;
     const isReply = id >= REPLY_OFF;
-    const call = isReply ? toggleReplyLike(id - REPLY_OFF, want) : toggleCommentLike(id, want);
+    const call = liveVideo
+      ? videosCommentLike(isReply ? id - REPLY_OFF : id, want)
+      : isReply ? toggleReplyLike(id - REPLY_OFF, want) : toggleCommentLike(id, want);
     void call.then((res) => {
       if (!res) return;
       setItems((prev) =>
@@ -567,7 +593,23 @@ export function CommentsModal({
     const target = replyingTo;
     pushComment(nc);
     setDraft('');
-    if (live && postId) {
+    if (liveVideo && videoId) {
+      const parent = target
+        ? (target.id >= REPLY_OFF
+            ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
+            : items.find((c) => c.id === target.id))
+        : null;
+      void videosCommentAdd(videoId, t, parent ? parent.id : undefined).then((res) => {
+        if (!res) return;
+        setItems((prev) =>
+          prev.map((c) =>
+            (c.replies ?? []).some((r) => r.id === tempId)
+              ? { ...c, replies: (c.replies ?? []).map((r) => (r.id === tempId ? { ...r, id: res.comment_id + REPLY_OFF } : r)) }
+              : c.id === tempId ? { ...c, id: res.comment_id } : c,
+          ),
+        );
+      });
+    } else if (live && postId) {
       if (target) {
         const isReply = target.id >= REPLY_OFF;
         const parent = isReply
