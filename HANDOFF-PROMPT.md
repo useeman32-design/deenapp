@@ -12,7 +12,7 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `c98f38e` (pass 66) · deenlink-api main `2a1e096` (pass-66 web build, 439 api/admin/vendor files untouched) · deenapp master `pass-66 commit`
+gh-pages `2e28963` (night pass) · deenlink-api main `94d1561` (night-pass web build + backend 4446b02; 450 api/admin/vendor files, 0 backend files in web-build diff) · deenapp master `a1bdaa7` (night pass merged over pass-66 `c224e12`)
 ⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
@@ -93,7 +93,7 @@ Use `--deepen N` (or `--unshallow` if you need everything).
   centre the counter + circular beads, balance the text. `tools/athkar` is to be **removed**.
 - **Chat presence / last-seen / read receipts:** client already calls `/api/chat/presence.php` but
   **`api/chat/` does not exist in the backend** — endpoints were never built. Backend work, not UI.
-- **Groq key from DB:** read the admin-stored key server-side so AI needs no manual key entry.
+- **Groq key from DB:** DONE (night pass) — `api/deenai/status.php` + `deenai/chat.php` read `ai_provider_keys`; the app hides the key field when connected. Still needs the cPanel `git pull` to go live.
 - **99 Names translations (item 6):** blocked — needs an IslamicAPI key (ha/sw/bn/fr, no Yoruba) + a verified Yoruba source.
   Do NOT generate religious text from memory; a previous attempt produced duplicated/wrong entries and was discarded.
 
