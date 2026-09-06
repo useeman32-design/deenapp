@@ -1084,3 +1084,40 @@ donation history+summary · streak log/read + reciter unlock). harness71 10/10, 
 
 Heads: deenlink-api main cff76f2 · deenapp master c637754 · gh-pages 34099e9 · backup c637754.
 NEXT per user: Tier 2/3 inventory → admin dashboard audit → iOS/Android store builds.
+
+## PASS 73 — user-reported fixes (before Tier 2)
+
+1. **Profile refresh → Forbidden / logged out** (app.deenlink.org): the Expo export ships
+   BOTH profile.html AND a profile/ directory; Apache preferred the directory → mod_dir →
+   403. New web-root `.htaccess`: extension-less paths resolve to their .html export,
+   unknown paths fall back to the SPA (404.html), 403/404 render the app shell.
+2. **"That's not my avatar"**: users.profile_image stores a bare FILENAME; auth/me.php +
+   login.php returned it raw while every screen reads profile_image_url → uploaded photo
+   vanished on refresh (initials shown). me.php now builds the absolute URL (same rules
+   as get_user_profile.php) and the client normalizes via hydrateUser() (me + login).
+3. **Default profile photo everywhere**: AvatarImage (feed, comments, inbox, profiles,
+   pickers) now falls back to the SAME gendered DefaultAvatar SVG as edit-profile (was
+   initials) and resolves bare filenames against {API}/uploads/profile/.
+4. **Share = multi-select + search**: new SendToFriends.tsx (FriendsPicker) replaces the
+   single-tap mock rows in BOTH the post share sheet (ContentShareSheet) and the videos
+   "Send to…" sheet. Recent DM peers suggested, real account search (search_accounts),
+   mark many, one Send → each picked user gets a server-backed chat share
+   (chat/start + chat/send_share) landing in their DeenLink inbox. Demo mode delivers to
+   the local inbox store as before.
+5. **Android swipe overshoot**: onboarding pager + videos reel list got
+   snapToInterval + snapToAlignment + decelerationRate="fast" + disableIntervalMomentum
+   → one slide/reel per swipe (fling momentum no longer carries several pages).
+
+**harness73.py: 8/8** (me.php URL build: fresh/uploaded/default · account search · DM
+start · post share delivered to recipient thread · reel kind). harness72 26/26 +
+harness71 10/10 re-run. probe72 ALL OK on both bases.
+
+WORKSPACE INCIDENT (recovered): the sandbox rolled the repo back mid-turn to de94ef8 and
+resurfaced new-agent-update/ (pass-53, never merged per Correction 27 — moved to
+/tmp/new-agent-update-old). GitHub was truth: fetch + reset --hard origin/master, then
+re-applied pass-73 patches. Also self-inflicted: a python splice truncated client.ts
+(`s[:i]+"export "+s[i:end+1]` drops the tail) — use s[:i]+"export "+s[i:] for inserts.
+
+Heads: deenlink-api main 64b0f03 · deenapp master 8ae1e98 · gh-pages eca2748 · backup 8ae1e98.
+NEXT: Tier 2 (Ask Scholars both sides, wallpapers, account tools) → Tier 3 → admin
+dashboard audit → iOS/Android store builds.
