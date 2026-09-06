@@ -1,5 +1,42 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
+# ── PASS 67 (2026-09-06) — white-screen post-mortem + chat scroll + backs + search screen ──
+**LIVE WHITE SCREEN (fixed, root-caused, verified):** user pulled `94d1561` on cPanel →
+app.deenlink.org blank. Diagnosis: all assets 200; headless probe → root DOM = 0 with
+`SecurityError: replaceState … URL 'https:'`. Root cause: `scripts/export-root.sh` patched
+`appendBaseUrl`'s default from `n=""` to `n="/"`; EVERY bundle call site omits the 2nd arg, so
+the template collapsed to `"/"+""+t` → root route path `"/"` became `"//"` → expo-router's
+useLinking sync calls `history.replaceState({},'', '//')` on boot → protocol-relative →
+cross-origin SecurityError → React never mounts. Reproduced EXACTLY via `replaceState('//')`
+in the live page (same message). gh-pages unaffected (n="/deenapp" never collapses).
+FIX: export-root.sh now uses `BASE=""` (guard stays on `t` only — still prevents
+missing-slash paths). Rebuilt, local probe: boot DOM 27,230 B, 0 pageerrors, 0 bad
+replaceState urls, /onboarding + /tools/search + /community all render. Deployed as
+deenlink-api main `810977f` — **user must git pull again to recover.**
+
+Pass-67 client work (in this repo, master `39f9c8d`):
+1. Chat scroll: `CommunityInbox.webScrollNode()` resolves `[data-testid="chat-thread-list"]`
+   FIRST (old tallest-scrollable heuristic picked the wrong node on live → silent no-ops).
+2. Back dead-ends: `src/lib/navigation.ts` `goBack()` (router.canGoBack() ? back : home);
+   all 25 `router.back()` sites in 22 files patched.
+3. Profile header full name wraps (no ellipsis) in `profile/[username].tsx`.
+4. `searchAccounts()` + `AccountResult` in client.ts (search_accounts.php?q=&limit=).
+5. NEW screens: `tools/search.tsx` (idle: 5 recent posts + See more; on query: lazy
+   Top/Users/Videos/Hashtags tabs; Top = mixed best account/post/video/hashtag rows),
+   `tools/hashtag.tsx` (posts via FeedCard + tagged videos), `tools/post.tsx` (single-post
+   viewer + CommentsModal). Home 🔍 → /tools/search; old overlay removed from (tabs)/index.
+6. Gates: tsc EXIT 0 (twice + post-merge); headless boot/NAV probe green on fixed root build.
+
+HEADS after pass 67: deenlink-api main `810977f` (fixed live build — PULL NEEDED) ·
+deenapp master `39f9c8d` · gh-pages `6dbd721` (pass-67 build; entry-78bafc65… 200,
+content.zip 206) · deenapp-backup master `3208266` (mirror of 39f9c8d + content-pack
+blob 162e59f PRESENT).
+
+**Go-live checklist for user:** cPanel `git pull` (recovers site + ships pass 67) →
+set `email.verification.enabled = 1` (OTP gate) → live-test chat likes/comments:
+two accounts → thread → long-press msg → emoji react (persists under bubble); Community
+post → Comments → comment → nested reply → like both → reload: server tables keep state.
+
 # ── NIGHT PASS (2026-09-06) — OTP gate + live posts/comments/polls/groups + AI cloud key ──
 Backend (deenlink-api main 4446b02, PUSHED — needs cPanel git pull):
 - OTP GATE: register never logs in (needs_verification:true, zero cookies);

@@ -1,5 +1,5 @@
 <!-- =====================================================================
-     LATEST HANDOFF — 2026-09-06 · PASS 66.  *** START HERE ***
+     LATEST HANDOFF — 2026-09-06 · PASS 67.  *** START HERE ***
      Detailed state + pending work: CONTINUE.md (same folder)
      ===================================================================== -->
 
@@ -12,8 +12,9 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `711c7e9` (night pass + content pack restored) · deenlink-api main `94d1561` (night-pass web build + backend 4446b02; 450 api/admin/vendor files, 0 backend files in web-build diff) · deenapp master `0cc7346` (night pass merged over pass-66 `c224e12`) · backup mirror + content-pack `1283534`
-⚠️ **`app.deenlink.org` still needs a manual `git pull` in cPanel Terminal** — nothing since pass 52 is live there.
+gh-pages `6dbd721` (pass-67 build; entry-78bafc65… 200, content.zip intact) · deenlink-api main `810977f` (**white-screen fix** + pass-67 web build; backend 4446b02 untouched) · deenapp master `39f9c8d` (pass 67 merged over night pass `d21079e`) · backup mirror + content-pack `3208266`
+⚠️ **`app.deenlink.org` needs a manual `git pull` in cPanel Terminal** — the pass-66-era build (`94d1561`) the user pulled white-screened (router patch made `replaceState('//')` → SecurityError; root cause + fix in CONTINUE.md top section). Pulling `810977f` recovers the site AND ships pass 67.
+⚠️ **export-root.sh rule:** root-base builds must keep `BASE=""` — never patch `appendBaseUrl`'s default to `"/"` (every call site omits the arg; `n="/"` collapses paths to `"//"` → boot crash). The `t`-leading-slash guard alone is safe.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk
 
 ## First commands in a new session
