@@ -340,6 +340,12 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   /* pass 64 — track the keyboard so the composer can drop its safe-area padding
    * while it is up (that leftover padding was the white bar under the field). */
   const [kbOpen, setKbOpen] = useState(false);
+  /* pass 66 — scroll position. `atBottom` drives the jump-to-latest button:
+   * read an old message and the list stops auto-yanking you down, and a
+   * chevron appears over the composer to glide back to the newest bubble. */
+  const [atBottom, setAtBottom] = useState(true);
+  const [composerH, setComposerH] = useState(96);
+  const [fabIn, setFabIn] = useState(new Animated.Value(0));
   /* one shared value is RIGHT here: every unfocused row dims together. (The
    * reaction bug was the opposite case — one value shared by independent rows.) */
   const dim = useRef(new Animated.Value(1)).current;
@@ -646,7 +652,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       });
       [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
       setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
-      setTimeout(() => scroller.current?.scrollToEnd({ animated: false }), 60);
+      setTimeout(() => {
+        scroller.current?.scrollToEnd({ animated: false });
+        /* web: the RNW ref is null in this build, so land on the newest row via the DOM */
+        if (Platform.OS === 'web') {
+          const node = webScrollNode();
+          if (node) node.scrollTop = node.scrollHeight;
+        }
+      }, 60);
     }).catch(() => {});
     chatRead(cid).catch(() => {});
   }, [live, openFriend, convIds, user?.id]);
@@ -657,11 +670,76 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     return !!t && (Date.now() - new Date(t.replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
   }, [seenMap]);
 
+  /* pass 66 — JS-driven smooth scroll on web. Browser `behavior:'smooth'` is
+   * not dependable (headless shells ignore it entirely) and RN-web's animated
+   * scrollToEnd measures the content on the frame it is called, so a send from
+   * the very TOP of a long thread glided to where the list *was*, not to the
+   * new bubble. Easing scrollTop through rAF gives the same feel everywhere
+   * and always resolves against the final layout. */
+  const webSmoothToBottom = (node: HTMLElement) => {
+    const from = node.scrollTop;
+    const dur = 340;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const to = node.scrollHeight - node.clientHeight;
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      node.scrollTop = from + (to - from) * e;
+      if (k < 1) requestAnimationFrame(step);
+      else node.scrollTop = node.scrollHeight; /* content grew mid-glide */
+    };
+    requestAnimationFrame(step);
+  };
+
   /* pass 64 — follow the new bubble with a smooth cascade so the send animation
    * is on screen while it plays. The old single 80ms scroll jumped past it. */
+  /* pass 66 — on web the ScrollView ref comes back null in this RNW build (the
+   * forwarded ref never lands on the class), so the DOM node is resolved
+   * directly: the thread list is the tallest scrollable element under #root.
+   * Native keeps the normal ref path. */
+  const webScrollNode = (): HTMLElement | null => {
+    const rootEl = typeof document !== 'undefined' ? document.getElementById('root') : null;
+    if (!rootEl) return null;
+    const els = [...rootEl.querySelectorAll('*')].filter(
+      (e) => (e as HTMLElement).scrollHeight > (e as HTMLElement).clientHeight + 40 && /auto|scroll/.test(getComputedStyle(e).overflowY),
+    ) as HTMLElement[];
+    return els.sort((a, b) => b.scrollHeight - a.scrollHeight)[0] ?? null;
+  };
+
   const smoothScrollBottom = () => {
     [0, 60, 160, 300].forEach((t) => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), t));
+    if (Platform.OS !== 'web') return;
+    [0, 120, 320].forEach((t) => {
+      setTimeout(() => {
+        const node = webScrollNode();
+        if (node) webSmoothToBottom(node);
+      }, t);
+    });
   };
+
+  /* pass 66 — are we close enough to the latest row to call it "at the bottom"?
+   * The state only flips at the 60px boundary, so the scroll stream is cheap. */
+  const onThreadScroll = (e: { nativeEvent: { contentOffset: { y: number }; layoutMeasurement: { height: number }; contentSize: { height: number } } }) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 60;
+    setAtBottom((p) => (p === near ? p : near));
+  };
+
+  /* pass 66 — the jump chip fades in/out. Opacity goes through style on web, so
+   * the native driver would drop the animation there; native still gets it. */
+  useEffect(() => {
+    Animated.timing(fabIn, {
+      toValue: !!thread && !atBottom ? 1 : 0,
+      duration: 170,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [thread?.friend, atBottom, fabIn]);
+
+  /* a thread always opens at its newest message, so switching peers must not
+   * inherit the other person's scroll position (and the chip must not show). */
+  useEffect(() => {
+    setAtBottom(true);
+  }, [openFriend]);
 
   const sendChat = () => {
     const text = draft.trim();
@@ -757,13 +835,17 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               <Animated.View key={it.id} style={{ opacity: isFocus ? 1 : dim }}>
               <SlideIn animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 {!mine ? <AvatarImage source={acc(th.friend).photo ?? null} name={acc(th.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
+                {/* pass 66 — shares/posts slide to reply too. The swipe used to
+                 * live only on plain message bubbles, so an app item (ayah,
+                 * hadith, post, reel…) could not be replied to by sliding; the
+                 * width cap moves to the wrapper so the bubble keeps its shape. */}
+                <SwipeReply onReply={() => openReply(it.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
                 <Pressable
                   ref={(r) => { rowRefs.current[it.id] = r as never; }}
                   onPress={() => onTapItem(it.id)}
                   onLongPress={() => openFocus(it.id, 'share')}
                   delayLongPress={260}
                   style={({ pressed }) => ({
-                    maxWidth: '76%',
                     borderRadius: 14,
                     borderWidth: isFocus ? 1.5 : 1,
                     borderColor: isFocus ? '#4AE38F' : mine ? 'rgba(74,227,143,0.45)' : d.cardBorder,
@@ -851,6 +933,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                     )}
                   </View>
                 </Pressable>
+                </SwipeReply>
                 {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
               </SlideIn>
               </Animated.View>
@@ -1039,16 +1122,43 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         </ScrollView>
       ) : (
         /* ── thread: shares + chat + composer ── */
-        <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={scroller}
+          contentContainerStyle={{ padding: 14, paddingBottom: 26, gap: 12 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={onThreadScroll}
+          scrollEventThrottle={48}
+        >
           {flow.map((row) => (row.kind === 'share' ? renderShare(thread, row.it) : renderMsg(thread, row.m)))}
 
           <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 9, fontStyle: 'italic' }}>Double-tap to react · shares are in-app content only</T>
         </ScrollView>
       )}
 
+      {/* pass 66 — jump to latest. Floating over the list, above the composer
+       * (whose real height we measure, so the chip never hides the field). */}
+      {thread && !atBottom ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={{ position: 'absolute', left: 0, right: 0, bottom: composerH + 12, alignItems: 'center', zIndex: 30, opacity: fabIn }}
+        >
+          <Pressable
+            onPress={() => { smoothScrollBottom(); setAtBottom(true); }}
+            accessibilityLabel="Jump to latest message"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(18,34,25,0.94)' : 'rgba(255,255,255,0.96)', paddingHorizontal: 13, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 6 }}
+          >
+            <FontAwesome5 name="chevron-down" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Latest</T>
+          </Pressable>
+        </Animated.View>
+      ) : null}
+
       {/* composer — chat back + quick in-app shares */}
       {thread ? (
-        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: kbOpen ? 8 : Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}>
+        <View
+          onLayout={(e) => setComposerH(e.nativeEvent.layout.height)}
+          style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: kbOpen ? 8 : Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)', backgroundColor: isDark ? '#07100C' : '#F6FAF7', gap: 8 }}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {([
               ['ayah', 'book-open', 'Share ayah'],
