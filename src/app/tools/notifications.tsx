@@ -42,6 +42,7 @@ function mapLive(rows: NotifRow[]): Notif[] {
       : type.includes('follow') ? 'follow'
       : type.includes('like') ? 'like'
       : type.includes('mention') ? 'mention'
+      : type.includes('deenpoint') || type.includes('points') || type.includes('reward') ? 'system'
       : type.startsWith('admin_') || type.startsWith('system') ? 'system'
       : 'mention';
     return {

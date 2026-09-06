@@ -619,17 +619,23 @@ export async function userPosts(): Promise<Post[]> {
   return MOCK_FEED.filter((p) => p.user.username === (MOCK_USER.username ?? ''));
 }
 
-export async function profileCounts(): Promise<{ posts: number; followers: number; following: number; donations: number }> {
-  const r = await request<{ status?: string; counts?: { posts?: number; followers?: number; following?: number; donations?: number } }>(
-    '/api/users/get_profile_counts.php',
+export async function profileCounts(userId?: number): Promise<{ posts: number; followers: number; following: number; donations: number }> {
+  /* pass 71 — was triply broken: the endpoint REQUIRES ?user_id, answers with
+   * FLAT counts (no `counts` wrapper), and the fallbacks were hard-coded
+   * dummies (3/128/96). Real numbers or honest zeros now. */
+  const r = await request<{ status?: string; posts?: number; followers?: number; following?: number; donations?: number }>(
+    `/api/users/get_profile_counts.php?user_id=${Number(userId ?? 0)}`,
+    { auth: true },
   );
-  const c = r.ok ? r.data.counts : null;
-  return {
-    posts: c?.posts ?? 3,
-    followers: c?.followers ?? 128,
-    following: c?.following ?? 96,
-    donations: c?.donations ?? 5,
-  };
+  if (r.ok && r.data.status === 'success') {
+    return {
+      posts: Number(r.data.posts ?? 0),
+      followers: Number(r.data.followers ?? 0),
+      following: Number(r.data.following ?? 0),
+      donations: Number(r.data.donations ?? 0),
+    };
+  }
+  return { posts: 0, followers: 0, following: 0, donations: 0 };
 }
 
 export async function scholars(): Promise<Scholar[]> {
@@ -740,15 +746,19 @@ export async function recoverPassword(identifier: string, answer: string, passwo
   return { ok: false, message: r.data?.message ?? 'Could not reset password' };
 }
 
-export async function dailyCheckin(): Promise<{ ok: boolean; points?: number }> {
+export async function dailyCheckin(): Promise<{ ok: boolean; points?: number; balance?: number; already?: boolean }> {
   if (FORCE_DEMO) return { ok: true, points: 1 };
-  const r = await request<{ status?: string; points?: number; deenpoints?: number }>('/api/users/daily_checkin.php', {
+  /* pass 71 — the server answers points_awarded + new_balance (the old client
+   * read keys that never existed, so the balance never moved on screen) */
+  const r = await request<{ status?: string; points_awarded?: number; new_balance?: number; message?: string }>('/api/users/daily_checkin.php', {
     method: 'POST',
     body: {},
   });
   if (r.ok) {
     live = true;
-    return { ok: true, points: r.data.points ?? r.data.deenpoints ?? 1 };
+    const pts = Number(r.data.points_awarded ?? 0);
+    const bal = Number(r.data.new_balance ?? NaN);
+    return { ok: true, points: pts, balance: Number.isFinite(bal) ? bal : undefined, already: pts === 0 };
   }
   return { ok: false };
 }

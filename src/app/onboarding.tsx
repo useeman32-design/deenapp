@@ -38,10 +38,18 @@ const cardShadow = (isDark: boolean) => ({
   elevation: 6,
 });
 
+/* pass 71 — Android Chrome blew these up: percentage-width + aspectRatio images
+ * inside the horizontal pager measured at their NATURAL size (1100–1800px), so
+ * pictures overflowed the screen and stretched their containers. Everything is
+ * now an explicit pixel box computed from the viewport, and the square AI art
+ * uses contain so the full picture is always visible (never a zoomed crop). */
+const CARD_W = Math.min(WIDTH - 52, 460);
 function ImageCard({ img, isDark, d, tall }: { img: any; isDark: boolean; d: any; tall?: boolean }) {
+  const w = CARD_W;
+  const h = tall ? w : Math.round(w * 0.6);
   return (
-    <View style={{ width: '100%', marginTop: 24, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, ...cardShadow(isDark) }}>
-      <Image source={img} style={tall ? { width: '100%', aspectRatio: 1 } : { width: '100%', height: 232 }} resizeMode="cover" />
+    <View style={{ width: w, height: h, marginTop: 24, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, ...cardShadow(isDark) }}>
+      <Image source={img} style={{ width: w, height: h }} resizeMode={tall ? 'contain' : 'cover'} />
     </View>
   );
 }

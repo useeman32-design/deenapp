@@ -1026,3 +1026,26 @@ into the feed; retweet rail button with live count; toggleRepost → /api/videos
 username → follow → suggestions include → post → comment (author username exposed) →
 chat start-by-username + send + recipient sees conversation → repost toggle/undo/explicit
 + list repostedByMe + own-reel rejected. harness69 re-run: 23/23 (no regression).
+
+## PASS 71 — onboarding Android fix, check-in visibility, real counts, brand polish
+
+1. **Onboarding (Android Chrome)**: images measured at NATURAL size (percentage width +
+   aspectRatio inside the pager) → overflow + stretched containers. ImageCard is now an
+   explicit pixel box (CARD_W = min(W-52, 460); height 60% or square) and the AI art uses
+   `contain` so the full picture shows — never a zoomed crop again.
+2. **Check-in**: client read keys the server never sent (`points`/`deenpoints` vs the real
+   `points_awarded`/`new_balance`) and the local coin drifted. dailyCheckin() now parses
+   the real payload; profile pins the coin via dp.sync(balance); SERVER decides duplicates.
+   Backend: daily_checkin writes a ledger row (was silent!) + push_notification;
+   award.php + verify.php (purchases) also notify — "+5 DeenPoints · Daily check-in reward"
+   lands in the Notifications screen and the DeenPoints history.
+   GOTCHA fixed: push_notification runs CREATE TABLE IF NOT EXISTS — MariaDB DDL
+   auto-commits, so it must run AFTER $pdo->commit() (a 500 otherwise).
+3. **Profile counts were dummy** (hard-coded 3/128/96 fallback): get_profile_counts.php
+   REQUIRES ?user_id and answers FLAT — client sent neither/read `counts`. Fixed; zeros
+   instead of lies on failure; refetches per user.
+4. **Brand**: real four-colour Google "G" (react-native-svg) replaces FontAwesome glyph;
+   auth logo now matches the splash tile (17% radius, gold hairline) at 88px (was 116).
+
+**harness71.py: 10/10** (check-in +5, balance, ledger, dup=0, award +3, both notifications
+with source text, flat real counts). harness69 23/23 + harness70 18/18 re-run.

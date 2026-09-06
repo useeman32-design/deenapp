@@ -80,8 +80,14 @@ export function useDeenPoints() {
     storage.setItem(DP_KEY, String(next)).catch(() => {});
     return next;
   });
+  /* pass 71 — pin the local coin to the server's authoritative balance */
+  const sync = (n: number) => {
+    if (!Number.isFinite(n)) return;
+    setPoints(n);
+    storage.setItem(DP_KEY, String(n)).catch(() => {});
+  };
 
-  return { points, ready, add, spend };
+  return { points, ready, add, spend, sync };
 }
 
 /* ── purchase modal ── */

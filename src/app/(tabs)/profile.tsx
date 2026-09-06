@@ -53,8 +53,8 @@ export default function Profile() {
 
   useEffect(() => {
     api.userPosts().then(setPosts);
-    api.profileCounts().then(setCounts);
-  }, []);
+    if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
+  }, [user?.id]);
 
   const name = (user?.full_name as string) || (user?.username as string) || 'Muslim';
   const badge = (user?.verification_badge as string) || '';
@@ -68,6 +68,26 @@ export default function Profile() {
     haptic.success();
     const k = 'dl.checkin.date';
     const today = new Date().toISOString().slice(0, 10);
+    /* pass 71 — live: the SERVER decides (unique per day) and returns the real
+     * points_awarded + new_balance; the coin is pinned to the server value and
+     * the earn shows up in Notifications */
+    if (api.isLive()) {
+      const r = await api.dailyCheckin().catch(() => null);
+      if (r?.ok) {
+        if (r.balance != null) dp.sync(r.balance);
+        if (r.already) {
+          await storage.setItem(k, today);
+          setCheckin('already');
+          return;
+        }
+        await storage.setItem(k, today);
+        markActive();
+        markGoal('checkin');
+        setCheckin('done');
+        setReward(true);
+        return;
+      }
+    }
     const last = (await storage.getItem(k)) || '';
     if (last === today) {
       setCheckin('already');
@@ -77,7 +97,7 @@ export default function Profile() {
     await api.dailyCheckin().catch(() => {});
     markActive();
     markGoal('checkin');
-    dp.add(5); /* pass 35 — daily check-in reward */
+    dp.add(5); /* pass 35 — daily check-in reward (demo fallback) */
     setCheckin('done');
     setReward(true);
   };
