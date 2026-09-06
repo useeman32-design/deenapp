@@ -1224,4 +1224,12 @@ Heads: deenlink-api main c827b97 · deenapp master d1187e7 · gh-pages 19c1cda.
 
 **Gates:** harness 73 8/8 · 74 13/13 · 75 18/18 · 76 18/18 · repro76 8/8 · tsc 0.
 
+**HEADS (pushed):** deenlink-api main `32f40ab` (backend `ad7985e` + web root
+rebuild) · deenapp master `f58079f` (code `b157772`; `assets/content.zip`
+untracked again — postinstall regenerates it, NEVER `git add -A` it) ·
+gh-pages `bec0499` (demo live, bundle entry-264d73546690bac005e6d81b67258ac5.js).
+Live pending user cPanel pull: `git fetch origin && git reset --hard origin/main`
+in the deenlink-api docroot, then Ctrl+Shift+R; verify page source contains
+entry-264d7354.
+
 NEXT: admin dashboard audit → iOS/Android store builds.
