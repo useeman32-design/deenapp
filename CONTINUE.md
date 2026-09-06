@@ -1,5 +1,50 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
+# ── PASS 68 (2026-09-06) — REALTIME CHAT + live notifications + search upgrade ──
+**Backend (deenlink-api main, harness 24/24 on local PHP+MariaDB):**
+- `chat/typing.php` (NEW): POST {conversation_id, typing:0|1} → `chat_typing` row
+  (self-creating table in chat_schema), expires NOW()+6s; typing=0 deletes.
+- `chat/messages.php`: +`since_id`/`since_share_id` light-poll mode (only newer
+  rows; reactions always full), +`peer_typing` +`peer_read_at` on EVERY response.
+- `chat/send.php`: inserts `chat_message` notification for the other participant
+  (chat_notify_message in chat/common.php — ONE unread row per
+  (recipient,sender,conversation), refreshed not stacked; wrapped in try/catch so
+  a failed notify never breaks sending) + clears sender's typing row.
+- `feed/search_posts.php` (NEW): public LIKE search (logged-out OK), get_posts-
+  compatible rows (user/counts/media/badge), group posts excluded, q≥2 chars.
+- Harness gotchas re-confirmed: db.php `getenv('DB_PASS') ?: '..'` — EMPTY env
+  falls back to literal '..' (set the mariadb root password to '..' instead);
+  register requires `aqeedah` + letters-only full_name (no digits);
+  create_post reads $_POST form-encoded ONLY; search_accounts lives at
+  api/users/; register returns 201 + logged_in when verification disabled.
+
+**Client (this repo, tsc 0, headless probe green on both builds):**
+- `client.ts`: chatThread(cid, since?) + peer_typing/peer_read_at; chatTyping;
+  searchPosts; notificationsList + notificationsMarkAllRead (NotifRow type).
+- `CommunityInbox`: 3s poll while a live thread is open (skipped when tab
+  hidden; busy-guard; since-cursors) → appends deduped rows, rebuilds reaction
+  maps, applies read watermark to ✓✓, auto-read throttle 10s; typing pings
+  throttled 2.5s from setDraft, cleared on send; TypingDot ×3 bubble under the
+  last row while peer_typing; smoothRef/atBottomRef so the interval never uses
+  stale closures.
+- `tools/notifications.tsx`: live mode — real rows (chat_message → 'chat' kind,
+  MESSAGES chip), 30s poll, mark-all-read on open; chat notif taps open
+  `/tools/inbox?u=<actor>`. Demo keeps the SEED mock.
+- `(tabs)/index.tsx`: bell badge = real unread count (30s poll + on focus),
+  replaces the old always-on orange dot.
+- `tools/search.tsx`: account rows get Follow (toggleFollow, optimistic revert)
+  + Message (→ /tools/inbox?u=) buttons; debounced (320ms) server post search
+  merged ahead of local matches; "breathing" Skeleton per tab shape
+  (Breathe opacity loop); RowIn stagger; FadeSlide on tab/query change.
+
+**HEADS:** deenlink-api main `d61c6ae` (backend 5248f6e + pass-68 web build —
+user pulls ONCE for both) · deenapp master `877e9ac` · gh-pages `d1559f8`
+(content.zip intact) · backup `2556147` (mirror + content-pack PRESENT).
+
+**Realtime architecture note:** short-poll over HTTP by design — shared hosting
+(10 entry processes) cannot hold websockets/long-polls. Thread poll 3s,
+conversations 60s, notifications 30s, presence 60s.
+
 # ── PASS 67 (2026-09-06) — white-screen post-mortem + chat scroll + backs + search screen ──
 **LIVE WHITE SCREEN (fixed, root-caused, verified):** user pulled `94d1561` on cPanel →
 app.deenlink.org blank. Diagnosis: all assets 200; headless probe → root DOM = 0 with
