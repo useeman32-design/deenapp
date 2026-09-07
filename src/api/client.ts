@@ -51,7 +51,7 @@ export const BASE =
     : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
-const TIMEOUT = 9000;
+const TIMEOUT = 20000; /* pass 82 — slow networks were tripping 9s and dropping users into demo */
 
 /**
  * FORCE_DEMO — mock-only mode.
@@ -221,16 +221,21 @@ export async function login(identifier: string, password: string, rememberMe = t
     return { ok: true as const, user: hydrateUser(r.data.user), demo: false };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
+  /* pass 82 — on the LIVE app domain a timeout must never sign anyone in as
+   * demo (it used to create a fake session with the typed email as name). */
+  const demoFallback = r.networkError && !IS_APP_DOMAIN;
   /* pass 66-night — an UNVERIFIED account gets 403 needs_verification: the UI
    * resumes the OTP flow instead of signing in or showing a dead error. */
   const needsVerification = !!(r.data as { needs_verification?: boolean }).needs_verification;
   return {
     ok: false as const,
     user: null,
-    demo: r.networkError,
+    demo: demoFallback,
     needsVerification,
     email: (r.data as { email?: string }).email,
-    message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Invalid credentials'),
+    message: r.data.message ?? (r.networkError
+      ? (IS_APP_DOMAIN ? 'Network is slow — please check your connection and try again.' : 'Offline — demo mode')
+      : 'Invalid credentials'),
   };
 }
 
@@ -299,10 +304,7 @@ function mapServerPoll(p: unknown): import('@/api/types').PostPoll | null {
 export async function feed(tab: FeedTab = 'for-you', cursor = 0): Promise<FeedResponse> {
   const r = await request<FeedResponse>(`/api/feed/get_posts.php?tab=${tab}&limit=20&cursor=${cursor}`);
   if (r.ok && Array.isArray(r.data.posts)) {
-    for (const p of r.data.posts) {
-      const sp = mapServerPoll(p.poll);
-      if (sp) p.poll = sp;
-    }
+    for (const p of r.data.posts) hydratePostMedia(p);
     return r.data;
   }
   return {
@@ -379,10 +381,58 @@ export async function groupCreate(data: { name: string; bio?: string; category?:
 }
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
   const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
-  return r.ok && Array.isArray(r.data.posts) ? r.data.posts : null;
+  if (r.ok && Array.isArray(r.data.posts)) {
+    for (const p of r.data.posts) hydratePostMedia(p);
+    return r.data.posts;
+  }
+  return null;
 }
-export async function groupCreatePost(groupId: number, contentText: string): Promise<{ id: number } | null> {
-  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', body: { group_id: groupId, content_text: contentText }, auth: true });
+
+/* pass 82 — the server ships media as {image_url_1080, image_url_360}; FeedCard
+ * reads `url`. Normalize once so photos render in feed AND group posts, and
+ * make relative upload paths absolute. */
+function hydratePostMedia(p: import('@/api/types').Post): void {
+  const abs = (u?: string | null) => (u ? (u.startsWith('http') ? u : API_ORIGIN + u) : (u as string));
+  if (Array.isArray(p.media)) {
+    for (const m of p.media) {
+      const im = m as Record<string, unknown>;
+      if (im.url == null && (im.image_url_1080 || im.image_url_360)) {
+        im.url = abs((im.image_url_1080 as string) ?? (im.image_url_360 as string));
+        im.thumb_url = abs((im.image_url_360 as string) ?? (im.image_url_1080 as string)) as string;
+      } else if (typeof im.url === 'string') {
+        im.url = abs(im.url);
+      }
+    }
+  }
+  if (p.audio_url) p.audio_url = abs(p.audio_url);
+}
+/* pass 82 — group posts support photos, polls and one audio clip, exactly
+ * like normal posts (multipart to the upgraded groups/create_post.php). */
+export async function groupCreatePost(
+  groupId: number,
+  contentText: string,
+  opts?: { images?: Array<{ uri: string; name?: string; type?: string }>; pollOptions?: string[]; audio?: { uri: string; name?: string; type?: string } },
+): Promise<{ id: number } | null> {
+  const hasFiles = !!(opts?.images?.length || opts?.audio);
+  if (!hasFiles && !opts?.pollOptions?.length) {
+    const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', body: { group_id: groupId, content_text: contentText }, auth: true });
+    return r.ok && r.data.id ? { id: r.data.id as number } : null;
+  }
+  const form = new FormData();
+  form.append('group_id', String(groupId));
+  if (contentText) form.append('content_text', contentText);
+  if (opts?.pollOptions && opts.pollOptions.length >= 2) form.append('poll_options', JSON.stringify(opts.pollOptions.slice(0, 6)));
+  const attach = async (field: string, f: { uri: string; name?: string; type?: string }, fallback: string) => {
+    if (typeof window !== 'undefined' && f.uri.startsWith('blob:')) {
+      const blob = await fetch(f.uri).then((r) => r.blob());
+      form.append(field, new File([blob], f.name ?? fallback, { type: blob.type || f.type || 'application/octet-stream' }));
+    } else {
+      form.append(field, { uri: f.uri, name: f.name ?? fallback, type: f.type ?? 'application/octet-stream' } as never);
+    }
+  };
+  for (const img of (opts?.images ?? []).slice(0, 5)) await attach('images[]', img, 'photo.jpg');
+  if (opts?.audio) await attach('audio', opts.audio, 'voice.m4a');
+  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
   return r.ok && r.data.id ? { id: r.data.id as number } : null;
 }
 
@@ -466,9 +516,17 @@ export async function bookmarkToggle(kind: string, itemId: string, payload?: unk
 /* ─────────────── pass 69 — DeenPoints: history + Flutterwave purchase ─────────────── */
 export type PointsEvent = { delta: number; balance_after: number; event_type: string; ref: string | null; created_at: string };
 
-export async function deenpointsHistory(limit = 40): Promise<{ balance: number; events: PointsEvent[] } | null> {
-  const r = await request<{ status?: string; balance?: number; events?: PointsEvent[] }>(`/api/deenpoints/history.php?limit=${limit}`, { auth: true });
-  if (r.ok && typeof r.data.balance === 'number') { return { balance: r.data.balance, events: Array.isArray(r.data.events) ? r.data.events : [] }; }
+/* pass 82 — offset pagination for the DeenPoints ledger */
+export async function deenpointsHistory(limit = 20, offset = 0): Promise<{ balance: number; events: PointsEvent[]; total: number; hasMore: boolean } | null> {
+  const r = await request<{ status?: string; balance?: number; events?: PointsEvent[]; total?: number; has_more?: boolean }>(`/api/deenpoints/history.php?limit=${limit}&offset=${offset}`, { auth: true });
+  if (r.ok && typeof r.data.balance === 'number') {
+    return {
+      balance: r.data.balance,
+      events: Array.isArray(r.data.events) ? r.data.events : [],
+      total: typeof r.data.total === 'number' ? r.data.total : (Array.isArray(r.data.events) ? r.data.events.length : 0),
+      hasMore: !!r.data.has_more,
+    };
+  }
   return null;
 }
 

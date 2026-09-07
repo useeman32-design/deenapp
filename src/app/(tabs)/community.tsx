@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
 import { addUserPost, listUserPosts } from '@/lib/userPosts';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,8 +18,7 @@ import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useRouter } from 'expo-router';
-import { useIsGuest } from '@/lib/guest';
-import { LoginRequired } from '@/components/LoginRequired';
+import { useIsGuest, guestNavBlocked } from '@/lib/guest';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
@@ -117,7 +117,6 @@ function CommunityScreenInner() {
         (imageFileRef.current as unknown as HTMLInputElement | null)?.click?.();
         return;
       }
-      const ImagePicker = await import('expo-image-picker');
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
@@ -142,7 +141,6 @@ function CommunityScreenInner() {
         (videoFileRef.current as unknown as HTMLInputElement | null)?.click?.();
         return;
       }
-      const ImagePicker = await import('expo-image-picker');
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         Alert.alert('Permission needed', 'Allow photo-library access to pick a video.');
@@ -439,7 +437,7 @@ function CommunityScreenInner() {
             </Pressable>
             {/* inbox — shared reels/posts/duas/ayahs (same inbox as videos) */}
             <Pressable
-              onPress={() => { haptic.selection(); setInboxOpen(true); }}
+              onPress={() => { if (guestNavBlocked('/tools/inbox', 'Sign in to see your messages.')) return; haptic.selection(); setInboxOpen(true); }}
               style={({ pressed }) => ({
                 position: 'relative',
                 width: 40,
@@ -1354,6 +1352,6 @@ function SuggestStrip({ dash }: { dash: any }) {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function CommunityScreen() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Community" />;
+  /* pass 82 — guests browse Community normally; actions pop the login modal */
   return <CommunityScreenInner />;
 }

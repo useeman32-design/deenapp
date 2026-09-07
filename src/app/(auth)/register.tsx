@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { launchImageLibraryAsync } from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -345,7 +347,6 @@ export default function Register() {
 
   const pickUpload = async (which: 'proof' | 'letter') => {
     try {
-      const { launchImageLibraryAsync } = await import('expo-image-picker');
       const res = await launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsMultipleSelection: false });
       const asset = res.assets?.[0];
       if (!asset) return;

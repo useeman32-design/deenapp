@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -49,6 +49,30 @@ function FloatingTabBar({
 }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
+  /* pass 82 — web: after a client-side route change the tab Pressables stop
+   * receiving React clicks (pre-existing on the live bundle; fresh loads were
+   * fine). A NATIVE delegated listener on the bar container cannot go stale. */
+  const barRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const el = (barRef as { current: HTMLElement | null }).current;
+    if (!el) return;
+    const onNative = (e: MouseEvent) => {
+      /* Pressable drops data-* on web, so key off the aria-label instead */
+      const t = (e.target as HTMLElement).closest('[aria-label^="tab-"]');
+      if (!t || !el.contains(t)) return;
+      const nm = t.getAttribute('aria-label')?.replace(/^tab-/, '');
+      const route = TABS.find((tb) => (tb.first + (tb.second ? ' ' + tb.second : '')) === nm);
+      const rn = route?.name;
+      if (!rn || rn === state.routes[state.index]?.name) return;
+      e.preventDefault();
+      e.stopPropagation();
+      haptic.selection();
+      window.location.assign(rn === 'index' ? '/' : '/' + rn);
+    };
+    el.addEventListener('click', onNative, true);
+    return () => el.removeEventListener('click', onNative, true);
+  }, [state.index, state.routes]);
 
   const n = state.routes.length;
   const [barW, setBarW] = useState(0);
@@ -82,6 +106,7 @@ function FloatingTabBar({
 
   return (
     <View
+      ref={barRef as never}
       onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
       style={{
         position: 'absolute',
@@ -154,11 +179,22 @@ function FloatingTabBar({
           return (
             <Pressable
               key={route.key}
+              data-tabname={name}
+              accessibilityLabel={'tab-' + tab.first + (tab.second ? ' ' + tab.second : '')}
               style={{ flex: 1, alignItems: 'center', paddingTop: PILL_TOP }}
               onPress={() => {
                 if (state.index !== ri) {
                   haptic.selection();
-                  navigation.navigate(name as never);
+                  const href = name === 'index' ? '/' : ('/' + name);
+                  if (typeof window !== 'undefined') {
+                    /* pass 82 — web: the Tabs navigator updated the URL but never
+                     * re-rendered the scene (pre-existing on the live bundle;
+                     * router.push to stacks works, tab swaps don't). A real page
+                     * navigation is reliable and matches the MPA routes. */
+                    window.location.assign(href);
+                  } else {
+                    navigation.navigate(name as never);
+                  }
                 }
               }}
             >

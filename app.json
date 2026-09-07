@@ -12,7 +12,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "DeenLink recognizes your recitation to find verses and score your practice.",
-        "NSMicrophoneUsageDescription": "DeenLink uses the microphone to listen to Qur\u2019an recitation for voice search and practice."
+        "NSMicrophoneUsageDescription": "DeenLink uses the microphone to listen to Qur’an recitation for voice search and practice."
       }
     },
     "android": {
@@ -56,7 +56,7 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "DeenLink uses the microphone to listen to Qur\u2019an recitation for voice search and practice.",
+          "microphonePermission": "DeenLink uses the microphone to listen to Qur’an recitation for voice search and practice.",
           "speechRecognitionPermission": "DeenLink recognizes your recitation to find verses and score your practice."
         }
       ],
@@ -67,11 +67,12 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#0E7A5F"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true,
+      "reactCompiler": false, /* pass 82 — web tab bar froze after client-side nav with the compiler on */
       "baseUrl": "/"
     },
     "splash": {

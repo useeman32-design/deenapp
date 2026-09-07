@@ -19,6 +19,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
 import { isLive, votePoll } from '@/api/client';
 import { guestBlock } from '@/lib/guest';
+import { CassettePlayer } from '@/components/CassettePlayer';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -886,6 +887,13 @@ export function FeedCard({
             />
           </View>
         </Pressable>
+      ) : null}
+
+      {/* pass 82 — audio clip (group voice posts): spinning-cassette player */}
+      {post.audio_url ? (
+        <View style={{ marginBottom: 12 }}>
+          <CassettePlayer url={String(post.audio_url).startsWith('/') ? API_ORIGIN + String(post.audio_url) : String(post.audio_url)} />
+        </View>
       ) : null}
 
       {/* YouTube — embedded player on web (double-tap likes, tap plays in-app) */}

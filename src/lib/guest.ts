@@ -49,10 +49,22 @@ export async function exitGuest(): Promise<void> {
   try { await AsyncStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
 }
 
+/* pass 82 — react-native-web ships Alert.alert as a NO-OP, so on web the old
+ * popup rendered nothing. A mounted <GuestLoginModal/> subscribes here and
+ * shows the real "Require login" dialog; native keeps Alert.alert. */
+let webPrompt: ((message?: string) => void) | null = null;
+export function registerGuestPrompt(fn: ((message?: string) => void) | null): void {
+  webPrompt = fn;
+}
+
 /** Social actions: popup, then smooth redirect to login. Returns true when blocked. */
 export function guestBlock(message?: string): boolean {
   if (!guest) return false;
-  // Lazy import avoids a cycle; Alert works on web + native.
+  const isWeb = typeof document !== 'undefined';
+  if (isWeb && webPrompt) {
+    webPrompt(message);
+    return true;
+  }
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Alert } = require('react-native') as typeof import('react-native');
   Alert.alert(
@@ -64,4 +76,21 @@ export function guestBlock(message?: string): boolean {
     ],
   );
   return true;
+}
+
+/* pass 82 — guests browse every screen freely; only login-required modules
+ * pop the modal at the moment of the tap (videos, inbox, shop, AI, courses,
+ * quiz, charity/donations, notifications, settings). Worship tools and
+ * Qur'an/Hadith stay fully open. */
+const GUEST_LOCKED_PREFIXES = [
+  '/videos', '/tools/inbox', '/tools/chat', '/tools/notifications', '/shop',
+  '/tools/ai', '/tools/learning', '/tools/courses', '/tools/quiz', '/tools/charity',
+  '/settings',
+];
+export function guestNavBlocked(href: string, message?: string): boolean {
+  if (!guest) return false;
+  const h = href.split('?')[0];
+  const locked = GUEST_LOCKED_PREFIXES.some((l) => h === l || h.startsWith(l + '/'));
+  if (!locked) return false;
+  return guestBlock(message ?? 'Sign in or create a free account to open this.');
 }

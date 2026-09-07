@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Alert, ActivityIndicator, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -79,17 +81,21 @@ function GroupScreenInner() {
       /* pass 66-night — live group: pull the real posts behind the srv id */
       const sid = srvGroupId(g);
       if (sid != null) {
-        void groupPostsApi(sid).then((rows) => {
-          if (!rows || !rows.length) return;
-          setGroup((cur) =>
-            cur && cur.id === g.id
-              ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
-              : cur,
-          );
-        });
+        void refreshSrvPosts(sid, g.id);
       }
     });
   }, [id]);
+
+  /* pass 82 — pull real posts (media/poll/audio) and refresh after publishing */
+  const refreshSrvPosts = (sid: number, gid: string) =>
+    groupPostsApi(sid).then((rows) => {
+      if (!rows || !rows.length) return;
+      setGroup((cur) =>
+        cur && cur.id === gid
+          ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime(), srv: p })) }
+          : cur,
+      );
+    });
 
   const upd = (f: (g: Group) => Group) => {
     setGroup((g) => (g ? f(g) : g));
@@ -118,15 +124,50 @@ function GroupScreenInner() {
     const sid = srvGroupId(group);
     if (sid != null) void groupJoin(sid, false);
   };
+  /* pass 82 — group posts carry photos, polls and audio like normal posts */
+  const [gImages, setGImages] = useState<Array<{ uri: string; name?: string; type?: string }>>([]);
+  const [gPollOn, setGPollOn] = useState(false);
+  const [gPollOpts, setGPollOpts] = useState<string[]>(['', '']);
+  const [gAudio, setGAudio] = useState<{ uri: string; name?: string; type?: string } | null>(null);
+
+  const pickGImages = async () => {
+    haptic.selection();
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access to attach pictures.'); return; }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, selectionLimit: 5, allowsMultipleSelection: true });
+      if (!res.canceled && res.assets?.length) {
+        setGImages(res.assets.slice(0, 5).map((a) => ({ uri: a.uri, name: a.fileName ?? 'photo.jpg', type: 'image/jpeg' })));
+      }
+    } catch (e) { Alert.alert('Could not open photos', 'Please try again.'); }
+  };
+  const pickGAudio = async () => {
+    haptic.selection();
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ['audio/*'], copyToCacheDirectory: true });
+      if (!res.canceled && res.assets?.[0]) {
+        const a = res.assets[0];
+        if ((a.size ?? 0) > 25 * 1024 * 1024) { Alert.alert('File too large', 'Audio clips must be 25 MB or smaller.'); return; }
+        setGAudio({ uri: a.uri, name: a.name ?? 'voice.m4a', type: a.mimeType ?? 'audio/mp4' });
+      }
+    } catch (e) { Alert.alert('Could not open files', 'Please try again.'); }
+  };
+
+  const hasAttach = gImages.length > 0 || !!gAudio || (gPollOn && gPollOpts.filter((o) => o.trim()).length >= 2);
   const post = () => {
-    if (!composer.trim() || !group) return;
+    if ((!composer.trim() && !hasAttach) || !group) return;
     haptic.light();
     const text = composer.trim();
     upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now() }, ...x.posts] }));
-    setComposer('');
+    const payload = {
+      images: gImages.length ? gImages : undefined,
+      pollOptions: gPollOn ? gPollOpts.map((o) => o.trim()).filter(Boolean) : undefined,
+      audio: gAudio ?? undefined,
+    };
+    setComposer(''); setGImages([]); setGPollOn(false); setGPollOpts(['', '']); setGAudio(null);
     /* pass 66-night — group posts hit the server on live */
     const sid = srvGroupId(group);
-    if (sid != null) void groupCreatePost(sid, text);
+    if (sid != null) void groupCreatePost(sid, text, payload).then((ok) => { if (ok && group) refreshSrvPosts(sid, group.id); });
   };
 
   /* ── pass 38 management actions ── */
@@ -314,10 +355,59 @@ function GroupScreenInner() {
                     multiline
                     style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, maxHeight: 84, paddingVertical: 8 }}
                   />
-                  <Pressable onPress={post} disabled={!composer.trim()} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() ? '#fff' : d.faint} />
+                  <Pressable onPress={post} disabled={!composer.trim() && !hasAttach} accessibilityLabel="publish group post" style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: (composer.trim() || hasAttach) ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="paper-plane" size={12} color={(composer.trim() || hasAttach) ? '#fff' : d.faint} />
                   </Pressable>
                 </View>
+                {/* pass 82 — attachments: photos · poll · audio */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', paddingVertical: 7, borderTopWidth: 1, borderTopColor: d.cardBorder }}>
+                  <Pressable onPress={() => void pickGImages()} accessibilityLabel="attach photo" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: gImages.length ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : d.bgSoft, opacity: pressed ? 0.7 : 1 })}>
+                    <FontAwesome5 name="image" size={11} color={gImages.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext} />
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.subtext }}>{gImages.length ? `${gImages.length} photo${gImages.length > 1 ? 's' : ''}` : 'Photo'}</T>
+                  </Pressable>
+                  <Pressable onPress={() => { haptic.selection(); setGPollOn((v) => !v); }} accessibilityLabel="add poll" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: gPollOn ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : d.bgSoft, opacity: pressed ? 0.7 : 1 })}>
+                    <FontAwesome5 name="poll" size={11} color={gPollOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext} />
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.subtext }}>Poll</T>
+                  </Pressable>
+                  <Pressable onPress={() => void pickGAudio()} accessibilityLabel="attach audio" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: gAudio ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : d.bgSoft, opacity: pressed ? 0.7 : 1 })}>
+                    <FontAwesome5 name="microphone" size={11} color={gAudio ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext} />
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.subtext }}>{gAudio ? 'Audio ✓' : 'Audio'}</T>
+                  </Pressable>
+                  {gImages.length > 0 ? (
+                    <Pressable onPress={() => setGImages([])} hitSlop={6} style={{ marginLeft: 'auto' }}>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#E05252' }}>Clear photos</T>
+                    </Pressable>
+                  ) : gAudio ? (
+                    <Pressable onPress={() => setGAudio(null)} hitSlop={6} style={{ marginLeft: 'auto' }}>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#E05252' }}>Clear audio</T>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {gPollOn ? (
+                  <View style={{ alignSelf: 'stretch', gap: 6, paddingVertical: 7 }}>
+                    {gPollOpts.map((o, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TextInput
+                          value={o}
+                          onChangeText={(v) => setGPollOpts((arr) => arr.map((x, j) => (j === i ? v : x)))}
+                          placeholder={`Option ${i + 1}`}
+                          placeholderTextColor={d.faint}
+                          style={{ flex: 1, fontSize: 12.5, color: d.text, borderRadius: 9, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: d.bgSoft }}
+                        />
+                        {gPollOpts.length > 2 && i >= 2 ? (
+                          <Pressable onPress={() => setGPollOpts((arr) => arr.filter((_, j) => j !== i))} hitSlop={6}>
+                            <FontAwesome5 name="times" size={11} color={d.faint} />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ))}
+                    {gPollOpts.length < 6 ? (
+                      <Pressable onPress={() => setGPollOpts((arr) => [...arr, ''])} style={{ alignSelf: 'flex-start' }}>
+                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#0E7A46' }}>+ Add option</T>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -331,15 +421,24 @@ function GroupScreenInner() {
             ) : (
               feedPosts.map((p) => {
                 const u = userOf(p.author);
-                const fp = {
-                  id: Math.abs([...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) + (p.at % 100000)),
-                  content_text: p.text,
-                  like_count: 8 + (p.at % 40),
-                  comment_count: 1 + (p.at % 7),
-                  liked_by_me: false,
-                  time_ago: timeAgoLocal(p.at),
-                  user: { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
-                } as Post;
+                /* pass 82 — server posts keep their real media / poll / audio */
+                const fp = (p.srv
+                  ? {
+                      ...p.srv,
+                      id: typeof p.srv.id === 'number' ? p.srv.id : Math.abs([...String(p.srv.id)].reduce((a, c) => a + c.charCodeAt(0), 0)),
+                      content_text: p.srv.content_text ?? p.text,
+                      time_ago: timeAgoLocal(p.at),
+                      user: p.srv.user ?? { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
+                    }
+                  : {
+                      id: Math.abs([...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) + (p.at % 100000)),
+                      content_text: p.text,
+                      like_count: 8 + (p.at % 40),
+                      comment_count: 1 + (p.at % 7),
+                      liked_by_me: false,
+                      time_ago: timeAgoLocal(p.at),
+                      user: { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
+                    }) as Post;
                 return (
                   <FeedCard
                     key={p.id}

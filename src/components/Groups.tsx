@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -22,7 +23,7 @@ import { groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/a
  *  · shared storage helpers so the rail + the screen stay in sync
  */
 
-export type GroupPost = { id: string; author: string; text: string; at: number };
+export type GroupPost = { id: string; author: string; text: string; at: number; /* pass 82 — full server post (media/poll/audio) */ srv?: import('@/api/types').Post };
 /* pass 38 — owner-managed roles */
 export type Role = 'owner' | 'admin' | 'member';
 export const ROLE_META: Record<Role, { label: string; icon: string; color: string }> = {
@@ -335,7 +336,6 @@ export const isGroupImg = (v?: string | null): v is string => !!v && /^(data:|fi
 /** pick an image from the gallery → small JPEG data URI (persistable) */
 export async function pickGroupPhoto(aspect: [number, number]): Promise<string | null> {
   try {
-    const ImagePicker = await import('expo-image-picker');
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,

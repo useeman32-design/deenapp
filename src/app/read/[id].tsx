@@ -25,7 +25,6 @@ import { stopBubble } from '@/lib/press';
 import { isLive, quranStreak, quranStreakLog, quranUnlockReciter } from '@/api/client';
 import { useDeenPoints } from '@/components/DeenPoints';
 import { useIsGuest } from '@/lib/guest';
-import { LoginRequired } from '@/components/LoginRequired';
 
 type Mode = 'reading' | 'mushaf';
 
@@ -650,6 +649,6 @@ function ReaderInner() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function Reader() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Articles" />;
+  /* pass 82 — viewable without login; locked actions pop the modal */
   return <ReaderInner />;
 }
