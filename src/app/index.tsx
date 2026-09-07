@@ -14,6 +14,9 @@ export default function Index() {
 
   if (!ready || onboarded === null) return null;
   if (user) return <Redirect href="/(tabs)" />;
-  if (isGuestNow()) return <Redirect href="/(tabs)/tools" />; // pass 80 — guests land on Tools
+  /* pass 82 — guests browse Home like everyone else (locked actions pop the
+     LoginRequired modal); the Skip button still lands them on Tools first.
+     Redirecting guests away from '/' made the Home tab unreachable. */
+  if (isGuestNow()) return <Redirect href="/(tabs)" />;
   return <Redirect href={onboarded ? '/(auth)/login' : '/onboarding'} />;
 }
