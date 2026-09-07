@@ -469,7 +469,8 @@ export function FeedCard({
 
   const fieldLabel = field || (user as { fields?: string | null }).fields || user.scholar?.fields_of_knowledge || null;
   const media = post.media?.[0];
-  const mediaUrl = media?.url as string | number | null | undefined;
+  /* pass 82 — server media rows carry image_url_1080/thumb_url; accept all shapes */
+  const mediaUrl = (media?.url ?? media?.thumb_url ?? (media as { image_url_1080?: string | null } | undefined)?.image_url_1080) as string | number | null | undefined;
 
   const fullText = post.content_text ?? '';
   const longText = fullText.length > 230;
