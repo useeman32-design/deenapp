@@ -1350,3 +1350,17 @@ NEXT: admin dashboard audit → iOS/Android store builds.
   allowlist, bcrypt, lockouts, session regen, httponly/samesite cookies,
   MIME-allowlisted randomized-name uploads, no hardcoded secrets.
 - Gates: tsc 0 · repro80 14/14 · repro81 10/10 · chat send E2E verified.
+
+## Pass 81b — live topology corrections (post user-pull diagnosis)
+- Live DNS: app.deenlink.org → cPanel (102.209.117.119), whose docroot serves
+  BOTH the PWA and a working /api (verified: fx_quote JSON + CORS header live).
+  The API pull landed fully (63f59cb). Only the PWA files were stale.
+- BASE reverted to same-origin on the app domain (main deenlink.org API
+  checkout is older; app subdomain API is current). CRITICAL: the window
+  check must lead the ternary — leading with process.env lets the minifier
+  constant-fold BASE to deenlink.org at build time (caught via bundle grep).
+- CommunityInbox: persisted threads (dl.inbox.v2) could resurrect demo rows
+  from older sessions — filtered against SEED_NAMES on restore when live.
+- Sandbox: port-80 replica now runs PHP_CLI_SERVER_WORKERS=8 (single worker
+  dropped connections under E2E load).
+- Gates: tsc 0 · repro80 14/14 · repro81 10/10.

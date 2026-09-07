@@ -409,7 +409,10 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     storage.getItem(STORE).then((r) => {
       if (r)
         try {
-          setThreads(JSON.parse(r));
+          const parsed = JSON.parse(r) as Thread[];
+          /* pass 81 — persisted state can still hold demo threads from older
+           * builds/sessions: never let them back in once we're live. */
+          setThreads(isLive() ? parsed.filter((t) => !SEED_NAMES.has(t.friend)) : parsed);
         } catch {}
     });
   }, []);

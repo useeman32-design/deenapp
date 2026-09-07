@@ -37,13 +37,18 @@ import type {
 
 /* pass 44 — when the web app is self-hosted on app.deenlink.org it talks to its
    SAME origin (no CORS); anywhere else (gh-pages, native) use the env/prod API. */
-/* pass 81 — ARCHITECTURE FIX: app.deenlink.org is static hosting (GitHub
- * Pages / cPanel docroot) with NO PHP. Same-origin /api calls there returned
- * HTML and the app silently fell back to demo data — the real backend lives
- * on deenlink.org. CORS there allowlists the app origin; the session cookie
- * is host-scoped to deenlink.org and rides along (same-site, credentials
- * include). Sandbox/CI builds inject EXPO_PUBLIC_API_URL. */
-export const BASE = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org';
+/* pass 81b — live topology (verified against the real server): DNS points
+ * app.deenlink.org at cPanel, whose docroot serves BOTH the PWA and a working
+ * /api (PHP) — so on the app domain the API is same-origin. The main
+ * deenlink.org docroot is the legacy web app with an older API checkout, so
+ * it is only the fallback for off-domain builds. Sandbox/CI inject
+ * EXPO_PUBLIC_API_URL. (The earlier same-day theory that app.deenlink.org
+ * had no PHP was wrong: fx_quote.php 404'd only because the API checkout was
+ * stale — after the user's pull it answers JSON on the app subdomain.) */
+export const BASE =
+  typeof window !== 'undefined' && /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin)
+    ? window.location.origin
+    : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
 const TIMEOUT = 9000;
