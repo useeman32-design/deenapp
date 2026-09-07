@@ -1,0 +1,22 @@
+import { chromium } from 'playwright-core';
+const BASE = 'http://127.0.0.1:8400/deenapp';
+const browser = await chromium.launch({ executablePath: '/home/user/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell', args: ['--no-sandbox'] });
+const errs = [];
+const page = await (await browser.newContext({ viewport: { width: 420, height: 860 } })).newPage();
+page.on('pageerror', (e) => errs.push(String(e).slice(0, 160)));
+await page.goto(BASE + '/tools/deenpoints', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(8000);
+let t = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' '));
+console.log('DEENPOINTS 500/1000/2500/5000:', /500/.test(t) && /1,?000/.test(t) && /2,?500/.test(t) && /5,?000/.test(t) ? 'OK' : 'FAIL');
+console.log('DEENPOINTS ledger:', /ledger|history/i.test(t) ? 'OK' : 'FAIL');
+console.log('DEENPOINTS price line:', /₦|NGN|per point|\/pt/i.test(t) ? 'OK' : 'FAIL');
+await page.evaluate((h) => { window.history.pushState({}, '', h); window.dispatchEvent(new PopStateEvent('popstate', { state: {} })); }, BASE + '/tools/fatwa');
+await page.waitForTimeout(4000);
+t = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' '));
+console.log('FATWA ask chip:', /\bAsk\b/i.test(t) ? 'OK' : 'FAIL');
+const ask = page.locator('text=Ask').first();
+if (await ask.count()) { await ask.click(); await page.waitForTimeout(2500); }
+t = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' '));
+console.log('FATWA ask panel (scholar/title/details/bonus):', /scholar/i.test(t) && /title/i.test(t) && /details/i.test(t) ? 'OK' : 'FAIL :: ' + t.slice(0, 200));
+console.log('ERRORS:', errs.length ? errs.join('\n') : 'none');
+await browser.close();

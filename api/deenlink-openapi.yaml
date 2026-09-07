@@ -1,0 +1,3259 @@
+openapi: 3.0.3
+info:
+  title: DeenLink API
+  version: 1.0.0
+  description: |
+    OpenAPI contract for the current DeenLink backend.
+
+    Notes:
+    - Authentication is session-based using the `deenlink_session` cookie.
+    - Many write endpoints also require the `X-CSRF-Token` header.
+    - The canonical video backend is `api/videos/*`.
+    - `api/videoss/*` exists as a legacy/alternate branch and is intentionally not the primary contract here.
+servers:
+  - url: https://deenlink.org
+    description: Production
+  - url: https://localhost/deenLink
+    description: Local development
+tags:
+  - name: Auth
+  - name: Users
+  - name: Feed
+  - name: Videos
+  - name: Notifications
+  - name: PrayerTimes
+  - name: Quran
+  - name: DeenAI
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: deenlink_session
+  parameters:
+    CsrfTokenHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: CSRF token required by protected write endpoints.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+        code:
+          type: string
+          nullable: true
+      additionalProperties: true
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        user_type:
+          type: string
+          example: user
+        profile_image:
+          type: string
+          nullable: true
+        profile_image_url:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        deenpoints_balance:
+          type: integer
+          example: 0
+        is_email_verified:
+          type: integer
+          example: 0
+        email_verification_enabled:
+          type: boolean
+        account_status:
+          type: string
+          example: active
+        moderation_reason:
+          type: string
+          nullable: true
+        verification_badge:
+          type: string
+          nullable: true
+        verification_badge_expires_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        scholar:
+          type: object
+          nullable: true
+      additionalProperties: true
+    Scholar:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        display_name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        fields_of_knowledge:
+          type: string
+          nullable: true
+        other_field:
+          type: string
+          nullable: true
+        madhhab:
+          type: string
+          nullable: true
+        institute:
+          type: string
+          nullable: true
+        years_of_study:
+          type: string
+          nullable: true
+        teachers:
+          type: string
+          nullable: true
+        approval_status:
+          type: string
+          nullable: true
+        approval_notes:
+          type: string
+          nullable: true
+        reviewed_at:
+          type: string
+          nullable: true
+        certificate_path:
+          type: string
+          nullable: true
+        recommendation_path:
+          type: string
+          nullable: true
+        verification_links:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        aqeedah:
+          type: string
+          nullable: true
+        level:
+          type: string
+          nullable: true
+      additionalProperties: true
+    SessionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        logged_in:
+          type: boolean
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+        scholar:
+          $ref: '#/components/schemas/Scholar'
+      additionalProperties: true
+    LoginResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+        redirect:
+          type: string
+      additionalProperties: true
+    RegisterResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+        requires_verification:
+          type: boolean
+        logged_in:
+          type: boolean
+      additionalProperties: true
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        content_text:
+          type: string
+          nullable: true
+        youtube_url:
+          type: string
+          nullable: true
+        youtube_embed_url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        time_ago:
+          type: string
+        like_count:
+          type: integer
+        comment_count:
+          type: integer
+        liked_by_me:
+          type: boolean
+        following_by_me:
+          type: boolean
+        is_public_qa:
+          type: boolean
+        public_qa:
+          type: object
+          nullable: true
+        user:
+          $ref: '#/components/schemas/User'
+        media:
+          type: array
+          items:
+            type: object
+      additionalProperties: true
+    Video:
+      type: object
+      properties:
+        id:
+          type: integer
+        video_type:
+          type: string
+          example: daily
+        source_type:
+          type: string
+          example: local
+        source_url:
+          type: string
+          nullable: true
+        sourceUrlRaw:
+          type: string
+          nullable: true
+        poster_url:
+          type: string
+          nullable: true
+        posterUrl:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        likes:
+          type: integer
+        comments:
+          type: integer
+        downloads:
+          type: integer
+        views:
+          type: integer
+        shares:
+          type: integer
+        likedByMe:
+          type: boolean
+        savedByMe:
+          type: boolean
+        repostedByMe:
+          type: boolean
+        followingByMe:
+          type: boolean
+        accountId:
+          type: integer
+          nullable: true
+        accountName:
+          type: string
+          nullable: true
+        accountUsername:
+          type: string
+          nullable: true
+        accountPic:
+          type: string
+          nullable: true
+        targetCountry:
+          type: string
+          nullable: true
+        targetTribe:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        category_name:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          nullable: true
+        dailyQueueStatus:
+          type: string
+          nullable: true
+        dailyQueueExpiresAt:
+          type: string
+          nullable: true
+        dailyQueueOrder:
+          type: integer
+          nullable: true
+      additionalProperties: true
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+          nullable: true
+        comment_text:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        time_ago:
+          type: string
+        like_count:
+          type: integer
+        liked_by_me:
+          type: boolean
+        reply_to_username:
+          type: string
+          nullable: true
+        parent_id:
+          type: integer
+          nullable: true
+        video_id:
+          type: integer
+          nullable: true
+        user:
+          $ref: '#/components/schemas/User'
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+      additionalProperties: true
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        entity_type:
+          type: string
+          nullable: true
+        entity_id:
+          type: integer
+          nullable: true
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          nullable: true
+        actor:
+          type: object
+          nullable: true
+      additionalProperties: true
+    PrayerTimesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        prayerData:
+          type: object
+          nullable: true
+        cityName:
+          type: string
+          nullable: true
+        timestamp:
+          type: integer
+          nullable: true
+        expiresAt:
+          type: string
+          nullable: true
+        source:
+          type: string
+          nullable: true
+      additionalProperties: true
+    DeenAIResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        out_of_scope:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        classification:
+          type: string
+          nullable: true
+        intent:
+          type: string
+          nullable: true
+        router_category:
+          type: string
+          nullable: true
+        dataset:
+          type: object
+          nullable: true
+        datasets_used:
+          type: array
+          items:
+            type: object
+        sources:
+          type: array
+          items:
+            type: object
+        original_items:
+          type: array
+          items:
+            type: object
+        ai_explanation:
+          type: string
+          nullable: true
+        provider_used:
+          type: string
+          nullable: true
+        provider_model:
+          type: string
+          nullable: true
+        cache_hit:
+          type: boolean
+        query_log_id:
+          type: integer
+          nullable: true
+      additionalProperties: true
+    SimpleStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+      additionalProperties: true
+paths:
+  /api/auth/csrf.php:
+    get:
+      tags: [Auth]
+      summary: Get CSRF token
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  csrf_token:
+                    type: string
+
+  /api/auth/check_session.php:
+    get:
+      tags: [Auth]
+      summary: Check current session
+      responses:
+        '200':
+          description: Session state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login.php:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  type: string
+                  description: Email address or username.
+                password:
+                  type: string
+                remember_me:
+                  type: boolean
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Verification or account state blocked login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/register.php:
+    post:
+      tags: [Auth]
+      summary: Register a user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [full_name, email, username, password, confirm_password, agree_terms, aqeedah]
+              properties:
+                full_name: { type: string }
+                email: { type: string, format: email }
+                username: { type: string }
+                password: { type: string }
+                confirm_password: { type: string }
+                gender: { type: string, enum: [male, female] }
+                country: { type: string }
+                tribe: { type: string }
+                aqeedah: { type: string }
+                agree_terms: { type: boolean }
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Registration disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout.php:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/auth/me.php:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Current session user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  user:
+                    $ref: '#/components/schemas/User'
+                  scholar:
+                    $ref: '#/components/schemas/Scholar'
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/check_email_verified.php:
+    get:
+      tags: [Auth]
+      summary: Check whether the current email is verified
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Verification state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  is_email_verified: { type: boolean }
+                  email_verification_enabled: { type: boolean }
+                  email: { type: string, nullable: true }
+
+  /api/auth/verify_email.php:
+    get:
+      tags: [Auth]
+      summary: Verify email token
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/resend_verification.php:
+    post:
+      tags: [Auth]
+      summary: Resend verification email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/request_password_reset.php:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset link sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/auth/reset_password.php:
+    post:
+      tags: [Auth]
+      summary: Reset password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/auth/register_scholar.php:
+    post:
+      tags: [Auth]
+      summary: Register scholar account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                email: { type: string, format: email }
+                username: { type: string }
+                password: { type: string }
+                confirm_password: { type: string }
+                phone: { type: string }
+                fields_of_knowledge: { type: string }
+                other_field: { type: string }
+                madhhab: { type: string }
+                institute: { type: string }
+                years_of_study: { type: string }
+                teachers: { type: string }
+      responses:
+        '200':
+          description: Scholar registration result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/auth/check_scholar_username.php:
+    get:
+      tags: [Auth]
+      summary: Check scholar username availability
+      security: []
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Username availability
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/check_username.php:
+    post:
+      tags: [Users]
+      summary: Check username availability
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username: { type: string }
+      responses:
+        '200':
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  message: { type: string }
+
+  /api/users/get_user_profile.php:
+    get:
+      tags: [Users]
+      summary: Get public user profile
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema: { type: integer }
+        - name: u
+          in: query
+          required: false
+          schema: { type: string }
+        - name: username
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Profile payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  user:
+                    type: object
+                  scholar:
+                    type: object
+                    nullable: true
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/get_profile_counts.php:
+    get:
+      tags: [Users]
+      summary: Get profile counters
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Count payload
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/get_connections.php:
+    get:
+      tags: [Users]
+      summary: Get followers, following, or suggestions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: tab
+          in: query
+          schema:
+            type: string
+            enum: [followers, following, suggestions]
+        - name: user_id
+          in: query
+          schema: { type: integer }
+        - name: username
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Connection lists
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/toggle_follow.php:
+    post:
+      tags: [Users]
+      summary: Follow or unfollow a user
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: integer
+      responses:
+        '200':
+          description: Follow state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/update_profile.php:
+    post:
+      tags: [Users]
+      summary: Update profile
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                bio: { type: string }
+                aqeedah: { type: string }
+                username: { type: string }
+                phone: { type: string }
+                hide_charity_balance: { type: boolean }
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+                  user: { type: object }
+
+  /api/users/upload_profile_image.php:
+    post:
+      tags: [Users]
+      summary: Upload profile image
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [profile_image]
+              properties:
+                profile_image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  profile_image: { type: string }
+                  profile_image_url: { type: string }
+
+  /api/users/report_account.php:
+    post:
+      tags: [Users]
+      summary: Report account
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, reason]
+              properties:
+                user_id:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/balance.php:
+    get:
+      tags: [Users]
+      summary: Get DeenPoints balance
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  deenpoints_balance: { type: integer }
+
+  /api/users/daily_checkin.php:
+    post:
+      tags: [Users]
+      summary: Daily check-in
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: Check-in result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/search_accounts.php:
+    get:
+      tags: [Users]
+      summary: Search accounts
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/get_posts.php:
+    get:
+      tags: [Feed]
+      summary: Get feed posts
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: tab
+          in: query
+          schema:
+            type: string
+            enum: [for-you, scholars, following]
+            default: for-you
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: cursor
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Feed data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  next_cursor: { type: integer, nullable: true }
+                  empty_reason: { type: string }
+                  empty_title: { type: string }
+                  empty_message: { type: string }
+
+  /api/feed/get_user_posts.php:
+    get:
+      tags: [Feed]
+      summary: Get posts for one user
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: User posts
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/create_post.php:
+    post:
+      tags: [Feed]
+      summary: Create a post
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                content_text:
+                  type: string
+                youtube_url:
+                  type: string
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+                  post_id: { type: integer }
+                  post_url: { type: string }
+
+  /api/feed/delete_post.php:
+    post:
+      tags: [Feed]
+      summary: Delete a post
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [post_id]
+              properties:
+                post_id: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/feed/get_comments.php:
+    get:
+      tags: [Feed]
+      summary: Get post comments
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: post_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Comment tree
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/add_comment.php:
+    post:
+      tags: [Feed]
+      summary: Add a post comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [post_id, text]
+              properties:
+                post_id: { type: integer }
+                text: { type: string }
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  comment_id: { type: integer }
+                  comment_count: { type: integer }
+        '200':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/add_reply.php:
+    post:
+      tags: [Feed]
+      summary: Add a reply to a post comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id, text]
+              properties:
+                comment_id: { type: integer }
+                parent_reply_id: { type: integer }
+                text: { type: string }
+      responses:
+        '200':
+          description: Reply created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  reply_id: { type: integer }
+
+  /api/feed/delete_comment.php:
+    post:
+      tags: [Feed]
+      summary: Delete a comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id]
+              properties:
+                comment_id: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/feed/delete_reply.php:
+    post:
+      tags: [Feed]
+      summary: Delete a reply
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reply_id]
+              properties:
+                reply_id: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/feed/toggle_like.php:
+    post:
+      tags: [Feed]
+      summary: Like or unlike a post
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [post_id]
+              properties:
+                post_id: { type: integer }
+                desired_liked: { type: boolean }
+      responses:
+        '200':
+          description: Like state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/toggle_comment_like.php:
+    post:
+      tags: [Feed]
+      summary: Like or unlike a post comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id]
+              properties:
+                comment_id: { type: integer }
+                desired_liked: { type: boolean }
+      responses:
+        '200':
+          description: Like state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/toggle_reply_like.php:
+    post:
+      tags: [Feed]
+      summary: Like or unlike a reply
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reply_id]
+              properties:
+                reply_id: { type: integer }
+                desired_liked: { type: boolean }
+      responses:
+        '200':
+          description: Like state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/report_post.php:
+    post:
+      tags: [Feed]
+      summary: Report a post
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [post_id, reason]
+              properties:
+                post_id: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/feed/report_comment.php:
+    post:
+      tags: [Feed]
+      summary: Report a comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id, reason]
+              properties:
+                comment_id: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/list.php:
+    get:
+      tags: [Videos]
+      summary: List videos
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [daily, reel, all]
+            default: daily
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: source
+          in: query
+          schema:
+            type: string
+            default: feed
+            description: Use `homepage` for cached homepage loading.
+        - name: fast
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: user_id
+          in: query
+          schema: { type: integer }
+        - name: video_id
+          in: query
+          schema: { type: integer }
+        - name: tab
+          in: query
+          schema: { type: string }
+        - name: cursor
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Video list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  type: { type: string }
+                  source: { type: string }
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Video'
+                  meta:
+                    type: object
+
+  /api/videos/list_comments.php:
+    get:
+      tags: [Videos]
+      summary: List video comments
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: video_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Comment tree
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/toggle_like.php:
+    post:
+      tags: [Videos]
+      summary: Like or unlike a video
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+                desired_liked: { type: boolean }
+      responses:
+        '200':
+          description: Like state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/bookmark.php:
+    post:
+      tags: [Videos]
+      summary: Save or unsave a video
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+                action:
+                  type: string
+                  enum: [save, unsave, toggle]
+      responses:
+        '200':
+          description: Save state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/repost.php:
+    post:
+      tags: [Videos]
+      summary: Repost or undo repost
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+                action:
+                  type: string
+                  enum: [repost, undo, toggle]
+      responses:
+        '200':
+          description: Repost state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/add_view.php:
+    post:
+      tags: [Videos]
+      summary: Register a video view
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+      responses:
+        '200':
+          description: View counted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/add_comment.php:
+    post:
+      tags: [Videos]
+      summary: Add a video comment or GIF comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+                parent_id: { type: integer }
+                text: { type: string }
+                gif:
+                  type: object
+                  properties:
+                    provider: { type: string }
+                    id: { type: string }
+                    url: { type: string }
+                    preview_url: { type: string }
+      responses:
+        '200':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  comment_id: { type: integer }
+                  comment_count: { type: integer }
+                  comment_meta: { type: object, nullable: true }
+
+  /api/videos/delete_comment.php:
+    post:
+      tags: [Videos]
+      summary: Delete a video comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id]
+              properties:
+                comment_id: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/videos/toggle_comment_like.php:
+    post:
+      tags: [Videos]
+      summary: Like or unlike a video comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id]
+              properties:
+                comment_id: { type: integer }
+                desired_liked: { type: boolean }
+      responses:
+        '200':
+          description: Like state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/report.php:
+    post:
+      tags: [Videos]
+      summary: Report a video
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id, reason]
+              properties:
+                video_id: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/report_comment.php:
+    post:
+      tags: [Videos]
+      summary: Report a video comment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_id, reason]
+              properties:
+                comment_id: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/not_interested.php:
+    post:
+      tags: [Videos]
+      summary: Hide videos like this
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                video_id: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Hidden
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/profile_data.php:
+    get:
+      tags: [Videos]
+      summary: Get video profile data for a user
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: integer }
+        - name: username
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Video profile data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/videos/save_profile.php:
+    post:
+      tags: [Videos]
+      summary: Update video bio/profile text
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                video_bio: { type: string }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/videos/download.php:
+    get:
+      tags: [Videos]
+      summary: Download a local video
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: video_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Video stream
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+
+  /api/notifications/list.php:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /api/notifications/mark_read.php:
+    post:
+      tags: [Notifications]
+      summary: Mark a notification as read
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notification_id]
+              properties:
+                notification_id: { type: integer }
+      responses:
+        '200':
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/notifications/unread_count.php:
+    get:
+      tags: [Notifications]
+      summary: Get unread notification count
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  unread_count: { type: integer }
+
+  /api/get_prayer_times.php:
+    get:
+      tags: [PrayerTimes]
+      summary: Get cached prayer times
+      security: []
+      parameters:
+        - name: locationHash
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Prayer time cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimesResponse'
+
+  /api/save_prayer_times.php:
+    post:
+      tags: [PrayerTimes]
+      summary: Save prayer times cache
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/quran/reciters.php:
+    get:
+      tags: [Quran]
+      summary: List Quran reciters
+      security: []
+      responses:
+        '200':
+          description: Reciter list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/quran/streak.php:
+    post:
+      tags: [Quran]
+      summary: Update Quran streak
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: Streak updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/quran/unlock_reciter.php:
+    post:
+      tags: [Quran]
+      summary: Unlock reciter
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: Reciter unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/deenai/ask.php:
+    post:
+      tags: [DeenAI]
+      summary: Ask DeenAI
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                mode:
+                  type: string
+                  enum: [auto, rag, chat]
+                conversation_id:
+                  type: string
+      responses:
+        '200':
+          description: AI answer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeenAIResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/deenai/intent.php:
+    post:
+      tags: [DeenAI]
+      summary: Detect question intent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string }
+      responses:
+        '200':
+          description: Intent result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/deenai/feedback.php:
+    post:
+      tags: [DeenAI]
+      summary: Submit DeenAI feedback
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query, response, rating]
+              properties:
+                query: { type: string }
+                response: { type: string }
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                feedback: { type: string }
+      responses:
+        '200':
+          description: Feedback accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/app/version.php:
+    get:
+      tags: [AppSettings]
+      summary: Get current app build
+      security: []
+      responses:
+        '200':
+          description: Build metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  build: { type: string }
+                  code_build: { type: string }
+                  timestamp: { type: string }
+
+  /api/settings/public.php:
+    get:
+      tags: [AppSettings]
+      summary: Get public app settings
+      security: []
+      responses:
+        '200':
+          description: Public settings snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  settings:
+                    type: object
+
+  /api/announcements/active.php:
+    get:
+      tags: [AppSettings]
+      summary: Get active announcement
+      security: []
+      responses:
+        '200':
+          description: Active announcement
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/auth/change_email.php:
+    post:
+      tags: [Auth]
+      summary: Request email change
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_email]
+              properties:
+                new_email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Verification sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/users/check_checkin_status.php:
+    get:
+      tags: [Users]
+      summary: Check daily check-in status
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Check-in state
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/get_follow_counts.php:
+    get:
+      tags: [Users]
+      summary: Get follower and following counts
+      security: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/get_profile_counts.php:
+    get:
+      tags: [Users]
+      summary: Get profile counts
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/get_scholar_me.php:
+    get:
+      tags: [Users]
+      summary: Get current scholar profile
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Scholar profile
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/list_profile_avatars.php:
+    get:
+      tags: [Users]
+      summary: List profile avatars
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Avatar catalog
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/unlock_profile_avatar.php:
+    post:
+      tags: [Users]
+      summary: Unlock a profile avatar
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [avatar_id]
+              properties:
+                avatar_id: { type: integer }
+      responses:
+        '200':
+          description: Avatar unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/set_profile_avatar.php:
+    post:
+      tags: [Users]
+      summary: Set a profile avatar
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [avatar_path]
+              properties:
+                avatar_path:
+                  type: string
+      responses:
+        '200':
+          description: Avatar set
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/request_email_change.php:
+    post:
+      tags: [Users]
+      summary: Request email change with verification link
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_email]
+              properties:
+                new_email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Verification sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/users/request_email_change_with_security.php:
+    post:
+      tags: [Users]
+      summary: Request email change using security answers
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_email, answer_1, answer_2]
+              properties:
+                new_email:
+                  type: string
+                  format: email
+                answer_1:
+                  type: string
+                answer_2:
+                  type: string
+      responses:
+        '200':
+          description: Verification sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/users/verify_email_change.php:
+    get:
+      tags: [Users]
+      summary: Confirm email change token
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Email updated
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /api/users/get_security_questions.php:
+    get:
+      tags: [Users]
+      summary: Get saved security questions
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Security questions
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users/save_security_questions.php:
+    post:
+      tags: [Users]
+      summary: Save security questions
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question_1, question_2, answer_1, answer_2]
+              properties:
+                question_1: { type: string }
+                question_2: { type: string }
+                answer_1: { type: string }
+                answer_2: { type: string }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/users/update_scholar_profile.php:
+    post:
+      tags: [Users]
+      summary: Update scholar profile
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/list.php:
+    get:
+      tags: [Courses]
+      summary: List courses
+      security: []
+      responses:
+        '200':
+          description: Course list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  courses:
+                    type: array
+                    items:
+                      type: object
+
+  /api/courses/get.php:
+    get:
+      tags: [Courses]
+      summary: Get one course
+      security: []
+      parameters:
+        - name: course_id
+          in: query
+          schema: { type: integer }
+        - name: slug
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Course detail
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/enroll.php:
+    post:
+      tags: [Courses]
+      summary: Enroll in a course
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [course_id]
+              properties:
+                course_id: { type: integer }
+      responses:
+        '200':
+          description: Enrollment result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/complete_lesson.php:
+    post:
+      tags: [Courses]
+      summary: Mark a course lesson complete
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [course_id, lesson_id]
+              properties:
+                course_id: { type: integer }
+                lesson_id: { type: integer }
+      responses:
+        '200':
+          description: Completion result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/unlock_points.php:
+    post:
+      tags: [Courses]
+      summary: Unlock course with DeenPoints
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [course_id]
+              properties:
+                course_id: { type: integer }
+      responses:
+        '200':
+          description: Unlock result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/certificate.php:
+    get:
+      tags: [Courses]
+      summary: Get course certificate
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: course_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Certificate
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/courses/verify_certificate.php:
+    post:
+      tags: [Courses]
+      summary: Verify course certificate
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [certificate_code]
+              properties:
+                certificate_code: { type: string }
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/public_list.php:
+    get:
+      tags: [ScholarQuestions]
+      summary: List public answered scholar questions
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: scholar_user_id
+          in: query
+          schema: { type: integer }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [newest, oldest] }
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Answered public questions
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/my_list.php:
+    get:
+      tags: [ScholarQuestions]
+      summary: List my questions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, pending, reviewing, answered, rejected] }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Question list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/scholars.php:
+    get:
+      tags: [ScholarQuestions]
+      summary: List available scholars
+      security: []
+      responses:
+        '200':
+          description: Scholar list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/submit.php:
+    post:
+      tags: [ScholarQuestions]
+      summary: Submit a question to a scholar
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scholar_id, title, details]
+              properties:
+                scholar_id: { type: integer }
+                title: { type: string }
+                details: { type: string }
+                question: { type: string }
+                privacy: { type: string, enum: [public, private] }
+                priority: { type: string, enum: [normal, priority, urgent] }
+                additional_deenpoints: { type: integer }
+                category: { type: string }
+                categories:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/thread.php:
+    get:
+      tags: [ScholarQuestions]
+      summary: Get a question thread
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: question_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Thread
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/respond.php:
+    post:
+      tags: [ScholarQuestions]
+      summary: Respond to a scholar question
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question_id, action]
+              properties:
+                question_id: { type: integer }
+                action:
+                  type: string
+                  enum: [answer, reviewing, reject, message]
+                answer_text: { type: string }
+                rejection_reason: { type: string }
+                reason: { type: string }
+                message_text: { type: string }
+                message: { type: string }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/questions/unread_answered_count.php:
+    get:
+      tags: [ScholarQuestions]
+      summary: Get unread answered-question badge count
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Badge count
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/donations/my_history.php:
+    get:
+      tags: [Donations]
+      summary: Get donation history
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer }
+        - name: per_page
+          in: query
+          schema: { type: integer }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Donation history
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/donations/my_summary.php:
+    get:
+      tags: [Donations]
+      summary: Get donation summary
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Donation summary
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/donations/user_summary.php:
+    get:
+      tags: [Donations]
+      summary: Get user donation summary
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: User summary
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/donations/unreviewed_count.php:
+    get:
+      tags: [Donations]
+      summary: Get count of unreviewed donations
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/donations/mark_seen.php:
+    post:
+      tags: [Donations]
+      summary: Mark donation notification seen
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                donation_id: { type: integer }
+                tx_ref: { type: string }
+      responses:
+        '200':
+          description: Marked seen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/payments/flutterwave/init_donation.php:
+    post:
+      tags: [Payments]
+      summary: Start a donation checkout
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [donation_type, amount]
+              properties:
+                donation_type: { type: string }
+                amount: { type: number }
+                currency: { type: string }
+                note: { type: string }
+                recipient_categories:
+                  oneOf:
+                    - type: array
+                      items: { type: string }
+                    - type: string
+      responses:
+        '200':
+          description: Checkout payload
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/payments/flutterwave/init_deenpoints.php:
+    post:
+      tags: [Payments]
+      summary: Start DeenPoints checkout
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Checkout payload
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/payments/flutterwave/init_premium.php:
+    post:
+      tags: [Payments]
+      summary: Start premium checkout
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Checkout payload
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/payments/flutterwave/init_course.php:
+    post:
+      tags: [Payments]
+      summary: Start course checkout
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Checkout payload
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/payments/flutterwave/verify.php:
+    post:
+      tags: [Payments]
+      summary: Verify Flutterwave payment
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tx_ref]
+              properties:
+                tx_ref: { type: string }
+                transaction_id: { type: string }
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/payments/report_payment.php:
+    post:
+      tags: [Payments]
+      summary: Report a payment issue
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/posters/list_categories.php:
+    get:
+      tags: [Posters]
+      summary: List poster categories
+      security: []
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/posters/unlock_template.php:
+    post:
+      tags: [Posters]
+      summary: Unlock a poster template
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_id]
+              properties:
+                template_id: { type: integer }
+      responses:
+        '200':
+          description: Unlock result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/wallpapers/list.php:
+    get:
+      tags: [Wallpapers]
+      summary: List wallpapers and categories
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Wallpaper catalog
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/wallpapers/download.php:
+    get:
+      tags: [Wallpapers]
+      summary: Download a wallpaper
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Wallpaper URL
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/wallpapers/unlock.php:
+    post:
+      tags: [Wallpapers]
+      summary: Unlock a wallpaper
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallpaper_id]
+              properties:
+                wallpaper_id: { type: integer }
+      responses:
+        '200':
+          description: Unlock result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/notifications/web_push_public_key.php:
+    get:
+      tags: [Notifications]
+      summary: Get web push public key
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Public key
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/notifications/web_push_subscribe.php:
+    post:
+      tags: [Notifications]
+      summary: Subscribe to web push
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Subscription saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/notifications/web_push_unsubscribe.php:
+    post:
+      tags: [Notifications]
+      summary: Unsubscribe from web push
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Unsubscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatus'
+
+  /api/admin/settings/get.php:
+    get:
+      tags: [AppSettings]
+      summary: Get admin settings snapshot
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Admin settings
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/admin/settings/save.php:
+    post:
+      tags: [AppSettings]
+      summary: Save admin settings
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                type: object

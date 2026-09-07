@@ -1,0 +1,280 @@
+import { ReactNode, useState } from 'react';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View, type ViewStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useTheme } from '@/context/ThemeContext';
+import { T } from '@/components/T';
+import { haptic } from '@/lib/haptics';
+
+const bgDark = require('../../assets/img/auth-bg-dark.jpg');
+const bgLight = require('../../assets/img/auth-bg-light.jpg');
+/* pass 34e: the user's REAL DeenLink logo (replaces the generated emblem) */
+const realLogo = require('../../assets/img/logo-export.png');
+
+/**
+ * Shared shell for the login / register redesign (pass 12, glass pass 34e):
+ * full-bleed brand background (user-supplied art) · REAL DeenLink logo ·
+ * wordmark · tagline · children in a FROSTED-GLASS card.
+ */
+export function AuthShell({ children }: { children: ReactNode }) {
+  const { isDark } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: isDark ? '#03180F' : '#F6F1E7' }}>
+      <Image source={isDark ? bgDark : bgLight} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 46, paddingBottom: 28 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* brand — the real logo, centred */}
+          <View style={{ alignItems: 'center', paddingHorizontal: 32 }}>
+            {/* pass 71 — same rounded tile as the splash (radius = 17% of size,
+                gold hairline) but smaller so the form starts higher */}
+            <Image
+              source={realLogo}
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: 15,
+                overflow: 'hidden',
+                borderWidth: 1.5,
+                borderColor: isDark ? 'rgba(232,201,102,0.4)' : 'rgba(140,109,31,0.35)',
+                shadowColor: isDark ? '#4AE38F' : '#1D6F42',
+                shadowOpacity: 0.3,
+                shadowRadius: 18,
+                shadowOffset: { width: 0, height: 8 },
+              }}
+              resizeMode="cover"
+            />
+            <T v="h2" style={{ marginTop: 14, fontSize: 24, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C', letterSpacing: 0.2 }}>
+              DeenLink
+            </T>
+            <T v="caption" style={{ marginTop: 3, fontSize: 11.5, color: isDark ? 'rgba(242,247,243,0.62)' : 'rgba(20,36,28,0.6)', letterSpacing: 0.3 }}>
+              Strengthen Your Deen, Every Day
+            </T>
+          </View>
+
+          {/* frosted-glass form card (pass 34e) */}
+          <View
+            style={[
+              {
+                marginHorizontal: 18,
+                marginTop: 18,
+                borderRadius: 26,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(74,227,143,0.24)' : 'rgba(29,111,66,0.2)',
+                backgroundColor: isDark ? 'rgba(6,22,14,0.55)' : 'rgba(255,255,255,0.55)',
+                paddingHorizontal: 18,
+                paddingTop: 8,
+                paddingBottom: 22,
+                shadowColor: '#000000',
+                shadowOpacity: 0.22,
+                shadowRadius: 24,
+                shadowOffset: { width: 0, height: 10 },
+                elevation: 8,
+              },
+              /* frosted glass — RNW forwards web-only props to the DOM */
+              {
+                backdropFilter: 'blur(18px) saturate(1.4)',
+                WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
+              } as unknown as ViewStyle,
+            ]}
+          >
+            {children}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+/** Headline block inside the glass card: "Welcome back!" + line. */
+export function AuthHeading({ title, sub }: { title: string; sub: string }) {
+  const { isDark } = useTheme();
+  return (
+    <View style={{ marginTop: 22, marginBottom: 18 }}>
+      <T v="h1" style={{ fontSize: 21, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>
+        {title}
+      </T>
+      <T v="bodyS" style={{ marginTop: 4, fontSize: 12.5, color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)' }}>
+        {sub}
+      </T>
+    </View>
+  );
+}
+
+/**
+ * Design-system input: rounded field with leading icon, small-caps label and
+ * optional trailing eye toggle. 16px text — no iOS auto-zoom.
+ */
+export function AuthField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  icon,
+  secure,
+  autoCap,
+  keyboard,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  icon: string;
+  secure?: boolean;
+  autoCap?: 'none' | 'sentences' | 'words';
+  keyboard?: 'email-address' | 'default' | 'phone-pad' | 'number-pad';
+}) {
+  const { isDark } = useTheme();
+  const [focus, setFocus] = useState(false);
+  const [show, setShow] = useState(false);
+  const hidden = secure && !show;
+  return (
+    <View style={{ marginBottom: 13 }}>
+      <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', marginBottom: 6 }}>
+        {label.toUpperCase()}
+      </T>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          borderRadius: 14,
+          borderWidth: 1.5,
+          borderColor: focus ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)',
+          backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)',
+          paddingHorizontal: 14,
+          height: 50,
+        }}
+      >
+        <FontAwesome5 name={icon} size={14} color={focus ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(242,247,243,0.4)' : 'rgba(20,36,28,0.4)'} />
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={isDark ? 'rgba(242,247,243,0.32)' : 'rgba(20,36,28,0.32)'}
+          secureTextEntry={hidden}
+          autoCapitalize={autoCap ?? 'none'}
+          autoCorrect={false}
+          keyboardType={keyboard ?? 'default'}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          style={{
+            flex: 1,
+            width: 0,
+            fontFamily: 'Poppins-Medium',
+            fontSize: 16,
+            color: isDark ? '#F2F7F3' : '#14241C',
+            paddingVertical: 0,
+          }}
+        />
+        {secure ? (
+          <Pressable onPress={() => { haptic.selection(); setShow((v) => !v); }} hitSlop={8} style={{ padding: 3 }}>
+            <FontAwesome5 name={show ? 'eye' : 'eye-slash'} size={14} color={isDark ? 'rgba(242,247,243,0.45)' : 'rgba(20,36,28,0.45)'} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Primary emerald action (Sign In / Sign Up). */
+export function AuthPrimaryButton({ label, busy, onPress }: { label: string; busy?: boolean; onPress: () => void }) {
+  const { isDark } = useTheme();
+  return (
+    <Pressable
+      onPress={() => { haptic.medium(); onPress(); }}
+      disabled={busy}
+      style={({ pressed }) => ({
+        height: 52,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: isDark ? '#1F8F5C' : '#1D6F42',
+        opacity: pressed ? 0.88 : busy ? 0.7 : 1,
+        shadowColor: isDark ? '#1F8F5C' : '#1D6F42',
+        shadowOpacity: 0.4,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
+      })}
+    >
+      <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>
+        {busy ? 'Just a moment…' : label}
+      </T>
+    </Pressable>
+  );
+}
+
+/** The white "Sign in with Google" pill — demo sign-in while FORCE_DEMO is on. */
+/** pass 71 — the REAL four-colour Google "G" (FontAwesome's single-colour
+ * glyph did not look like Google's mark). */
+function GoogleG({ size = 18 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
+      <Path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+      <Path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
+      <Path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
+    </Svg>
+  );
+}
+
+export function AuthGoogleButton({ onDemo }: { onDemo: () => void }) {
+  const { isDark } = useTheme();
+  return (
+    <Pressable
+      onPress={() => { haptic.light(); onDemo(); }}
+      style={({ pressed }) => ({
+        height: 50,
+        borderRadius: 25,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 9,
+        backgroundColor: isDark ? '#F5F5F5' : '#FFFFFF',
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(20,36,28,0.12)',
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <GoogleG size={18} />
+      <T v="body" style={{ color: '#1F2937', fontWeight: '700', fontSize: 13.5 }}>
+        Sign in with Google
+      </T>
+    </Pressable>
+  );
+}
+
+/** Hairline · OR · hairline divider. */
+export function AuthOrDivider() {
+  const { isDark } = useTheme();
+  const line = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.12)';
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 18 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: line }} />
+      <T v="caption" style={{ color: isDark ? 'rgba(242,247,243,0.45)' : 'rgba(20,36,28,0.45)', fontWeight: '700', fontSize: 10.5, letterSpacing: 1 }}>
+        OR
+      </T>
+      <View style={{ flex: 1, height: 1, backgroundColor: line }} />
+    </View>
+  );
+}
+
+/** Bottom switch line: "Don't have an account? Sign Up". */
+export function AuthSwitchLine({ text, actionLabel, onAction }: { text: string; actionLabel: string; onAction: () => void }) {
+  const { isDark } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20 }}>
+      <T v="caption" style={{ color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', fontSize: 12 }}>
+        {text}
+      </T>
+      <Pressable
+        onPress={() => { haptic.selection(); onAction(); }}
+        hitSlop={8}
+      >
+        <T v="caption" style={{ color: isDark ? '#D4AF37' : '#B8860B', fontWeight: '800', fontSize: 12.5, marginLeft: 5 }}>
+          {actionLabel}
+        </T>
+      </Pressable>
+    </View>
+  );
+}

@@ -1,0 +1,332 @@
+import { useEffect, useMemo, useState , useRef } from 'react';
+import { goBack } from '@/lib/navigation';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HADITH_BOOKS } from '@/data/hadithBooks';
+import { loadBook, loadBookMeta, type ContentHadith, type MetaChapter } from '@/lib/content';
+import { hadithNumbers } from '@/lib/hadithNum';
+import { fetchHadithTranslation, hadithTrLangsFor, HADITH_TR_LANGS, type HadithTrLang } from '@/lib/hadithTr';
+import { storage } from '@/lib/storage';
+import { useBookmarks } from '@/lib/bookmarks';
+import { useTheme } from '@/context/ThemeContext';
+import { T } from '@/components/T';
+import { haptic } from '@/lib/haptics';
+
+/** english is {narrator, text} in some books — always flatten to a string */
+const enOf = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const o = e as { text?: unknown; narrator?: unknown };
+    const t = typeof o.text === 'string' ? o.text : typeof o.text === 'object' && o.text ? enOf(o.text) : '';
+    return t || '';
+  }
+  return '';
+};
+import { ContentShareSheet } from '@/components/ContentShareSheet';
+import { markGoal } from '@/lib/routine';
+
+/**
+ * A hadith book (pass 18): REAL chapters from the user's dataset, and the
+ * reader streams the book's full text file (filtered by chapter).
+ */
+export default function HadithBookScreen() {
+  /* pass 44 — Today's Goal auto-detect */
+  useEffect(() => { markGoal('hadith'); }, []);
+
+  const { book: bookId, chapter: chapterParam, h: hParam } = useLocalSearchParams<{ book: string; chapter?: string; h?: string }>();
+  /* pass 32: AI/deep links carry the EXACT hadith (?h=number) — open its
+   * chapter, scroll to it and highlight it (the old link just opened the book
+   * root, which read as "a different book"). */
+  const jumpH = hParam != null && hParam !== '' ? Number(decodeURIComponent(hParam)) : null;
+  const router = useRouter();
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const insets = useSafeAreaInsets();
+  const book = HADITH_BOOKS.find((b) => b.id === bookId) ?? HADITH_BOOKS[0];
+
+  const [chapter, setChapter] = useState<string | null>(chapterParam ? `c${chapterParam}` : null);
+  const [meta, setMeta] = useState<MetaChapter[] | null>(null);
+  const [hadiths, setHadiths] = useState<ContentHadith[] | null>(null);
+  const [numOf, setNumOf] = useState<Map<ContentHadith, number>>(new Map());
+  /* pass 33: FR/BN/UR translations, fetched per-hadith from the CDN */
+  const [trLang, setTrLang] = useState<HadithTrLang | null>(null);
+  const [trs, setTrs] = useState<Record<number, string | null>>({});
+  const [loading, setLoading] = useState(false);
+  /* pass 69 — marks live in the unified bookmark store (server-synced) */
+  const bmHadith = useBookmarks('hadith');
+  const marks = useMemo(
+    () => new Set(bmHadith.list.filter((i) => i.item_id.startsWith(`${book.id}:`)).map((i) => i.item_id.slice(String(book.id).length + 1))),
+    [bmHadith.list, book.id],
+  );
+  const [limit, setLimit] = useState(25);
+  const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
+
+  useEffect(() => {
+    if (chapterParam) storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: `c${chapterParam}`, at: new Date().toISOString() }));
+    loadBookMeta(book.id)
+      .then((m) => setMeta(m.chapters?.length ? m.chapters : null) ?? Promise.reject(new Error('empty')))
+      .catch(async () => {
+        /* no chapters meta (e.g. Nawawi 40 — one big chapter) → derive it
+         * from the book data itself by grouping chapter names */
+        try {
+          const all = await loadBook(book.id);
+          const byName = new Map<string, MetaChapter>();
+          for (const h of all) {
+            const name = h.chapter_name?.english ?? `Chapter ${h.chapter_number ?? 1}`;
+            const e = byName.get(name);
+            if (e) e.hadith_count += 1;
+            else byName.set(name, { chapter_number: byName.size + 1, arabic: h.chapter_name?.arabic ?? '', english: name, hadith_count: 1 });
+          }
+          setMeta([...byName.values()]);
+        } catch {
+          setMeta([]);
+        }
+      });
+    /* pass 23: do NOT auto-restore the last chapter — opening a book always
+     * shows its CHAPTER LIST first (continue via the hero button) */
+  }, [book.id]);
+
+  const openChapter = (id: string) => {
+    haptic.light();
+    setChapter(id);
+    setLimit(25);
+    storage.setItem(`dl.hadith.last.${book.id}`, id);
+    /* global pointer powers the Continue-reading hero on the collections screen */
+    storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: id, at: new Date().toISOString() }));
+  };
+
+  /* stream the full book file on first reader open */
+  useEffect(() => {
+    /* a pure ?h= deep link enters straight into chapter 1's reader so the
+     * stream begins; the jump above then lands on the real chapter */
+    if (!chapter && jumpH != null) setChapter('c1');
+    if (!chapter) return;
+    if (hadiths) return;
+    setLoading(true);
+    const t0 = Date.now();
+    loadBook(book.id)
+      .then(async (all) => {
+        const norm = all.map((h) => (h.chapter_number == null ? { ...h, chapter_number: 1 } : h));
+        /* pass 33: canonical numbers — our pack order ≠ sunnah.com order, so
+         * the number comes from a generated map (public/hadith-num/<book>.json)
+         * built by text-matching every hadith against the sunnah.com-aligned
+         * dataset. Falls back to the book-wide index. */
+        let nums: number[] = [];
+        try { nums = await hadithNumbers(book.id); } catch {}
+        setNumOf(new Map(norm.map((h, i) => [h, h.hadith_number != null ? Number(h.hadith_number) : (nums[i] ?? i + 1)])));
+        setHadiths(norm);
+        if (jumpH != null && Number.isFinite(jumpH)) {
+          const idx = nums.indexOf(jumpH);
+          const target = idx >= 0 ? norm[idx] : norm[jumpH - 1];
+          if (target) {
+            const t = idx >= 0 ? idx : jumpH - 1;
+            setChapter(`c${target.chapter_number ?? 1}`);
+            if (t + 4 > limit) setLimit(t + 6);
+          }
+        }
+      })
+      .catch(() => setHadiths([]))
+      .finally(() => {
+        /* large books (bukhari 25MB) — keep the spinner honest */
+        const wait = Math.max(0, 600 - (Date.now() - t0));
+        setTimeout(() => setLoading(false), wait);
+      });
+  }, [chapter, hadiths, book.id]);
+
+  const scroller = useRef<ScrollView>(null);
+  const jumped = useRef(false);
+  const chNum = chapter ? Number(chapter.slice(1)) : null;
+  const chapterMeta = meta?.find((c) => c.chapter_number === chNum) ?? null;
+  const list = useMemo(() => (chapter && hadiths ? hadiths.filter((h) => h.chapter_number === chNum) : []), [chapter, hadiths, chNum]);
+
+  /* pass 33: fetch CDN translations for the VISIBLE hadiths (FR/BN/UR) */
+  useEffect(() => {
+    if (!trLang || !hadiths) return;
+    let alive = true;
+    const nums = list.map((h, i) => (h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1)));
+    (async () => {
+      for (const n of nums.slice(0, limit)) {
+        if (!alive) return;
+        if (n in trs) continue;
+        const t = await fetchHadithTranslation(book.id, trLang, n);
+        if (!alive) return;
+        setTrs((prev) => ({ ...prev, [n]: t }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [trLang, hadiths, limit, chapter, book.id, numOf, list, trs]);
+
+  const toggleMark = (id: string) => {
+    haptic.light();
+    void bmHadith.toggle(`${book.id}:${id}`);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* header */}
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Pressable onPress={() => (chapter ? setChapter(null) : goBack(router))} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesome5 name={chapter ? 'chevron-left' : 'arrow-left'} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          </Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
+              {chapter ? chapterMeta?.english ?? `Chapter ${chNum}` : book.name}
+            </T>
+            <T v="caption" style={{ color: d.faint, fontSize: 12.5, marginTop: 1 }} numberOfLines={1}>
+              {chapter ? `${chapterMeta?.arabic ?? ''} · ${list.length} hadiths` : `${book.total.toLocaleString()} hadiths · ${book.chapters} chapters`}
+            </T>
+          </View>
+          {/* pass 34: translation selector lives in the HEADER now (cycles
+             EN → FR → BN → UR; only where the CDN has the book) */}
+          {chapter && hadithTrLangsFor(book.id).length ? (
+            <Pressable
+              accessibilityLabel="translation language"
+              onPress={() => { haptic.selection(); const avail = [{ id: null }, ...hadithTrLangsFor(book.id)]; const i = avail.findIndex((x) => x.id === trLang); const nx = avail[(i + 1) % avail.length].id; setTrs({}); setTrLang(nx); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: trLang ? 'rgba(74,227,143,0.5)' : d.cardBorder, backgroundColor: trLang ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : d.card }}
+            >
+              <FontAwesome5 name="language" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="caption" style={{ color: d.subtext, fontWeight: '800', fontSize: 10.5 }}>{trLang ? HADITH_TR_LANGS.find((l) => l.id === trLang)?.code : 'EN'}</T>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {!chapter ? (
+        /* ── chapters (from chapters_meta — arabic + english + counts) ── */
+        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
+          {meta == null ? (
+            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
+          ) : (
+            meta.map((c, i) => (
+              <Pressable
+                key={c.chapter_number}
+                onPress={() => openChapter(`c${c.chapter_number}`)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 13,
+                  marginBottom: 9,
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: d.card,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  opacity: pressed ? 0.82 : 1,
+                })}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)' }}>
+                  <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 12 }}>
+                    {c.chapter_number}
+                  </T>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13.5 }} numberOfLines={1}>
+                    {c.english}
+                  </T>
+                  <T v="arabic" style={{ color: isDark ? 'rgba(242,247,243,0.75)' : 'rgba(20,36,28,0.7)', fontSize: 18, marginTop: 2 }} numberOfLines={1}>
+                    {c.arabic}
+                  </T>
+                </View>
+                <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>
+                  {c.hadith_count}
+                </T>
+                <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        /* ── reader: full texts ── */
+        <ScrollView ref={scroller} contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          {loading ? (
+            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
+          ) : list.length === 0 ? (
+            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
+              No hadiths in this chapter.
+            </T>
+          ) : (
+            <>
+              {list.slice(0, limit).map((h, i) => {
+                const hid = `${book.id}-${h.chapter_number}-${i}`;
+                const num = h.hadith_number != null ? Number(h.hadith_number) : (numOf.get(h) ?? i + 1);
+                const tr = trLang ? trs[num] : undefined;
+                const isJump = jumpH != null && num === jumpH;
+                return (
+                  <View
+                    key={hid}
+                    onLayout={(e) => {
+                      if (isJump && !jumped.current) {
+                        jumped.current = true;
+                        setTimeout(() => scroller.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - 100), animated: true }), 250);
+                      }
+                    }}
+                    style={{ backgroundColor: isJump ? (isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.07)') : d.card, borderWidth: 1, borderColor: isJump ? 'rgba(212,175,55,0.65)' : d.cardBorder, borderRadius: 17, padding: 16, marginBottom: 11 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <View style={{ borderRadius: 8, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9.5 }}>
+                          Hadith {num}
+                        </T>
+                      </View>
+                      <View style={{ flex: 1 }} />
+                      <Pressable onPress={() => toggleMark(hid)} hitSlop={8} style={{ padding: 4 }}>
+                        <FontAwesome5 name="bookmark" size={14} solid={marks.has(hid)} color={marks.has(hid) ? '#E8C96A' : d.faint} />
+                      </Pressable>
+                    </View>
+                    <T v="arabic" style={{ color: d.text, fontSize: 19, textAlign: 'right', lineHeight: 34 }}>
+                      {h.arabic}
+                    </T>
+                    {enOf(h.english) ? (
+                      <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, marginTop: 10, lineHeight: 19 }}>
+                        {enOf(h.english)}
+                      </T>
+                    ) : null}
+                    {trLang ? (
+                      tr == null ? null : (
+                        <T v="bodyS" style={{ color: isDark ? '#9FD5B8' : '#3E6E52', fontSize: 12, marginTop: 8, lineHeight: 18, fontStyle: 'italic', writingDirection: trLang === 'ur' ? 'rtl' : undefined }}>
+                          {tr}
+                        </T>
+                      )
+                    ) : null}
+                    <T v="caption" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontSize: 10, marginTop: 8, fontWeight: '700' }}>
+                      {book.name ?? book.id} · Hadith {num}
+                    </T>
+                    <Pressable
+                      onPress={() => {
+                        haptic.selection();
+                        setShareH({
+                          arabic: h.arabic,
+                          meaning: enOf(h.english) || h.chapter_name?.english || '',
+                          ref: `${book.name} · ${h.chapter_name?.english ? h.chapter_name.english + ' · ' : ''}Hadith ${num}`,
+                        });
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}
+                    >
+                      <FontAwesome5 name="share-alt" size={10} color={d.faint} />
+                      <T v="caption" style={{ color: d.subtext, fontWeight: '700', fontSize: 10.5 }}>Share this hadith</T>
+                    </Pressable>
+                  </View>
+                );
+              })}
+              {limit < list.length ? (
+                <Pressable onPress={() => setLimit((l) => l + 25)} style={{ alignItems: 'center', paddingVertical: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, marginTop: 4 }}>
+                  <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 12 }}>
+                    Load more ({list.length - limit} left)
+                  </T>
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </ScrollView>
+      )}
+      <ContentShareSheet
+        visible={shareH != null}
+        onClose={() => setShareH(null)}
+        card={shareH ? { kind: 'hadith', ...shareH } : null}
+        link="https://deenlink.org/tools/hadith"
+      />
+    </View>
+  );
+}
