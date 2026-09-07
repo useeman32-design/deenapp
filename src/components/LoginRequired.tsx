@@ -12,7 +12,7 @@ export function LoginRequired({ module: mod }: { module: string }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   return (
-    <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 28, zIndex: 100 }}>
       <View style={{ width: '100%', maxWidth: 340, borderRadius: 20, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 22, alignItems: 'center', gap: 10 }}>
         <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(184,134,11,0.1)' }}>
           <FontAwesome5 name="lock" size={16} color={isDark ? '#D4AF37' : '#B8860B'} />

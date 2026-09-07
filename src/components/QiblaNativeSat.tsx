@@ -72,7 +72,7 @@ var pl=pts.map(function(p){var q=proj(p[0],p[1],z);return (q[0]-ox)+','+(q[1]-oy
 svg.innerHTML='<polyline points="'+pl+'" fill="none" stroke="#D4AF37" stroke-width="3" stroke-dasharray="8 6"/>'+
   '<text x="'+(B[0]-ox+10)+'" y="'+(B[1]-oy-6)+'" fill="#E8C96A" font-size="10" font-weight="700">'+km+' km to Makkah</text>';
 function pin(el,px,py){el.style.left=px+'px';el.style.top=py+'px';}
-var you=document.createElement('div');you.className='pin';you.innerHTML='<div class="dot"></div>'+name.replace(/</g,'');
+var you=document.createElement('div');you.className='pin';you.innerHTML='<div class="dot"></div>'+name.replace(/[<>'\"\\]/g,'');
 var kb=document.createElement('div');kb.className='pin';kb.innerHTML='<div class="kaaba">🕋</div>Kaaba';
 document.getElementById('map').appendChild(you);document.getElementById('map').appendChild(kb);
 pin(you,A[0]-ox,A[1]-oy);pin(kb,B[0]-ox,B[1]-oy);

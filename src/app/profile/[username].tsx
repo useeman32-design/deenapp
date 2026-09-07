@@ -87,17 +87,26 @@ function PublicProfileScreenInner() {
   /* pass 76 (Tier 3) — block/unblock, server-enforced */
   const [iBlocked, setIBlocked] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  /* pass 81 — block/report live in a top-right ⋮ dropdown, not the action row */
+  const [menuOpen, setMenuOpen] = useState(false);
   /* pass 74 — WAIT for the session restore: on a hard navigation (web refresh
    * or an MPA route hop) this screen mounts before /me resolves, isLive() is
    * still false, the fetch was skipped and real accounts showed "not found". */
   const { ready, user } = useAuth();
+  /* pass 81 — track the fetch itself: between `ready` and liveP landing the
+   * memo was null and the screen flashed "couldn't find" for real accounts. */
+  const [liveLoading, setLiveLoading] = useState(true);
   useEffect(() => {
-    if (!ready || !isLive() || !username) return;
-    void getUserProfile(username).then((p) => {
-      if (!p) return;
-      setLiveP(p);
-      setFollowing(!!p.following_by_me);
-    });
+    if (!ready) return;
+    if (!isLive() || !username) { setLiveLoading(false); return; }
+    setLiveLoading(true);
+    void getUserProfile(username)
+      .then((p) => {
+        if (!p) return;
+        setLiveP(p);
+        setFollowing(!!p.following_by_me);
+      })
+      .finally(() => setLiveLoading(false));
   }, [username, ready]);
   useEffect(() => {
     if (!liveP || liveP.user_type !== 'scholar') return;
@@ -163,7 +172,7 @@ function PublicProfileScreenInner() {
     : [];
 
   if (!profile) {
-    if (!ready) {
+    if (!ready || liveLoading) {
       /* session still restoring — never flash "not found" for a real account */
       return (
         <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -216,6 +225,53 @@ function PublicProfileScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* pass 81 — account actions dropdown, anchored top-right of the container */}
+      {liveP && user && liveP.username !== user.username ? (
+        <View style={{ position: 'absolute', top: insets.top + 10, right: 16, zIndex: 60 }}>
+          <Pressable
+            accessibilityLabel="Profile options"
+            onPress={() => { haptic.selection(); setMenuOpen((v) => !v); }}
+            style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+          >
+            <FontAwesome5 name="ellipsis-v" size={14} color={d.subtext} />
+          </Pressable>
+          {menuOpen ? (
+            <>
+              <Pressable style={{ position: 'absolute', top: -insets.top, left: -Dimensions.get('window').width, right: -Dimensions.get('window').width, bottom: -Dimensions.get('window').height }} onPress={() => setMenuOpen(false)} />
+              <View style={{ position: 'absolute', top: 44, right: 0, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, shadowColor: '#000', shadowOpacity: isDark ? 0.4 : 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } }}>
+                <Pressable
+                  disabled={blockBusy}
+                  onPress={() => {
+                    setMenuOpen(false);
+                    haptic.light();
+                    setBlockBusy(true);
+                    void blockUser(liveP.username, !iBlocked).then((ok) => {
+                      setBlockBusy(false);
+                      if (ok) {
+                        setIBlocked((v) => !v);
+                        Alert.alert(iBlocked ? 'Unblocked' : `Blocked @${liveP.username}`, iBlocked ? 'They can message and find you again.' : 'They can no longer message, follow or find you. Manage this in Settings → Privacy & Safety.');
+                      } else {
+                        Alert.alert('Could not update', 'Please try again in a moment.');
+                      }
+                    });
+                  }}
+                  style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
+                >
+                  <FontAwesome5 name={iBlocked ? 'user-check' : 'user-slash'} size={12} color="#E05252" />
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{blockBusy ? 'Working…' : iBlocked ? 'Unblock account' : 'Block account'}</T>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setMenuOpen(false); haptic.selection(); setReportOpen(true); }}
+                  style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
+                >
+                  <FontAwesome5 name="flag" size={12} color="#E05252" />
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Report account</T>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
         {/* header pattern */}
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 240, overflow: 'hidden' }}>
@@ -465,57 +521,6 @@ function PublicProfileScreenInner() {
                   Share
                 </T>
               </Pressable>
-              {liveP && user && liveP.username !== user.username ? (
-                <Pressable
-                  disabled={blockBusy}
-                  onPress={() => {
-                    haptic.light();
-                    setBlockBusy(true);
-                    void blockUser(liveP.username, !iBlocked).then((ok) => {
-                      setBlockBusy(false);
-                      if (ok) {
-                        setIBlocked((v) => !v);
-                        Alert.alert(iBlocked ? 'Unblocked' : `Blocked @${liveP.username}`, iBlocked ? 'They can message and find you again.' : 'They can no longer message, follow or find you. Manage this in Settings → Privacy & Safety.');
-                      } else {
-                        Alert.alert('Could not update', 'Please try again in a moment.');
-                      }
-                    });
-                  }}
-                  accessibilityLabel={iBlocked ? 'Unblock account' : 'Block account'}
-                  style={({ pressed }) => ({
-                    width: 42,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: d.cardBorder,
-                    backgroundColor: iBlocked ? 'rgba(224,82,82,0.12)' : d.bgSoft,
-                    paddingVertical: 10,
-                    opacity: pressed || blockBusy ? 0.6 : 1,
-                  })}
-                >
-                  <FontAwesome5 name={iBlocked ? 'user-check' : 'user-slash'} size={11} color="#E05252" />
-                </Pressable>
-              ) : null}
-              {liveP && user && liveP.username !== user.username ? (
-                <Pressable
-                  onPress={() => { haptic.selection(); setReportOpen(true); }}
-                  accessibilityLabel="Report account"
-                  style={({ pressed }) => ({
-                    width: 42,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: d.cardBorder,
-                    backgroundColor: d.bgSoft,
-                    paddingVertical: 10,
-                    opacity: pressed ? 0.75 : 1,
-                  })}
-                >
-                  <FontAwesome5 name="flag" size={11} color="#E05252" />
-                </Pressable>
-              ) : null}
             </View>
           </View>
         </View>

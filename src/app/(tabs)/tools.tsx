@@ -24,6 +24,7 @@ import {
   XIcon,
   type IconProps,
 } from '@/components/Icons';
+import { safeOpenUrl } from '@/lib/safeUrl';
 
 /**
  * Web tools hub (tools/index.html), 1:1 — page hero + vertical list of tool
@@ -154,7 +155,7 @@ export default function Tools() {
 
   const open = (t: ToolCard) => {
     if (t.action.type === 'route') router.push(t.action.href);
-    else if (t.action.type === 'web') Linking.openURL(t.action.url).catch(() => {});
+    else if (t.action.type === 'web') safeOpenUrl(t.action.url);
   };
 
   return (

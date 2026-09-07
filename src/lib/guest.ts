@@ -10,6 +10,11 @@ import { router } from 'expo-router';
 
 const GUEST_KEY = 'dl.guest.v1';
 let guest = false;
+try {
+  /* pass 81 — read the flag synchronously on web so guarded screens never
+   * flash their content before the async AsyncStorage read lands. */
+  if (typeof localStorage !== 'undefined') guest = localStorage.getItem(GUEST_KEY) === '1';
+} catch { /* native falls through to initGuest() */ }
 const listeners = new Set<() => void>();
 
 function emit() { listeners.forEach((l) => l()); }
@@ -32,6 +37,7 @@ export function useIsGuest(): boolean {
 
 export async function enterGuest(): Promise<void> {
   guest = true; emit();
+  try { if (typeof localStorage !== 'undefined') localStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
   try { await AsyncStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
   router.replace('/(tabs)/tools');
 }
@@ -39,6 +45,7 @@ export async function enterGuest(): Promise<void> {
 export async function exitGuest(): Promise<void> {
   if (!guest) return;
   guest = false; emit();
+  try { if (typeof localStorage !== 'undefined') localStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
   try { await AsyncStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
 }
 

@@ -11,6 +11,7 @@ import { isLive, shopCart, shopCartAction, shopCheckout, shopOrders, shopProduct
 import { DEMO_PRODUCTS, SHOP_CATEGORIES, SHOP_IMAGES, SHOP_NETWORKS, shopImage } from '@/lib/shop';
 import { payShopOrder } from '@/lib/flutterwave';
 import { useCurrency } from '@/lib/currency';
+import { safeOpenUrl } from '@/lib/safeUrl';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -132,7 +133,7 @@ function ShopScreenInner() {
   };
 
   const openAffiliate = (p: ShopProduct) => {
-    if (p.affiliate_url) { haptic.light(); Linking.openURL(p.affiliate_url).catch(() => {}); }
+    if (p.affiliate_url) { haptic.light(); safeOpenUrl(p.affiliate_url); }
   };
 
   /* ── product card (grid) ── */

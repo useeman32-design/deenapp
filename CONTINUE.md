@@ -1325,3 +1325,28 @@ NEXT: admin dashboard audit → iOS/Android store builds.
 - Gates: tsc 0 · repro80 14/14 · server: streak day7 +25/bal 155, repeat 0 ·
   bulk 3000→3300pts meta+300 charged ₦4500 · quiz +10 idempotent, learn +20 ·
   fx_quote NGN 1323.32 GHS 11.36 fallback USD.
+
+## Pass 81 — chat/profile fixes · guest hardening · API architecture fix · security
+- Message → chat: thread opens directly (?u= flow verified E2E incl. send).
+- Inbox: no demo/dummy threads when live (SEED purged); back/X button leaves
+  the screen (onClose was a no-op); send button has aria-label.
+- Public profile: no "couldn't find" flash (liveLoading guard); Block/Report
+  moved OUT of the action row into a top-right ⋮ dropdown.
+- Guest: flag read synchronously (no content flash); LoginRequired is an
+  opaque absolute overlay; profile tab shows a "Not signed in — tap to sign
+  in" prompt in the My-Posts space instead of the popup; guest root → Tools.
+- **ARCHITECTURE FIX**: app.deenlink.org is static hosting — same-origin /api
+  returned HTML, so the live app silently ran on demo data. client BASE now
+  always targets https://deenlink.org (env override for sandbox); CORS on the
+  API allowlists https://app.deenlink.org; cookie is host-scoped + same-site.
+  Live requires the cPanel API pull for CORS + pass-80/81 endpoints.
+- gh-pages: CNAME + .nojekyll restored (rsync --delete had removed them —
+  site was dead); old chunks kept so cached clients don't white-screen.
+  NEVER rsync --delete gh-pages again.
+- Security: dead auth duplicates deleted (logiin/registerr/register_scholarr
+  with unvalidated uploads/resend_verificationn); Linking.openURL wrapped in
+  safeOpenUrl (http/https/mailto/tel only); qibla webview name sanitization
+  hardened. Audited clean: prepared statements, JSON-only output, CORS
+  allowlist, bcrypt, lockouts, session regen, httponly/samesite cookies,
+  MIME-allowlisted randomized-name uploads, no hardcoded secrets.
+- Gates: tsc 0 · repro80 14/14 · repro81 10/10 · chat send E2E verified.

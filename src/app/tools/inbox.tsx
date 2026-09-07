@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { CommunityInbox } from '@/components/CommunityInbox';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
@@ -8,7 +8,16 @@ import { LoginRequired } from '@/components/LoginRequired';
 function InboxRouteInner() {
   const { u } = useLocalSearchParams<{ u?: string }>();
   const who = typeof u === 'string' && u ? u : null;
-  return <CommunityInbox visible standalone initialFriend={who} onClose={() => undefined} />;
+  /* pass 81 — the X must leave the inbox: back when possible, home otherwise
+   * (it used to be a no-op, so the button sometimes 'didn't go back'). */
+  return (
+    <CommunityInbox
+      visible
+      standalone
+      initialFriend={who}
+      onClose={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)' as never); }}
+    />
+  );
 }
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */

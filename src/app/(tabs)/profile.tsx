@@ -401,9 +401,40 @@ function ProfileInner() {
   );
 }
 
+
+/* pass 81 — guests see the profile shell with a sign-in prompt in the
+ * My-Posts space (tap → login), instead of a hard popup. */
+function GuestProfilePrompt() {
+  const { theme, isDark } = useTheme();
+  const d = theme.dash;
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+return (
+    <View style={{ flex: 1, backgroundColor: d.bg }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 12 }}>
+        <T v="h2" style={{ fontWeight: '900', color: d.text }}>Profile</T>
+      </View>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Pressable
+          onPress={() => { haptic.selection(); router.push('/(auth)/login' as never); }}
+          style={({ pressed }) => ({ width: '100%', maxWidth: 340, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 22, alignItems: 'center', gap: 10, opacity: pressed ? 0.85 : 1 })}
+        >
+          <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(74,227,143,0.12)' : 'rgba(14,122,70,0.08)' }}>
+            <FontAwesome5 name="user" size={17} color={isDark ? '#4AE38F' : '#0E7A46'} />
+          </View>
+          <T v="body" style={{ fontSize: 14.5, fontWeight: '900', color: d.text }}>Not signed in</T>
+          <T v="caption" style={{ fontSize: 12, color: d.subtext, textAlign: 'center', lineHeight: 17 }}>
+            Tap here to sign in or create an account — your posts, saves and DeenPoints live here.
+          </T>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function Profile() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Your Profile" />;
+  if (guest) return <GuestProfilePrompt />;
   return <ProfileInner />;
 }

@@ -37,10 +37,13 @@ import type {
 
 /* pass 44 — when the web app is self-hosted on app.deenlink.org it talks to its
    SAME origin (no CORS); anywhere else (gh-pages, native) use the env/prod API. */
-export const BASE =
-  typeof window !== 'undefined' && /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin)
-    ? window.location.origin
-    : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
+/* pass 81 — ARCHITECTURE FIX: app.deenlink.org is static hosting (GitHub
+ * Pages / cPanel docroot) with NO PHP. Same-origin /api calls there returned
+ * HTML and the app silently fell back to demo data — the real backend lives
+ * on deenlink.org. CORS there allowlists the app origin; the session cookie
+ * is host-scoped to deenlink.org and rides along (same-site, credentials
+ * include). Sandbox/CI builds inject EXPO_PUBLIC_API_URL. */
+export const BASE = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org';
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
 const TIMEOUT = 9000;

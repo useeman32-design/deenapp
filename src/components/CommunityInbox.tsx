@@ -97,6 +97,7 @@ const SEED: Thread[] = [
     { id: uid(), kind: 'post', title: 'Jumu’ah reminder — arrive early', ago: '2d', dir: 'them', thumb: THUMBS.quran, sub: 'maryam_s · 530 likes · 77 comments' },
   ], chat: [], reactions: {} },
 ];
+const SEED_NAMES = new Set(SEED.map((t) => t.friend));
 
 const STORE = 'dl.inbox.v2';
 
@@ -338,6 +339,10 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
    * bundled demo threads on gh-pages where there is no backend. */
   const live = isLive() && !!user && !isDemo;
   const [convIds, setConvIds] = useState<Record<string, number>>({});
+  /* pass 81 — never show bundled demo threads once we know we're live */
+  useEffect(() => {
+    if (live) setThreads((prev) => prev.filter((t) => !SEED_NAMES.has(t.friend)));
+  }, [live]);
   /* pass 74 — message requests: incoming (they messaged me, I don't follow
    * them back yet), outgoing (mine, capped at 3 until accepted) and declined */
   const [reqMap, setReqMap] = useState<Record<string, { convId: number; photo?: string | null; name?: string }>>({});
@@ -346,7 +351,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const [hiddenConvs, setHiddenConvs] = useState<Set<string>>(new Set());
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [reqBusy, setReqBusy] = useState<string | null>(null);
-  const [threads, setThreads] = useState<Thread[]>(SEED);
+  const [threads, setThreads] = useState<Thread[]>(() => (isLive() ? [] : SEED));
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /* pass 63 — press-and-hold focus (WhatsApp-style sheet), reply quoting,
@@ -1486,7 +1491,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: d.text, fontFamily: 'Manrope' }}
               />
             </View>
-            <Pressable onPress={sendChat} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={sendChat} accessibilityLabel="send message" style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5 name="paper-plane" size={13} color="#FFFFFF" />
             </Pressable>
           </View>

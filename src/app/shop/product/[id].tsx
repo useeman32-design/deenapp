@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptics';
 import { isLive, shopCartAction, shopProduct, shopProducts, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_NETWORKS, shopImage } from '@/lib/shop';
 import { useCurrency } from '@/lib/currency';
+import { safeOpenUrl } from '@/lib/safeUrl';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -131,7 +132,7 @@ function ShopProductScreenInner() {
       {/* bottom action bar */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30, flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: isDark ? 'rgba(8,14,10,0.94)' : 'rgba(255,255,255,0.96)', borderTopWidth: 1, borderTopColor: d.cardBorder }}>
         {net ? (
-          <Pressable onPress={() => { haptic.light(); if (p.affiliate_url) Linking.openURL(p.affiliate_url).catch(() => {}); }}
+          <Pressable onPress={() => { haptic.light(); if (p.affiliate_url) safeOpenUrl(p.affiliate_url); }}
             style={{ flex: 1, borderRadius: 15, backgroundColor: net.color, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
             <FontAwesome5 name="external-link-alt" size={12} color="#fff" />
             <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: '#fff' }}>Buy on {net.label} · {fmt(p.price)}</T>
