@@ -51,6 +51,7 @@ export default function DeenPointsScreen() {
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [histN, setHistN] = useState(15); /* pass 83-7 — no endless scroll */
 
   const pull = useCallback(() => {
     if (!isLive()) {
@@ -121,7 +122,7 @@ export default function DeenPointsScreen() {
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(14,122,70,0.06)', padding: 16 }}>
           <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint }}>YOUR BALANCE</T>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 6 }}>
-            <FontAwesome5 name="star-and-crescent" size={19} color={green} />
+            <Image source={require('../../../assets/img/deenpoints.png')} style={{ width: 26, height: 26 }} resizeMode="contain" />
             {balance === null ? <ActivityIndicator size="small" color={green} /> : (
               <T v="h1" style={{ fontSize: 30, fontWeight: '900', color: d.text }}>{balance.toLocaleString()}</T>
             )}
@@ -160,44 +161,28 @@ export default function DeenPointsScreen() {
           </View>
         </View>
 
-        {/* pass 80 — ways to earn, each one routes to the module */}
-        <View>
-          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint, marginBottom: 9 }}>EARN MORE</T>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {([
-              { icon: 'calendar-check', label: 'Daily check-in', pts: '+5', href: '/(tabs)/profile' },
-              { icon: 'question-circle', label: 'Quizzes', pts: '+10', href: '/tools/quiz' },
-              { icon: 'graduation-cap', label: 'Lessons', pts: '+20', href: '/tools/learning' },
-              { icon: 'praying-hands', label: 'Dhikr goals', pts: '+pts', href: '/tools/tasbeeh' },
-            ] as const).map((o) => (
-              <Pressable key={o.label} onPress={() => { haptic.selection(); router.push(o.href as never); }}
-                style={({ pressed }) => ({ width: '47.6%', borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, gap: 7, opacity: pressed ? 0.8 : 1 })}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <FontAwesome5 name={o.icon as never} size={14} color={green} />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <DPIcon size={11} />
-                    <T v="caption" style={{ fontSize: 11, fontWeight: '900', color: green }}>{o.pts}</T>
-                  </View>
-                </View>
-                <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: d.text }}>{o.label}</T>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         {/* buy */}
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, gap: 12 }}>
           <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Buy DeenPoints</T>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {PRESETS.map((p) => {
               const on = !custom && points === p;
+              const pPrice = p * pricePer * (ccy === 'NGN' ? 1 : rate);
+              const pCur = ccy === 'NGN' ? '₦' : ccy === 'USD' ? '$' : '';
               return (
                 <Pressable
                   key={p}
                   onPress={() => { haptic.selection(); setCustom(''); setPoints(p); }}
-                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : 'transparent' }}
+                  style={({ pressed }) => ({ width: '47.6%', borderRadius: 14, borderWidth: on ? 2 : 1, borderColor: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.06)') : 'transparent', padding: 12, alignItems: 'center', gap: 5, opacity: pressed ? 0.85 : 1 })}
                 >
-                  <T v="caption" style={{ fontWeight: '900', fontSize: 12, color: on ? green : d.subtext }}>{p}</T>
+                  <Image source={require('../../../assets/img/deenpoints.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
+                  <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: on ? green : d.text }}>{p.toLocaleString()} pts</T>
+                  <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: d.subtext }}>{pCur}{pPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}{ccy !== 'NGN' && ccy !== 'USD' ? ` ${ccy}` : ''}</T>
+                  {p >= 2500 ? (
+                    <View style={{ borderRadius: 7, backgroundColor: isDark ? 'rgba(212,175,55,0.16)' : 'rgba(184,134,11,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+                      <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: isDark ? '#D4AF37' : '#B8860B' }}>+10% BONUS</T>
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -250,7 +235,7 @@ export default function DeenPointsScreen() {
             <T v="caption" style={{ fontSize: 11, color: d.faint, paddingVertical: 10 }}>Point history is available on the live app.</T>
           ) : events.length === 0 ? (
             <T v="caption" style={{ fontSize: 11, color: d.faint, paddingVertical: 10 }}>No activity yet — do your daily check-in to earn your first points.</T>
-          ) : events.map((e, i) => (
+          ) : events.slice(0, histN).map((e, i) => (
             <View key={`${e.created_at}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderTopWidth: i ? 1 : 0, borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.06)' }}>
               <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: e.delta >= 0 ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.08)') : 'rgba(255,90,90,0.10)' }}>
                 <FontAwesome5 name={e.delta >= 0 ? 'plus' : 'minus'} size={10} color={e.delta >= 0 ? green : '#FF6B6B'} />
@@ -262,6 +247,12 @@ export default function DeenPointsScreen() {
               <T v="caption" style={{ fontSize: 12, fontWeight: '900', color: e.delta >= 0 ? green : '#FF6B6B' }}>{e.delta >= 0 ? '+' : ''}{e.delta}</T>
             </View>
           ))}
+          {isLive() && events.length > histN ? (
+            <Pressable onPress={() => { haptic.selection(); setHistN((n) => n + 15); }}
+              style={({ pressed }) => ({ alignItems: 'center', paddingVertical: 10, marginTop: 4, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, opacity: pressed ? 0.7 : 1 })}>
+              <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: green }}>Load more ({events.length - histN} left)</T>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </View>

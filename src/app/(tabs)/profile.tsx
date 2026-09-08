@@ -49,7 +49,7 @@ function ProfileInner() {
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
   /* pass 38 — the DeenPoints chip opens the BUY modal (it used to fire the check-in!) */
   const [buyOpen, setBuyOpen] = useState(false);
-  const [reward, setReward] = useState(false);
+  const [reward, setReward] = useState<{ amount: number; streak: boolean } | null>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const dp = useDeenPoints();
 
@@ -89,7 +89,9 @@ function ProfileInner() {
         markActive();
         markGoal('checkin');
         setCheckin('done');
-        setReward(true);
+        /* pass 83-7 — show the REAL awarded amount; >5 means the 7-day
+         * streak bonus (+20) fired on the server — celebrate it properly. */
+        setReward({ amount: r.points ?? 5, streak: (r.points ?? 0) > 5 });
         return;
       }
     }
@@ -104,7 +106,7 @@ function ProfileInner() {
     markGoal('checkin');
     dp.add(5); /* pass 35 — daily check-in reward (demo fallback) */
     setCheckin('done');
-    setReward(true);
+    setReward({ amount: 5, streak: false });
   };
 
   const like = (id: number) =>
@@ -383,7 +385,7 @@ function ProfileInner() {
           </View>
         )}
       </ScrollView>
-      <RewardModal visible={reward} onClose={() => setReward(false)} amount={5} />
+      <RewardModal visible={!!reward} onClose={() => setReward(null)} amount={reward?.amount ?? 5} title={reward?.streak ? 'Streak bonus! \ud83d\udd25' : 'Daily check-in complete!'} />
       <DeenPointsBuyModal visible={buyOpen} onClose={() => setBuyOpen(false)} />
       <ConfirmDialog
         visible={signOutOpen}

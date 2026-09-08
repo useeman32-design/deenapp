@@ -1,3 +1,4 @@
+import { RewardModal } from '@/components/DeenPoints';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -8,6 +9,7 @@ import { CrescentLoader } from '@/components/CrescentLoader';
 import { BackButton } from '@/components/BackButton';
 import { addUserPost } from '@/lib/userPosts';
 import { recordQuiz, listQuizzes, agoOf, type QuizAttempt } from '@/lib/quizHistory';
+import { awardDeenPoints } from '@/api/client';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
@@ -43,6 +45,8 @@ export default function Quiz() {
   /* quiz history (setup screen) */
   const [history, setHistory] = useState<QuizAttempt[]>([]);
   useEffect(() => { listQuizzes().then(setHistory).catch(() => {}); }, []);
+  /* pass 83-7 — real DeenPoints award when the quiz finishes (server: +10, once/day) */
+  const [dpReward, setDpReward] = useState(0);
   /* score sharing (results phase) */
   /* pass 38 — square generated-art score card (5 shuffling SVG designs) */
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
@@ -117,6 +121,10 @@ export default function Quiz() {
       const score = answers.filter((a) => a.correct).length;
       setBest((b) => Math.max(b, score));
       void recordQuiz({ cat, score, total: deck.length, pct: deck.length ? Math.round((score / deck.length) * 100) : 0 });
+      void (async () => {
+        const aw = await awardDeenPoints('quiz').catch(() => null);
+        if (aw?.ok && (aw.awarded ?? 0) > 0) setDpReward(aw.awarded as number);
+      })();
       markGoal('quiz'); // pass 44 — Today's Goal auto-detect
       setPhase('results');
       return;
@@ -444,6 +452,7 @@ export default function Quiz() {
           </Pressable>
         </View>
       </ScrollView>
+      <RewardModal visible={dpReward > 0} onClose={() => setDpReward(0)} amount={dpReward} title="Quiz reward!" />
     </View>
   );
 }
