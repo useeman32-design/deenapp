@@ -3,8 +3,8 @@
 # ══ CURRENT STATE — PASS 83 SHIPPED (2026-09-08, overnight) ══ READ FIRST ══
 # STAGED FOR DEPLOY (owner pulls in cPanel when awake; site docroot was found EMPTY
 # at ~05:50 — host default page — owner must fix docroot/re-deploy FIRST):
-#   deenlink-api main = ca49929 → PWA bundle entry-d4dd74c3 (pass-81b base + passes 83-1..4)
-#   deenapp master    = c77eaab (source). gh-pages NOT updated (still entry-a41a90b9).
+#   deenlink-api main = dc060d2 → PWA bundle entry-2c0b019f (pass-81b base + passes 83-1..5)
+#   deenapp master    = 6e75147 (source). gh-pages NOT updated (still entry-a41a90b9).
 # PASSES SHIPPED IN THIS BUNDLE (each replica-verified, zero pageerrors):
 #   83-1 login: live domain NEVER mints demo sessions on network error — "Network error —
 #        check your connection and try again" + 20s timeout (was 9s). Verified by aborting
@@ -17,15 +17,22 @@
 #   83-4 inbox: IN-APP ONLY pill removed; empty state added. Chat core was already WORKING
 #        in 81b (verified: profile Message → thread, request shelf → accept → chat list,
 #        send works). Owner's "blank inbox" was empty state + stale cached broken bundle.
+#   83-5 DM/UX round 2 (owner-reported): profile Message opens the DIRECT DM even when the
+#        inbox was already mounted (initialFriend sync effect); mutual-follow suggestions
+#        under "No messages yet" (getConnections('following') filtered by follows_me — no
+#        server change); iOS input-focus zoom killed via injected style (#dl-no-ios-zoom:
+#        touch-device inputs 16px — iOS auto-zooms <16px inputs; user-scalable=no is ignored
+#        by iOS so font-size is the only real fix). Verified: t5 B1/C1 (fresh + pre-mounted
+#        repro), A1-A3 suggestions->thread, Z1 style, t2 picker, t12 battery, 0 pageerrors.
 # STILL DEFERRED (owner's big list, next passes, one at a time):
-#   83-5 guest modal system (all screens viewable; worship tools + Quran/Hadith fully work;
+#   83-6 guest modal system (all screens viewable; worship tools + Quran/Hadith fully work;
 #        login-required modal for likes/comments/etc; guest Skip lands on Home — NOTE: 81b
 #        base still sends guest Skip to /tools, confirmed on replica)
-#   83-6 DeenPoints screen (real rewards verify, reward modal, price packages + real DP
-#        image, history pagination) · 83-7 charity balances real · 83-8 server rate limits
-#        (anti-spam; pass-82 server code exists in history at b778024) · 83-9 group posts
+#   83-7 DeenPoints screen (real rewards verify, reward modal, price packages + real DP
+#        image, history pagination) · 83-8 charity balances real · 83-9 server rate limits
+#        (anti-spam; pass-82 server code exists in history at b778024) · 83-10 group posts
 #        full media + cassette player (SVG/canvas, biggest — last)
-# AFTER OWNER PULLS: verify page source shows entry-d4dd74c3, CLEAR SERVICE WORKER
+# AFTER OWNER PULLS: verify page source shows entry-2c0b019f, CLEAR SERVICE WORKER
 #   (phone: Site settings → app.deenlink.org → Clear & reset; desktop: DevTools →
 #   Application → Service Workers → Unregister + Ctrl+Shift+R), then confirm passes.
 # REMIND OWNER: ask "update deenapp-backup2?" (currently at pre-pass-83 snapshot).
