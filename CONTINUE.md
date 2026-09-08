@@ -1,5 +1,27 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
+# ══ CURRENT STATE — FULL ROLLBACK (2026-09-08) ══ READ THIS FIRST ══
+# LIVE PROD (app.deenlink.org): entry-f1b6b82b = pass-81b behavior. WORKING. Owner-confirmed.
+#   deenlink-api main = 77aa92b (tree identical to e956a55 "pass 81c") — .htaccess + vendor/phpmailer present.
+#   deenapp master    = 58594cf (tree identical to 26c8ff2 "pass 81b").
+# ALL pass-82 work (client AND server) was rolled back of the repos per owner request after
+# freezes. Nothing from pass 82 is live. Re-add features ONE AT A TIME with owner approval:
+#   candidates (safest first): group-photo media fallback fix · web file picker (never import
+#   expo-image-picker on web; use <input type=file>) · profile No-bio · guest Skip→Home ·
+#   login 20s timeout + abort messaging · server rate limits · DeenPoints history pagination UI.
+# HARD RULES learned the hard way (owner lost days to this):
+#   1. After EVERY deploy: verify page-source entry hash changed, then CLEAR SERVICE WORKER
+#      (DevTools→Application→Service Workers→Unregister; phone: Site settings→Clear & reset).
+#      The PWA serves the OLD bundle from cache otherwise — looks like "fix didn't work".
+#   2. NEVER `git add -A` without checking `git status` first — pass-82d accidentally deleted
+#      .htaccess (SPA routing + dump blocking) and vendor/phpmailer (SMTP) from the repo; the
+#      owner's cPanel pull then deleted them from the server.
+#   3. Replica-verify (playwright battery: 20s home stability, SPA tab hops, login, guest,
+#      group photo post) BEFORE pushing any bundle. Build success ≠ shipped ≠ working.
+#   4. /tmp is tmpfs (wiped between turns); node_modules gets wiped; .git/config is not
+#      snapshot-persisted — re-add origin remote every session.
+# ══════════════════════════════════════════════════════════════════
+
 # ── PASS 68 (2026-09-06) — REALTIME CHAT + live notifications + search upgrade ──
 **Backend (deenlink-api main, harness 24/24 on local PHP+MariaDB):**
 - `chat/typing.php` (NEW): POST {conversation_id, typing:0|1} → `chat_typing` row
