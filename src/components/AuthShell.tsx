@@ -181,7 +181,6 @@ export function AuthPrimaryButton({ label, busy, onPress }: { label: string; bus
   const { isDark } = useTheme();
   return (
     <Pressable
-      accessibilityLabel={label}
       onPress={() => { haptic.medium(); onPress(); }}
       disabled={busy}
       style={({ pressed }) => ({

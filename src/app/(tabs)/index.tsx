@@ -28,7 +28,8 @@ import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
-import { useIsGuest, guestNavBlocked } from '@/lib/guest';
+import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
@@ -361,7 +362,7 @@ function HomeInner() {
             </T>
           </View>
           <Pressable
-            onPress={() => { if (guestNavBlocked('/tools/notifications')) return; router.push('/tools/notifications'); }}
+            onPress={() => router.push('/tools/notifications')}
             style={({ pressed }) => ({
               position: 'relative',
               width: 40,
@@ -572,7 +573,7 @@ function HomeInner() {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
             {quick.map((it) => (
-              <QuickTile key={it.key} item={it} onPress={() => { if (guestNavBlocked(it.href)) return; router.push(it.href as never); }} />
+              <QuickTile key={it.key} item={it} onPress={() => router.push(it.href as never)} />
             ))}
           </ScrollView>
         </View>
@@ -654,7 +655,7 @@ function HomeInner() {
             {campaignList.map((c) => (
               <Pressable
                 key={c.key}
-                onPress={() => { if (guestNavBlocked(c.href ?? '')) return; router.push(c.href as never); }}
+                onPress={() => router.push(c.href as never)}
                 style={({ pressed }) => ({
                   width: 358,
                   borderRadius: 20,
@@ -826,7 +827,7 @@ function HomeInner() {
             <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
               Daily Videos
             </T>
-            <Pressable onPress={() => { if (guestNavBlocked('/videos', 'Sign in to watch community videos.')) return; router.push('/videos'); }} hitSlop={8}>
+            <Pressable onPress={() => router.push('/videos')} hitSlop={8}>
               <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
                 Watch more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
               </T>
@@ -1622,6 +1623,6 @@ function HexBadge() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function Home() {
   const guest = useIsGuest();
-  /* pass 82 — guests see Home normally; locked actions pop the modal */
+  if (guest) return <LoginRequired module="Home" />;
   return <HomeInner />;
 }

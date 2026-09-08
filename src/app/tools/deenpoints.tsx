@@ -7,7 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { goBack } from '@/lib/navigation';
 import { haptic } from '@/lib/haptics';
-import { DP_KEY, DP_DEFAULT, DPIcon, RewardModal } from '@/components/DeenPoints';
+import { DP_KEY, DP_DEFAULT, DPIcon } from '@/components/DeenPoints';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive, pointsQuote, type PointsEvent, type PointsPricing } from '@/api/client';
 import { buyDeenPoints, settlePendingPayment } from '@/lib/flutterwave';
@@ -51,10 +51,6 @@ export default function DeenPointsScreen() {
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  /* pass 82 — ledger pagination + shared reward modal */
-  const [hasMore, setHasMore] = useState(false);
-  const [moreBusy, setMoreBusy] = useState(false);
-  const [reward, setReward] = useState<{ amount: number; title: string } | null>(null);
 
   const pull = useCallback(() => {
     if (!isLive()) {
@@ -64,8 +60,8 @@ export default function DeenPointsScreen() {
       }).catch(() => setBalance(DP_DEFAULT));
       return;
     }
-    deenpointsHistory(20, 0).then((r) => {
-      if (r) { setBalance(r.balance); setEvents(r.events); setHasMore(r.hasMore); storage.setItem(DP_KEY, String(r.balance)).catch(() => {}); }
+    deenpointsHistory().then((r) => {
+      if (r) { setBalance(r.balance); setEvents(r.events); storage.setItem(DP_KEY, String(r.balance)).catch(() => {}); }
     }).catch(() => {});
   }, []);
 
@@ -88,20 +84,6 @@ export default function DeenPointsScreen() {
     })();
   }, [pull]));
 
-  const loadMore = () => {
-    if (moreBusy) return;
-    setMoreBusy(true);
-    deenpointsHistory(20, events.length).then((r) => {
-      if (r) {
-        setEvents((prev) => {
-          const seen = new Set(prev.map((x) => `${x.created_at}|${x.event_type}|${x.delta}`));
-          return [...prev, ...r.events.filter((e) => !seen.has(`${e.created_at}|${e.event_type}|${e.delta}`))];
-        });
-        setHasMore(r.hasMore);
-      }
-    }).catch(() => {}).finally(() => setMoreBusy(false));
-  };
-
   const pricePer = pricing?.price_per_point_ngn ?? 1.5;
   const rate = pricing?.rate_ngn_to_currency ?? 1;
   const ccy = pricing?.currency ?? 'NGN';
@@ -118,11 +100,7 @@ export default function DeenPointsScreen() {
     const r = await buyDeenPoints(pts).catch(() => null);
     setBusy(false);
     if (!r || !r.ok) { setNotice({ ok: false, text: r?.message ?? 'Could not start the payment.' }); return; }
-    if (r.verified) {
-      setNotice({ ok: true, text: r.balance != null ? `Payment confirmed — balance ${r.balance} pts 🎉` : 'Payment confirmed 🎉' });
-      if (pts >= 2500) setReward({ amount: Math.floor(pts * 0.1), title: 'Bulk top-up bonus earned!' }); /* +10% server-granted */
-      pull();
-    }
+    if (r.verified) { setNotice({ ok: true, text: r.balance != null ? `Payment confirmed — balance ${r.balance} pts 🎉` : 'Payment confirmed 🎉' }); pull(); }
     else { setNotice({ ok: true, text: r.message ?? 'Finish the payment — your points land after verification.' }); }
   };
 
@@ -143,7 +121,7 @@ export default function DeenPointsScreen() {
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(14,122,70,0.06)', padding: 16 }}>
           <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint }}>YOUR BALANCE</T>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 6 }}>
-            <DPIcon size={26} />
+            <FontAwesome5 name="star-and-crescent" size={19} color={green} />
             {balance === null ? <ActivityIndicator size="small" color={green} /> : (
               <T v="h1" style={{ fontSize: 30, fontWeight: '900', color: d.text }}>{balance.toLocaleString()}</T>
             )}
@@ -182,26 +160,44 @@ export default function DeenPointsScreen() {
           </View>
         </View>
 
+        {/* pass 80 — ways to earn, each one routes to the module */}
+        <View>
+          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2, color: d.faint, marginBottom: 9 }}>EARN MORE</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            {([
+              { icon: 'calendar-check', label: 'Daily check-in', pts: '+5', href: '/(tabs)/profile' },
+              { icon: 'question-circle', label: 'Quizzes', pts: '+10', href: '/tools/quiz' },
+              { icon: 'graduation-cap', label: 'Lessons', pts: '+20', href: '/tools/learning' },
+              { icon: 'praying-hands', label: 'Dhikr goals', pts: '+pts', href: '/tools/tasbeeh' },
+            ] as const).map((o) => (
+              <Pressable key={o.label} onPress={() => { haptic.selection(); router.push(o.href as never); }}
+                style={({ pressed }) => ({ width: '47.6%', borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, gap: 7, opacity: pressed ? 0.8 : 1 })}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <FontAwesome5 name={o.icon as never} size={14} color={green} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <DPIcon size={11} />
+                    <T v="caption" style={{ fontSize: 11, fontWeight: '900', color: green }}>{o.pts}</T>
+                  </View>
+                </View>
+                <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: d.text }}>{o.label}</T>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {/* buy */}
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, gap: 12 }}>
           <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Buy DeenPoints</T>
-          {/* pass 82 — selectable price cards with the real DeenPoints coin */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-            {[500, 1000, 2500, 5000, 10000, 20000].map((p) => {
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {PRESETS.map((p) => {
               const on = !custom && points === p;
-              const ngn = p * pricePer;
               return (
                 <Pressable
                   key={p}
                   onPress={() => { haptic.selection(); setCustom(''); setPoints(p); }}
-                  accessibilityLabel={`buy ${p} deenpoints`}
-                  style={({ pressed }) => ({ width: '48%', flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, paddingHorizontal: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? (isDark ? 'rgba(74,227,143,0.6)' : 'rgba(29,111,66,0.5)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : 'transparent', opacity: pressed ? 0.8 : 1 })}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : 'transparent' }}
                 >
-                  <DPIcon size={24} />
-                  <View style={{ flex: 1 }}>
-                    <T v="bodyS" style={{ fontWeight: '900', fontSize: 13.5, color: on ? green : d.text }}>{p.toLocaleString()} pts</T>
-                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>₦{ngn.toLocaleString(undefined, { maximumFractionDigits: 0 })}{p >= 2500 ? ' · +10% bonus' : ''}</T>
-                  </View>
+                  <T v="caption" style={{ fontWeight: '900', fontSize: 12, color: on ? green : d.subtext }}>{p}</T>
                 </Pressable>
               );
             })}
@@ -266,17 +262,8 @@ export default function DeenPointsScreen() {
               <T v="caption" style={{ fontSize: 12, fontWeight: '900', color: e.delta >= 0 ? green : '#FF6B6B' }}>{e.delta >= 0 ? '+' : ''}{e.delta}</T>
             </View>
           ))}
-          {isLive() && hasMore ? (
-            <Pressable onPress={loadMore} disabled={moreBusy} accessibilityLabel="load more history"
-              style={{ marginTop: 8, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
-              {moreBusy ? <ActivityIndicator size="small" color={green} /> : <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: green }}>Load more</T>}
-            </Pressable>
-          ) : null}
         </View>
       </ScrollView>
-
-      {/* pass 82 — same celebration modal as the daily check-in */}
-      <RewardModal visible={!!reward} amount={reward?.amount ?? 0} title={reward?.title ?? ''} onClose={() => { setReward(null); pull(); }} />
     </View>
   );
 }

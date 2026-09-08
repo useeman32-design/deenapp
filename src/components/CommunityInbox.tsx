@@ -459,11 +459,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     if (dbl) { react(id, EMOJIS[0]); }
   };
 
-  /* pass 82 — a brand-new conversation (or one whose row hasn't loaded yet)
-   * still gets a real thread object, so the DM opens immediately instead of
-   * falling through to an empty list. */
-  const thread = threads.find((t) => t.friend === openFriend)
-    ?? (openFriend ? ({ friend: openFriend, items: [], chat: [], reactions: {} } as Thread) : null);
+  const thread = threads.find((t) => t.friend === openFriend) ?? null;
   /* pass 59 — the draft is PER CONVERSATION. It used to be one shared string, so
    * text typed in chat A was still sitting in the box when you opened chat B. */
   const draft = thread ? (drafts[thread.friend] ?? '') : '';
@@ -779,11 +775,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         else if (!others[key]) { others[key] = r.emoji; }
       });
       [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
-      setThreads((prev) => {
-        const idx = prev.findIndex((t) => t.friend === openFriend);
-        const merged: Thread = { ...(idx >= 0 ? prev[idx] : { friend: openFriend, items: [], chat: [], reactions: {} }), chat, items, reactions, others };
-        return idx >= 0 ? prev.map((t, i) => (i === idx ? merged : t)) : [merged, ...prev];
-      });
+      setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
       setTimeout(() => {
         scroller.current?.scrollToEnd({ animated: false });
         /* web: the RNW ref is null in this build, so land on the newest row via the DOM */
@@ -1304,7 +1296,9 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
           </T>
         </View>
-
+        <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
+          <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9 }}>IN-APP ONLY</T>
+        </View>
         {/* pass 58 — ••• menu → Report / Block */}
         {thread ? (
           <Pressable onPress={() => { haptic.selection(); setMenu((v) => !v); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
@@ -1374,18 +1368,6 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               </View>
               <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
             </Pressable>
-          ) : null}
-          {/* pass 82 — friendly empty state instead of a blank pane */}
-          {threads.filter((t) => !hiddenConvs.has(t.friend)).length === 0 ? (
-            <View style={{ marginTop: 56, alignItems: 'center', paddingHorizontal: 30, gap: 10 }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(46,204,113,0.10)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="comment-dots" size={20} color={isDark ? '#4AE38F' : '#1D6F42'} />
-              </View>
-              <T v="bodyS" style={{ fontWeight: '800', fontSize: 14, color: d.text }}>Your inbox is empty</T>
-              <T v="bodyS" style={{ color: d.subtext, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
-                Message someone from their profile — follow each other and the chat appears here. New chats land in Message requests first.
-              </T>
-            </View>
           ) : null}
           {threads.filter((t) => !hiddenConvs.has(t.friend)).map((t) => {
             const a = acc(t.friend);

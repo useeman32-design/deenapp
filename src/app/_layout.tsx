@@ -8,7 +8,6 @@ import { UIScaleProvider } from '@/context/UIScale';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
-import { GuestLoginModal } from '@/components/GuestLoginModal';
 import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
@@ -162,8 +161,6 @@ useEffect(() => {
       <RNStatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.dash.bg} translucent={false} />
       {/* global connectivity pill — slow network while media loads, red banner when offline */}
       <NetPill />
-      {/* pass 82 — global "Require login" dialog for guest actions */}
-      <GuestLoginModal />
       </QuranAudioProvider>
     </SplashGate>
   );

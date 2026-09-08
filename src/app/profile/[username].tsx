@@ -21,6 +21,7 @@ import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
@@ -197,10 +198,7 @@ function PublicProfileScreenInner() {
   /* pass 66-night — live values win; the mock fills anything the API omits. */
   const photo = liveP?.profile_image_url ?? profile.photo ?? null;
   const name = liveP?.full_name || profile.full_name;
-  /* pass 82 — show the person's real bio; anything else renders as "No bio"
-     instead of a made-up line like "DeenLink community member." */
-  const rawBio = liveP ? (liveP.bio ?? null) : (isLive() ? null : (profile.bio ?? null)); /* live: never a demo bio */
-  const bioText = rawBio && rawBio.trim() && rawBio.trim() !== 'DeenLink community member.' ? rawBio.trim() : null;
+  const bioText = liveP?.bio ?? profile.bio ?? null;
   const followerCount = liveP ? liveP.followers : profile.followers;
   const followingCount = liveP ? liveP.following : profile.following;
   const isScholar = !!profile.scholar;
@@ -237,41 +235,41 @@ function PublicProfileScreenInner() {
           >
             <FontAwesome5 name="ellipsis-v" size={14} color={d.subtext} />
           </Pressable>
-          {/* pass 82 — options render in a real Modal: no absolute backdrop,
-              no layout shift (the old negative-inset overlay made the page jump) */}
-          <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
-            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' }} onPress={() => setMenuOpen(false)} />
-            <View style={{ position: 'absolute', top: insets.top + 52, right: 16, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, shadowColor: '#000', shadowOpacity: isDark ? 0.4 : 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } }}>
-              <Pressable
-                disabled={blockBusy}
-                onPress={() => {
-                  setMenuOpen(false);
-                  haptic.light();
-                  setBlockBusy(true);
-                  void blockUser(liveP.username, !iBlocked).then((ok) => {
-                    setBlockBusy(false);
-                    if (ok) {
-                      setIBlocked((v) => !v);
-                      Alert.alert(iBlocked ? 'Unblocked' : `Blocked @${liveP.username}`, iBlocked ? 'They can message and find you again.' : 'They can no longer message, follow or find you. Manage this in Settings → Privacy & Safety.');
-                    } else {
-                      Alert.alert('Could not update', 'Please try again in a moment.');
-                    }
-                  });
-                }}
-                style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
-              >
-                <FontAwesome5 name={iBlocked ? 'user-check' : 'user-slash'} size={12} color="#E05252" />
-                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{blockBusy ? 'Working…' : iBlocked ? 'Unblock account' : 'Block account'}</T>
-              </Pressable>
-              <Pressable
-                onPress={() => { setMenuOpen(false); haptic.selection(); setReportOpen(true); }}
-                style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
-              >
-                <FontAwesome5 name="flag" size={12} color="#E05252" />
-                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Report account</T>
-              </Pressable>
-            </View>
-          </Modal>
+          {menuOpen ? (
+            <>
+              <Pressable style={{ position: 'absolute', top: -insets.top, left: -Dimensions.get('window').width, right: -Dimensions.get('window').width, bottom: -Dimensions.get('window').height }} onPress={() => setMenuOpen(false)} />
+              <View style={{ position: 'absolute', top: 44, right: 0, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, shadowColor: '#000', shadowOpacity: isDark ? 0.4 : 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } }}>
+                <Pressable
+                  disabled={blockBusy}
+                  onPress={() => {
+                    setMenuOpen(false);
+                    haptic.light();
+                    setBlockBusy(true);
+                    void blockUser(liveP.username, !iBlocked).then((ok) => {
+                      setBlockBusy(false);
+                      if (ok) {
+                        setIBlocked((v) => !v);
+                        Alert.alert(iBlocked ? 'Unblocked' : `Blocked @${liveP.username}`, iBlocked ? 'They can message and find you again.' : 'They can no longer message, follow or find you. Manage this in Settings → Privacy & Safety.');
+                      } else {
+                        Alert.alert('Could not update', 'Please try again in a moment.');
+                      }
+                    });
+                  }}
+                  style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
+                >
+                  <FontAwesome5 name={iBlocked ? 'user-check' : 'user-slash'} size={12} color="#E05252" />
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{blockBusy ? 'Working…' : iBlocked ? 'Unblock account' : 'Block account'}</T>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setMenuOpen(false); haptic.selection(); setReportOpen(true); }}
+                  style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 }}
+                >
+                  <FontAwesome5 name="flag" size={12} color="#E05252" />
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Report account</T>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
         </View>
       ) : null}
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
@@ -398,11 +396,7 @@ function PublicProfileScreenInner() {
               <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>
                 {bioText}
               </T>
-            ) : (
-              <T v="bodyS" style={{ color: d.faint, fontSize: 12.5, fontStyle: 'italic' }}>
-                No bio
-              </T>
-            )}
+            ) : null}
 
             <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
               {profile.location ? (
@@ -812,6 +806,6 @@ function PublicProfileScreenInner() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function PublicProfileScreen() {
   const guest = useIsGuest();
-  /* pass 82 — viewable without login; locked actions pop the modal */
+  if (guest) return <LoginRequired module="Profiles" />;
   return <PublicProfileScreenInner />;
 }

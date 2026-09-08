@@ -85,8 +85,6 @@ export interface Post {
   poll?: PostPoll | null;
   user: User;
   media?: PostMedia[];
-  /** pass 82 — one audio clip per post (group voice notes, cassette player) */
-  audio_url?: string | null;
   [k: string]: unknown;
 }
 

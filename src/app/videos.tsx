@@ -21,7 +21,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -1536,6 +1535,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         (fileRef.current as unknown as HTMLInputElement | null)?.click?.();
         return;
       }
+      const ImagePicker = await import('expo-image-picker');
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         Alert.alert('Permission needed', 'Allow photo-library access to pick a video.');

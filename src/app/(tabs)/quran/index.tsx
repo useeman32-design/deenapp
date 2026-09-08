@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { ReciteSearchModal } from '@/components/ReciteSearchModal';
 import { useIsGuest } from '@/lib/guest';
+import { LoginRequired } from '@/components/LoginRequired';
 
 /**
  * Qur'an & Hadith hub — pass-14 dash redesign: pattern header with gold
@@ -274,6 +275,6 @@ function QuranHubInner() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function QuranHub() {
   const guest = useIsGuest();
-  /* pass 82 — viewable without login; locked actions pop the modal */
+  if (guest) return <LoginRequired module="Qur'an" />;
   return <QuranHubInner />;
 }

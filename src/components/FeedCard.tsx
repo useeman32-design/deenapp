@@ -19,7 +19,6 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
 import { isLive, votePoll } from '@/api/client';
 import { guestBlock } from '@/lib/guest';
-import { CassettePlayer } from '@/components/CassettePlayer';
 
 /** Poll length label from the composer duration picker. */
 const pollDurationLabel = (hours?: number): string => {
@@ -469,7 +468,7 @@ export function FeedCard({
 
   const fieldLabel = field || (user as { fields?: string | null }).fields || user.scholar?.fields_of_knowledge || null;
   const media = post.media?.[0];
-  /* pass 82 — server media rows carry image_url_1080/thumb_url; accept all shapes */
+  /* pass 82r — server media rows carry image_url_1080/thumb_url; accept all shapes */
   const mediaUrl = (media?.url ?? media?.thumb_url ?? (media as { image_url_1080?: string | null } | undefined)?.image_url_1080) as string | number | null | undefined;
 
   const fullText = post.content_text ?? '';
@@ -888,13 +887,6 @@ export function FeedCard({
             />
           </View>
         </Pressable>
-      ) : null}
-
-      {/* pass 82 — audio clip (group voice posts): spinning-cassette player */}
-      {post.audio_url ? (
-        <View style={{ marginBottom: 12 }}>
-          <CassettePlayer url={String(post.audio_url).startsWith('/') ? API_ORIGIN + String(post.audio_url) : String(post.audio_url)} />
-        </View>
       ) : null}
 
       {/* YouTube — embedded player on web (double-tap likes, tap plays in-app) */}
