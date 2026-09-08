@@ -85,6 +85,7 @@ export interface Post {
   poll?: PostPoll | null;
   user: User;
   media?: PostMedia[];
+  audio_url?: string | null; /* pass 83-10c — group audio uploads */
   [k: string]: unknown;
 }
 

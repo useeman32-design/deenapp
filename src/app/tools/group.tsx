@@ -68,6 +68,12 @@ function GroupScreenInner() {
   /* pass 83-10 — photo posts in groups (same picker pattern as the community
    * composer: web file input, native expo-image-picker via lazy import) */
   const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+  /* pass 83-10b — poll builder (2–6 options) */
+  const [pollOn, setPollOn] = useState(false);
+  const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
+  /* pass 83-10c — audio FILE uploads (owner: pick a file, not voice recording) */
+  const [audioAttach, setAudioAttach] = useState<{ uri: string; name: string; type?: string } | null>(null);
+  const audioFileRef = useRef<TextInput | null>(null);
   /* pass 83-10 — keep the server's posts INTACT (media, polls, real counts);
    * the old path flattened them into local demo rows and dropped everything. */
   const [serverPosts, setServerPosts] = useState<Post[] | null>(null);
@@ -92,6 +98,23 @@ function GroupScreenInner() {
     } catch {
       Alert.alert('Could not open the picker', 'Please try again.');
     }
+  };
+  /* pass 83-10c — audio FILE picker: web hidden input, native expo-document-picker
+     (lazy import — never loaded on web, correction 61) */
+  const pickAudio = async () => {
+    haptic.light();
+    try {
+      if (Platform.OS === 'web') {
+        (audioFileRef.current as unknown as HTMLInputElement | null)?.click?.();
+        return;
+      }
+      const docPicker = await import('expo-document-picker');
+      const res = await docPicker.getDocumentAsync({ type: 'audio/*' });
+      const asset = Array.isArray(res.assets) ? res.assets[0] : (res as { uri?: string; name?: string; mimeType?: string });
+      if (res.canceled !== true && asset?.uri) {
+        setAudioAttach({ uri: asset.uri, name: (asset.name as string) ?? 'audio.mp3', type: asset.mimeType as string | undefined });
+      }
+    } catch { /* picker unavailable — nothing attached */ }
   };
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   /* pass 38 management surfaces */
@@ -149,7 +172,9 @@ function GroupScreenInner() {
     if (sid != null) void groupJoin(sid, false);
   };
   const post = () => {
-    if ((!composer.trim() && !imageAttach) || !group) return;
+    const poll = pollOn ? pollOpts.map((o) => o.trim()).filter(Boolean) : [];
+    const pollOk = poll.length >= 2;
+    if ((!composer.trim() && !imageAttach && !audioAttach && !pollOk) || !group) return;
     haptic.light();
     const text = composer.trim();
     const img = imageAttach;
@@ -160,14 +185,26 @@ function GroupScreenInner() {
         like_count: 0, comment_count: 0, liked_by_me: false,
         user: { username: 'you', full_name: 'You', profile_image_url: null },
         ...(img ? { media: [{ type: 'image', url: img.uri, thumb_url: img.uri }] } : {}),
+        ...(audioAttach ? { audio_url: audioAttach.uri } : {}),
+        ...(pollOk ? { poll: { options: poll.map((o, i) => ({ id: i + 1, text: o, votes: 0 })), voted: null } } : {}),
       } as Post;
       setServerPosts((rows) => [optimistic, ...(rows ?? [])]);
     }
     setComposer('');
     setImageAttach(null);
-    /* pass 66-night — group posts hit the server on live; pass 83-10 — photos ride multipart */
+    setAudioAttach(null);
+    setPollOn(false);
+    setPollOpts(['', '']);
+    /* pass 66-night — group posts hit the server on live; pass 83-10 — photos ride multipart;
+       83-10b/c — poll options + audio file ride along */
     const sid = srvGroupId(group);
-    if (sid != null) void groupCreatePost(sid, text, img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined);
+    if (sid != null) void groupCreatePost(
+      sid,
+      text,
+      img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined,
+      pollOk ? poll : undefined,
+      audioAttach ?? undefined,
+    );
   };
 
   /* ── pass 38 management actions ── */
@@ -358,8 +395,16 @@ function GroupScreenInner() {
                   <Pressable onPress={() => { void pickImage(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: imageAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
                     <FontAwesome5 name="image" size={14} color={imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
-                  <Pressable onPress={post} disabled={!composer.trim() && !imageAttach} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() || imageAttach ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() || imageAttach ? '#fff' : d.faint} />
+                  {/* pass 83-10b — poll builder toggle */}
+                  <Pressable onPress={() => { haptic.selection(); setPollOn((v) => !v); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: pollOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="poll-h" size={14} color={pollOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  </Pressable>
+                  {/* pass 83-10c — audio file picker */}
+                  <Pressable onPress={() => { void pickAudio(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: audioAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="music" size={13} color={audioAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  </Pressable>
+                  <Pressable onPress={post} disabled={!composer.trim() && !imageAttach && !audioAttach && pollOpts.filter((o) => o.trim()).length < 2} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() || imageAttach || audioAttach || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2) ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() || imageAttach || audioAttach || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2) ? '#fff' : d.faint} />
                   </Pressable>
                 </View>
                 {imageAttach ? (
@@ -367,6 +412,43 @@ function GroupScreenInner() {
                     <ExpoImage source={{ uri: imageAttach.uri }} style={{ width: 34, height: 34, borderRadius: 7 }} contentFit="cover" />
                     <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: d.subtext }} numberOfLines={1}>{imageAttach.name}</T>
                     <Pressable onPress={() => setImageAttach(null)} hitSlop={8}>
+                      <FontAwesome5 name="times" size={11} color={d.faint} />
+                    </Pressable>
+                  </View>
+                ) : null}
+                {/* pass 83-10b — poll option editor */}
+                {pollOn ? (
+                  <View style={{ alignSelf: 'stretch', marginTop: 6, gap: 6 }}>
+                    {pollOpts.map((o, i) => (
+                      <View key={`po-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TextInput
+                          value={o}
+                          onChangeText={(v) => setPollOpts((cur) => cur.map((x, j) => (j === i ? v : x)))}
+                          placeholder={`Option ${i + 1}`}
+                          placeholderTextColor={d.faint}
+                          maxLength={60}
+                          style={{ flex: 1, fontSize: 13.5, fontFamily: 'Poppins-Regular', color: d.text, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#fff' }}
+                        />
+                        {pollOpts.length > 2 ? (
+                          <Pressable onPress={() => setPollOpts((cur) => cur.filter((_, j) => j !== i))} hitSlop={8} style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(207,58,58,0.10)', alignItems: 'center', justifyContent: 'center' }}>
+                            <FontAwesome5 name="times" size={10} color="#cf3a3a" />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ))}
+                    {pollOpts.length < 6 ? (
+                      <Pressable onPress={() => setPollOpts((cur) => [...cur, ''])} hitSlop={6}>
+                        <T v="caption" style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? '#4AE38F' : '#0E7A46' }}>+ Add option</T>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+                {/* pass 83-10c — attached audio chip */}
+                {audioAttach ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 6, marginBottom: 2, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.05)', paddingHorizontal: 8, paddingVertical: 6 }}>
+                    <FontAwesome5 name="music" size={12} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                    <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: d.subtext }} numberOfLines={1}>{audioAttach.name}</T>
+                    <Pressable onPress={() => setAudioAttach(null)} hitSlop={8}>
                       <FontAwesome5 name="times" size={11} color={d.faint} />
                     </Pressable>
                   </View>
@@ -380,6 +462,18 @@ function GroupScreenInner() {
                     onChange={(e: unknown) => {
                       const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
                       if (file) setImageAttach({ uri: URL.createObjectURL(file), name: file.name });
+                    }}
+                  />
+                ) : null}
+                {Platform.OS === 'web' ? (
+                  <input
+                    ref={audioFileRef as never}
+                    type="file"
+                    accept="audio/*"
+                    style={{ display: 'none' }}
+                    onChange={(e: unknown) => {
+                      const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
+                      if (file) setAudioAttach({ uri: URL.createObjectURL(file), name: file.name, type: file.type });
                     }}
                   />
                 ) : null}

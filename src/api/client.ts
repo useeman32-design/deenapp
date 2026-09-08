@@ -381,6 +381,13 @@ export async function groupCreate(data: { name: string; bio?: string; category?:
   const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
   return r.ok && r.data.id ? { id: r.data.id as number } : null;
 }
+/** pass 83-10c — group media URLs arrive root-relative ('/uploads/…'); the web
+ * resolves them against the page origin, native cannot — prefix the API origin. */
+function absMedia(u: string): string {
+  if (!u) return u;
+  if (/^(https?:)?\/\//.test(u) || u.startsWith('data:') || u.startsWith('blob:') || u.startsWith('file:')) return u;
+  return API_ORIGIN.replace(/\/+$/, '') + (u.startsWith('/') ? u : `/${u}`);
+}
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
   const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
   if (!r.ok || !Array.isArray(r.data.posts)) return null;
@@ -394,11 +401,14 @@ export async function groupPosts(id: number): Promise<import('@/api/types').Post
       p.media = p.media.map((m) => {
         const mm = m as { url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
         if (mm.url == null && mm.image_url_1080 != null) {
-          return { type: 'image', url: String(mm.image_url_1080), thumb_url: String(mm.image_url_360 ?? mm.image_url_1080) };
+          return { type: 'image', url: absMedia(String(mm.image_url_1080)), thumb_url: absMedia(String(mm.image_url_360 ?? mm.image_url_1080)) };
         }
         return m;
       });
     }
+    /* pass 83-10c — audio uploads ride as audio_url; make it absolute too */
+    const au = (p as { audio_url?: unknown }).audio_url;
+    if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
   }
   return r.data.posts;
 }
@@ -406,14 +416,19 @@ export async function groupCreatePost(
   groupId: number,
   contentText: string,
   images?: Array<{ uri: string; name?: string; type?: string }>,
+  pollOptions?: string[],
+  audio?: { uri: string; name?: string; type?: string },
 ): Promise<{ id: number } | null> {
-  /* pass 83-10 — with photos the post goes multipart (same recipe as the
-   * feed's createPost: blob: URIs become Files on web, {uri} parts native). */
-  if (images && images.length) {
+  /* pass 83-10 — photos/audio go multipart (same recipe as the feed's
+   * createPost: blob: URIs become Files on web, {uri} parts native).
+   * pass 83-10b/c — poll options ride along on either transport. */
+  const opts = (pollOptions ?? []).map((o) => o.trim()).filter(Boolean).slice(0, 6);
+  if ((images && images.length) || audio) {
     const form = new FormData();
     form.append('group_id', String(groupId));
     if (contentText) form.append('content_text', contentText);
-    for (const img of images.slice(0, 5)) {
+    if (opts.length >= 2) form.append('poll_options', JSON.stringify(opts));
+    for (const img of (images ?? []).slice(0, 5)) {
       if (typeof window !== 'undefined' && img.uri.startsWith('blob:')) {
         const blob = await fetch(img.uri).then((r) => r.blob());
         form.append('images[]', new File([blob], img.name ?? 'photo.jpg', { type: blob.type || 'image/jpeg' }));
@@ -421,10 +436,22 @@ export async function groupCreatePost(
         form.append('images[]', { uri: img.uri, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
       }
     }
+    if (audio) {
+      if (typeof window !== 'undefined' && audio.uri.startsWith('blob:')) {
+        const blob = await fetch(audio.uri).then((r) => r.blob());
+        form.append('audio', new File([blob], audio.name ?? 'audio.mp3', { type: blob.type || 'audio/mpeg' }));
+      } else {
+        form.append('audio', { uri: audio.uri, name: audio.name ?? 'audio.mp3', type: audio.type ?? 'audio/mpeg' } as never);
+      }
+    }
     const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
     return r.ok && r.data.id ? { id: r.data.id as number } : null;
   }
-  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', body: { group_id: groupId, content_text: contentText }, auth: true });
+  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', {
+    method: 'POST',
+    body: { group_id: groupId, content_text: contentText, ...(opts.length >= 2 ? { poll_options: opts } : {}) },
+    auth: true,
+  });
   return r.ok && r.data.id ? { id: r.data.id as number } : null;
 }
 
