@@ -126,7 +126,9 @@ export function FriendsPicker({
     if (api.isLive()) {
       for (const p of targets) {
         try {
-          const conv = p.id != null ? await api.chatStartDM(p.id) : await api.chatStartDMByUsername(p.username);
+          const started = p.id != null ? await api.chatStartDM(p.id) : await api.chatStartDMByUsername(p.username);
+          /* pass 83-9 — chatStartDMByUsername now returns { cid, status } */
+          const conv = started == null ? null : typeof started === 'number' ? started : started.cid;
           if (conv == null) continue;
           const r = await api.chatSendShare(conv, share.kind, share.title, {
             sub: share.sub ?? 'Shared from DeenLink',

@@ -1363,9 +1363,12 @@ export async function chatStartDM(userId: number): Promise<number | null> {
 }
 /** pass 60 — open (or reuse) a DM by USERNAME. The app navigates profiles by
  *  username, so the id is resolved server-side and never exposed to the client. */
-export async function chatStartDMByUsername(username: string): Promise<number | null> {
-  const r = await request<{ status?: string; conversation_id?: number }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
-  return r.ok && r.data.conversation_id ? (r.data.conversation_id as number) : null;
+export async function chatStartDMByUsername(username: string): Promise<{ cid: number; status?: string } | null> {
+  /* pass 83-9 — also return the conversation status: a brand-new thread with
+   * someone who doesn't follow back opens as a 'request' (3-message limit),
+   * and the UI must know that from the very first bubble. */
+  const r = await request<{ status?: string; conversation_id?: number; conversation_status?: string }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
+  return r.ok && r.data.conversation_id ? { cid: r.data.conversation_id as number, status: r.data.conversation_status } : null;
 }
 /** pass 63 — optional quote: the row you are replying to, and whether it is a
  *  plain message or an in-app share. The server verifies it belongs to this
@@ -1374,8 +1377,8 @@ export async function chatSend(
   conversationId: number,
   body: string,
   replyTo?: { id: number; kind: 'msg' | 'share' },
-): Promise<{ id: number; created_at?: string } | null> {
-  const r = await request<{ status?: string; id?: number; created_at?: string }>('/api/chat/send.php', {
+): Promise<{ id?: number; created_at?: string; errorCode?: string; errorMessage?: string } | null> {
+  const r = await request<{ status?: string; id?: number; created_at?: string; code?: string; message?: string }>('/api/chat/send.php', {
     method: 'POST',
     body: {
       conversation_id: conversationId,
@@ -1385,7 +1388,10 @@ export async function chatSend(
     },
     auth: true,
   });
-  return r.ok && r.data.id ? { id: r.data.id as number, created_at: r.data.created_at } : null;
+  if (r.ok && r.data.id) { return { id: r.data.id as number, created_at: r.data.created_at }; }
+  /* pass 83-9 — surface WHY it failed ('request_limit', 'declined', 'blocked'…)
+   * so the thread can tell the user instead of a bare "not sent". */
+  return { errorCode: r.data?.code ?? (r.ok ? 'bad_response' : 'http_error'), errorMessage: r.data?.message };
 }
 /** pass 63 — soft-delete YOUR OWN message ('msg') or share ('share'): the row
  *  stays and every client renders "Message deleted" (WhatsApp's behaviour). */

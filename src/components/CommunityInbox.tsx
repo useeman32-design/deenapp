@@ -498,9 +498,19 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const resolveCid = async (who: string): Promise<number | null> => {
     const known = convIds[who];
     if (known) { return known; }
-    const made = await chatStartDMByUsername(who).catch(() => null);
-    if (made) { setConvIds((m) => ({ ...m, [who]: made })); }
-    return made;
+    /* pass 83-9 — one retry (transient 5xx on shared hosting must not look
+     * like a dead chat) + record 'request' conversations the moment they are
+     * created, so even a brand-new thread knows about the 3-message limit. */
+    let made = await chatStartDMByUsername(who).catch(() => null);
+    if (!made) {
+      await new Promise((r) => setTimeout(r, 1200));
+      made = await chatStartDMByUsername(who).catch(() => null);
+    }
+    if (made) {
+      setConvIds((m) => ({ ...m, [who]: made!.cid }));
+      if (made.status === 'request') { setOutRequests((prev) => new Set(prev).add(who)); }
+    }
+    return made ? made.cid : null;
   };
 
   /** Put my emoji back — a reaction that never reached the server must not
@@ -626,7 +636,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       const made = payload.kind === 'msg'
         ? await chatSend(cid, payload.text).catch(() => null)
         : await chatSendShare(cid, String(payload.kindOf ?? 'post'), payload.text).catch(() => null);
-      if (!made) { return; }
+      if (!made || !('id' in made) || !made.id) { return; }
       const nid = payload.kind === 'msg' ? `s${made.id}` : `h${made.id}`;
       setThreads((prev) => prev.map((t) => (t.friend === to
         ? payload.kind === 'msg'
@@ -721,13 +731,16 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       ? prev
       : [{ friend: who, items: [], chat: [], reactions: {} }, ...prev]));
     void (async () => {
-      let cid = await chatStartDMByUsername(who).catch(() => null);
-      if (!cid) {
+      let made = await chatStartDMByUsername(who).catch(() => null);
+      if (!made) {
         await new Promise((r) => setTimeout(r, 1500));
-        if (!dead) cid = await chatStartDMByUsername(who).catch(() => null);
+        if (!dead) made = await chatStartDMByUsername(who).catch(() => null);
       }
       if (dead) { return; }
-      if (cid) { setConvIds((m) => ({ ...m, [who]: cid as number })); }
+      if (made) {
+        setConvIds((m) => ({ ...m, [who]: made!.cid }));
+        if (made.status === 'request') { setOutRequests((prev) => new Set(prev).add(who)); }
+      }
       await refreshConvs();
     })();
     return () => { dead = true; };
@@ -1009,9 +1022,26 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         if (!cid) { markFailed(who, id); return; }
         chatTyping(cid, false).catch(() => {});
         const sent = await chatSend(cid, text, replyArg).catch(() => null);
-        if (!sent) {
-          markFailed(who, id);
-          if (outRequests.has(who)) { Alert.alert('Request pending', `You can send up to 3 messages until @${who} accepts your request.`); }
+        if (!sent || !sent.id) {
+          /* pass 83-9 — tell the user WHY, in the bubble itself: Alert.alert
+           * is a no-op on web, and a silent "⚠ not sent" made the 3-message
+           * request limit look like a broken chat (owner report). */
+          const why = sent?.errorMessage;
+          const short = sent?.errorCode === 'request_limit' || outRequests.has(who)
+            ? `request pending · max 3 messages until @${who} accepts`
+            : sent?.errorCode === 'declined' ? 'conversation closed'
+            : sent?.errorCode === 'blocked' ? 'blocked'
+            : why ? why.slice(0, 60) : '';
+          markFailed(who, id, short);
+          if (sent?.errorCode === 'request_limit' || outRequests.has(who)) {
+            Alert.alert('Request pending', why ?? `You can send up to 3 messages until @${who} accepts your request.`);
+          } else if (sent?.errorCode === 'declined') {
+            Alert.alert('Conversation closed', why ?? 'This conversation is closed.');
+          } else if (sent?.errorCode === 'blocked') {
+            Alert.alert('Cannot send', why ?? 'You can no longer message this account.');
+          } else if (why) {
+            Alert.alert('Message not sent', why);
+          }
           return;
         }
         setThreads((prev) => prev.map((t) => (t.friend === who
@@ -1024,9 +1054,9 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   };
 
   /** Flag a bubble that never reached the server instead of letting it lie. */
-  const markFailed = (who: string, id: string) => {
+  const markFailed = (who: string, id: string, reason = '') => {
     setThreads((prev) => prev.map((t) => (t.friend === who
-      ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, text: `${c.text}  ⚠ not sent` } : c)) }
+      ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, text: `${c.text}  ⚠ not sent${reason ? ' — ' + reason : ''}` } : c)) }
       : t)));
   };
 
