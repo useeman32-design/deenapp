@@ -1,25 +1,34 @@
 # CONTINUE — pass 42 handoff (2026-09-02)
 
-# ══ CURRENT STATE — FULL ROLLBACK (2026-09-08) ══ READ THIS FIRST ══
-# LIVE PROD (app.deenlink.org): entry-f1b6b82b = pass-81b behavior. WORKING. Owner-confirmed.
-#   deenlink-api main = 77aa92b (tree identical to e956a55 "pass 81c") — .htaccess + vendor/phpmailer present.
-#   deenapp master    = 58594cf (tree identical to 26c8ff2 "pass 81b").
-# ALL pass-82 work (client AND server) was rolled back of the repos per owner request after
-# freezes. Nothing from pass 82 is live. Re-add features ONE AT A TIME with owner approval:
-#   candidates (safest first): group-photo media fallback fix · web file picker (never import
-#   expo-image-picker on web; use <input type=file>) · profile No-bio · guest Skip→Home ·
-#   login 20s timeout + abort messaging · server rate limits · DeenPoints history pagination UI.
-# HARD RULES learned the hard way (owner lost days to this):
-#   1. After EVERY deploy: verify page-source entry hash changed, then CLEAR SERVICE WORKER
-#      (DevTools→Application→Service Workers→Unregister; phone: Site settings→Clear & reset).
-#      The PWA serves the OLD bundle from cache otherwise — looks like "fix didn't work".
-#   2. NEVER `git add -A` without checking `git status` first — pass-82d accidentally deleted
-#      .htaccess (SPA routing + dump blocking) and vendor/phpmailer (SMTP) from the repo; the
-#      owner's cPanel pull then deleted them from the server.
-#   3. Replica-verify (playwright battery: 20s home stability, SPA tab hops, login, guest,
-#      group photo post) BEFORE pushing any bundle. Build success ≠ shipped ≠ working.
-#   4. /tmp is tmpfs (wiped between turns); node_modules gets wiped; .git/config is not
-#      snapshot-persisted — re-add origin remote every session.
+# ══ CURRENT STATE — PASS 83 SHIPPED (2026-09-08, overnight) ══ READ FIRST ══
+# STAGED FOR DEPLOY (owner pulls in cPanel when awake; site docroot was found EMPTY
+# at ~05:50 — host default page — owner must fix docroot/re-deploy FIRST):
+#   deenlink-api main = ca49929 → PWA bundle entry-d4dd74c3 (pass-81b base + passes 83-1..4)
+#   deenapp master    = c77eaab (source). gh-pages NOT updated (still entry-a41a90b9).
+# PASSES SHIPPED IN THIS BUNDLE (each replica-verified, zero pageerrors):
+#   83-1 login: live domain NEVER mints demo sessions on network error — "Network error —
+#        check your connection and try again" + 20s timeout (was 9s). Verified by aborting
+#        login.php mid-request: stays on /login with retry message.
+#   83-2 uploads on WEB use plain <input type=file> (src/lib/webfile.ts): group photo +
+#        register proof/letter. expo-image-picker NEVER evaluated on web (fixes the live
+#        group-photo crash). Native keeps lazy expo imports. Verified via filechooser event.
+#   83-3 profile: REAL bio or honest "No bio" (fake 'DeenLink community member.' gone);
+#        ⋮ dropdown backdrop no longer overflows viewport (no more screen shake/shrink).
+#   83-4 inbox: IN-APP ONLY pill removed; empty state added. Chat core was already WORKING
+#        in 81b (verified: profile Message → thread, request shelf → accept → chat list,
+#        send works). Owner's "blank inbox" was empty state + stale cached broken bundle.
+# STILL DEFERRED (owner's big list, next passes, one at a time):
+#   83-5 guest modal system (all screens viewable; worship tools + Quran/Hadith fully work;
+#        login-required modal for likes/comments/etc; guest Skip lands on Home — NOTE: 81b
+#        base still sends guest Skip to /tools, confirmed on replica)
+#   83-6 DeenPoints screen (real rewards verify, reward modal, price packages + real DP
+#        image, history pagination) · 83-7 charity balances real · 83-8 server rate limits
+#        (anti-spam; pass-82 server code exists in history at b778024) · 83-9 group posts
+#        full media + cassette player (SVG/canvas, biggest — last)
+# AFTER OWNER PULLS: verify page source shows entry-d4dd74c3, CLEAR SERVICE WORKER
+#   (phone: Site settings → app.deenlink.org → Clear & reset; desktop: DevTools →
+#   Application → Service Workers → Unregister + Ctrl+Shift+R), then confirm passes.
+# REMIND OWNER: ask "update deenapp-backup2?" (currently at pre-pass-83 snapshot).
 # ══════════════════════════════════════════════════════════════════
 
 # ── PASS 68 (2026-09-06) — REALTIME CHAT + live notifications + search upgrade ──
