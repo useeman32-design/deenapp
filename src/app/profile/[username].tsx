@@ -123,7 +123,7 @@ function PublicProfileScreenInner() {
         username: liveP.username,
         full_name: liveP.full_name || liveP.username,
         photo: liveP.profile_image_url ?? null,
-        bio: liveP.bio ?? 'DeenLink community member.',
+        bio: liveP.bio ?? '', /* pass 83-3: no fake bio — empty renders "No bio" */
         posts_count: liveP.posts ?? 0,
         followers: liveP.followers ?? 0,
         following: liveP.following ?? 0,
@@ -225,6 +225,15 @@ function PublicProfileScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* pass 83-3 — tap-outside backdrop sized to the SCREEN (the old one hung
+          off negative offsets, growing the page and making it shrink/shake) */}
+      {menuOpen ? (
+        <Pressable
+          accessibilityLabel="Close profile options"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 55 }}
+          onPress={() => setMenuOpen(false)}
+        />
+      ) : null}
       {/* pass 81 — account actions dropdown, anchored top-right of the container */}
       {liveP && user && liveP.username !== user.username ? (
         <View style={{ position: 'absolute', top: insets.top + 10, right: 16, zIndex: 60 }}>
@@ -237,7 +246,6 @@ function PublicProfileScreenInner() {
           </Pressable>
           {menuOpen ? (
             <>
-              <Pressable style={{ position: 'absolute', top: -insets.top, left: -Dimensions.get('window').width, right: -Dimensions.get('window').width, bottom: -Dimensions.get('window').height }} onPress={() => setMenuOpen(false)} />
               <View style={{ position: 'absolute', top: 44, right: 0, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, shadowColor: '#000', shadowOpacity: isDark ? 0.4 : 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } }}>
                 <Pressable
                   disabled={blockBusy}
@@ -392,11 +400,10 @@ function PublicProfileScreenInner() {
               </View>
             </View>
 
-            {bioText ? (
-              <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>
-                {bioText}
-              </T>
-            ) : null}
+            {/* pass 83-3 — real bio, or an honest "No bio" (never a fake one) */}
+            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>
+              {bioText?.trim() ? bioText : 'No bio'}
+            </T>
 
             <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
               {profile.location ? (
