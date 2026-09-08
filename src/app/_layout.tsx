@@ -37,6 +37,19 @@ useEffect(() => {
   }, []);
   const bootOk = (ready && fontsLoaded) || booted;
 
+  /* pass 83-5 — iOS Safari zooms the WHOLE screen when focusing an input whose
+   * font-size is under 16px (owner: "search screens zoom when text field is
+   * clicked"). Force 16px inputs on touch devices only; desktop + native
+   * rendering are untouched. */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    if (document.getElementById('dl-no-ios-zoom')) return;
+    const st = document.createElement('style');
+    st.id = 'dl-no-ios-zoom';
+    st.textContent = '@media (pointer: coarse) { input, textarea { font-size: 16px !important; } }';
+    document.head.appendChild(st);
+  }, []);
+
   useEffect(() => {
     if (bootOk) SplashScreen.hideAsync().catch(() => {});
   }, [bootOk]);

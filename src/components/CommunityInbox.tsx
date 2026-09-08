@@ -103,7 +103,7 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { blockUser, chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, isLive, reportAccount } from '@/api/client';
+import { blockUser, chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, getConnections, isLive, reportAccount } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 
@@ -353,6 +353,12 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>(() => (isLive() ? [] : SEED));
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
+  /* pass 83-5 — the Message button on a profile pushes /tools/inbox?u=X; when
+   * the inbox was ALREADY mounted the init-only state ignored the new param and
+   * the owner landed on the list ("not the direct user's DM"). Keep in sync. */
+  useEffect(() => { if (initialFriend) setOpenFriend(initialFriend); }, [initialFriend]);
+  /* pass 83-5 — mutual-follow suggestions under the empty state */
+  const [sugg, setSugg] = useState<{ username: string; name: string; photo?: string | null }[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /* pass 63 — press-and-hold focus (WhatsApp-style sheet), reply quoting,
    * forwarding, and the "copied" confirmation. */
@@ -642,6 +648,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   /* pass 58 — heartbeat + pull each peer's last_seen, keyed by username.
    * pass 74 — conversations are sorted: incoming requests go to the Message
    * Requests shelf, declined ones are hidden, everything else is a thread. */
+  useEffect(() => {
+    if (!live) { return; }
+    getConnections('following').then((r) => {
+      if (!r) { return; }
+      setSugg(r.items.filter((i) => i.follows_me && !i.is_me).slice(0, 6).map((i) => ({ username: i.username, name: i.name || i.username, photo: i.profile_image_url ?? null })));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+
   const refreshConvs = () => chatConversations().then((cs) => {
     if (!cs) { return; }
     const m: Record<string, string> = {};
@@ -1405,6 +1420,27 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               <T v="caption" style={{ color: d.faint, fontSize: 11.5, marginTop: 6, textAlign: 'center', lineHeight: 17 }}>
                 Open someone's profile and tap Message to start a chat. Until they accept, your chat waits in their Message requests.
               </T>
+              {sugg.length > 0 ? (
+                <View style={{ marginTop: 22, alignSelf: 'stretch' }}>
+                  <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginBottom: 8, textAlign: 'center' }}>YOU FOLLOW EACH OTHER — SAY SALAM</T>
+                  {sugg.map((sg) => (
+                    <Pressable
+                      key={sg.username}
+                      onPress={() => { haptic.selection(); setOpenFriend(sg.username); }}
+                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 10, marginBottom: 8, opacity: pressed ? 0.8 : 1 })}
+                    >
+                      <AvatarImage source={sg.photo ?? null} name={sg.name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{sg.name}</T>
+                        <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>@{sg.username}</T>
+                      </View>
+                      <View style={{ borderRadius: 9, backgroundColor: isDark ? '#1D6F42' : '#2ECC71', paddingHorizontal: 12, paddingVertical: 7 }}>
+                        <T v="caption" style={{ color: '#fff', fontWeight: '800', fontSize: 10.5 }}>Message</T>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>
