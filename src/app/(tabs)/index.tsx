@@ -28,7 +28,7 @@ import { formatHijri, formatGregorian } from '@/lib/prayer';
 import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
-import { useIsGuest } from '@/lib/guest';
+import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
@@ -257,8 +257,10 @@ function HomeInner() {
     api.feed('for-you').then((r) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED)).catch(() => setPosts(MOCK_FEED));
   }, []);
 
-  const toggleFollow = (id: number) =>
+  const toggleFollow = (id: number) => {
+    if (guestBlock('Sign in to follow people.')) return;
     setFollowed((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
+  };
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -1623,6 +1625,7 @@ function HexBadge() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function Home() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Home" />;
+  /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
+  void guest;
   return <HomeInner />;
 }

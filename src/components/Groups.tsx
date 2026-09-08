@@ -3,6 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { guestBlock } from '@/lib/guest';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -262,7 +263,7 @@ export function GroupsRail() {
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 }}>
         <FontAwesome5 name="users" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
         <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginLeft: 6, flex: 1 }}>GROUPS</T>
-        <Pressable onPress={() => { haptic.selection(); setCreating(true); }} hitSlop={8}>
+        <Pressable onPress={() => { if (guestBlock('Sign in to create a group.')) return; haptic.selection(); setCreating(true); }} hitSlop={8}>
           <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>+ Create</T>
         </Pressable>
       </View>
@@ -302,7 +303,7 @@ export function GroupsRail() {
         })}
         <Pressable
           accessibilityLabel="create group"
-          onPress={() => { haptic.selection(); setCreating(true); }}
+          onPress={() => { if (guestBlock('Sign in to create a group.')) return; haptic.selection(); setCreating(true); }}
           style={{ width: 120, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: isDark ? 'rgba(46,204,113,0.05)' : 'rgba(29,111,66,0.03)' }}
         >
           <FontAwesome5 name="plus" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />

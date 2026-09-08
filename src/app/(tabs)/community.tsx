@@ -17,7 +17,7 @@ import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useRouter } from 'expo-router';
-import { useIsGuest } from '@/lib/guest';
+import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
 const patternDark = require('../../../assets/img/pattern-dark.png');
@@ -515,6 +515,7 @@ function CommunityScreenInner() {
           <View style={{ marginHorizontal: 16, marginTop: 12 }}>
             <Pressable
               onPress={() => {
+                if (guestBlock('Sign in to create a post.')) return;
                 haptic.light();
                 setComposerOpen(true);
               }}
@@ -820,6 +821,7 @@ function CommunityScreenInner() {
       {/* FAB — new post */}
       <Pressable
         onPress={() => {
+          if (guestBlock('Sign in to create a post.')) return;
           haptic.light();
           setComposerOpen(true);
         }}
@@ -1354,6 +1356,7 @@ function SuggestStrip({ dash }: { dash: any }) {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function CommunityScreen() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Community" />;
+  /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
+  void guest;
   return <CommunityScreenInner />;
 }

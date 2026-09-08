@@ -19,11 +19,11 @@ export function LoginRequired({ module: mod }: { module: string }) {
         </View>
         <T v="body" style={{ fontSize: 15, fontWeight: '900', color: d.text }}>Login required</T>
         <T v="caption" style={{ fontSize: 12, color: d.subtext, textAlign: 'center', lineHeight: 17 }}>
-          {mod} needs an account. Sign in or create a free account to continue — your Tools stay free, no login needed.
+          {mod} needs an account. Sign in or create a free account to continue — worship tools, the Qur'an and Hadith stay free, no login needed.
         </T>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 6, width: '100%' }}>
           <Pressable
-            onPress={() => { haptic.selection(); router.replace('/(tabs)/tools'); }}
+            onPress={() => { haptic.selection(); router.replace('/(tabs)'); }}
             style={({ pressed }) => ({ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, opacity: pressed ? 0.8 : 1 })}
           >
             <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: d.subtext }}>Cancel</T>

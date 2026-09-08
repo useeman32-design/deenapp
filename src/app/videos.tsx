@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useIsGuest } from '@/lib/guest';
+import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
@@ -701,6 +701,7 @@ function VideosFeedInner() {
   };
 
   const toggleLike = (id: number) => {
+    if (guestBlock('Sign in to like videos.')) return;
     const flip = () => setLiked((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id); else n.add(id);
@@ -726,6 +727,7 @@ function VideosFeedInner() {
   };
 
   const toggleSave = (id: number) => {
+    if (guestBlock('Sign in to save videos.')) return;
     const target = liveReels.find((r) => r.id === id);
     void bmVideo.toggle(String(id)).then((on) => {
       if (on) showToast('Added to your saved videos');
@@ -736,6 +738,7 @@ function VideosFeedInner() {
   };
 
   const toggleRepost = (id: number) => {
+    if (guestBlock('Sign in to repost videos.')) return;
     const flip = () => setReposted((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id); else n.add(id);
@@ -952,7 +955,7 @@ function VideosFeedInner() {
             onLike={toggleLike}
             onSave={toggleSave}
             onRepost={toggleRepost}
-            onComments={(r) => setCommentReel(r)}
+            onComments={(r) => { if (guestBlock('Sign in to comment on videos.')) return; setCommentReel(r); }}
             onShare={(r) => setShareReel(r)}
             onAvatar={(img, nm) => setAvatarPreview({ img, name: nm })}
             onOpenProfile={(u) => router.push(`/profile/${u}?tab=videos` as never)}
@@ -1529,6 +1532,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
   const fileRef = useRef<TextInput | null>(null);
 
   const pickFromLibrary = async () => {
+    if (guestBlock('Sign in to post a video.')) return;
     haptic.light();
     try {
       if (Platform.OS === 'web') {
@@ -1977,6 +1981,7 @@ function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (r
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function VideosFeed() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Videos" />;
+  /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
+  void guest;
   return <VideosFeedInner />;
 }

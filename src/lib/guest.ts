@@ -39,7 +39,7 @@ export async function enterGuest(): Promise<void> {
   guest = true; emit();
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
   try { await AsyncStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
-  router.replace('/(tabs)/tools');
+  router.replace('/(tabs)'); /* pass 83-6: guests land on Home, not Tools */
 }
 
 export async function exitGuest(): Promise<void> {
@@ -49,10 +49,17 @@ export async function exitGuest(): Promise<void> {
   try { await AsyncStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
 }
 
+/* pass 83-6 — the LoginModalHost (mounted in _layout) registers itself here.
+ * RN's Alert.alert is a NO-OP on web, so the styled modal is the real UI. */
+type LoginModalHandler = (message?: string) => void;
+let loginModalHandler: LoginModalHandler | null = null;
+export function setLoginModalHandler(h: LoginModalHandler | null): void { loginModalHandler = h; }
+
 /** Social actions: popup, then smooth redirect to login. Returns true when blocked. */
 export function guestBlock(message?: string): boolean {
   if (!guest) return false;
-  // Lazy import avoids a cycle; Alert works on web + native.
+  if (loginModalHandler) { loginModalHandler(message); return true; }
+  /* fallback (host not mounted yet — e.g. very early boot): native alert */
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Alert } = require('react-native') as typeof import('react-native');
   Alert.alert(

@@ -275,6 +275,7 @@ function QuranHubInner() {
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function QuranHub() {
   const guest = useIsGuest();
-  if (guest) return <LoginRequired module="Qur'an" />;
+  /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
+  void guest;
   return <QuranHubInner />;
 }
