@@ -51,7 +51,7 @@ export const BASE =
     : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
-const TIMEOUT = 9000;
+const TIMEOUT = 20000; /* pass 83-1: slow mobile networks need more than 9s before we call it a network error */
 
 /**
  * FORCE_DEMO — mock-only mode.
@@ -224,13 +224,16 @@ export async function login(identifier: string, password: string, rememberMe = t
   /* pass 66-night — an UNVERIFIED account gets 403 needs_verification: the UI
    * resumes the OTP flow instead of signing in or showing a dead error. */
   const needsVerification = !!(r.data as { needs_verification?: boolean }).needs_verification;
+  /* pass 83-1 — on the LIVE domain a network error is never a demo sign-in:
+   * demo:true is only meaningful in preview builds (FORCE_DEMO), and the
+   * message tells the user to retry instead of pretending to be offline-demo. */
   return {
     ok: false as const,
     user: null,
-    demo: r.networkError,
+    demo: r.networkError && FORCE_DEMO,
     needsVerification,
     email: (r.data as { email?: string }).email,
-    message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Invalid credentials'),
+    message: r.data.message ?? (r.networkError ? (FORCE_DEMO ? 'Offline — demo mode' : 'Network error — check your connection and try again') : 'Invalid credentials'),
   };
 }
 
@@ -267,12 +270,13 @@ export async function register(payload: {
     return { ok: true as const, user: r.data.user ?? null, demo: false, needsVerification };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
+  /* pass 83-1 — same rule as login(): demo sign-in only exists in previews. */
   return {
     ok: false as const,
     user: null,
-    demo: r.networkError,
+    demo: r.networkError && FORCE_DEMO,
     needsVerification: false,
-    message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Registration failed'),
+    message: r.data.message ?? (r.networkError ? (FORCE_DEMO ? 'Offline — demo mode' : 'Network error — check your connection and try again') : 'Registration failed'),
   };
 }
 

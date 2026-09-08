@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -345,6 +345,16 @@ export default function Register() {
 
   const pickUpload = async (which: 'proof' | 'letter') => {
     try {
+      if (Platform.OS === 'web') {
+        /* pass 83-2 — web uses a plain file input; never load the native picker */
+        const { pickWebFile } = require('@/lib/webfile');
+        const f = await pickWebFile('image/*');
+        if (!f) return;
+        haptic.success();
+        const nm = f.name.slice(0, 40);
+        if (which === 'proof') setProofName(nm); else setLetterName(nm);
+        return;
+      }
       const { launchImageLibraryAsync } = await import('expo-image-picker');
       const res = await launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsMultipleSelection: false });
       const asset = res.assets?.[0];

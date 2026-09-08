@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -335,6 +335,14 @@ export const isGroupImg = (v?: string | null): v is string => !!v && /^(data:|fi
 /** pick an image from the gallery → small JPEG data URI (persistable) */
 export async function pickGroupPhoto(aspect: [number, number]): Promise<string | null> {
   try {
+    if (Platform.OS === 'web') {
+      /* pass 83-2 — plain <input type="file"> on web; expo-image-picker's web
+       * module must NEVER be evaluated (it crashed this very button live). */
+      const { pickWebFile, fileToDataUri } = require('@/lib/webfile');
+      const f = await pickWebFile('image/*');
+      if (!f) return null;
+      return await fileToDataUri(f);
+    }
     const ImagePicker = await import('expo-image-picker');
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,

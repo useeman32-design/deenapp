@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   clearSession,
   currentSession,
+  FORCE_DEMO,
   login as apiLogin,
   logout as apiLogout,
   persistSession,
@@ -73,8 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await persistSession(currentSession() ?? '', null, res.user);
         return { ok: true };
       }
-      if (res.demo) {
-        // Offline → demo mode so the app stays explorable in previews.
+      if (res.demo && FORCE_DEMO) {
+        // Offline → demo mode so the app stays explorable in PREVIEWS only.
+        // On the live app domain a network error must NEVER mint a mock
+        // identity (pass 83-1: owner was signed in as "demo" on slow network).
         const u: User = { ...MOCK_USER, full_name: prettyName(identifier), username: identifier.split('@')[0] || 'demo' };
         setUser(u); void exitGuest();
         setIsDemo(true);
@@ -105,7 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await persistSession(currentSession() ?? '', null, res.user);
         return { ok: true };
       }
-      if (res.demo) {
+      if (res.demo && FORCE_DEMO) {
+        // Preview-only offline demo (pass 83-1: never mint mock identities on live).
         const u: User = { ...MOCK_USER, full_name: data.full_name, username: data.username, email: data.email };
         setUser(u); void exitGuest();
         setIsDemo(true);
