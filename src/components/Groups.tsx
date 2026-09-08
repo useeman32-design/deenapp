@@ -22,7 +22,7 @@ import { groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/a
  *  · shared storage helpers so the rail + the screen stay in sync
  */
 
-export type GroupPost = { id: string; author: string; text: string; at: number; /* pass 82r — full server post (media/poll) */ srv?: import('@/api/types').Post };
+export type GroupPost = { id: string; author: string; text: string; at: number };
 /* pass 38 — owner-managed roles */
 export type Role = 'owner' | 'admin' | 'member';
 export const ROLE_META: Record<Role, { label: string; icon: string; color: string }> = {

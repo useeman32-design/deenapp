@@ -83,7 +83,7 @@ function GroupScreenInner() {
           if (!rows || !rows.length) return;
           setGroup((cur) =>
             cur && cur.id === g.id
-              ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime(), srv: p })) }
+              ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
               : cur,
           );
         });
@@ -331,24 +331,15 @@ function GroupScreenInner() {
             ) : (
               feedPosts.map((p) => {
                 const u = userOf(p.author);
-                /* pass 82r — server posts keep their real media/poll; demo rows fall back */
-                const fp = (p.srv
-                  ? {
-                      ...p.srv,
-                      id: typeof p.srv.id === 'number' ? p.srv.id : Math.abs([...String(p.srv.id)].reduce((a, c) => a + c.charCodeAt(0), 0)),
-                      content_text: p.srv.content_text ?? p.text,
-                      time_ago: timeAgoLocal(p.at),
-                      user: p.srv.user ?? { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
-                    }
-                  : {
-                      id: Math.abs([...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) + (p.at % 100000)),
-                      content_text: p.text,
-                      like_count: 8 + (p.at % 40),
-                      comment_count: 1 + (p.at % 7),
-                      liked_by_me: false,
-                      time_ago: timeAgoLocal(p.at),
-                      user: { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
-                    }) as Post;
+                const fp = {
+                  id: Math.abs([...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) + (p.at % 100000)),
+                  content_text: p.text,
+                  like_count: 8 + (p.at % 40),
+                  comment_count: 1 + (p.at % 7),
+                  liked_by_me: false,
+                  time_ago: timeAgoLocal(p.at),
+                  user: { id: u.user.length, username: u.user, full_name: u.name, user_type: 'member', profile_image: null },
+                } as Post;
                 return (
                   <FeedCard
                     key={p.id}

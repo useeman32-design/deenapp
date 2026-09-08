@@ -12,7 +12,7 @@
   **NEVER commit either.** Do not rotate the GitHub token. Keep `deenapp` public (free Pages requires it).
 
 ## Live right now
-gh-pages `d1559f8` (pass-68 build; content.zip intact) · deenlink-api main `d61c6ae` (pass-68 backend 5248f6e — realtime typing/notifications/search_posts, harness 24/24 — + pass-68 web build) · deenapp master edc9d10 (pass 82r RESTORE) · deenlink-api main b624ea0 (PWA entry-0a19b683) · gh-pages d709fb3 (entry-a41a90b9)
+gh-pages `d1559f8` (pass-68 build; content.zip intact) · deenlink-api main `d61c6ae` (pass-68 backend 5248f6e — realtime typing/notifications/search_posts, harness 24/24 — + pass-68 web build) · deenapp master `877e9ac` (pass 68) · backup mirror + content-pack `2556147`
 ⚠️ **`app.deenlink.org` needs ONE manual `git pull` in cPanel Terminal** — brings the white-screen fix (pass 67 `810977f`) AND realtime chat + notifications + search (pass 68). Nothing since pass 52 is live there until the user pulls.
 ⚠️ **export-root.sh rule:** root-base builds must keep `BASE=""` — never patch `appendBaseUrl`'s default to `"/"` (every call site omits the arg; `n="/"` collapses paths to `"//"` → boot crash). The `t`-leading-slash guard alone is safe.
 Android APK **v0.1.1-preview**: https://github.com/useeman32-design/deenapp/releases/download/v0.1.1-preview/deenlink-preview.apk

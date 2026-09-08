@@ -39,7 +39,7 @@ export async function enterGuest(): Promise<void> {
   guest = true; emit();
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
   try { await AsyncStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ }
-  router.replace('/(tabs)'); /* pass 82r — Skip lands on Home */
+  router.replace('/(tabs)/tools');
 }
 
 export async function exitGuest(): Promise<void> {

@@ -1,15 +1,3 @@
-# PASS 82r — BEHAVIOR RESTORE (shipped)
-
-Live bundle entry-0a19b683 = pass-81b behavior + safe pass-82 fixes.
-RESTORED: SPA tab nav (no splash reloads), no freezes, no tab-press crash.
-KEPT FIXES: group photo render, profile No-bio, guest Skip->Home, login abort msg, demo-fallback off on live domain.
-DROPPED (pass-82 architecture that broke web): static expo-image-picker imports (froze home/community), location.assign tab handler + native tab listeners (splash reloads + press crash), expo-audio CassettePlayer in FeedCard, guest free-browse home, DeenPoints Load-more UI, DM live-thread rework, profile menu modal.
-SERVER (unchanged, live): rate limits, donations count, multipart group posts, groups/posts parity, feed audio_url, history pagination.
-DEFERRED (re-add carefully, one at a time, verify each on replica): voice-note player UI, DeenPoints pagination UI, guest browse, DM thread rework.
-Deploy: pull deenlink-api main in cPanel; verify index.html entry-0a19b683.
-
----
-
 # CONTINUE — pass 42 handoff (2026-09-02)
 
 # ── PASS 68 (2026-09-06) — REALTIME CHAT + live notifications + search upgrade ──

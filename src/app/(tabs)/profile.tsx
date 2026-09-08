@@ -207,8 +207,7 @@ function ProfileInner() {
               </View>
             </View>
 
-            {bio ? <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>{bio}</T>
-              : <T v="bodyS" style={{ color: d.faint, fontSize: 12.5, fontStyle: 'italic' }}>No bio</T>}
+            {bio ? <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, lineHeight: 18 }}>{bio}</T> : null}
 
             {/* stats */}
             <View style={{ flexDirection: 'row', gap: 8 }}>

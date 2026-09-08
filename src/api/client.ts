@@ -51,7 +51,7 @@ export const BASE =
     : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'https://deenlink.org');
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
-const TIMEOUT = 20000; /* pass 82r — 9s tripped on slow networks and dropped users into demo */
+const TIMEOUT = 9000;
 
 /**
  * FORCE_DEMO — mock-only mode.
@@ -227,13 +227,10 @@ export async function login(identifier: string, password: string, rememberMe = t
   return {
     ok: false as const,
     user: null,
-    /* pass 82r — on the LIVE app domain a timeout must never create a demo session */
-    demo: r.networkError && !IS_APP_DOMAIN,
+    demo: r.networkError,
     needsVerification,
     email: (r.data as { email?: string }).email,
-    message: r.data.message ?? (r.networkError
-      ? (IS_APP_DOMAIN ? 'Network is slow — please check your connection and try again.' : 'Offline — demo mode')
-      : 'Invalid credentials'),
+    message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Invalid credentials'),
   };
 }
 
@@ -273,8 +270,7 @@ export async function register(payload: {
   return {
     ok: false as const,
     user: null,
-    /* pass 82r — on the LIVE app domain a timeout must never create a demo session */
-    demo: r.networkError && !IS_APP_DOMAIN,
+    demo: r.networkError,
     needsVerification: false,
     message: r.data.message ?? (r.networkError ? 'Offline — demo mode' : 'Registration failed'),
   };

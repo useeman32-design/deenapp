@@ -14,6 +14,6 @@ export default function Index() {
 
   if (!ready || onboarded === null) return null;
   if (user) return <Redirect href="/(tabs)" />;
-  if (isGuestNow()) return <Redirect href="/(tabs)" />; // pass 82r — guests land on Home
+  if (isGuestNow()) return <Redirect href="/(tabs)/tools" />; // pass 80 — guests land on Tools
   return <Redirect href={onboarded ? '/(auth)/login' : '/onboarding'} />;
 }
