@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,6 +65,34 @@ function GroupScreenInner() {
   const [group, setGroup] = useState<Group | null>(null);
   const [tab, setTab] = useState<Tab>('posts');
   const [composer, setComposer] = useState('');
+  /* pass 83-10 — photo posts in groups (same picker pattern as the community
+   * composer: web file input, native expo-image-picker via lazy import) */
+  const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+  /* pass 83-10 — keep the server's posts INTACT (media, polls, real counts);
+   * the old path flattened them into local demo rows and dropped everything. */
+  const [serverPosts, setServerPosts] = useState<Post[] | null>(null);
+  const imageFileRef = useRef<TextInput | null>(null);
+  const pickImage = async () => {
+    haptic.light();
+    try {
+      if (Platform.OS === 'web') {
+        (imageFileRef.current as unknown as HTMLInputElement | null)?.click?.();
+        return;
+      }
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: false });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        setImageAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'photo.jpg' });
+      }
+    } catch {
+      Alert.alert('Could not open the picker', 'Please try again.');
+    }
+  };
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   /* pass 38 management surfaces */
   const [editOpen, setEditOpen] = useState(false);
@@ -80,7 +108,9 @@ function GroupScreenInner() {
       const sid = srvGroupId(g);
       if (sid != null) {
         void groupPostsApi(sid).then((rows) => {
-          if (!rows || !rows.length) return;
+          if (!rows) return;
+          setServerPosts(rows);
+          if (!rows.length) return;
           setGroup((cur) =>
             cur && cur.id === g.id
               ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
@@ -119,14 +149,25 @@ function GroupScreenInner() {
     if (sid != null) void groupJoin(sid, false);
   };
   const post = () => {
-    if (!composer.trim() || !group) return;
+    if ((!composer.trim() && !imageAttach) || !group) return;
     haptic.light();
     const text = composer.trim();
-    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now() }, ...x.posts] }));
+    const img = imageAttach;
+    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(img ? { image_url: img.uri } : {}) }, ...x.posts] }));
+    if (serverPosts) {
+      const optimistic = {
+        id: -Date.now(), content_text: text, created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        like_count: 0, comment_count: 0, liked_by_me: false,
+        user: { username: 'you', full_name: 'You', profile_image_url: null },
+        ...(img ? { media: [{ type: 'image', url: img.uri, thumb_url: img.uri }] } : {}),
+      } as Post;
+      setServerPosts((rows) => [optimistic, ...(rows ?? [])]);
+    }
     setComposer('');
-    /* pass 66-night — group posts hit the server on live */
+    setImageAttach(null);
+    /* pass 66-night — group posts hit the server on live; pass 83-10 — photos ride multipart */
     const sid = srvGroupId(group);
-    if (sid != null) void groupCreatePost(sid, text);
+    if (sid != null) void groupCreatePost(sid, text, img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined);
   };
 
   /* ── pass 38 management actions ── */
@@ -173,7 +214,7 @@ function GroupScreenInner() {
   }
 
   const coverStyle = COVER_STYLES.find((c) => c.id === group.cover) ?? COVER_STYLES[0];
-  const isMember = group.joined === 'member';
+  const isMember = group.joined === 'member' || roleOf(group, ME) === 'owner' || roleOf(group, ME) === 'admin';
   const userOf = (name: string) =>
     name === ME ? { name: 'You', user: 'you' } : { name, user: name.toLowerCase().replace(/[^a-z]+/g, '.') };
 
@@ -314,14 +355,38 @@ function GroupScreenInner() {
                     multiline
                     style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, maxHeight: 84, paddingVertical: 8 }}
                   />
-                  <Pressable onPress={post} disabled={!composer.trim()} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() ? '#fff' : d.faint} />
+                  <Pressable onPress={() => { void pickImage(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: imageAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="image" size={14} color={imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  </Pressable>
+                  <Pressable onPress={post} disabled={!composer.trim() && !imageAttach} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() || imageAttach ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() || imageAttach ? '#fff' : d.faint} />
                   </Pressable>
                 </View>
+                {imageAttach ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 6, marginBottom: 2, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.05)', paddingHorizontal: 8, paddingVertical: 6 }}>
+                    <ExpoImage source={{ uri: imageAttach.uri }} style={{ width: 34, height: 34, borderRadius: 7 }} contentFit="cover" />
+                    <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: d.subtext }} numberOfLines={1}>{imageAttach.name}</T>
+                    <Pressable onPress={() => setImageAttach(null)} hitSlop={8}>
+                      <FontAwesome5 name="times" size={11} color={d.faint} />
+                    </Pressable>
+                  </View>
+                ) : null}
+                {Platform.OS === 'web' ? (
+                  <input
+                    ref={imageFileRef as never}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e: unknown) => {
+                      const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
+                      if (file) setImageAttach({ uri: URL.createObjectURL(file), name: file.name });
+                    }}
+                  />
+                ) : null}
               </View>
             ) : null}
 
-            {feedPosts.length === 0 ? (
+            {(serverPosts ? serverPosts.length === 0 : feedPosts.length === 0) ? (
               <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 26, alignItems: 'center', gap: 8 }}>
                 <FontAwesome5 name="comments" size={20} color={d.faint} />
                 <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center' }}>
@@ -329,7 +394,19 @@ function GroupScreenInner() {
                 </T>
               </View>
             ) : (
-              feedPosts.map((p) => {
+              serverPosts
+                ? serverPosts.map((sp) => (
+                    <FeedCard
+                      key={`srv-${sp.id}`}
+                      dash={d}
+                      post={sp}
+                      group={{ name: group.name, cat: group.cat, avatar: group.avatar, catIcon: catIcon(group.cat) }}
+                      rank={roleOf(group, sp.user?.username || '')}
+                      onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
+                      onComments={(pp) => setCommentPost(pp)}
+                    />
+                  ))
+                : feedPosts.map((p) => {
                 const u = userOf(p.author);
                 const fp = {
                   id: Math.abs([...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) + (p.at % 100000)),

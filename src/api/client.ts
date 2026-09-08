@@ -383,9 +383,47 @@ export async function groupCreate(data: { name: string; bio?: string; category?:
 }
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
   const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
-  return r.ok && Array.isArray(r.data.posts) ? r.data.posts : null;
+  if (!r.ok || !Array.isArray(r.data.posts)) return null;
+  /* pass 83-10 — group posts are at feed parity: normalize the server shapes
+   * ({options:[{label}], my_vote} polls, {image_url_1080} media) into what
+   * FeedCard renders. */
+  for (const p of r.data.posts) {
+    const sp = mapServerPoll((p as { poll?: unknown }).poll);
+    if (sp) p.poll = sp;
+    if (Array.isArray(p.media)) {
+      p.media = p.media.map((m) => {
+        const mm = m as { url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
+        if (mm.url == null && mm.image_url_1080 != null) {
+          return { type: 'image', url: String(mm.image_url_1080), thumb_url: String(mm.image_url_360 ?? mm.image_url_1080) };
+        }
+        return m;
+      });
+    }
+  }
+  return r.data.posts;
 }
-export async function groupCreatePost(groupId: number, contentText: string): Promise<{ id: number } | null> {
+export async function groupCreatePost(
+  groupId: number,
+  contentText: string,
+  images?: Array<{ uri: string; name?: string; type?: string }>,
+): Promise<{ id: number } | null> {
+  /* pass 83-10 — with photos the post goes multipart (same recipe as the
+   * feed's createPost: blob: URIs become Files on web, {uri} parts native). */
+  if (images && images.length) {
+    const form = new FormData();
+    form.append('group_id', String(groupId));
+    if (contentText) form.append('content_text', contentText);
+    for (const img of images.slice(0, 5)) {
+      if (typeof window !== 'undefined' && img.uri.startsWith('blob:')) {
+        const blob = await fetch(img.uri).then((r) => r.blob());
+        form.append('images[]', new File([blob], img.name ?? 'photo.jpg', { type: blob.type || 'image/jpeg' }));
+      } else {
+        form.append('images[]', { uri: img.uri, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
+      }
+    }
+    const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
+    return r.ok && r.data.id ? { id: r.data.id as number } : null;
+  }
   const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', body: { group_id: groupId, content_text: contentText }, auth: true });
   return r.ok && r.data.id ? { id: r.data.id as number } : null;
 }
