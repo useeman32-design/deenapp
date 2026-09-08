@@ -1296,9 +1296,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
           </T>
         </View>
-        <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(46,204,113,0.45)', backgroundColor: 'rgba(46,204,113,0.10)', paddingHorizontal: 8, paddingVertical: 4 }}>
-          <T v="caption" style={{ color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800', fontSize: 9 }}>IN-APP ONLY</T>
-        </View>
+        {/* pass 83-4 — "IN-APP ONLY" pill removed per owner request */}
         {/* pass 58 — ••• menu → Report / Block */}
         {thread ? (
           <Pressable onPress={() => { haptic.selection(); setMenu((v) => !v); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
@@ -1397,6 +1395,18 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
               </Pressable>
             );
           })}
+          {/* pass 83-4 — honest empty state (a bare header looked "blank") */}
+          {threads.filter((t) => !hiddenConvs.has(t.friend)).length === 0 && Object.keys(reqMap).length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                <FontAwesome5 name="comments" size={24} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              </View>
+              <T v="body" style={{ fontWeight: '800', fontSize: 14, color: d.text }}>No messages yet</T>
+              <T v="caption" style={{ color: d.faint, fontSize: 11.5, marginTop: 6, textAlign: 'center', lineHeight: 17 }}>
+                Open someone's profile and tap Message to start a chat. Until they accept, your chat waits in their Message requests.
+              </T>
+            </View>
+          ) : null}
         </ScrollView>
       ) : (
         /* ── thread: shares + chat + composer ── */
