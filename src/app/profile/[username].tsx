@@ -174,11 +174,7 @@ function PublicProfileScreenInner() {
   if (!profile) {
     if (!ready || liveLoading) {
       /* session still restoring — never flash "not found" for a real account */
-      return (
-        <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
-          <BreathingCrescent color={d.emerald} />
-        </View>
-      );
+      return <BreathingContent bar={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} />;
     }
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
@@ -811,31 +807,50 @@ function PublicProfileScreenInner() {
 }
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
-/* pass 83-11 — breathing loader: a crescent that slowly inhales/exhales
- * instead of the plain spinner (owner request). */
-function BreathingCrescent({ color }: { color: string }) {
+/* pass 83-12 — owner: the loading state should be the CONTENT breathing,
+ * not an icon. A profile-shaped skeleton (avatar, name, bio, stats, posts)
+ * that slowly inhales/exhales until the real page is ready. */
+function BreathingContent({ bar }: { bar: string }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(v, { toValue: 0, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
   }, [v]);
+  const { height } = Dimensions.get('window');
   return (
     <Animated.View
       style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
-        transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] }) }],
+        flex: 1,
+        paddingTop: 72,
+        paddingHorizontal: 20,
+        gap: 14,
+        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
       }}
     >
-      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(46,204,113,0.10)', alignItems: 'center', justifyContent: 'center' }}>
-        <FontAwesome5 name="star-and-crescent" size={26} color={color} />
+      <View style={{ alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: bar }} />
+        <View style={{ width: 150, height: 15, borderRadius: 8, backgroundColor: bar }} />
+        <View style={{ width: 104, height: 11, borderRadius: 6, backgroundColor: bar }} />
+      </View>
+      <View style={{ alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <View style={{ width: '72%', height: 11, borderRadius: 6, backgroundColor: bar }} />
+        <View style={{ width: '54%', height: 11, borderRadius: 6, backgroundColor: bar }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 8 }}>
+        <View style={{ width: 72, height: 38, borderRadius: 12, backgroundColor: bar }} />
+        <View style={{ width: 72, height: 38, borderRadius: 12, backgroundColor: bar }} />
+        <View style={{ width: 72, height: 38, borderRadius: 12, backgroundColor: bar }} />
+      </View>
+      <View style={{ gap: 12, marginTop: 10 }}>
+        {Array.from({ length: Math.max(2, Math.min(4, Math.floor((height - 420) / 92))) }).map((_, i) => (
+          <View key={i} style={{ height: 80, borderRadius: 16, backgroundColor: bar }} />
+        ))}
       </View>
     </Animated.View>
   );

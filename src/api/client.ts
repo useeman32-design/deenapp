@@ -1428,12 +1428,18 @@ export async function chatStartDM(userId: number): Promise<number | null> {
 }
 /** pass 60 — open (or reuse) a DM by USERNAME. The app navigates profiles by
  *  username, so the id is resolved server-side and never exposed to the client. */
-export async function chatStartDMByUsername(username: string): Promise<{ cid: number; status?: string } | null> {
+export async function chatStartDMByUsername(username: string): Promise<{ cid: number; status?: string; error?: string } | null> {
   /* pass 83-9 — also return the conversation status: a brand-new thread with
    * someone who doesn't follow back opens as a 'request' (3-message limit),
    * and the UI must know that from the very first bubble. */
-  const r = await request<{ status?: string; conversation_id?: number; conversation_status?: string }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
-  return r.ok && r.data.conversation_id ? { cid: r.data.conversation_id as number, status: r.data.conversation_status } : null;
+  const r = await request<{ status?: string; conversation_id?: number; conversation_status?: string; message?: string }>('/api/chat/start_username.php', { method: 'POST', body: { username }, auth: true });
+  if (r.ok && r.data.conversation_id) { return { cid: r.data.conversation_id as number, status: r.data.conversation_status }; }
+  /* pass 83-12 — a failed open must carry WHY (blocked / not found / HTTP 500…):
+   * the thread used to show a bare "⚠ not sent" with no reason at all. */
+  return {
+    cid: 0,
+    error: r.data?.message ?? (r.networkError ? 'No connection' : r.httpStatus ? `Server error (HTTP ${r.httpStatus})` : 'Could not open the conversation'),
+  };
 }
 /** pass 63 — optional quote: the row you are replying to, and whether it is a
  *  plain message or an in-app share. The server verifies it belongs to this

@@ -11,6 +11,7 @@ import { GroupFeedInline, GroupsRail } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import * as api from '@/api/client';
 import { T } from '@/components/T';
+import { storage } from '@/lib/storage';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
@@ -101,6 +102,23 @@ function CommunityScreenInner() {
   const [cDraft, setCDraft] = useState('');
   const [pollOn, setPollOn] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  /* pass 83-12 — returning from a profile opened from the inbox must land
+   * BACK IN THE CHAT, not on a bare community feed (owner report). The inbox
+   * stores who was open before navigating; on mount we reopen exactly that. */
+  const [inboxFriend, setInboxFriend] = useState<string | null>(null);
+  useEffect(() => {
+    storage.getItem('dl_inbox_reopen')
+      .then((f) => {
+        if (f) {
+          setInboxFriend(f);
+          setInboxOpen(true);
+          storage.removeItem('dl_inbox_reopen').catch(() => {});
+        }
+      })
+      .catch(() => {});
+    /* leaving Community for good (logout, reload…) — forget the pending reopen */
+    return () => { storage.removeItem('dl_inbox_reopen').catch(() => {}); };
+  }, []);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
@@ -816,7 +834,11 @@ function CommunityScreenInner() {
       </ScrollView>
 
       {/* community inbox — shared posts/reels/ayahs, reactions only */}
-      <CommunityInbox visible={inboxOpen} onClose={() => setInboxOpen(false)} />
+      <CommunityInbox
+        visible={inboxOpen}
+        initialFriend={inboxFriend}
+        onClose={() => { setInboxOpen(false); setInboxFriend(null); storage.removeItem('dl_inbox_reopen').catch(() => {}); }}
+      />
 
       {/* FAB — new post */}
       <Pressable

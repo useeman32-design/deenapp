@@ -339,6 +339,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
    * bundled demo threads on gh-pages where there is no backend. */
   const live = isLive() && !!user && !isDemo;
   const [convIds, setConvIds] = useState<Record<string, number>>({});
+  const lastCidError = useRef(''); /* pass 83-12 — why the last conversation-open failed */
   /* pass 81 — never show bundled demo threads once we know we're live */
   useEffect(() => {
     if (live) setThreads((prev) => prev.filter((t) => !SEED_NAMES.has(t.friend)));
@@ -524,11 +525,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       await new Promise((r) => setTimeout(r, 1200));
       made = await chatStartDMByUsername(who).catch(() => null);
     }
-    if (made) {
+    if (made && made.cid > 0) {
       setConvIds((m) => ({ ...m, [who]: made!.cid }));
       if (made.status === 'request') { setOutRequests((prev) => new Set(prev).add(who)); }
+      lastCidError.current = '';
+      return made.cid;
     }
-    return made ? made.cid : null;
+    lastCidError.current = made?.error ?? 'Could not open the conversation';
+    return null;
   };
 
   /** Put my emoji back — a reaction that never reached the server must not
@@ -755,7 +759,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         if (!dead) made = await chatStartDMByUsername(who).catch(() => null);
       }
       if (dead) { return; }
-      if (made) {
+      if (made && made.cid > 0) {
         setConvIds((m) => ({ ...m, [who]: made!.cid }));
         if (made.status === 'request') { setOutRequests((prev) => new Set(prev).add(who)); }
       }
@@ -1037,7 +1041,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       const replyArg = qt ? { id: qt.id, kind: quote!.kind } : undefined;
       void (async () => {
         const cid = await resolveCid(who);
-        if (!cid) { markFailed(who, id); return; }
+        if (!cid) { markFailed(who, id, lastCidError.current); return; }
         chatTyping(cid, false).catch(() => {});
         let sent = await chatSend(cid, text, replyArg).catch(() => null);
         if (!sent || !sent.id) {
@@ -1099,7 +1103,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       const who = thread.friend;
       void (async () => {
         const cid = await resolveCid(who);
-        if (!cid) { markShareFailed(who, id); return; }
+        if (!cid) { markShareFailed(who, id, lastCidError.current); return; }
         const made = await chatSendShare(cid, kind, title, payload).catch(() => null);
         if (!made) { markShareFailed(who, id); return; }
         setThreads((prev) => prev.map((t) => (t.friend === who
@@ -1112,9 +1116,9 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   };
 
   /** Flag a share card that never reached the server. */
-  const markShareFailed = (who: string, id: string) => {
+  const markShareFailed = (who: string, id: string, reason = '') => {
     setThreads((prev) => prev.map((t) => (t.friend === who
-      ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, title: `${x.title}  ⚠ not sent` } : x)) }
+      ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, title: `${x.title}  ⚠ not sent${reason ? ' — ' + reason : ''}` } : x)) }
       : t)));
   };
 
@@ -1365,14 +1369,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         {/* pass 58 — the peer's photo with their live presence dot */}
         {thread ? (
           <View>
-            <Pressable onPress={() => { if (!standalone) { onClose(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
+            <Pressable onPress={() => { /* pass 83-12 — do NOT close: Back must land back in this chat */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
               <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
             </Pressable>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Pressable onPress={() => { if (thread) { if (!standalone) { onClose(); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+          <Pressable onPress={() => { if (thread) { if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
             {/* pass 59 — long names truncate with an ellipsis instead of pushing
                 the ••• menu off the header */}
             <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
