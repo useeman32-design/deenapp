@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Alert, Dimensions, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -176,7 +176,7 @@ function PublicProfileScreenInner() {
       /* session still restoring — never flash "not found" for a real account */
       return (
         <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={d.emerald} />
+          <BreathingCrescent color={d.emerald} />
         </View>
       );
     }
@@ -811,6 +811,36 @@ function PublicProfileScreenInner() {
 }
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
+/* pass 83-11 — breathing loader: a crescent that slowly inhales/exhales
+ * instead of the plain spinner (owner request). */
+function BreathingCrescent({ color }: { color: string }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  return (
+    <Animated.View
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
+        transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] }) }],
+      }}
+    >
+      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(46,204,113,0.10)', alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesome5 name="star-and-crescent" size={26} color={color} />
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function PublicProfileScreen() {
   const guest = useIsGuest();
   if (guest) return <LoginRequired module="Profiles" />;

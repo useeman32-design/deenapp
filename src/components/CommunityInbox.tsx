@@ -103,7 +103,7 @@ const STORE = 'dl.inbox.v2';
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
-import { blockUser, chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, getConnections, isLive, reportAccount } from '@/api/client';
+import { blockUser, chatConversations, chatDelete, chatPresence, chatReact, chatRead, chatRequestAction, chatSend, chatSendShare, chatStartDMByUsername, chatThread, chatTyping, getConnections, isLive, reportAccount, searchAccounts } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 
@@ -359,6 +359,10 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   useEffect(() => { if (initialFriend) setOpenFriend(initialFriend); }, [initialFriend]);
   /* pass 83-5 — mutual-follow suggestions under the empty state */
   const [sugg, setSugg] = useState<{ username: string; name: string; photo?: string | null }[]>([]);
+  /* pass 83-11 — inbox search (any user) + floating + (pick a mutual follow) */
+  const [searchQ, setSearchQ] = useState('');
+  const [searchRes, setSearchRes] = useState<{ username: string; name: string; photo?: string | null }[]>([]);
+  const [newDmOpen, setNewDmOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /* pass 63 — press-and-hold focus (WhatsApp-style sheet), reply quoting,
    * forwarding, and the "copied" confirmation. */
@@ -493,6 +497,20 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
     if (!m) { return null; }
     return { kind: m[1] === 'h' ? 'share' : 'msg', id: parseInt(m[2], 10) };
   };
+
+  /* pass 83-11 — debounced account search while typing */
+  useEffect(() => {
+    const q = searchQ.trim();
+    if (q.length < 2 || !live) { setSearchRes([]); return; }
+    const iv = setTimeout(() => {
+      void searchAccounts(q, 12)
+        .then((rows) => setSearchRes((rows ?? [])
+          .filter((r) => r.username !== user?.username)
+          .map((r) => ({ username: r.username, name: (r as { full_name?: string }).full_name || r.username, photo: (r as { profile_image_url?: string | null }).profile_image_url ?? null }))))
+        .catch(() => {});
+    }, 350);
+    return () => clearTimeout(iv);
+  }, [searchQ, live]);
 
   /** pass 62 — conversation id for a username, creating the DM when needed. */
   const resolveCid = async (who: string): Promise<number | null> => {
@@ -1021,7 +1039,13 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         const cid = await resolveCid(who);
         if (!cid) { markFailed(who, id); return; }
         chatTyping(cid, false).catch(() => {});
-        const sent = await chatSend(cid, text, replyArg).catch(() => null);
+        let sent = await chatSend(cid, text, replyArg).catch(() => null);
+        if (!sent || !sent.id) {
+          /* pass 83-11 — one silent retry before giving up: a transient blip on
+           * shared hosting must not cost the user their message. */
+          await new Promise((r) => setTimeout(r, 1800));
+          sent = await chatSend(cid, text, replyArg).catch(() => null);
+        }
         if (!sent || !sent.id) {
           /* pass 83-9 — tell the user WHY, in the bubble itself: Alert.alert
            * is a no-op on web, and a silent "⚠ not sent" made the 3-message
@@ -1259,6 +1283,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                   <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
                   {reaction ? <PopEmoji emoji={reaction} size={11} /> : peer ? <PopEmoji emoji={peer} size={11} /> : null}
+                  {/* pass 83-11 — WhatsApp-style ticks: ✓ sending · ✓✓ on the
+                    * server (delivered) · ✓✓ light-green once they've seen it */}
+                  {mine && !m.deleted ? (
+                    <FontAwesome5
+                      name={m.readAt || String(m.id).startsWith('s') ? 'check-double' : 'check'}
+                      size={9}
+                      color={m.readAt ? '#A7F3D0' : String(m.id).startsWith('s') ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)'}
+                    />
+                  ) : null}
                 </View>
               </Pressable>
             </SwipeReply>
@@ -1332,23 +1365,24 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         {/* pass 58 — the peer's photo with their live presence dot */}
         {thread ? (
           <View>
-            <Pressable onPress={() => router.push(`/profile/${thread.friend}` as never)} hitSlop={6}>
+            <Pressable onPress={() => { if (!standalone) { onClose(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
               <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
             </Pressable>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Pressable onPress={() => { if (thread) { router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+          <Pressable onPress={() => { if (thread) { if (!standalone) { onClose(); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
             {/* pass 59 — long names truncate with an ellipsis instead of pushing
                 the ••• menu off the header */}
             <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
               {thread ? acc(thread.friend).full_name : 'Inbox'}
             </T>
+            {/* pass 83-11 — the @username/status line is part of the tap target too */}
+            <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+              {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
+            </T>
           </Pressable>
-          <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
-            {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
-          </T>
         </View>
         {/* pass 83-4 — "IN-APP ONLY" pill removed per owner request */}
         {/* pass 58 — ••• menu → Report / Block */}
@@ -1406,7 +1440,43 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         </ScrollView>
       ) : !thread ? (
         /* ── friends who shared with you ── */
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 96 }} showsVerticalScrollIndicator={false}>
+          {/* pass 83-11 — search any user to start a chat */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(20,36,28,0.03)', paddingHorizontal: 12, marginBottom: 12 }}>
+            <FontAwesome5 name="search" size={11} color={d.faint} />
+            <TextInput
+              value={searchQ}
+              onChangeText={setSearchQ}
+              placeholder="Search people to message…"
+              placeholderTextColor={d.faint}
+              style={{ flex: 1, fontSize: 13, color: d.text, paddingVertical: 10 }}
+            />
+            {searchQ ? (
+              <Pressable onPress={() => setSearchQ('')} hitSlop={8}>
+                <FontAwesome5 name="times" size={11} color={d.faint} />
+              </Pressable>
+            ) : null}
+          </View>
+          {searchQ.trim().length >= 2 ? (
+            searchRes.length === 0 ? (
+              <T v="caption" style={{ fontSize: 11, color: d.faint, marginBottom: 12, textAlign: 'center' }}>No one found for "{searchQ.trim()}"</T>
+            ) : (
+              <View style={{ marginBottom: 12, gap: 8 }}>
+                {searchRes.map((sr) => (
+                  <Pressable key={sr.username} onPress={() => { haptic.selection(); setSearchQ(''); setOpenFriend(sr.username); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 10 }}>
+                    <AvatarImage source={sr.photo ?? null} name={sr.name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 12.5, color: d.text }}>{sr.name}</T>
+                      <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint }}>@{sr.username}</T>
+                    </View>
+                    <FontAwesome5 name="comment" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  </Pressable>
+                ))}
+              </View>
+            )
+          ) : null}
           {/* pass 74 — message requests shelf */}
           {Object.keys(reqMap).length > 0 ? (
             <Pressable onPress={() => { haptic.selection(); setRequestsOpen(true); }}
@@ -1433,18 +1503,19 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.18)' : 'rgba(29,111,66,0.12)', backgroundColor: isDark ? 'rgba(18,34,25,0.6)' : 'rgba(255,255,255,0.7)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1, shadowColor: '#000', shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 9, shadowOffset: { width: 0, height: 3 } })}
               >
-                <View>
-                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
-                  <View style={{ position: 'absolute', right: -1, top: -1, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#1F8F5C', borderWidth: 1.5, borderColor: isDark ? '#07100C' : '#F6FAF7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                    <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{unread}</T>
-                  </View>
-                </View>
+                <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{a.full_name}</T>
                   <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
                     {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
                   </T>
                 </View>
+                {/* pass 83-11 — unread count moved OFF the avatar to the right edge */}
+                {unread > 0 ? (
+                  <View style={{ minWidth: 21, height: 21, borderRadius: 11, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 }}>
+                    <T v="caption" style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>{unread}</T>
+                  </View>
+                ) : null}
                 <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
               </Pressable>
             );
@@ -1483,6 +1554,35 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             </View>
           ) : null}
         </ScrollView>
+        {/* pass 83-11 — floating + → pick a mutual follow and start a DM */}
+        <Pressable onPress={() => { haptic.medium(); setNewDmOpen(true); }}
+          style={({ pressed }) => ({ position: 'absolute', right: 16, bottom: 18, width: 54, height: 54, borderRadius: 27, backgroundColor: isDark ? '#2ECC71' : '#1D6F42', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1, elevation: 7, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } })}>
+          <FontAwesome5 name="plus" size={18} color="#FFFFFF" />
+        </Pressable>
+        <Modal visible={newDmOpen} transparent animationType="fade" onRequestClose={() => setNewDmOpen(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setNewDmOpen(false)}>
+            <Pressable onPress={() => {}} style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 28, maxHeight: '72%' }}>
+              <T v="body" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>New message</T>
+              <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 2, marginBottom: 12 }}>Pick a mutual follow — or search above for anyone.</T>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {sugg.length === 0 ? (
+                  <T v="bodyS" style={{ fontSize: 12, color: d.faint, textAlign: 'center', paddingVertical: 22 }}>No mutual follows yet — follow someone and they'll appear here.</T>
+                ) : sugg.map((sg) => (
+                  <Pressable key={sg.username} onPress={() => { haptic.selection(); setNewDmOpen(false); setOpenFriend(sg.username); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, padding: 10, marginBottom: 8 }}>
+                    <AvatarImage source={sg.photo ?? null} name={sg.name} size={40} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{sg.name}</T>
+                      <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint }}>@{sg.username}</T>
+                    </View>
+                    <FontAwesome5 name="comment" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+        </View>
       ) : (
         /* ── thread: shares + chat + composer ── */
         <ScrollView

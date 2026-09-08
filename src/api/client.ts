@@ -1429,7 +1429,11 @@ export async function chatSend(
   if (r.ok && r.data.id) { return { id: r.data.id as number, created_at: r.data.created_at }; }
   /* pass 83-9 — surface WHY it failed ('request_limit', 'declined', 'blocked'…)
    * so the thread can tell the user instead of a bare "not sent". */
-  return { errorCode: r.data?.code ?? (r.ok ? 'bad_response' : 'http_error'), errorMessage: r.data?.message };
+  return {
+    errorCode: r.data?.code ?? (r.ok ? 'bad_response' : 'http_error'),
+    /* pass 83-11 — even a bare failure must say something: the bubble shows this */
+    errorMessage: r.data?.message ?? (r.networkError ? 'No connection' : r.httpStatus ? `Server error (HTTP ${r.httpStatus})` : 'Not delivered'),
+  };
 }
 /** pass 63 — soft-delete YOUR OWN message ('msg') or share ('share'): the row
  *  stays and every client renders "Message deleted" (WhatsApp's behaviour). */
