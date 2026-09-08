@@ -56,6 +56,23 @@ const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
 };
 
 const ago = () => 'now';
+
+/* pass 83-14 — owner: "Last seen 09-08T23:08" is unreadable. Format like
+ * WhatsApp: minutes/hours ago · Yesterday 7:30 PM · then date + time. The
+ * device locale drives 12h vs 24h via toLocaleTimeString. */
+function lastSeenText(raw: string): string {
+  const t = new Date(String(raw).includes('T') ? String(raw) : String(raw).replace(' ', 'T')).getTime();
+  if (!t) return String(raw);
+  const diff = Date.now() - t;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) { const m = Math.floor(diff / 60_000); return `${m} minute${m === 1 ? '' : 's'} ago`; }
+  const dt = new Date(t);
+  const hm = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (diff < 86_400_000) { const h = Math.floor(diff / 3_600_000); return `${h} hour${h === 1 ? '' : 's'} ago`; }
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  if (t >= startOfToday.getTime() - 86_400_000) return `Yesterday ${hm}`;
+  return `${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
+}
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 /* seed — what friends shared with you (in-app content only). every
@@ -329,7 +346,7 @@ const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
   { id: 'inappropriate', label: 'Inappropriate content', icon: 'shield-alt' },
 ];
 
-export function CommunityInbox({ visible, onClose, standalone = false, initialFriend = null }: { visible: boolean; onClose: () => void; standalone?: boolean; initialFriend?: string | null }) {
+export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = false, initialFriend = null }: { visible: boolean; onClose: () => void; onNavigateAway?: () => void; standalone?: boolean; initialFriend?: string | null }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -402,6 +419,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
   const inputRef = useRef<TextInput>(null);
   /* pass 58 — presence from the real API + the ••• menu, report sheet and block */
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({}); /* pass 83-14 — true unread counts from the server */
   const [menu, setMenu] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportType, setReportType] = useState<string | null>(null);
@@ -713,6 +731,12 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
       }
       ids[u] = c.id;
     });
+    const un: Record<string, number> = {};
+    cs.forEach((c) => {
+      const u2 = c.with_username || c.peer?.username;
+      if (u2) un[u2] = Math.max(0, Number(c.unread ?? 0));
+    });
+    setUnreadMap(un);
     setSeenMap(m);
     setConvIds(ids);
     setReqMap(reqs);
@@ -1066,6 +1090,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           } else if (sent?.errorCode === 'declined') {
             Alert.alert('Conversation closed', why ?? 'This conversation is closed.');
           } else if (sent?.errorCode === 'blocked') {
+            setBlocked(true); /* pass 83-14 — the menu now offers Unblock right here */
             Alert.alert('Cannot send', why ?? 'You can no longer message this account.');
           } else if (why) {
             Alert.alert('Message not sent', why);
@@ -1287,13 +1312,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                   <T v="caption" style={{ fontSize: 8.5, color: mine ? 'rgba(255,255,255,0.7)' : d.faint }}>{m.ago}</T>
                   {reaction ? <PopEmoji emoji={reaction} size={11} /> : peer ? <PopEmoji emoji={peer} size={11} /> : null}
-                  {/* pass 83-11 — WhatsApp-style ticks: ✓ sending · ✓✓ on the
-                    * server (delivered) · ✓✓ light-green once they've seen it */}
+                  {/* pass 83-14 — owner: single tick until the peer actually
+                    * VIEWS it (the old rule flipped ✓✓ the moment the server
+                    * acked, because sent ids are prefixed 's'). Now:
+                    * ✓ on the server · ✓✓ light-green once they've seen it. */}
                   {mine && !m.deleted ? (
                     <FontAwesome5
-                      name={m.readAt || String(m.id).startsWith('s') ? 'check-double' : 'check'}
+                      name={m.readAt ? 'check-double' : 'check'}
                       size={9}
-                      color={m.readAt ? '#A7F3D0' : String(m.id).startsWith('s') ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)'}
+                      color={m.readAt ? '#A7F3D0' : 'rgba(255,255,255,0.6)'}
                     />
                   ) : null}
                 </View>
@@ -1369,14 +1396,14 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
         {/* pass 58 — the peer's photo with their live presence dot */}
         {thread ? (
           <View>
-            <Pressable onPress={() => { /* pass 83-12 — do NOT close: Back must land back in this chat */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
+            <Pressable onPress={() => { /* pass 83-14 — remember the chat, then HIDE the inbox so the profile doesn't render under it; the community screen reopens this exact thread on focus */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
               <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
             </Pressable>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Pressable onPress={() => { if (thread) { if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+          <Pressable onPress={() => { if (thread) { if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
             {/* pass 59 — long names truncate with an ellipsis instead of pushing
                 the ••• menu off the header */}
             <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
@@ -1384,7 +1411,7 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
             </T>
             {/* pass 83-11 — the @username/status line is part of the tap target too */}
             <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
-              {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${String(seenMap[thread.friend]).slice(5, 16)}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
+              {thread ? (outRequests.has(thread.friend) ? `Message request · 3-message limit until @${thread.friend} accepts` : isOnline(thread.friend) ? 'Online now' : seenMap[thread.friend] ? `Last seen ${lastSeenText(String(seenMap[thread.friend]))}` : `@${thread.friend}`) : 'Reels, posts, duas & ayahs shared with you'}
             </T>
           </Pressable>
         </View>
@@ -1497,13 +1524,15 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           ) : null}
           {threads.filter((t) => !hiddenConvs.has(t.friend)).map((t) => {
             const a = acc(t.friend);
-            const unread = t.items.filter((x) => x.dir === 'them').length + t.chat.filter((c) => c.dir === 'them').length;
+            /* pass 83-14 — unread = what the SERVER says I haven't seen (was: every message they ever sent) */
+            const unread = unreadMap[t.friend] ?? 0;
             return (
               <Pressable
                 key={t.friend}
                 onPress={() => {
                   haptic.selection();
                   setOpenFriend(t.friend);
+                  setUnreadMap((prev) => (prev[t.friend] ? { ...prev, [t.friend]: 0 } : prev));
                 }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.18)' : 'rgba(29,111,66,0.12)', backgroundColor: isDark ? 'rgba(18,34,25,0.6)' : 'rgba(255,255,255,0.7)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1, shadowColor: '#000', shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 9, shadowOffset: { width: 0, height: 3 } })}
               >
@@ -1696,8 +1725,21 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
           <Pressable style={{ position: 'absolute', inset: 0, zIndex: 40 }} onPress={() => setMenu(false)} />
           <View style={{ position: 'absolute', top: (standalone ? insets.top + 8 : 0) + 52, right: 14, zIndex: 50, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, elevation: 8, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }}>
             {([{ k: 'report', label: reported ? 'Reported ✓' : 'Report', icon: 'flag', color: d.text },
-               { k: 'block', label: blocked ? 'Blocked ✓' : 'Block ' + acc(thread.friend).full_name, icon: 'user-slash', color: '#E05252' }] as const).map((it2) => (
-              <Pressable key={it2.k} onPress={() => { haptic.light(); setMenu(false); if (it2.k === 'report') { setReportOpen(true); } else { setBlockOpen(true); } }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, opacity: pressed ? 0.6 : 1 })}>
+               /* pass 83-14 — unblock right here; settings used to be the only way out */
+               { k: 'block', label: (blocked ? 'Unblock ' : 'Block ') + acc(thread.friend).full_name, icon: blocked ? 'unlock' : 'user-slash', color: blocked ? (isDark ? '#4AE38F' : '#0E7A46') : '#E05252' }] as const).map((it2) => (
+              <Pressable key={it2.k} onPress={() => {
+                haptic.light(); setMenu(false);
+                if (it2.k === 'report') { setReportOpen(true); return; }
+                if (blocked) {
+                  const who = thread.friend;
+                  void blockUser(who, false).then((ok) => {
+                    if (ok) { setBlocked(false); Alert.alert('Unblocked', `You can message @${who} again.`); }
+                    else { Alert.alert('Could not unblock', 'Please try again in a moment.'); }
+                  });
+                  return;
+                }
+                setBlockOpen(true);
+              }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, opacity: pressed ? 0.6 : 1 })}>
                 <FontAwesome5 name={it2.icon as any} size={11} color={it2.color} />
                 <T v="bodyS" numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: it2.color, flexShrink: 1 }}>{it2.label}</T>
               </Pressable>

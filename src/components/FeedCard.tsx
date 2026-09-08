@@ -365,6 +365,7 @@ export function FeedCard({
   group,
   rank,
   onOpenGroup,
+  onDelete,
 }: {
   post: Post;
   onLike?: (id: number) => void;
@@ -372,6 +373,10 @@ export function FeedCard({
   onDismiss?: (id: number) => void;
   onPlayVideo?: (post: Post) => void;
   showActions?: boolean;
+  /** pass 83-14 — present when the viewer may delete THIS post (author, or
+   *  group owner/admin, or site admin). Renders the Delete row in the ••• menu
+   *  and calls onDelete (which hits the server + removes the card). */
+  onDelete?: () => void;
   dash?: DashTheme;
   field?: string;
   /** pass 36 — group posts: emerald chip with the group's name */
@@ -654,6 +659,32 @@ export function FeedCard({
               overflow: 'hidden',
             }}
           >
+            {onDelete ? (
+              <Pressable
+                onPress={() => {
+                  setMenuOpen(false);
+                  Alert.alert('Delete post', 'This will remove the post for everyone. This cannot be undone.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => onDelete() },
+                  ]);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 9,
+                  paddingHorizontal: 12,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: hairline,
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <FontAwesome5 name="trash-alt" size={13} color={danger} />
+                <T v="bodyS" style={{ fontSize: 12, fontWeight: '600', color: danger }}>
+                  Delete
+                </T>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => {
                 setMenuOpen(false);

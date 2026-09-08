@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
 import { addUserPost, listUserPosts } from '@/lib/userPosts';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import * as api from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import { T } from '@/components/T';
 import { storage } from '@/lib/storage';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -17,7 +18,7 @@ import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -101,24 +102,31 @@ function CommunityScreenInner() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [cDraft, setCDraft] = useState('');
   const [pollOn, setPollOn] = useState(false);
+  const { user } = useAuth(); /* pass 83-14 — for delete-own-post */
   const [inboxOpen, setInboxOpen] = useState(false);
-  /* pass 83-12 — returning from a profile opened from the inbox must land
+  /* pass 83-12/14 — returning from a profile opened from the inbox must land
    * BACK IN THE CHAT, not on a bare community feed (owner report). The inbox
-   * stores who was open before navigating; on mount we reopen exactly that. */
+   * stores who was open before navigating; EVERY time this screen regains
+   * focus we reopen exactly that thread (useFocusEffect covers both the
+   * remounted-web and kept-mounted-native cases). */
   const [inboxFriend, setInboxFriend] = useState<string | null>(null);
-  useEffect(() => {
-    storage.getItem('dl_inbox_reopen')
-      .then((f) => {
-        if (f) {
-          setInboxFriend(f);
-          setInboxOpen(true);
-          storage.removeItem('dl_inbox_reopen').catch(() => {});
-        }
-      })
-      .catch(() => {});
-    /* leaving Community for good (logout, reload…) — forget the pending reopen */
-    return () => { storage.removeItem('dl_inbox_reopen').catch(() => {}); };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      /* NO cleanup here — this fires on every focus/blur, and clearing the key
+       * on blur deleted it the moment we pushed the profile (pass 83-14 bug). */
+      storage.getItem('dl_inbox_reopen')
+        .then((f) => {
+          if (f) {
+            setInboxFriend(f);
+            setInboxOpen(true);
+            storage.removeItem('dl_inbox_reopen').catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }, []),
+  );
+  /* leaving Community for good (logout, reload…) — forget the pending reopen */
+  useEffect(() => () => { storage.removeItem('dl_inbox_reopen').catch(() => {}); }, []);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
@@ -812,6 +820,13 @@ function CommunityScreenInner() {
                           like_count: (pp.like_count ?? 0) + (likedPosts.has(pp.id) ? 1 : 0),
                         })
                       }
+                      /* pass 83-14 — authors can delete their own community posts */
+                      onDelete={p.user?.id != null && user?.id != null && p.user.id === user.id ? () => {
+                        void api.deletePost(p.id).then((ok) => {
+                          if (ok) { setPosts((ps) => ps.filter((x) => x.id !== p.id)); }
+                          else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
+                        });
+                      } : undefined}
                     />
                       {/* every 5th card — suggested accounts; every 3rd — suggested
                        * groups (pass 40), like the accounts strip */}
@@ -837,6 +852,7 @@ function CommunityScreenInner() {
       <CommunityInbox
         visible={inboxOpen}
         initialFriend={inboxFriend}
+        onNavigateAway={() => setInboxOpen(false)}
         onClose={() => { setInboxOpen(false); setInboxFriend(null); storage.removeItem('dl_inbox_reopen').catch(() => {}); }}
       />
 

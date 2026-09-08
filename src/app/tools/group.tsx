@@ -10,7 +10,8 @@ import { T } from '@/components/T';
 import { FeedCard } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
-import { groupCreatePost, groupJoin, groupPosts as groupPostsApi } from '@/api/client';
+import { groupCreatePost, groupDeletePost, groupJoin, groupPosts as groupPostsApi } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import { haptic } from '@/lib/haptics';
 import { Image as ExpoImage } from 'expo-image';
 import {
@@ -152,6 +153,7 @@ function GroupScreenInner() {
     });
   };
 
+  const { user } = useAuth(); /* pass 83-14 — real identity for delete rights */
   const myRole = group ? roleOf(group, ME) : 'member';
   const canManage = myRole === 'owner' || myRole === 'admin';
   const isOwner = myRole === 'owner';
@@ -498,6 +500,18 @@ function GroupScreenInner() {
                       rank={roleOf(group, sp.user?.username || '')}
                       onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
                       onComments={(pp) => setCommentPost(pp)}
+                      /* pass 83-14 — authors delete their own posts; the group
+                       * owner/admin can delete any (the server double-checks) */
+                      onDelete={(sp.user?.id != null && user?.id != null && sp.user.id === user.id) || canManage ? () => {
+                        void groupDeletePost(sp.id).then((ok) => {
+                          if (ok) {
+                            setServerPosts((rows) => (rows ?? []).filter((x) => x.id !== sp.id));
+                            setGroup((cur) => (cur ? { ...cur, posts: cur.posts.filter((x) => x.id !== `sp${sp.id}`) } : cur));
+                          } else {
+                            Alert.alert('Could not delete', 'You may not have permission to delete this post.');
+                          }
+                        });
+                      } : undefined}
                     />
                   ))
                 : feedPosts.map((p) => {

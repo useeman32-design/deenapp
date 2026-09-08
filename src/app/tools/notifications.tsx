@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { LayoutAnimation, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ type Notif = {
   id: string;
   kind: 'like' | 'follow' | 'repost' | 'mention' | 'system' | 'chat';
   user?: string;
+  name?: string; /* pass 83-14 — the person's display name next to @username */
   text: string;
   ago: string;
   read?: boolean;
@@ -51,6 +52,7 @@ function mapLive(rows: NotifRow[]): Notif[] {
       id: `L${r.id}`,
       kind,
       user: r.actor?.username || undefined,
+      name: (r.actor as { full_name?: string | null } | undefined)?.full_name || undefined,
       text: (r.body || r.title || '').trim(),
       ago: agoOf(r.created_at),
       read: !!r.is_read,
@@ -109,7 +111,9 @@ function NotificationsInner() {
     (k === 'all' ? source : source.filter((n) => n.kind === k)).filter(isUnread).length;
   const pick = (f: 'all' | Notif['kind']) => {
     haptic.selection();
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    /* pass 83-14 — removed LayoutAnimation.configureNext: it animated EVERY
+     * pending layout change, so chips/rows "expanded by themselves" until the
+     * owner clicked back to All (owner report). */
     setFilter(f);
   };
 
@@ -124,7 +128,7 @@ function NotificationsInner() {
           <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>{live && liveList ? liveList.filter(isUnread).length : SEED.length - read.size} new</T>
         </View>
         <Pressable onPress={() => { haptic.selection(); router.push('/tools/inbox'); }} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesome5 name="inbox" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+          <FontAwesome5 name="comment-dots" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
         </Pressable>
       </View>
 
@@ -180,7 +184,9 @@ function NotificationsInner() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>
-                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{a ? a.full_name : n.user ? `@${n.user}` : 'DeenLink'} </T>
+                  {/* pass 83-14 — owner wants BOTH: the name AND @username, then the message */}
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{n.name || a?.full_name || (n.user ? `@${n.user}` : 'DeenLink')} </T>
+                  {n.user ? <T v="bodyS" style={{ fontSize: 11, fontWeight: '600', color: d.faint }}>@{n.user} </T> : null}
                   {n.text}
                 </T>
                 <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>{n.ago} ago</T>

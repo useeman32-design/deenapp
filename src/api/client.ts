@@ -358,6 +358,11 @@ export async function deletePost(postId: number): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/feed/delete_post.php', { method: 'POST', body: { post_id: postId }, auth: true });
   return r.ok;
 }
+/** pass 83-14 — delete a GROUP post (author or group owner/admin). */
+export async function groupDeletePost(postId: number): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/groups/delete_post.php', { method: 'POST', body: { post_id: postId }, auth: true });
+  return r.ok && r.data.status === 'success';
+}
 export async function reportPost(postId: number, reason: string): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/feed/report_post.php', { method: 'POST', body: { post_id: postId, reason }, auth: true });
   return r.ok;
@@ -409,6 +414,11 @@ export async function groupPosts(id: number): Promise<import('@/api/types').Post
     /* pass 83-10c — audio uploads ride as audio_url; make it absolute too */
     const au = (p as { audio_url?: unknown }).audio_url;
     if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
+    /* pass 83-14 — group polls arrive as {options:[{id,label,votes}]} exactly
+     * like feed polls; without this map the options render blank (owner:
+     * "poll in group is not showing as how the normal post is showing"). */
+    const gp = mapServerPoll((p as { poll?: unknown }).poll);
+    if (gp) (p as { poll?: unknown }).poll = gp;
   }
   return r.data.posts;
 }
@@ -1397,7 +1407,9 @@ export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string
   /* pass 74 — message requests: 'request' until the recipient accepts, 'declined' once blocked/reported */
   conv_status?: 'request' | 'active' | 'declined'; requested_by?: number | null;
   /* pass 74 — peer display name so the inbox never shows a mock label */
-  with_name?: string | null };
+  with_name?: string | null;
+  /* pass 83-14 — UNREAD incoming count (was client-side "all their messages") */
+  unread?: number };
 /* pass 63 contract (client types were never landed with the UI, so replies,
  * quotes and deletes had no types): messages.php returns `deleted` for soft-
  * deleted rows and a resolved `reply_to` quote ({id, kind, body, username});
