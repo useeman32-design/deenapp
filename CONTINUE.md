@@ -3,8 +3,10 @@
 # ══ CURRENT STATE — PASS 83 SHIPPED (2026-09-08, overnight) ══ READ FIRST ══
 # STAGED FOR DEPLOY (owner pulls in cPanel when awake; site docroot was found EMPTY
 # at ~05:50 — host default page — owner must fix docroot/re-deploy FIRST):
-#   deenlink-api main = dc060d2 → PWA bundle entry-2c0b019f (pass-81b base + passes 83-1..5)
-#   deenapp master    = 6e75147 (source). gh-pages NOT updated (still entry-a41a90b9).
+#   deenlink-api main = 4b0356c → PWA bundle entry-a297822c (pass-81b base + passes 83-1..6)
+#   deenapp master    = 5c41170 (source). gh-pages NOT updated (still entry-a41a90b9).
+#   deenapp-backup2: master 8fb2789 (snapshot @69ba838, pre-83-6) + deenlink-api-main dc060d2
+#   — OWNER APPROVES backup updates; ask before refreshing (currently one pass behind).
 # PASSES SHIPPED IN THIS BUNDLE (each replica-verified, zero pageerrors):
 #   83-1 login: live domain NEVER mints demo sessions on network error — "Network error —
 #        check your connection and try again" + 20s timeout (was 9s). Verified by aborting
@@ -24,15 +26,19 @@
 #        touch-device inputs 16px — iOS auto-zooms <16px inputs; user-scalable=no is ignored
 #        by iOS so font-size is the only real fix). Verified: t5 B1/C1 (fresh + pre-mounted
 #        repro), A1-A3 suggestions->thread, Z1 style, t2 picker, t12 battery, 0 pageerrors.
-# STILL DEFERRED (owner's big list, next passes, one at a time):
-#   83-6 guest modal system (all screens viewable; worship tools + Quran/Hadith fully work;
-#        login-required modal for likes/comments/etc; guest Skip lands on Home — NOTE: 81b
-#        base still sends guest Skip to /tools, confirmed on replica)
+#   83-6 GUEST FREE-BROWSE (shipped): gates removed on Home/Community/Videos/Quran; guest
+#        Skip lands on Home; worship tools + Quran/Hadith fully functional; account actions
+#        (like/comment/post/repost/save/follow/+Create group) pop the new LoginModalHost
+#        modal (src/components/LoginModal.tsx — RN Alert.alert is a NO-OP on web, which is
+#        why pass-80 guestBlock alerts never showed in the PWA; guestBlock now routes to the
+#        host via setLoginModalHandler). Profile tab keeps GuestProfilePrompt ("Not signed
+#        in" card -> login). Verified: t6 G1-G9, t6q quran/hadith open, t12 battery (S3 now
+#        guest->Home PASS), t2 picker, 0 pageerrors.
 #   83-7 DeenPoints screen (real rewards verify, reward modal, price packages + real DP
 #        image, history pagination) · 83-8 charity balances real · 83-9 server rate limits
 #        (anti-spam; pass-82 server code exists in history at b778024) · 83-10 group posts
 #        full media + cassette player (SVG/canvas, biggest — last)
-# AFTER OWNER PULLS: verify page source shows entry-2c0b019f, CLEAR SERVICE WORKER
+# AFTER OWNER PULLS: verify page source shows entry-a297822c, CLEAR SERVICE WORKER
 #   (phone: Site settings → app.deenlink.org → Clear & reset; desktop: DevTools →
 #   Application → Service Workers → Unregister + Ctrl+Shift+R), then confirm passes.
 # REMIND OWNER: ask "update deenapp-backup2?" (currently at pre-pass-83 snapshot).
