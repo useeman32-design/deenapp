@@ -706,19 +706,28 @@ export function CommunityInbox({ visible, onClose, standalone = false, initialFr
 
   /* pass 74 — arriving via the profile Message button (?u=) for a peer with
    * no conversation yet: start the DM so the thread actually opens (it used
-   * to sit on the bare list), and refresh so the request state lands. */
+   * to sit on the bare list), and refresh so the request state lands.
+   * pass 83-7 — the thread opens IMMEDIATELY: the old code waited for
+   * start_username.php and silently stayed on the list whenever that call
+   * failed (owner: "Message still opens the inbox, not the DM"). Sending
+   * resolves the conversation lazily via resolveCid, so opening early is
+   * safe; the start call runs (and retries once) in the background. */
   useEffect(() => {
     if (!live || !openFriend) { return; }
     if (threads.some((t) => t.friend === openFriend)) { return; }
     let dead = false;
     const who = openFriend;
+    setThreads((prev) => (prev.some((t) => t.friend === who)
+      ? prev
+      : [{ friend: who, items: [], chat: [], reactions: {} }, ...prev]));
     void (async () => {
-      const cid = await chatStartDMByUsername(who).catch(() => null);
-      if (dead || !cid) { return; }
-      setConvIds((m) => ({ ...m, [who]: cid }));
-      setThreads((prev) => (prev.some((t) => t.friend === who)
-        ? prev
-        : [{ friend: who, items: [], chat: [], reactions: {} }, ...prev]));
+      let cid = await chatStartDMByUsername(who).catch(() => null);
+      if (!cid) {
+        await new Promise((r) => setTimeout(r, 1500));
+        if (!dead) cid = await chatStartDMByUsername(who).catch(() => null);
+      }
+      if (dead) { return; }
+      if (cid) { setConvIds((m) => ({ ...m, [who]: cid as number })); }
       await refreshConvs();
     })();
     return () => { dead = true; };
