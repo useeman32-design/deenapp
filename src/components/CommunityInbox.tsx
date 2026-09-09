@@ -413,10 +413,26 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   const [hiddenConvs, setHiddenConvs] = useState<Set<string>>(new Set());
   /* pass 83-21 — per-peer block flags from conversations.php */
   const [blockFlags, setBlockFlags] = useState<Record<string, { b: boolean; by: boolean }>>({});
+  /* pass 83-23 — when my read receipt for a conversation last succeeded. A
+   * conversations refresh that was already in flight can come back with a
+   * stale unread count; anything read after the fetch started stays 0. */
+  const readOkAt = useRef<Record<number, number>>({});
+  const markRead = useCallback((cid: number) => {
+    chatRead(cid).then(() => { readOkAt.current[cid] = Date.now(); }).catch(() => {});
+  }, []);
+  const [unblockedFlash, setUnblockedFlash] = useState<string | null>(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>(() => (isLive() ? [] : SEED));
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
+  /* pass 83-23 — leaving a thread marks it read one last time, so the list
+   * badge never comes back for messages seen on the way out. */
+  const prevFriendRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevFriendRef.current;
+    prevFriendRef.current = openFriend;
+    if (prev && prev !== openFriend) { const cid = convIds[prev]; if (cid) { markRead(cid); } }
+  }, [openFriend, convIds, markRead]);
   /* pass 83-5 — the Message button on a profile pushes /tools/inbox?u=X; when
    * the inbox was ALREADY mounted the init-only state ignored the new param and
    * the owner landed on the list ("not the direct user's DM"). Keep in sync. */
@@ -765,7 +781,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live]);
 
-  const refreshConvs = () => chatConversations().then((cs) => {
+  const refreshConvs = () => { const startedAt = Date.now(); return chatConversations().then((cs) => {
     if (!cs) { return; }
     const m: Record<string, string> = {};
     const ids: Record<string, number> = {};
@@ -795,7 +811,10 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const un: Record<string, number> = {};
     cs.forEach((c) => {
       const u2 = c.with_username || c.peer?.username;
-      if (u2) un[u2] = Math.max(0, Number(c.unread ?? 0));
+      if (!u2) { return; }
+      un[u2] = Math.max(0, Number(c.unread ?? 0));
+      /* pass 83-23 — a read receipt that landed after this fetch started wins */
+      if (ids[u2] && (readOkAt.current[ids[u2]] ?? 0) >= startedAt) { un[u2] = 0; }
     });
     setUnreadMap(un);
     setSeenMap(m);
@@ -817,7 +836,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         return next.length !== prev.length || next.some((t, i) => t !== [...add, ...prev][i]) ? next : prev;
       });
     }
-  }).catch(() => {});
+  }).catch(() => {}); };
   useEffect(() => {
     chatPresence().catch(() => {});
     void refreshConvs();
@@ -937,8 +956,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         }
       }, 60);
     }).catch(() => {});
-    chatRead(cid).catch(() => {});
-  }, [live, openFriend, convIds, user?.id]);
+    markRead(cid);
+  }, [live, openFriend, convIds, user?.id, markRead]);
 
   /* pass 68 — REALTIME. While a live thread is open, poll it every 3s:
    * new messages/shares append (deduped by server id), the peer's typing flag
@@ -1003,9 +1022,9 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
               return { ...t, chat, items, reactions, others };
             }));
             if (incoming && atBottomRef.current) { smoothRef.current?.(); }
-            if (incoming && Date.now() - lastAutoRead.current > 10000) {
+            if (incoming && Date.now() - lastAutoRead.current > 2000) { /* pass 83-23 — 10s left fast messages unread server-side */
               lastAutoRead.current = Date.now();
-              chatRead(cid).catch(() => {});
+              markRead(cid);
             }
           }
           setPeerTyping((prevDots) => (prevDots === !!data.peer_typing ? prevDots : !!data.peer_typing));
@@ -1019,9 +1038,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
 
   const isOnline = useCallback((u: string | null | undefined) => {
     if (!u) { return false; }
+    /* pass 83-23 — the blocked viewer never sees the blocker's presence */
+    if (blockFlags[u]?.by) { return false; }
     const t = seenMap[u];
     return !!t && (Date.now() - new Date(t.replace(' ', 'T')).getTime()) < 5 * 60 * 1000;
-  }, [seenMap]);
+  }, [seenMap, blockFlags]);
 
   /* pass 66 — JS-driven smooth scroll on web. Browser `behavior:'smooth'` is
    * not dependable (headless shells ignore it entirely) and RN-web's animated
@@ -1166,11 +1187,18 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           }
           return;
         }
+        /* pass 83-23 — on a slow network the 3s poll can deliver my own
+         * message back BEFORE this confirm lands; that copy is dropped here
+         * (it used to sit next to the confirmed bubble = "bubbles twice"),
+         * and the cursor advances so the next poll skips the row. */
+        lastMsgId.current = Math.max(lastMsgId.current, sent.id);
         setThreads((prev) => prev.map((t) => (t.friend === who
-          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, rk: c.rk ?? c.id, at: sent.created_at || c.at } : c)) }
+          ? { ...t, chat: t.chat.filter((c) => c.id !== `s${sent.id}`).map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, rk: c.rk ?? c.id, at: sent.created_at || c.at } : c)) }
           : t)));
         freshIds.current.delete(id);
-        freshIds.current.add(`s${sent.id}`);
+        /* pass 83-23 — do NOT re-register the confirmed id as fresh: the row is
+         * already on screen and the BubbleIn spring re-ran on the id swap, which
+         * is the double-bubble the owner reported. */
       })();
     }
   };
@@ -1200,11 +1228,12 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         if (!cid) { markShareFailed(who, id, lastCidError.current); return; }
         const made = await chatSendShare(cid, kind, title, payload).catch(() => null);
         if (!made) { markShareFailed(who, id); return; }
+        lastShareId.current = Math.max(lastShareId.current, made.id); /* pass 83-23 */
         setThreads((prev) => prev.map((t) => (t.friend === who
-          ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, id: `h${made.id}`, rk: x.rk ?? x.id, at: made.created_at || x.at } : x)) }
+          ? { ...t, items: t.items.filter((x) => x.id !== `h${made.id}`).map((x) => (x.id === id ? { ...x, id: `h${made.id}`, rk: x.rk ?? x.id, at: made.created_at || x.at } : x)) }
           : t)));
         freshIds.current.delete(id);
-        freshIds.current.add(`h${made.id}`);
+        /* pass 83-23 — same as sendChat: no re-animation on confirm */
       })();
     }
   };
@@ -1478,7 +1507,10 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
             <Pressable onPress={() => { /* pass 83-21 — the blocked viewer cannot open the blocker's profile */ if (blockFlags[thread.friend]?.by) { return; } /* pass 83-14 — remember the chat, then HIDE the inbox so the profile doesn't render under it; the community screen reopens this exact thread on focus */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
               <AvatarImage source={acc(thread.friend).photo ?? null} name={dispName(thread.friend)} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
             </Pressable>
-            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
+            {/* pass 83-23 — no presence dot at all for the blocked viewer */}
+            {blockFlags[thread.friend]?.by ? null : (
+              <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
+            )}
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -1716,6 +1748,18 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           {histLoading && flow.length === 0 ? <BreathingMessages dark={isDark} /> : null}
           {flow.map((row) => (row.kind === 'share' ? renderShare(thread, row.it) : renderMsg(thread, row.m)))}
 
+          {/* pass 83-23 — WhatsApp-style system rows for block / unblock */}
+          {thread.blocked ? (
+            <View style={{ alignSelf: 'center', marginVertical: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(224,82,82,0.12)' : 'rgba(224,82,82,0.08)', borderWidth: 1, borderColor: 'rgba(224,82,82,0.35)', paddingHorizontal: 13, paddingVertical: 6 }}>
+              <T v="caption" style={{ color: '#E05252', fontSize: 10.5, fontWeight: '700', textAlign: 'center' }}>You blocked this chat</T>
+            </View>
+          ) : null}
+          {unblockedFlash === thread.friend ? (
+            <View style={{ alignSelf: 'center', marginVertical: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', paddingHorizontal: 13, paddingVertical: 6 }}>
+              <T v="caption" style={{ color: isDark ? '#4AE38F' : '#0E7A46', fontSize: 10.5, fontWeight: '700', textAlign: 'center' }}>You unblocked this chat</T>
+            </View>
+          ) : null}
+
           {/* pass 68 — the peer is typing right now (server flag, ≤3s stale) */}
           {peerTyping ? (
             <View style={{ flexDirection: 'row', justifyContent: 'flex-start' }}>
@@ -1825,6 +1869,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                       setBlocked(false);
                       setBlockFlags((prev) => ({ ...prev, [who]: { b: false, by: prev[who]?.by ?? false } }));
                       setThreads((prev) => prev.map((t) => (t.friend === who ? { ...t, blocked: false } : t)));
+                      setUnblockedFlash(who); /* pass 83-23 */
                       Alert.alert('Unblocked', `You can message @${who} again.`);
                     }
                     else { Alert.alert('Could not unblock', 'Please try again in a moment.'); }
