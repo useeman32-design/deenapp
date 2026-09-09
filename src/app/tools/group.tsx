@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,39 @@ import { T } from '@/components/T';
 import { FeedCard } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
+
+/* pass 83-17 — skeleton breathing loader (owner: "when opening group the
+ * loader should be skeleton breathing loader"). Contents breathe — never a
+ * breathing icon (correction 64 pattern). */
+function BreathingPosts({ dash }: { dash: { card: string; cardBorder: string } }) {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 850, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0.45, duration: 850, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <View style={{ gap: 12 }}>
+      {[0, 1, 2].map((i) => (
+        <Animated.View key={i} style={{ backgroundColor: dash.card, borderRadius: 18, borderWidth: 1, borderColor: dash.cardBorder, padding: 14, gap: 9, opacity: pulse }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: dash.cardBorder }} />
+            <View style={{ flex: 1, gap: 5 }}>
+              <View style={{ width: 110, height: 9, borderRadius: 5, backgroundColor: dash.cardBorder }} />
+              <View style={{ width: 70, height: 7, borderRadius: 4, backgroundColor: dash.cardBorder }} />
+            </View>
+          </View>
+          <View style={{ width: '92%', height: 9, borderRadius: 5, backgroundColor: dash.cardBorder }} />
+          <View style={{ width: '78%', height: 9, borderRadius: 5, backgroundColor: dash.cardBorder }} />
+          {i === 0 ? <View style={{ width: '100%', height: 120, borderRadius: 12, backgroundColor: dash.cardBorder }} /> : null}
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
 import { groupCreatePost, groupDeletePost, groupJoin, groupPosts as groupPostsApi } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { haptic } from '@/lib/haptics';
@@ -69,6 +102,9 @@ function GroupScreenInner() {
   /* pass 83-10 — photo posts in groups (same picker pattern as the community
    * composer: web file input, native expo-image-picker via lazy import) */
   const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+  /* pass 83-17 */
+  const [loadDone, setLoadDone] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   /* pass 83-10b — poll builder (2–6 options) */
   const [pollOn, setPollOn] = useState(false);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
@@ -126,8 +162,12 @@ function GroupScreenInner() {
 
   useEffect(() => {
     loadGroups().then((all) => {
-      const g = all.find((x) => x.id === id) ?? all[0] ?? null;
+      /* pass 83-17 — removed the `?? all[0]` fallback: a stale/wrong id used
+       * to silently open whatever group was first in the list. */
+      const g = all.find((x) => x.id === id) ?? null;
       setGroup(g);
+      setLoadDone(true);
+      if (!g) return;
       /* pass 66-night — live group: pull the real posts behind the srv id */
       const sid = srvGroupId(g);
       if (sid != null) {
@@ -181,9 +221,10 @@ function GroupScreenInner() {
     const text = composer.trim();
     const img = imageAttach;
     upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(img ? { image_url: img.uri } : {}) }, ...x.posts] }));
+    const optId = -Date.now();
     if (serverPosts) {
       const optimistic = {
-        id: -Date.now(), content_text: text, created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        id: optId, content_text: text, created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
         like_count: 0, comment_count: 0, liked_by_me: false,
         user: { username: 'you', full_name: 'You', profile_image_url: null },
         ...(img ? { media: [{ type: 'image', url: img.uri, thumb_url: img.uri }] } : {}),
@@ -200,13 +241,27 @@ function GroupScreenInner() {
     /* pass 66-night — group posts hit the server on live; pass 83-10 — photos ride multipart;
        83-10b/c — poll options + audio file ride along */
     const sid = srvGroupId(group);
-    if (sid != null) void groupCreatePost(
-      sid,
-      text,
-      img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined,
-      pollOk ? poll : undefined,
-      audioAttach ?? undefined,
-    );
+    if (sid != null) {
+      setPostError(null);
+      void groupCreatePost(
+        sid,
+        text,
+        img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined,
+        pollOk ? poll : undefined,
+        audioAttach ?? undefined,
+      ).then((res) => {
+        if (res) {
+          /* pass 83-17 — refetch so the real server row (with its real id)
+           * replaces the optimistic one. */
+          void groupPostsApi(sid).then((rows) => { if (rows) setServerPosts(rows); });
+        } else {
+          /* the old code ignored failure — the optimistic post just vanished
+           * on the next load ("when i post something its just vanished"). */
+          setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));
+          setPostError('Post failed — please try again.');
+        }
+      });
+    }
   };
 
   /* ── pass 38 management actions ── */
@@ -245,9 +300,19 @@ function GroupScreenInner() {
 
   if (!group) {
     return (
-      <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-        <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} />
-        <T v="caption" style={{ fontSize: 11, color: d.faint }}>Opening group…</T>
+      <View style={{ flex: 1, backgroundColor: d.bg, paddingTop: insets.top + 14, paddingHorizontal: 16 }}>
+        {loadDone ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <FontAwesome5 name="users-slash" size={26} color={d.faint} />
+            <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.subtext }}>Group not found</T>
+            <Pressable onPress={() => goBack(router)} hitSlop={10} style={{ borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 18, paddingVertical: 9, marginTop: 4 }}>
+              <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: d.text }}>Go back</T>
+            </Pressable>
+          </View>
+        ) : (
+          /* pass 83-17 — skeleton breathing loader while the group opens */
+          <BreathingPosts dash={d} />
+        )}
       </View>
     );
   }
@@ -455,6 +520,9 @@ function GroupScreenInner() {
                     </Pressable>
                   </View>
                 ) : null}
+                {postError ? (
+                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginTop: 4 }}>{postError}</T>
+                ) : null}
                 {Platform.OS === 'web' ? (
                   <input
                     ref={imageFileRef as never}
@@ -482,13 +550,15 @@ function GroupScreenInner() {
               </View>
             ) : null}
 
-            {(serverPosts ? serverPosts.length === 0 : feedPosts.length === 0) ? (
+            {(serverPosts === null ? false : serverPosts ? serverPosts.length === 0 : feedPosts.length === 0) ? (
               <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 26, alignItems: 'center', gap: 8 }}>
                 <FontAwesome5 name="comments" size={20} color={d.faint} />
                 <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center' }}>
                   No posts yet{isMember ? ' — be the first to post!' : ' — join the group to start the conversation.'}
                 </T>
               </View>
+            ) : serverPosts === null ? (
+              <BreathingPosts dash={d} />
             ) : (
               serverPosts
                 ? serverPosts.map((sp) => (

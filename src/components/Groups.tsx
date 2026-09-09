@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -78,7 +78,11 @@ export async function loadGroups(): Promise<Group[]> {
   try {
     const r = await storage.getItem(GROUP_KEY);
     const saved = JSON.parse(r ?? 'null') as Group[] | null;
-    const local = saved && saved.length ? saved : SEED;
+    /* pass 83-17 — never seed the demo groups into a live session: their ids
+     * (g1, g2…) never match server groups, and tapping one used to open
+     * whatever group happened to be first (owner: "clicked the group its
+     * opening a different group"). */
+    const local = saved && saved.length ? saved : (isLive() ? [] : SEED);
     /* pass 66-night — live groups: the server list leads; locally-created
      * (not yet synced) groups ride along so nothing the user made vanishes. */
     if (isLive()) {
@@ -220,6 +224,10 @@ export function GroupFeedInline({ onComments, index = 0 }: { onComments?: (p: Po
   const d = theme.dash;
   const router = useRouter();
   const [liked, setLiked] = useState(false);
+  /* pass 83-17 — demo-only widget: live sessions were served a fake
+   * "Abuja Jumu'ah Circle" card in the real feed (owner saw demo groups in
+   * the community). Real group posts ride the server feed. */
+  if (isLive()) return null;
   const sp = SAMPLE_FEED[index % SAMPLE_FEED.length];
   const g = SEED.find((x) => x.id === sp.gid) ?? SEED[0];
   const member = GROUP_MEMBERS[g.id]?.find((m) => m.name === sp.author) ?? { name: sp.author, user: 'member', role: 'member' as const };
@@ -374,6 +382,9 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
   const [avatarPhoto, setAvatarPhoto] = useState<string | null>(null);
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [openJoin, setOpenJoin] = useState(true);
+  /* pass 83-17 — the owner's 20 duplicate groups: the button stayed enabled
+   * while the request flew, so every anxious tap created another group. */
+  const [creating, setCreating] = useState(false);
   const valid = name.trim().length >= 3;
   const cg = COVER_STYLES.find((c) => c.id === cover) ?? COVER_STYLES[0];
 
@@ -535,23 +546,29 @@ export function CreateGroupModal({ visible, onClose, onCreate }: { visible: bool
             </View>
 
             <Pressable
-              disabled={!valid}
+              disabled={!valid || creating}
               onPress={() => {
-                if (!valid) return;
+                if (!valid || creating) return;
+                setCreating(true);
                 haptic.success();
                 const g: Group = { id: `g${Date.now()}`, name: name.trim(), desc: desc.trim() || 'A DeenLink community group.', cat, open: openJoin, members: [ME], memberCount: 1, mine: true, joined: 'member', posts: [], bio: bio.trim(), cover: coverPhoto ?? cover, avatar: avatarPhoto ?? avatar, roles: { [ME]: 'owner' }, following: [] };
-                onCreate(g);
-                /* pass 66-night — live creates land in community_groups; the
-                 * local id is swapped for srv<N> so join/post hit the server. */
+                /* pass 83-17 — onCreate fires exactly ONCE, after the server
+                 * confirms; on failure the modal stays open with an alert so
+                 * the user knows it didn't create. */
                 if (isLive() && !isGroupImg(coverPhoto ?? null) && !isGroupImg(avatarPhoto ?? null)) {
                   void groupCreate({ name: g.name, bio: g.bio || g.desc, category: g.cat, emoji: g.avatar, open_join: g.open }).then((res) => {
+                    setCreating(false);
                     if (res) onCreate({ ...g, id: `srv${res.id}` });
+                    else Alert.alert('Could not create the group', 'Please check your connection and try again.');
                   });
+                } else {
+                  onCreate(g);
+                  setCreating(false);
                 }
               }}
               style={{ borderRadius: 14, backgroundColor: valid ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', paddingVertical: 14 }}
             >
-              <T v="button" style={{ fontWeight: '800', fontSize: 13, color: valid ? '#fff' : d.faint }}>Create group</T>
+              <T v="button" style={{ fontWeight: '800', fontSize: 13, color: valid ? '#fff' : d.faint }}>{creating ? 'Creating…' : 'Create group'}</T>
             </Pressable>
           </ScrollView>
         </View>

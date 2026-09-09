@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
@@ -670,13 +671,10 @@ export function FeedCard({
             {onDelete ? (
               <Pressable
                 onPress={() => {
-                  if (confirmDel) {
-                    setMenuOpen(false);
-                    setConfirmDel(false);
-                    onDelete();
-                  } else {
-                    setConfirmDel(true);
-                  }
+                  /* pass 83-17 — owner: a proper "Are you sure?" modal, not a
+                   * tap-again row. */
+                  setMenuOpen(false);
+                  setConfirmDel(true);
                 }}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
@@ -686,13 +684,12 @@ export function FeedCard({
                   paddingVertical: 11,
                   borderBottomWidth: 1,
                   borderBottomColor: hairline,
-                  backgroundColor: confirmDel ? 'rgba(231,76,60,0.10)' : 'transparent',
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <FontAwesome5 name={confirmDel ? 'exclamation-triangle' : 'trash-alt'} size={13} color={danger} />
+                <FontAwesome5 name="trash-alt" size={13} color={danger} />
                 <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: danger }}>
-                  {confirmDel ? 'Tap again to delete' : 'Delete'}
+                  Delete
                 </T>
               </Pressable>
             ) : null}
@@ -742,6 +739,19 @@ export function FeedCard({
           </View>
         </Pressable>
       ) : null}
+
+      {/* pass 83-17 — the real "Are you sure?" confirmation modal */}
+      <ConfirmDialog
+        visible={confirmDel}
+        title="Delete post?"
+        message="Are you sure you want to delete this post? This will remove it for everyone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        tone="danger"
+        icon="trash-alt"
+        onCancel={() => setConfirmDel(false)}
+        onConfirm={() => { setConfirmDel(false); onDelete?.(); }}
+      />
 
       {/* Body text — double-tap to like, Show more/less when long */}
       {fullText ? (

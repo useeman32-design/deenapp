@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
-import { GroupFeedInline, GroupsRail } from '@/components/Groups';
+import { GroupFeedInline, GroupsRail, loadGroups } from '@/components/Groups';
 import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import * as api from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -1305,7 +1305,21 @@ function GroupsSuggestStrip({ dash }: { dash: any }) {
   const { isDark } = useTheme();
   const router = useRouter();
   const [joined, setJoined] = useState<string[]>([]);
-  const picks = useMemo(() => GROUP_SEEDS.slice().sort(() => Math.random() - 0.5).slice(0, 3), []);
+  /* pass 83-17 — live: suggest REAL server groups. The demo seeds have ids
+   * that don't exist on the server; tapping one used to open a random group. */
+  const [picks, setPicks] = useState<Array<{ id: string; name: string; avatar: string; members: number | string; cat: string }>>(
+    api.isLive() ? [] : GROUP_SEEDS.slice().sort(() => Math.random() - 0.5).slice(0, 3),
+  );
+  useEffect(() => {
+    if (!api.isLive()) return;
+    void loadGroups().then((list) => {
+      const real = list
+        .filter((g) => String(g.id).startsWith('srv') && g.joined !== 'member')
+        .slice(0, 3)
+        .map((g) => ({ id: String(g.id), name: g.name, avatar: g.avatar ?? '🕌', members: (g.memberCount ?? 0) as number | string, cat: g.cat as string }));
+      setPicks(real);
+    });
+  }, []);
   return (
     <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
