@@ -303,10 +303,10 @@ function mapServerPoll(p: unknown): import('@/api/types').PostPoll | null {
 export async function feed(tab: FeedTab = 'for-you', cursor = 0): Promise<FeedResponse> {
   const r = await request<FeedResponse>(`/api/feed/get_posts.php?tab=${tab}&limit=20&cursor=${cursor}`);
   if (r.ok && Array.isArray(r.data.posts)) {
-    for (const p of r.data.posts) {
-      const sp = mapServerPoll(p.poll);
-      if (sp) p.poll = sp;
-    }
+    /* pass 83-19 — feed posts get the full shape normalization now (polls +
+     * media urls + video lift); before this only group/profile lists had it,
+     * so feed image posts rendered nothing (media rows lack .url). */
+    normalizePostShapes(r.data.posts);
     return r.data;
   }
   return {
@@ -412,6 +412,21 @@ function normalizePostShapes(posts: Post[]): void {
     }
     const au = (p as { audio_url?: unknown }).audio_url;
     if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
+    /* pass 83-19 — video media rows ride as {type:'video', video_url}; lift it
+     * onto the post so FeedCard's existing video player renders it. */
+    if (!p.video_url && Array.isArray(p.media)) {
+      const vm = p.media.find((m) => (m as { video_url?: unknown }).video_url != null) as { video_url?: unknown } | undefined;
+      if (vm && typeof vm.video_url === 'string' && vm.video_url) p.video_url = absMedia(vm.video_url);
+    }
+    if (Array.isArray(p.media)) {
+      p.media = p.media.map((m) => {
+        const mm = m as { video_url?: unknown; url?: unknown };
+        if (mm.video_url != null && mm.url == null) {
+          return { ...m, type: 'video', url: absMedia(String(mm.video_url)) };
+        }
+        return m;
+      });
+    }
   }
 }
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
@@ -850,6 +865,7 @@ export async function createPost(
   youtubeUrl?: string,
   pollOptions?: string[],
   images?: Array<{ uri: string; name?: string; type?: string }>,
+  video?: { uri: string; name?: string; type?: string },
 ): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);

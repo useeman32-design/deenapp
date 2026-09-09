@@ -354,6 +354,7 @@ function ProfileInner() {
               <FeedCard
                 key={p.id}
                 post={p}
+                lockProfileNav
                 onLike={like}
                 onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
               />
@@ -372,6 +373,7 @@ function ProfileInner() {
                 <FeedCard
                   key={p.id}
                   post={p}
+                  lockProfileNav
                   onLike={like}
                   onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
                 />

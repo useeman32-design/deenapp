@@ -599,6 +599,7 @@ function PublicProfileScreenInner() {
                 <FeedCard
                   key={p.id}
                   dash={d}
+                  lockProfileNav
                   post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                   onLike={(id) =>
                     setLikedPosts((prev) => {
@@ -715,6 +716,7 @@ function PublicProfileScreenInner() {
                 <FeedCard
                   key={p.id}
                   dash={d}
+                  lockProfileNav
                   post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                   onLike={(id) =>
                     setLikedPosts((prev) => {

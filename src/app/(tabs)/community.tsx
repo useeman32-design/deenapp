@@ -132,7 +132,8 @@ function CommunityScreenInner() {
   const [ytOn, setYtOn] = useState(false);
   const [ytUrl, setYtUrl] = useState('');
   const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
-  const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+  /* pass 83-19 — up to 5 photos per post, Instagram-style */
+  const [imageAttachs, setImageAttachs] = useState<Array<{ uri: string; name: string }>>([]);
   const imageFileRef = useRef<TextInput | null>(null);
 
   /** Pick an image for the post (native picker / web file input). */
@@ -149,9 +150,9 @@ function CommunityScreenInner() {
         Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: false });
-      if (!res.canceled && res.assets?.[0]?.uri) {
-        setImageAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'Selected photo' });
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: true, selectionLimit: 5 });
+      if (!res.canceled && res.assets?.length) {
+        setImageAttachs((prev) => [...prev, ...res.assets.slice(0, 5).filter((a) => a.uri).map((a) => ({ uri: a.uri, name: a.fileName ?? 'Selected photo' }))].slice(0, 5));
       }
     } catch {
       Alert.alert('Could not open the picker', 'Please try again.');
@@ -281,8 +282,9 @@ function CommunityScreenInner() {
       if (pollOn && opts.length >= 2) {
         np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
       }
-      if (imageAttach) {
-        np.image_url = imageAttach.uri;
+      if (imageAttachs.length) {
+        np.image_url = imageAttachs[0].uri;
+        (np as { media?: unknown }).media = imageAttachs.map((a) => ({ type: 'image', url: a.uri, thumb_url: a.uri }));
       }
       if (videoAttach) {
         np.video_url = videoAttach.uri;
@@ -306,7 +308,8 @@ function CommunityScreenInner() {
             t,
             ytOn && ytUrl.trim() ? ytUrl.trim() : undefined,
             pollOn && opts.length >= 2 ? opts : undefined,
-            imageAttach ? [{ uri: imageAttach.uri, name: imageAttach.name, type: 'image/jpeg' }] : undefined,
+            imageAttachs.length ? imageAttachs.map((a) => ({ uri: a.uri, name: a.name, type: 'image/jpeg' })) : undefined,
+            videoAttach ? { uri: videoAttach.uri, name: videoAttach.name, type: 'video/mp4' } : undefined,
           )
           .then((res) => {
             if (res.ok && res.id) {
@@ -322,7 +325,7 @@ function CommunityScreenInner() {
       setYtOn(false);
       setYtUrl('');
       setVideoAttach(null);
-      setImageAttach(null);
+      setImageAttachs([]);
       haptic.success();
     }, 1600);
   };
@@ -977,15 +980,15 @@ function CommunityScreenInner() {
                     gap: 7,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: imageAttach ? d.emerald : d.cardBorder,
-                    backgroundColor: imageAttach ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                    borderColor: imageAttachs.length ? d.emerald : d.cardBorder,
+                    backgroundColor: imageAttachs.length ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
                     paddingVertical: 10,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <FontAwesome5 name="image" size={12} color={imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
-                  <T v="bodyS" style={{ color: imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
-                    {imageAttach ? 'Photo added' : 'Photo'}
+                  <FontAwesome5 name="image" size={12} color={imageAttachs.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
+                  <T v="bodyS" style={{ color: imageAttachs.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                    {imageAttachs.length ? `${imageAttachs.length} photo${imageAttachs.length > 1 ? 's' : ''}` : 'Photo'}
                   </T>
                 </Pressable>
                 <Pressable
@@ -1063,10 +1066,11 @@ function CommunityScreenInner() {
                   ref={imageFileRef as never}
                   type="file"
                   accept="image/*"
+                  multiple
                   style={{ display: 'none' }}
                   onChange={(e: unknown) => {
-                    const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
-                    if (file) setImageAttach({ uri: URL.createObjectURL(file), name: file.name });
+                    const files = [...((e as React.ChangeEvent<HTMLInputElement>).target.files ?? [])].slice(0, 5);
+                    if (files.length) setImageAttachs((prev) => [...prev, ...files.map((f) => ({ uri: URL.createObjectURL(f), name: f.name }))].slice(0, 5));
                   }}
                 />
                 <input
@@ -1082,13 +1086,13 @@ function CommunityScreenInner() {
                 </>
               ) : null}
 
-              {imageAttach ? (
+              {imageAttachs.length ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
                   <FontAwesome5 name="image" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
                   <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
-                    {imageAttach.name}
+                    {imageAttachs.length === 1 ? imageAttachs[0].name : `${imageAttachs.length} photos attached`}
                   </T>
-                  <Pressable onPress={() => setImageAttach(null)} hitSlop={8}>
+                  <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
                     <FontAwesome5 name="times-circle" size={14} color={d.faint} />
                   </Pressable>
                 </View>

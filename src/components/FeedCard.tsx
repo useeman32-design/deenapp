@@ -367,6 +367,7 @@ export function FeedCard({
   rank,
   onOpenGroup,
   onDelete,
+  lockProfileNav,
 }: {
   post: Post;
   onLike?: (id: number) => void;
@@ -378,6 +379,10 @@ export function FeedCard({
    *  group owner/admin, or site admin). Renders the Delete row in the ••• menu
    *  and calls onDelete (which hits the server + removes the card). */
   onDelete?: () => void;
+  /** pass 83-19 — on a profile page the author's name/avatar must not
+   *  navigate back to the same profile (owner: "when user clicked his
+   *  profile on his posts it should not navigate to his profile"). */
+  lockProfileNav?: boolean;
   dash?: DashTheme;
   field?: string;
   /** pass 36 — group posts: emerald chip with the group's name */
@@ -404,6 +409,9 @@ export function FeedCard({
   const img = (user as { profile_image_url?: string | number | null }).profile_image_url ?? null;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /* pass 83-19 — Instagram-style multi-photo carousel state */
+  const [carouselPage, setCarouselPage] = useState(0);
+  const [carouselW, setCarouselW] = useState(0);
   /* pass 83-16 — inline two-step delete confirm. RN's Alert.alert with
    * buttons is a NO-OP on web, so the old confirm dialog never appeared on
    * app.deenlink.org and Delete silently did nothing. */
@@ -480,6 +488,10 @@ export function FeedCard({
   const fieldLabel = field || (user as { fields?: string | null }).fields || user.scholar?.fields_of_knowledge || null;
   const media = post.media?.[0];
   const mediaUrl = media?.url as string | number | null | undefined;
+  /* pass 83-19 — image-only urls from media[] for the swipe carousel */
+  const mediaImgs = (post.media ?? [])
+    .map((m) => { const mm = m as { url?: unknown; video_url?: unknown }; return mm.video_url == null && mm.url != null ? String(mm.url) : null; })
+    .filter((u): u is string => u != null);
 
   const fullText = post.content_text ?? '';
   const longText = fullText.length > 230;
@@ -555,6 +567,7 @@ export function FeedCard({
         <Pressable
           hitSlop={8}
           onPress={() => {
+            if (lockProfileNav) return;
             haptic.selection();
             router.push(`/profile/${user.username}`);
           }}
@@ -563,7 +576,7 @@ export function FeedCard({
           <AvatarImage source={img} name={name} size={42} tint={`${accent}26`} border={dash ? dash.greenBorder : hairline} gender={(user as { gender?: string }).gender ?? null} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-          <Pressable hitSlop={4} onPress={() => router.push(`/profile/${user.username}`)}>
+          <Pressable hitSlop={4} onPress={() => { if (!lockProfileNav) router.push(`/profile/${user.username}`); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <T v="body" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '700', fontSize: 13.5, color: txt, flexShrink: 1 }}>
                 {name}
@@ -929,7 +942,7 @@ export function FeedCard({
       ) : null}
 
       {/* Media image — single tap: preview · double tap: like */}
-      {mediaUrl != null ? (
+      {mediaUrl != null && mediaImgs.length <= 1 ? (
         <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image
@@ -939,6 +952,32 @@ export function FeedCard({
             />
           </View>
         </Pressable>
+      ) : null}
+
+      {/* pass 83-19 — 2+ photos: swipeable carousel with page dots */}
+      {mediaImgs.length > 1 ? (
+        <View style={{ marginBottom: 12 }} onLayout={(e) => setCarouselW(e.nativeEvent.layout.width)}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            snapToInterval={carouselW > 0 ? carouselW : undefined}
+            decelerationRate="fast"
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={(e) => setCarouselPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, carouselW)))}
+          >
+            {mediaImgs.map((u, i) => (
+              <Pressable key={i} onPress={() => onTap(() => setImgPreview(true))} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>
+                <Image source={{ uri: u }} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60, height: 260, borderRadius: 14 }} resizeMode="cover" />
+              </Pressable>
+            ))}
+          </ScrollView>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 7 }}>
+            {mediaImgs.map((_, i) => (
+              <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === carouselPage ? (dash ? gold : accent) : hairline }} />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       {/* pass 83-10c — audio uploads play on a spinning SVG cassette */}
