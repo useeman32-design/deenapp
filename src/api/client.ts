@@ -1432,7 +1432,11 @@ export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string
   /* pass 74 — peer display name so the inbox never shows a mock label */
   with_name?: string | null;
   /* pass 83-14 — UNREAD incoming count (was client-side "all their messages") */
-  unread?: number };
+  unread?: number;
+  /* pass 83-21 — `blocked` = I blocked them (row keeps a Blocked badge);
+   * `blocked_by` = they blocked me (their name is masked, my sends are held). */
+  blocked?: boolean;
+  blocked_by?: boolean };
 /* pass 63 contract (client types were never landed with the UI, so replies,
  * quotes and deletes had no types): messages.php returns `deleted` for soft-
  * deleted rows and a resolved `reply_to` quote ({id, kind, body, username});

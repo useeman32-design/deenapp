@@ -23,6 +23,8 @@ const EMOJIS = ['🤍', '😂', '😮', '🤲', '🔥', '🕌'] as const;
 type Kind = 'post' | 'reel' | 'ayah' | 'hadith' | 'dua' | 'profile';
 type ShareItem = {
   id: string;
+  /* pass 83-21 — stable render key (see ChatMsg.rk) */
+  rk?: string;
   kind: Kind;
   title: string;
   ago: string;
@@ -43,10 +45,14 @@ type ShareItem = {
 };
 /* pass 63 — the quoted row when you reply to something */
 type Quote = { who: string; text: string };
-type ChatMsg = { id: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null; createdAt?: string; readAt?: string | null };
+/* pass 83-21 — `rk` is the render key. Optimistic rows are keyed by a temp id
+ * that is swapped for the server id once the send confirms; keying the row by
+ * that swapping id unmounted and remounted the bubble, which the owner saw as
+ * the sent bubble "blinking". rk never changes, so the row stays mounted. */
+type ChatMsg = { id: string; rk?: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null; createdAt?: string; readAt?: string | null };
 /* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
  * somebody else left, so I can see their reaction and still add my own. */
-type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string> };
+type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string>; blocked?: boolean; blocked_by?: boolean };
 
 const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
   post: { icon: 'file-alt', label: 'Post', tint: '#5BC8F5' },
@@ -405,6 +411,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   const [peerMap, setPeerMap] = useState<Record<string, { id?: number; name?: string; photo?: string | null }>>({});
   const [outRequests, setOutRequests] = useState<Set<string>>(new Set());
   const [hiddenConvs, setHiddenConvs] = useState<Set<string>>(new Set());
+  /* pass 83-21 — per-peer block flags from conversations.php */
+  const [blockFlags, setBlockFlags] = useState<Record<string, { b: boolean; by: boolean }>>({});
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>(() => (isLive() ? [] : SEED));
@@ -413,6 +421,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
    * the inbox was ALREADY mounted the init-only state ignored the new param and
    * the owner landed on the list ("not the direct user's DM"). Keep in sync. */
   useEffect(() => { if (initialFriend) setOpenFriend(initialFriend); }, [initialFriend]);
+
+  /* pass 83-21 — the ••• menu's Block/Unblock label has to match the peer you
+   * just opened. `blocked` is one shared flag, so opening a different thread
+   * used to inherit the previous person's state. */
+  useEffect(() => { setBlocked(openFriend ? !!blockFlags[openFriend]?.b : false); }, [openFriend, blockFlags]);
   /* pass 83-5 — mutual-follow suggestions under the empty state */
   const [sugg, setSugg] = useState<{ username: string; name: string; photo?: string | null }[]>([]);
   /* pass 83-11 — inbox search (any user) + floating + (pick a mutual follow) */
@@ -548,6 +561,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
    * MOCK_ACCOUNTS[0] fallback labelled every live DM with a mock person. */
   const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u)
     ?? { username: u, full_name: peerMap[u]?.name || u, photo: peerMap[u]?.photo ?? null };
+
+  /* pass 83-21 — the blocked viewer never sees the blocker's identity: the
+   * server masks with_name/with_photo, and this covers the thread header and
+   * rows locally. Tapping through to their profile is disabled as well. */
+  const dispName = (u: string) => (blockFlags[u]?.by ? 'DeenLink User' : acc(u).full_name);
 
   /** pass 62 — a client row id → its server target. `s12` is message 12, `h7` is
    *  share 7. Demo/failed rows have no server id and keep reacting locally. */
@@ -706,8 +724,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const tmp = uid();
     setThreads((prev) => prev.map((t) => (t.friend === to
       ? payload.kind === 'msg'
-        ? { ...t, chat: [...t.chat, { id: tmp, text: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
-        : { ...t, items: [...t.items, { id: tmp, kind: (payload.kindOf ?? 'post') as Kind, title: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
+        ? { ...t, chat: [...t.chat, { id: tmp, rk: tmp, text: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
+        : { ...t, items: [...t.items, { id: tmp, rk: tmp, kind: (payload.kindOf ?? 'post') as Kind, title: payload.text, ago: ago(), dir: 'me' as const, at: '' }] }
       : t)));
     if (!live) { return; }
     void (async () => {
@@ -720,8 +738,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
       const nid = payload.kind === 'msg' ? `s${made.id}` : `h${made.id}`;
       setThreads((prev) => prev.map((t) => (t.friend === to
         ? payload.kind === 'msg'
-          ? { ...t, chat: t.chat.map((c) => (c.id === tmp ? { ...c, id: nid, at: made.created_at || c.at } : c)) }
-          : { ...t, items: t.items.map((x) => (x.id === tmp ? { ...x, id: nid, at: made.created_at || x.at } : x)) }
+          ? { ...t, chat: t.chat.map((c) => (c.id === tmp ? { ...c, id: nid, rk: c.rk ?? c.id, at: made.created_at || c.at } : c)) }
+          : { ...t, items: t.items.map((x) => (x.id === tmp ? { ...x, id: nid, rk: x.rk ?? x.id, at: made.created_at || x.at } : x)) }
         : t)));
     })();
   };
@@ -755,11 +773,14 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const peers: Record<string, { id?: number; name?: string; photo?: string | null }> = {};
     const mine = new Set<string>();
     const gone = new Set<string>();
+    /* pass 83-21 — who blocked whom, per peer */
+    const flags: Record<string, { b: boolean; by: boolean }> = {};
     cs.forEach((c) => {
       const u = c.with_username || c.peer?.username;
       if (!u) { return; }
       if (c.peer_seen) { m[u] = String(c.peer_seen); }
       peers[u] = { id: c.peer?.id, name: c.with_name || undefined, photo: c.with_photo ?? null };
+      flags[u] = { b: !!c.blocked, by: !!c.blocked_by };
       const st = c.conv_status ?? 'active';
       if (st === 'declined') { gone.add(u); return; }
       if (st === 'request') {
@@ -783,12 +804,17 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     setPeerMap(peers);
     setOutRequests(mine);
     setHiddenConvs(gone);
+    setBlockFlags(flags);
     /* live conversations become threads; demo threads stay so shares still work */
     if (live) {
       setThreads((prev) => {
         const have = new Set(prev.map((t) => t.friend));
         const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
-        return add.length ? [...add, ...prev] : prev;
+        /* pass 83-21 — keep each thread's block flags in sync */
+        const next = [...add, ...prev].map((t) => (flags[t.friend] && (t.blocked !== flags[t.friend].b || t.blocked_by !== flags[t.friend].by)
+          ? { ...t, blocked: flags[t.friend].b, blocked_by: flags[t.friend].by }
+          : t));
+        return next.length !== prev.length || next.some((t, i) => t !== [...add, ...prev][i]) ? next : prev;
       });
     }
   }).catch(() => {});
@@ -1091,7 +1117,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     /* pass 63 — carry the quote into the optimistic bubble so it appears with the
      * message instead of arriving a round trip later. */
     const quote = replyTo;
-    const chat = [...thread.chat, { id, text, ago: ago(), dir: 'me' as const, at: '', reply: quote ? { who: quote.who, text: quote.text } : null }];
+    const chat = [...thread.chat, { id, rk: id, text, ago: ago(), dir: 'me' as const, at: '', reply: quote ? { who: quote.who, text: quote.text } : null }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, chat } : t)));
     setDrafts((m) => ({ ...m, [thread.friend]: '' }));
     setReplyTo(null);
@@ -1141,7 +1167,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           return;
         }
         setThreads((prev) => prev.map((t) => (t.friend === who
-          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, at: sent.created_at || c.at } : c)) }
+          ? { ...t, chat: t.chat.map((c) => (c.id === id ? { ...c, id: `s${sent.id}`, rk: c.rk ?? c.id, at: sent.created_at || c.at } : c)) }
           : t)));
         freshIds.current.delete(id);
         freshIds.current.add(`s${sent.id}`);
@@ -1161,7 +1187,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     haptic.selection();
     const id = uid();
     freshIds.current.add(id);
-    const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '', route: typeof (payload as { route?: unknown } | undefined)?.route === 'string' ? ((payload as { route?: string }).route as string) : undefined }];
+    const items = [...thread.items, { id, rk: id, kind, title, ago: ago(), dir: 'me' as const, at: '', route: typeof (payload as { route?: unknown } | undefined)?.route === 'string' ? ((payload as { route?: string }).route as string) : undefined }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, items } : t)));
     smoothScrollBottom();
 
@@ -1175,7 +1201,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         const made = await chatSendShare(cid, kind, title, payload).catch(() => null);
         if (!made) { markShareFailed(who, id); return; }
         setThreads((prev) => prev.map((t) => (t.friend === who
-          ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, id: `h${made.id}`, at: made.created_at || x.at } : x)) }
+          ? { ...t, items: t.items.map((x) => (x.id === id ? { ...x, id: `h${made.id}`, rk: x.rk ?? x.id, at: made.created_at || x.at } : x)) }
           : t)));
         freshIds.current.delete(id);
         freshIds.current.add(`h${made.id}`);
@@ -1199,7 +1225,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
             const peer = th.others?.[it.id];
             const isFocus = focus?.id === it.id;
             return (
-              <Animated.View key={it.id} style={{ opacity: isFocus ? 1 : dim }}>
+              <Animated.View key={it.rk ?? it.id} style={{ opacity: isFocus ? 1 : dim }}>
               <SlideIn animate={freshIds.current.has(it.id)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
                 {!mine ? <AvatarImage source={acc(th.friend).photo ?? null} name={acc(th.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border={d.cardBorder} /> : null}
                 {/* pass 66 — shares/posts slide to reply too. The swipe used to
@@ -1324,7 +1350,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const isFocus = focus?.id === m.id;
     return (
       /* pass 63 — unfocused rows dim while one is held; the held row stays lit */
-      <Animated.View key={m.id} style={{ opacity: isFocus ? 1 : dim }}>
+      <Animated.View key={m.rk ?? m.id} style={{ opacity: isFocus ? 1 : dim }}>
         <BubbleIn mine={mine} animate={freshIds.current.has(m.id)}>
           <View style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
             <SwipeReply onReply={() => openReply(m.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
@@ -1449,18 +1475,18 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         {/* pass 58 — the peer's photo with their live presence dot */}
         {thread ? (
           <View>
-            <Pressable onPress={() => { /* pass 83-14 — remember the chat, then HIDE the inbox so the profile doesn't render under it; the community screen reopens this exact thread on focus */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
-              <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+            <Pressable onPress={() => { /* pass 83-21 — the blocked viewer cannot open the blocker's profile */ if (blockFlags[thread.friend]?.by) { return; } /* pass 83-14 — remember the chat, then HIDE the inbox so the profile doesn't render under it; the community screen reopens this exact thread on focus */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); }} hitSlop={6}>
+              <AvatarImage source={acc(thread.friend).photo ?? null} name={dispName(thread.friend)} size={38} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
             </Pressable>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, borderRadius: 6, backgroundColor: isOnline(thread.friend) ? '#2ECC71' : '#E05252', borderWidth: 2, borderColor: d.card }} />
           </View>
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Pressable onPress={() => { if (thread) { if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
+          <Pressable onPress={() => { if (thread) { if (blockFlags[thread.friend]?.by) { return; } /* pass 83-21 */ if (!standalone) { storage.setItem('dl_inbox_reopen', thread.friend).catch(() => {}); onNavigateAway?.(); } router.push(`/profile/${thread.friend}` as never); } }} hitSlop={6}>
             {/* pass 59 — long names truncate with an ellipsis instead of pushing
                 the ••• menu off the header */}
             <T v="h2" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>
-              {thread ? acc(thread.friend).full_name : 'Inbox'}
+              {thread ? dispName(thread.friend) : 'Inbox'}
             </T>
             {/* pass 83-11 — the @username/status line is part of the tap target too */}
             <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
@@ -1591,7 +1617,15 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
               >
                 <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{a.full_name}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 13, color: d.text, flexShrink: 1 }}>{dispName(t.friend)}</T>
+                    {/* pass 83-21 — blocked accounts stay listed, with a badge */}
+                    {t.blocked ? (
+                      <View style={{ borderRadius: 7, borderWidth: 1, borderColor: 'rgba(224,82,82,0.55)', backgroundColor: 'rgba(224,82,82,0.12)', paddingHorizontal: 6, paddingVertical: 1 }}>
+                        <T v="caption" style={{ color: '#E05252', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.3 }}>BLOCKED</T>
+                      </View>
+                    ) : null}
+                  </View>
                   <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
                     {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
                   </T>
@@ -1787,7 +1821,12 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                 if (blocked) {
                   const who = thread.friend;
                   void blockUser(who, false).then((ok) => {
-                    if (ok) { setBlocked(false); Alert.alert('Unblocked', `You can message @${who} again.`); }
+                    if (ok) {
+                      setBlocked(false);
+                      setBlockFlags((prev) => ({ ...prev, [who]: { b: false, by: prev[who]?.by ?? false } }));
+                      setThreads((prev) => prev.map((t) => (t.friend === who ? { ...t, blocked: false } : t)));
+                      Alert.alert('Unblocked', `You can message @${who} again.`);
+                    }
                     else { Alert.alert('Could not unblock', 'Please try again in a moment.'); }
                   });
                   return;
@@ -1857,7 +1896,10 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                 if (live && who) {
                   void blockUser(who, true).then((ok) => {
                     if (!ok) { Alert.alert('Could not block', 'Please try again in a moment.'); return; }
-                    setHiddenConvs((prev) => new Set(prev).add(who));
+                    /* pass 83-21 — the thread STAYS in the list with a Blocked
+                     * badge (it used to vanish, owner report). */
+                    setBlockFlags((prev) => ({ ...prev, [who]: { b: true, by: false } }));
+                    setThreads((prev) => prev.map((t) => (t.friend === who ? { ...t, blocked: true } : t)));
                     setOpenFriend(null);
                   });
                 }
