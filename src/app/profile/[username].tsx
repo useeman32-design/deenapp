@@ -190,7 +190,7 @@ function PublicProfileScreenInner() {
   if (!profile) {
     if (!ready || liveLoading) {
       /* session still restoring — never flash "not found" for a real account */
-      return <BreathingContent bar={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} />;
+      return <BreathingContent bar={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} bg={d.bg} />;
     }
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
@@ -867,7 +867,7 @@ function PublicProfileScreenInner() {
 /* pass 83-12 — owner: the loading state should be the CONTENT breathing,
  * not an icon. A profile-shaped skeleton (avatar, name, bio, stats, posts)
  * that slowly inhales/exhales until the real page is ready. */
-function BreathingContent({ bar }: { bar: string }) {
+function BreathingContent({ bar, bg }: { bar: string; bg: string }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -884,6 +884,10 @@ function BreathingContent({ bar }: { bar: string }) {
     <Animated.View
       style={{
         flex: 1,
+        /* pass 83-18 — the loader had no background of its own, so on dark
+         * theme it sat on the white page canvas (owner: "showing white screen
+         * while it loads"). */
+        backgroundColor: bg,
         paddingTop: 72,
         paddingHorizontal: 20,
         gap: 14,

@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { CrescentLoader } from '@/components/CrescentLoader';
 import { haptic } from '@/lib/haptics';
 
 const bgDark = require('../../assets/img/auth-bg-dark.jpg');
@@ -178,6 +179,8 @@ export function AuthField({
 
 /** Primary emerald action (Sign In / Sign Up). */
 export function AuthPrimaryButton({ label, busy, onPress }: { label: string; busy?: boolean; onPress: () => void }) {
+  /* pass 83-18 — owner: "the signin and signup buttons are showing just a
+   * moment without a loader, and a crescent moon and star loader there". */
   const { isDark } = useTheme();
   return (
     <Pressable
@@ -197,9 +200,16 @@ export function AuthPrimaryButton({ label, busy, onPress }: { label: string; bus
         elevation: 6,
       })}
     >
-      <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>
-        {busy ? 'Just a moment…' : label}
-      </T>
+      {busy ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+          <CrescentLoader size={20} color="#FFFFFF" />
+          <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>Just a moment…</T>
+        </View>
+      ) : (
+        <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>
+          {label}
+        </T>
+      )}
     </Pressable>
   );
 }

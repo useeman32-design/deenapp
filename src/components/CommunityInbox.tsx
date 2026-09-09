@@ -346,6 +346,42 @@ const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
   { id: 'inappropriate', label: 'Inappropriate content', icon: 'shield-alt' },
 ];
 
+/* pass 83-18 — owner: "when chat is heavy add skeleton breathing loader too
+ * to the DM incase chat is loading." Alternating bubble bars that breathe. */
+function BreathingMessages({ dark }: { dark: boolean }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(v, { toValue: 0, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  const rows = [
+    { w: '62%', mine: false }, { w: '46%', mine: true }, { w: '70%', mine: false },
+    { w: '38%', mine: true }, { w: '55%', mine: false },
+  ] as const;
+  return (
+    <Animated.View style={{ gap: 10, paddingVertical: 8, opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }}>
+      {rows.map((r, i) => (
+        <View
+          key={i}
+          style={{
+            alignSelf: r.mine ? 'flex-end' : 'flex-start',
+            width: r.w,
+            height: 40,
+            borderRadius: 17,
+            backgroundColor: r.mine
+              ? (dark ? 'rgba(46,204,113,0.16)' : 'rgba(29,111,66,0.10)')
+              : (dark ? 'rgba(255,255,255,0.10)' : 'rgba(20,36,28,0.08)'),
+          }}
+        />
+      ))}
+    </Animated.View>
+  );
+}
+
 export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = false, initialFriend = null }: { visible: boolean; onClose: () => void; onNavigateAway?: () => void; standalone?: boolean; initialFriend?: string | null }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -432,6 +468,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   /* pass 63 — the old shared `pop` value is gone entirely: the picker now uses
    * per-emoji springs (PickerEmoji) and the rows use their own mount springs. */
   const scroller = useRef<ScrollView>(null);
+  /* pass 83-18 — true while a thread's history is being pulled */
+  const [histLoading, setHistLoading] = useState(false);
 
   /* restore persisted chats */
   useEffect(() => {
@@ -819,7 +857,9 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     if (!live || !openFriend) { return; }
     const cid = convIds[openFriend];
     if (!cid) { return; }
-    chatThread(cid).then((data) => {
+    setHistLoading(true);
+    chatThread(cid).catch(() => null).then((data) => {
+      setHistLoading(false);
       if (!data) { return; }
       /* pass 68 — the peer's read watermark turns ✓✓ on my older rows even
        * though per-row read_at only lands on a full fetch. */
@@ -1626,6 +1666,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           onScroll={onThreadScroll}
           scrollEventThrottle={48}
         >
+          {histLoading && flow.length === 0 ? <BreathingMessages dark={isDark} /> : null}
           {flow.map((row) => (row.kind === 'share' ? renderShare(thread, row.it) : renderMsg(thread, row.m)))}
 
           {/* pass 68 — the peer is typing right now (server flag, ≤3s stale) */}
