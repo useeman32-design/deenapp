@@ -403,6 +403,10 @@ export function FeedCard({
   const img = (user as { profile_image_url?: string | number | null }).profile_image_url ?? null;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /* pass 83-16 — inline two-step delete confirm. RN's Alert.alert with
+   * buttons is a NO-OP on web, so the old confirm dialog never appeared on
+   * app.deenlink.org and Delete silently did nothing. */
+  const [confirmDel, setConfirmDel] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
@@ -504,7 +508,11 @@ export function FeedCard({
         shadowOpacity: isDark ? 0.22 : 0.05,
         shadowRadius: 16,
         shadowOffset: { width: 0, height: 6 },
-        elevation: 2,
+        /* pass 83-16 — lift the whole card while its ••• menu is open, else
+         * later sibling cards paint over the menu (owner: "z index making it
+         * appear under the post card"). */
+        zIndex: menuOpen ? 900 : 0,
+        elevation: menuOpen ? 30 : 2,
       }}
     >
       {/* pass 38 — GROUP-FIRST header: the group leads the card (name, pic,
@@ -640,7 +648,7 @@ export function FeedCard({
 
       {/* ••• menu */}
       {menuOpen ? (
-        <Pressable style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 40 }} onPress={() => setMenuOpen(false)}>
+        <Pressable style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 40 }} onPress={() => { setMenuOpen(false); setConfirmDel(false); }}>
           <View
             style={{
               position: 'absolute',
@@ -662,11 +670,13 @@ export function FeedCard({
             {onDelete ? (
               <Pressable
                 onPress={() => {
-                  setMenuOpen(false);
-                  Alert.alert('Delete post', 'This will remove the post for everyone. This cannot be undone.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => onDelete() },
-                  ]);
+                  if (confirmDel) {
+                    setMenuOpen(false);
+                    setConfirmDel(false);
+                    onDelete();
+                  } else {
+                    setConfirmDel(true);
+                  }
                 }}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
@@ -676,12 +686,13 @@ export function FeedCard({
                   paddingVertical: 11,
                   borderBottomWidth: 1,
                   borderBottomColor: hairline,
+                  backgroundColor: confirmDel ? 'rgba(231,76,60,0.10)' : 'transparent',
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <FontAwesome5 name="trash-alt" size={13} color={danger} />
-                <T v="bodyS" style={{ fontSize: 12, fontWeight: '600', color: danger }}>
-                  Delete
+                <FontAwesome5 name={confirmDel ? 'exclamation-triangle' : 'trash-alt'} size={13} color={danger} />
+                <T v="bodyS" style={{ fontSize: 12, fontWeight: '700', color: danger }}>
+                  {confirmDel ? 'Tap again to delete' : 'Delete'}
                 </T>
               </Pressable>
             ) : null}

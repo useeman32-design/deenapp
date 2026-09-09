@@ -15,7 +15,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
-import { blockUser, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, type PublicProfile } from '@/api/client';
+import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -79,6 +79,9 @@ function PublicProfileScreenInner() {
   const [shareOpen, setShareOpen] = useState(false);
   /* pass 66-night — live profile: real stats, bio, photo and follow edge. */
   const [liveP, setLiveP] = useState<PublicProfile | null>(null);
+  /* pass 83-16 — the account's REAL posts (was demo-set only, so live users
+   * saw "No public posts yet." on every profile, own included). */
+  const [livePosts, setLivePosts] = useState<import('@/api/types').Post[] | null>(null);
   /* pass 75 — a real scholar's answered questions come from the server */
   const [liveQAs, setLiveQAs] = useState<Array<{ q: string; a: string }> | null>(null);
   /* pass 75 — account tools: report this account (server account_reports) */
@@ -162,9 +165,22 @@ function PublicProfileScreenInner() {
      * freezes the memo at null and real accounts show "couldn't find". */
   }, [username, liveP]);
 
+  useEffect(() => {
+    if (liveP?.id == null) { setLivePosts(null); return; }
+    void srvUserPosts(Number(liveP.id)).then(setLivePosts).catch(() => {});
+  }, [liveP?.id]);
+
+  const isOwnProfile = liveP?.id != null && user?.id != null && Number(liveP.id) === Number(user.id);
+
   const posts = useMemo(
-    () => MOCK_FEED.filter((p) => p.user.username === username),
-    [username],
+    () => livePosts ?? MOCK_FEED.filter((p) => p.user.username === username),
+    [username, livePosts],
+  );
+
+  /* pass 83-16 — Videos tab for real accounts: their video/YouTube posts */
+  const videoPosts = useMemo(
+    () => posts.filter((p) => p.video_url || p.youtube_url),
+    [posts],
   );
   /* live scholar → the server's answered questions win over the demo set */
   const answered = (liveP?.user_type === 'scholar' || profile?.scholar)
@@ -592,6 +608,7 @@ function PublicProfileScreenInner() {
                       return n;
                     })
                   }
+                  onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
                 />
               ))
             )}
@@ -673,7 +690,47 @@ function PublicProfileScreenInner() {
         ) : null}
 
         {/* Videos — the account's reels (was: About) */}
-        {tab === 'videos' ? (
+        {tab === 'videos' && liveP ? (
+          /* pass 83-16 — live account: their real video/YouTube posts */
+          <View style={{ marginHorizontal: 16, gap: 12 }}>
+            {videoPosts.length === 0 ? (
+              <View
+                style={{
+                  backgroundColor: d.card,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: d.cardBorder,
+                  padding: 26,
+                  alignItems: 'center',
+                  gap: 9,
+                }}
+              >
+                <FontAwesome5 name="video" size={22} color={d.faint} />
+                <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, fontWeight: '600', textAlign: 'center' }}>
+                  No videos yet — video posts from this account will appear here.
+                </T>
+              </View>
+            ) : (
+              videoPosts.map((p) => (
+                <FeedCard
+                  key={p.id}
+                  dash={d}
+                  post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                  onLike={(id) =>
+                    setLikedPosts((prev) => {
+                      const n = new Set(prev);
+                      if (n.has(id)) n.delete(id);
+                      else n.add(id);
+                      return n;
+                    })
+                  }
+                  onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
+                />
+              ))
+            )}
+          </View>
+        ) : null}
+        {tab === 'videos' && !liveP ? (
           <View style={{ marginHorizontal: 16 }}>
             {userReels.length === 0 ? (
               <View

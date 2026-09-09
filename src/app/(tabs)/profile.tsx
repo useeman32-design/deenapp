@@ -54,7 +54,7 @@ function ProfileInner() {
   const dp = useDeenPoints();
 
   useEffect(() => {
-    api.userPosts().then(setPosts);
+    api.userPosts(user?.id != null ? Number(user.id) : undefined).then(setPosts);
     if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
   }, [user?.id]);
 
@@ -351,7 +351,12 @@ function ProfileInner() {
         {tab === 'posts' ? (
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {posts.map((p) => (
-              <FeedCard key={p.id} post={p} onLike={like} />
+              <FeedCard
+                key={p.id}
+                post={p}
+                onLike={like}
+                onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
+              />
             ))}
             {posts.length === 0 ? (
               <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
@@ -362,11 +367,16 @@ function ProfileInner() {
         ) : tab === 'videos' ? (
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {posts
-              .filter((p) => p.video_url)
+              .filter((p) => p.video_url || p.youtube_url)
               .map((p) => (
-                <FeedCard key={p.id} post={p} onLike={like} />
+                <FeedCard
+                  key={p.id}
+                  post={p}
+                  onLike={like}
+                  onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
+                />
               ))}
-            {posts.filter((p) => p.video_url).length === 0 ? (
+            {posts.filter((p) => p.video_url || p.youtube_url).length === 0 ? (
               <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>
                 No videos yet — attach a video to a community post and it shows up here.
               </T>

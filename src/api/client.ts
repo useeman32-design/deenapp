@@ -393,15 +393,14 @@ function absMedia(u: string): string {
   if (/^(https?:)?\/\//.test(u) || u.startsWith('data:') || u.startsWith('blob:') || u.startsWith('file:')) return u;
   return API_ORIGIN.replace(/\/+$/, '') + (u.startsWith('/') ? u : `/${u}`);
 }
-export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
-  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
-  if (!r.ok || !Array.isArray(r.data.posts)) return null;
-  /* pass 83-10 — group posts are at feed parity: normalize the server shapes
-   * ({options:[{label}], my_vote} polls, {image_url_1080} media) into what
-   * FeedCard renders. */
-  for (const p of r.data.posts) {
+/* pass 83-16 — shared shape normalizer: server rows arrive with
+ * {options:[{id,label,votes}], my_vote} polls, {image_url_1080} media and
+ * relative audio_url; FeedCard renders {options:[{text,votes}]}, media[].url
+ * and absolute urls. Applied to group AND profile post lists. */
+function normalizePostShapes(posts: Post[]): void {
+  for (const p of posts) {
     const sp = mapServerPoll((p as { poll?: unknown }).poll);
-    if (sp) p.poll = sp;
+    if (sp) (p as { poll?: unknown }).poll = sp;
     if (Array.isArray(p.media)) {
       p.media = p.media.map((m) => {
         const mm = m as { url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
@@ -411,15 +410,14 @@ export async function groupPosts(id: number): Promise<import('@/api/types').Post
         return m;
       });
     }
-    /* pass 83-10c — audio uploads ride as audio_url; make it absolute too */
     const au = (p as { audio_url?: unknown }).audio_url;
     if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
-    /* pass 83-14 — group polls arrive as {options:[{id,label,votes}]} exactly
-     * like feed polls; without this map the options render blank (owner:
-     * "poll in group is not showing as how the normal post is showing"). */
-    const gp = mapServerPoll((p as { poll?: unknown }).poll);
-    if (gp) (p as { poll?: unknown }).poll = gp;
   }
+}
+export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
+  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
+  if (!r.ok || !Array.isArray(r.data.posts)) return null;
+  normalizePostShapes(r.data.posts);
   return r.data.posts;
 }
 export async function groupCreatePost(
@@ -1122,11 +1120,20 @@ export async function courses(): Promise<Course[]> {
   return MOCK_COURSES;
 }
 
-export async function userPosts(): Promise<Post[]> {
-  const r = await request<{ status?: string; posts?: Post[]; data?: Post[] }>('/api/feed/get_user_posts.php');
-  if (r.ok) {
-    const list = r.data.posts ?? r.data.data;
-    if (Array.isArray(list)) return list;
+export async function userPosts(userId?: number): Promise<Post[]> {
+  /* pass 83-16 — the endpoint requires user_id; the old call sent none, got a
+   * 400, and silently fell back to the demo set, so profiles never showed real
+   * posts (owner: "posts are not loading in users profile"). */
+  if (userId != null) {
+    const r = await request<{ status?: string; posts?: Post[]; data?: Post[] }>(`/api/feed/get_user_posts.php?user_id=${userId}&limit=50`);
+    if (r.ok) {
+      const list = r.data.posts ?? r.data.data;
+      if (Array.isArray(list)) {
+        normalizePostShapes(list as Post[]);
+        return list as Post[];
+      }
+    }
+    return [];
   }
   return MOCK_FEED.filter((p) => p.user.username === (MOCK_USER.username ?? ''));
 }
