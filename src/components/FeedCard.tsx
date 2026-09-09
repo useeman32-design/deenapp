@@ -210,15 +210,40 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
   const boxRef = useRef<View>(null);
+  /* pass 83-24 — the expanded view used to mount a SECOND <video> for the same
+   * source: web re-downloaded it and sat on "loading" until the user poked
+   * pause/play (owner report). Web now flips THIS container to a fixed
+   * fullscreen overlay so the one and only <video> element stays mounted;
+   * native asks the player for its real fullscreen instead. */
+  const webFull = expanded && Platform.OS === 'web';
+  const openFull = () => {
+    haptic.light();
+    if (Platform.OS === 'web') { setExpanded(true); return; }
+    /* native: the player's own fullscreen keeps the same playback session;
+     * if the API is missing it rejects/throws and we fall back to the modal */
+    try {
+      const fn = (player as unknown as { enterFullscreen?: (o?: unknown) => Promise<void> }).enterFullscreen;
+      if (fn) {
+        const r = fn.call(player, { screenOrientation: 'default' });
+        if (r && typeof r.catch === 'function') { r.catch(() => setExpanded(true)); return; }
+        return;
+      }
+    } catch { /* fall through */ }
+    setExpanded(true);
+  };
   return (
-    <View ref={boxRef} style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' }}>
-      <View style={{ height: 300 }}>
-        {started && !expanded ? (
+    <View ref={boxRef} style={[
+      { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' },
+      /* 'fixed' is a react-native-web value; the cast keeps RN's types happy */
+      webFull ? { position: 'fixed' as 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2147483000, borderRadius: 0, borderWidth: 0 } : null,
+    ]}>
+      <View style={{ height: webFull ? '100%' : 300 }}>
+        {started && !(expanded && Platform.OS !== 'web') ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
             {started && !expanded ? <VideoLoader player={player} /> : null}
           </View>
-        ) : started && expanded ? (
+        ) : started && expanded && Platform.OS !== 'web' ? (
           <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000' }} />
         ) : poster != null ? (
           <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
@@ -240,7 +265,7 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         )}
         {/* expand — opens the fullscreen modal */}
         <Pressable
-          onPress={() => { haptic.light(); setExpanded(true); }}
+          onPress={openFull}
           hitSlop={8}
           style={{ position: 'absolute', top: 8, right: 8, width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' }}
         >
@@ -248,7 +273,18 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         </Pressable>
       </View>
 
-      <Modal visible={expanded} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
+      {/* pass 83-24 — web closes from the overlay's own X; the Modal path is
+          the native fallback only (it remounts the video, web must not) */}
+      {webFull ? (
+        <Pressable
+          onPress={() => setExpanded(false)}
+          hitSlop={10}
+          style={{ position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(4,12,8,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+        >
+          <FontAwesome5 name="times" size={15} color="#FFFFFF" />
+        </Pressable>
+      ) : null}
+      <Modal visible={expanded && Platform.OS !== 'web'} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
           <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
             <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
@@ -591,6 +627,13 @@ export function FeedCard({
             <T v="caption" numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 10.5, color: sub, flexShrink: 1, maxWidth: 150 }}>
               @{user.username}
             </T>
+            {/* pass 83-24 — a group post in the mixed feed says which group */}
+            {post.group_name ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3.5, borderWidth: 1, borderColor: `${accent}55`, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: `${accent}12` }}>
+                <FontAwesome5 name="users" size={8} color={accent} />
+                <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, color: accent, fontWeight: '700' }}>{post.group_name}</T>
+              </View>
+            ) : null}
             {rank ? (
               <View
                 style={{
@@ -933,7 +976,9 @@ export function FeedCard({
 
       {/* Picked photo post — opens preview on tap */}
 
-      {post.image_url ? (
+      {/* pass 83-24 — a multi-photo post renders ONLY the carousel; this hero
+          used to stack a second container holding the first image on top */}
+      {post.image_url && mediaImgs.length <= 1 ? (
         <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 280 }} resizeMode="cover" />
@@ -965,6 +1010,12 @@ export function FeedCard({
             showsHorizontalScrollIndicator={false}
             scrollEventThrottle={16}
             onMomentumScrollEnd={(e) => setCarouselPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, carouselW)))}
+            /* pass 83-24 — web does not fire onMomentumScrollEnd reliably, so
+               the dots also track the raw scroll offset */
+            onScroll={(e) => {
+              const i = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, carouselW));
+              if (i !== carouselPage && i >= 0 && i < mediaImgs.length) { setCarouselPage(i); }
+            }}
           >
             {mediaImgs.map((u, i) => (
               <Pressable key={i} onPress={() => onTap(() => setImgPreview(true))} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>

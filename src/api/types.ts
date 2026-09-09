@@ -69,6 +69,9 @@ export interface Post {
   content_text?: string | null;
   youtube_url?: string | null;
   youtube_embed_url?: string | null;
+  /* pass 83-24 — Facebook-style feed: group posts mix in, labelled */
+  group_id?: number | null;
+  group_name?: string | null;
   /** community image post — a picked/local photo (not a reel) */
   image_url?: string | null;
   /** community video post — a picked/local video file (not a reel) */

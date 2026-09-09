@@ -56,6 +56,21 @@ function ProfileInner() {
       void storage.setItem('dl.checkin.date', new Date().toISOString().slice(0, 10));
     }
   }, [(user as { checked_in_today?: boolean } | null)?.checked_in_today]);
+  /* pass 83-24 — the login payload can predate today's check-in (owner:
+   * "when ever i logged out and comeback i will see the button as unchecked").
+   * Ask the server directly whenever this screen mounts. */
+  useEffect(() => {
+    if (!api.isLive()) { return; }
+    let dead = false;
+    void api.authMe().then((u) => {
+      if (dead) { return; }
+      if ((u as { checked_in_today?: boolean } | null)?.checked_in_today) {
+        setCheckin('already');
+        void storage.setItem('dl.checkin.date', new Date().toISOString().slice(0, 10));
+      }
+    }).catch(() => {});
+    return () => { dead = true; };
+  }, [user?.id]);
   /* pass 38 — the DeenPoints chip opens the BUY modal (it used to fire the check-in!) */
   const [buyOpen, setBuyOpen] = useState(false);
   const [reward, setReward] = useState<{ amount: number; streak: boolean } | null>(null);

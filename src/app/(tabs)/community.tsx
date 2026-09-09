@@ -74,11 +74,12 @@ function CommunityScreenInner() {
         liked_by_me: false,
         is_public_qa: false,
         user: {
-          id: 99,
-          username: ME.handle,
-          full_name: ME.name,
+          /* pass 83-24 — real identity on optimistic posts (was the demo account) */
+          id: user?.id != null ? Number(user.id) : 99,
+          username: (user?.username as string) || ME.handle,
+          full_name: (user?.full_name as string) || ME.name,
           user_type: 'user',
-          profile_image_url: null,
+          profile_image_url: (user?.profile_image_url as string | null) ?? null,
           deenpoints_balance: 240,
           is_email_verified: 1,
           account_status: 'active',
@@ -159,6 +160,10 @@ function CommunityScreenInner() {
     }
   };
   const [posting, setPosting] = useState(false);
+  /* pass 83-24 — real upload progress (owner: "add a progress bar that shows
+   * the percentage... and if posted show posted success pill") */
+  const [postProg, setPostProg] = useState<number | null>(null);
+  const [postedPill, setPostedPill] = useState(false);
   const videoFileRef = useRef<TextInput | null>(null);
 
   /** Pick a video file for a community video post (NOT a reel). */
@@ -252,8 +257,9 @@ function CommunityScreenInner() {
     if (!t || posting) return;
     haptic.medium();
     setPosting(true);
-    // simulate the network/publish round-trip so heavy posts show progress
-    setTimeout(() => {
+    /* pass 83-24 — the 1.6s fake "publish" delay is gone; the real upload
+     * drives the progress pill below */
+    {
       const np: Post = {
         /* pass 66-night — live posts get their REAL server id so likes,
          * comments and poll votes all target the right row. */
@@ -265,11 +271,12 @@ function CommunityScreenInner() {
         liked_by_me: false,
         is_public_qa: false,
         user: {
-          id: 99,
-          username: ME.handle,
-          full_name: ME.name,
+          /* pass 83-24 — real identity on optimistic posts (was the demo account) */
+          id: user?.id != null ? Number(user.id) : 99,
+          username: (user?.username as string) || ME.handle,
+          full_name: (user?.full_name as string) || ME.name,
           user_type: 'user',
-          profile_image_url: null,
+          profile_image_url: (user?.profile_image_url as string | null) ?? null,
           deenpoints_balance: 240,
           is_email_verified: 1,
           account_status: 'active',
@@ -303,6 +310,8 @@ function CommunityScreenInner() {
        * the real post id so likes/comments/poll votes hit the right row. */
       if (api.isLive()) {
         const tempId = np.id;
+        const heavy = imageAttachs.length > 0 || !!videoAttach;
+        if (heavy) { setPostProg(0); }
         void api
           .createPost(
             t,
@@ -310,10 +319,16 @@ function CommunityScreenInner() {
             pollOn && opts.length >= 2 ? opts : undefined,
             imageAttachs.length ? imageAttachs.map((a) => ({ uri: a.uri, name: a.name, type: 'image/jpeg' })) : undefined,
             videoAttach ? { uri: videoAttach.uri, name: videoAttach.name, type: 'video/mp4' } : undefined,
+            heavy ? (f) => setPostProg(f) : undefined,
           )
           .then((res) => {
+            setPostProg(null);
             if (res.ok && res.id) {
               setPosts((ps) => ps.map((p) => (p.id === tempId ? { ...p, id: res.id as number } : p)));
+              setPostedPill(true);
+              setTimeout(() => setPostedPill(false), 2200);
+            } else {
+              Alert.alert('Post not published', 'Your post is on this device only — please check your connection and try again.');
             }
           });
       }
@@ -327,7 +342,7 @@ function CommunityScreenInner() {
       setVideoAttach(null);
       setImageAttachs([]);
       haptic.success();
-    }, 1600);
+    }
   };
 
   const TABS: Array<{ id: FeedTab; label: string }> = [
@@ -338,6 +353,21 @@ function CommunityScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* pass 83-24 — upload progress + posted-success pill (auto-dismiss) */}
+      {postProg != null ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, borderRadius: 14, backgroundColor: isDark ? 'rgba(10,22,15,0.95)' : 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, paddingVertical: 10, minWidth: 190 }}>
+          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text, marginBottom: 6 }}>Posting… {Math.round(postProg * 100)}%</T>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)' }}>
+            <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(postProg * 100))}%`, backgroundColor: '#1F8F5C' }} />
+          </View>
+        </View>
+      ) : null}
+      {postedPill ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, backgroundColor: '#1F8F5C', paddingHorizontal: 16, paddingVertical: 9 }}>
+          <FontAwesome5 name="check-circle" size={13} color="#fff" />
+          <T v="caption" style={{ color: '#fff', fontSize: 11.5, fontWeight: '800' }}>Posted</T>
+        </View>
+      ) : null}
       {/* Sticky feed tabs removed (user: it duplicated the inline tabs). Kept off-screen. */}
       <View
         pointerEvents="none"

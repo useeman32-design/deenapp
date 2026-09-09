@@ -860,12 +860,60 @@ export async function toggleLike(postId: number, desired: boolean): Promise<{ li
   return { like_count: 0, liked_by_me: desired };
 }
 
+/* pass 83-24 — multipart upload with REAL progress events (fetch cannot
+ * report upload progress; XHR can). Mirrors request()'s auth headers. */
+function uploadForm<T>(url: string, form: FormData, onProgress?: (frac: number) => void, retried?: boolean): Promise<{ ok: boolean; data: T | null; networkError?: boolean }> {
+  return new Promise((resolve) => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE}${url}`);
+      xhr.withCredentials = true;
+      if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
+      if (session && typeof window === 'undefined') xhr.setRequestHeader('Cookie', `deenlink_session=${session}`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) { onProgress(Math.max(0, Math.min(1, e.loaded / Math.max(1, e.total)))); } };
+      xhr.onload = () => {
+        let data: T | null = null;
+        try { data = JSON.parse(xhr.responseText) as T; } catch { /* non-JSON body */ }
+        /* login rotates the PHP session (and with it the CSRF token); request()
+         * recovers by refetching — the uploader must do the same */
+        if (xhr.status === 403 && !retried && xhr.responseText.includes('CSRF')) {
+          void fetchCsrf().then(() => resolve(uploadForm<T>(url, form, onProgress, true)));
+          return;
+        }
+        resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+      };
+      xhr.onerror = () => resolve({ ok: false, data: null, networkError: true });
+      xhr.send(form);
+    } catch {
+      resolve({ ok: false, data: null, networkError: true });
+    }
+  });
+}
+
+/* pass 83-24 — shrink photos before upload (owner: 4 images froze the app):
+ * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error. */
+export async function compressImageForUpload(uri: string): Promise<string> {
+  try {
+    const IM = await import('expo-image-manipulator');
+    const info = await (IM as { getImageInfoAsync?: (u: string) => Promise<{ width: number; height: number }> }).getImageInfoAsync?.(uri).catch(() => null);
+    const tooBig = info ? Math.max(info.width, info.height) > 1600 : true;
+    const actions = tooBig
+      ? [{ resize: (info && info.width >= info.height) ? { width: 1600 } : { height: 1600 } }]
+      : [];
+    const res = await IM.manipulateAsync(uri, actions, { compress: 0.78, format: IM.SaveFormat.JPEG });
+    return res.uri || uri;
+  } catch {
+    return uri;
+  }
+}
+
 export async function createPost(
   contentText: string,
   youtubeUrl?: string,
   pollOptions?: string[],
   images?: Array<{ uri: string; name?: string; type?: string }>,
   video?: { uri: string; name?: string; type?: string },
+  onProgress?: (frac: number) => void,
 ): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
@@ -873,20 +921,42 @@ export async function createPost(
   if (pollOptions && pollOptions.length >= 2) form.append('poll_options', JSON.stringify(pollOptions.slice(0, 6)));
   if (images && images.length) {
     for (const img of images.slice(0, 5)) {
-      if (typeof window !== 'undefined' && img.uri.startsWith('blob:')) {
-        const blob = await fetch(img.uri).then((r) => r.blob());
+      const small = await compressImageForUpload(img.uri); /* pass 83-24 */
+      if (typeof window !== 'undefined' && small.startsWith('blob:')) {
+        const blob = await fetch(small).then((r) => r.blob());
         form.append('images[]', new File([blob], img.name ?? 'photo.jpg', { type: blob.type || 'image/jpeg' }));
       } else {
-        form.append('images[]', { uri: img.uri, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
+        form.append('images[]', { uri: small, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
       }
     }
   }
-  const r = await request<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', {
-    method: 'POST',
-    form,
-  });
-  if (r.ok) return { ok: true, post: r.data.post, id: r.data.post_id ?? r.data.id ?? null };
+  if (video) {
+    /* pass 83-24 — the video field was declared but NEVER appended: video
+     * posts only ever existed on the posting device (owner saw them "post"). */
+    if (typeof window !== 'undefined' && video.uri.startsWith('blob:')) {
+      const blob = await fetch(video.uri).then((r) => r.blob());
+      form.append('video', new File([blob], video.name ?? 'video.mp4', { type: blob.type || 'video/mp4' }));
+    } else {
+      form.append('video', { uri: video.uri, name: video.name ?? 'video.mp4', type: video.type ?? 'video/mp4' } as never);
+    }
+  }
+  const hasMedia = formHasFiles(form);
+  const r = hasMedia
+    ? await uploadForm<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', form, onProgress)
+    : await request<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', { method: 'POST', form });
+  if (r.ok && r.data) return { ok: true, post: r.data.post, id: r.data.post_id ?? r.data.id ?? null };
   return { ok: false };
+}
+
+/* FormData has no cross-platform "is empty" check */
+function formHasFiles(form: FormData): boolean {
+  try {
+    let found = false;
+    form.forEach((v) => { if (typeof v !== 'string') { found = true; } });
+    return found;
+  } catch {
+    return true;
+  }
 }
 
 /* --------------------------- Other endpoints --------------------------- */
@@ -1282,6 +1352,12 @@ export async function recoverPassword(identifier: string, answer: string, passwo
   return { ok: false, message: r.data?.message ?? 'Could not reset password' };
 }
 
+/* pass 83-24 — fresh /me for screens that need live user flags (check-in state) */
+export async function authMe(): Promise<User | null> {
+  const r = await request<{ status: string; user?: User }>('/api/auth/me.php');
+  return r.ok && r.data.user ? hydrateUser(r.data.user) : null;
+}
+
 export async function dailyCheckin(): Promise<{ ok: boolean; points?: number; balance?: number; already?: boolean }> {
   if (FORCE_DEMO) return { ok: true, points: 1 };
   /* pass 71 — the server answers points_awarded + new_balance (the old client
@@ -1661,6 +1737,7 @@ export const api = {
   scholars,
   submitQuestion,
   updateProfile,
+  authMe,
   dailyCheckin,
   wallpapers,
   unreadNotifications,
