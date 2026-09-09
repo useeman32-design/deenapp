@@ -132,7 +132,9 @@ function NotificationsInner() {
         </Pressable>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 6 }}>
+      {/* pass 83-20 — flexGrow:0 keeps the row from collapsing (owner: "the
+       * tabs are now disappearing when it opens") */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 6 }}>
         {(['all', 'chat', 'like', 'follow', 'repost', 'mention', 'system'] as const).map((f) => {
           const on = filter === f;
           const label = f === 'all' ? 'All' : KIND_META[f].label;
@@ -141,11 +143,14 @@ function NotificationsInner() {
             <Pressable
               key={f}
               onPress={() => pick(f)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: on ? 7 : 5, borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : d.card, paddingHorizontal: on ? 13 : 11, paddingVertical: 7 }}
+              /* pass 83-20 — IDENTICAL metrics for every chip; only colors
+               * change when active, so tapping a tab never resizes the row
+               * (owner: "the buttons use to increase size") */
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: on ? (isDark ? 'rgba(74,227,143,0.5)' : 'rgba(29,111,66,0.35)') : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : d.card, paddingHorizontal: 12, paddingVertical: 7 }}
             >
-              {f !== 'all' ? <FontAwesome5 name={KIND_META[f].icon as never} size={on ? 10 : 9} color={KIND_META[f].tint} /> : null}
-              <T v="caption" style={{ fontSize: on ? 11 : 10.5, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext }}>{label}</T>
-              {on && unread > 0 ? (
+              {f !== 'all' ? <FontAwesome5 name={KIND_META[f].icon as never} size={10} color={KIND_META[f].tint} /> : null}
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext }}>{label}</T>
+              {unread > 0 ? (
                 <View style={{ minWidth: 17, borderRadius: 9, backgroundColor: isDark ? '#4AE38F' : '#0E7A46', paddingHorizontal: 5, paddingVertical: 1.5, alignItems: 'center', justifyContent: 'center' }}>
                   <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#fff' }}>{unread}</T>
                 </View>

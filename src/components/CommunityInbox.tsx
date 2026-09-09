@@ -27,6 +27,8 @@ type ShareItem = {
   title: string;
   ago: string;
   dir: 'them' | 'me';
+  /* pass 83-20 — tap target: where the shared thing lives */
+  route?: string;
   /* pass 31/32 previews */
   thumb?: number;      /* reel/post preview image */
   dur?: string;        /* reel duration chip */
@@ -888,6 +890,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
         arabic: s.payload?.arabic,
         refLabel: s.payload?.refLabel,
         sub: s.payload?.sub,
+        route: typeof s.payload?.route === 'string' ? s.payload.route : undefined,
         dur: s.payload?.dur,
       }));
       const reactions: Record<string, string> = {};
@@ -1158,7 +1161,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     haptic.selection();
     const id = uid();
     freshIds.current.add(id);
-    const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '' }];
+    const items = [...thread.items, { id, kind, title, ago: ago(), dir: 'me' as const, at: '', route: typeof (payload as { route?: unknown } | undefined)?.route === 'string' ? ((payload as { route?: string }).route as string) : undefined }];
     persist(threads.map((t) => (t.friend === thread.friend ? { ...t, items } : t)));
     smoothScrollBottom();
 
@@ -1206,7 +1209,17 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                 <SwipeReply onReply={() => openReply(it.id)} tint={isDark ? '#4AE38F' : '#1D6F42'} style={{ maxWidth: '76%' }}>
                 <Pressable
                   ref={(r) => { rowRefs.current[it.id] = r as never; }}
-                  onPress={() => onTapItem(it.id)}
+                  onPress={() => {
+                    /* pass 83-20 — a share with a known home navigates there
+                     * (owner: "if clicked in that thing it should navigate to
+                     * the location of that thing"); otherwise the old preview. */
+                    if (it.route) {
+                      if (!standalone) { storage.setItem('dl_inbox_reopen', th.friend).catch(() => {}); onNavigateAway?.(); }
+                      router.push(it.route as never);
+                      return;
+                    }
+                    onTapItem(it.id);
+                  }}
                   onLongPress={() => openFocus(it.id, 'share')}
                   delayLongPress={260}
                   style={({ pressed }) => ({

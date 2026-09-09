@@ -47,6 +47,15 @@ function ProfileInner() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
+  /* pass 83-20 — the server is the source of truth for today's check-in;
+   * local storage alone reset the button to unchecked (owner: "if i checked
+   * in and comeback again i will see the button as uncheck"). */
+  useEffect(() => {
+    if ((user as { checked_in_today?: boolean } | null)?.checked_in_today) {
+      setCheckin('already');
+      void storage.setItem('dl.checkin.date', new Date().toISOString().slice(0, 10));
+    }
+  }, [(user as { checked_in_today?: boolean } | null)?.checked_in_today]);
   /* pass 38 — the DeenPoints chip opens the BUY modal (it used to fire the check-in!) */
   const [buyOpen, setBuyOpen] = useState(false);
   const [reward, setReward] = useState<{ amount: number; streak: boolean } | null>(null);

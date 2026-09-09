@@ -32,7 +32,7 @@ export function ContentShareSheet({
   visible: boolean;
   onClose: () => void;
   /** input for the styled image card */
-  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post'; arabic?: string; meaning: string; ref: string } | null;
+  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post'; arabic?: string; meaning: string; ref: string; route?: string } | null;
   link: string;
   /** pass true to hide the "share as image" row (e.g. profiles) */
   noImage?: boolean;
@@ -120,6 +120,7 @@ export function ContentShareSheet({
                   kind: (KIND_MAP[card.kind] === 'verse' ? 'ayah' : KIND_MAP[card.kind] === 'post' ? 'post' : KIND_MAP[card.kind] === 'hadith' ? 'hadith' : 'dua') as FriendShare['kind'],
                   title: (card.meaning ?? '').slice(0, 160) || 'Shared from DeenLink',
                   sub: card.ref || undefined,
+                  route: card.route,
                 }}
                 onDone={() => setTimeout(onClose, 1400)}
               />

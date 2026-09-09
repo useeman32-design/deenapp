@@ -22,6 +22,8 @@ export type FriendShare = {
   kind: 'post' | 'reel' | 'ayah' | 'hadith' | 'dua';
   title: string;
   sub?: string;
+  /* pass 83-20 — where tapping the chat card should navigate */
+  route?: string;
 };
 
 export type Person = { id: number | null; username: string; full_name: string; photo?: string | number | null };
@@ -133,6 +135,7 @@ export function FriendsPicker({
           const r = await api.chatSendShare(conv, share.kind, share.title, {
             sub: share.sub ?? 'Shared from DeenLink',
             refLabel: `@${p.username}`,
+            ...(share.route ? { route: share.route } : {}),
           });
           if (r) ok++;
         } catch {}

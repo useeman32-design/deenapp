@@ -1092,7 +1092,7 @@ export function FeedCard({
       <ContentShareSheet
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
-        card={{ kind: 'post', arabic: '', meaning: post.content_text ?? `${name} on DeenLink`, ref: `@${user.username} · DeenLink` }}
+        card={{ kind: 'post', arabic: '', meaning: post.content_text ?? `${name} on DeenLink`, ref: `@${user.username} · DeenLink`, route: post.id > 0 ? `/tools/post?id=${post.id}` : undefined }}
         link={`https://deenlink.org/post/${post.id}`}
       />
 
