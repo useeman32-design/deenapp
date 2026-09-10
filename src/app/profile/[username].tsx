@@ -190,7 +190,8 @@ function PublicProfileScreenInner() {
   if (!profile) {
     if (!ready || liveLoading) {
       /* session still restoring — never flash "not found" for a real account */
-      return <BreathingContent bar={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} bg={d.bg} />;
+      /* pass 83-28 — dark skeleton used barely-visible ash blocks; now it wears the app's own card tone + gold border like the light theme */
+      return <BreathingContent bar={isDark ? d.card : 'rgba(20,36,28,0.08)'} bg={d.bg} border={isDark ? d.cardBorder : undefined} />;
     }
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
@@ -875,7 +876,7 @@ function PublicProfileScreenInner() {
 /* pass 83-12 — owner: the loading state should be the CONTENT breathing,
  * not an icon. A profile-shaped skeleton (avatar, name, bio, stats, posts)
  * that slowly inhales/exhales until the real page is ready. */
-function BreathingContent({ bar, bg }: { bar: string; bg: string }) {
+function BreathingContent({ bar, bg, border }: { bar: string; bg: string; border?: string }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -903,9 +904,9 @@ function BreathingContent({ bar, bg }: { bar: string; bg: string }) {
       }}
     >
       <View style={{ alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: bar }} />
-        <View style={{ width: 150, height: 15, borderRadius: 8, backgroundColor: bar }} />
-        <View style={{ width: 104, height: 11, borderRadius: 6, backgroundColor: bar }} />
+        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
+        <View style={{ width: 150, height: 15, borderRadius: 8, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
+        <View style={{ width: 104, height: 11, borderRadius: 6, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
       </View>
       <View style={{ alignItems: 'center', gap: 8, marginTop: 6 }}>
         <View style={{ width: '72%', height: 11, borderRadius: 6, backgroundColor: bar }} />
@@ -918,7 +919,7 @@ function BreathingContent({ bar, bg }: { bar: string; bg: string }) {
       </View>
       <View style={{ gap: 12, marginTop: 10 }}>
         {Array.from({ length: Math.max(2, Math.min(4, Math.floor((height - 420) / 92))) }).map((_, i) => (
-          <View key={i} style={{ height: 80, borderRadius: 16, backgroundColor: bar }} />
+          <View key={i} style={{ height: 80, borderRadius: 16, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
         ))}
       </View>
     </Animated.View>

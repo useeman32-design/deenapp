@@ -100,8 +100,14 @@ export default function HadithBookScreen() {
   /* stream the full book file on first reader open */
   useEffect(() => {
     /* a pure ?h= deep link enters straight into chapter 1's reader so the
-     * stream begins; the jump above then lands on the real chapter */
-    if (!chapter && jumpH != null) setChapter('c1');
+     * stream begins; the jump above then lands on the real chapter.
+     * pass 83-28 — ONE-SHOT: this used to re-fire every time you left the
+     * reader, so pressing back to the chapter list immediately pushed you
+     * back in — the endless back-button loop on shared hadith links. */
+    if (!chapter && jumpH != null && !jumpEntered.current) {
+      jumpEntered.current = true;
+      setChapter('c1');
+    }
     if (!chapter) return;
     if (hadiths) return;
     setLoading(true);
@@ -137,6 +143,7 @@ export default function HadithBookScreen() {
 
   const scroller = useRef<ScrollView>(null);
   const jumped = useRef(false);
+  const jumpEntered = useRef(false); /* pass 83-28 — the ?h= auto-entry happens exactly once */
   const chNum = chapter ? Number(chapter.slice(1)) : null;
   const chapterMeta = meta?.find((c) => c.chapter_number === chNum) ?? null;
   const list = useMemo(() => (chapter && hadiths ? hadiths.filter((h) => h.chapter_number === chNum) : []), [chapter, hadiths, chNum]);

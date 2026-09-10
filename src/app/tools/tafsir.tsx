@@ -11,6 +11,7 @@ import { loadSurah, type ContentAyah } from '@/lib/content';
 import { QURAN } from '@/data/quran';
 import { TAFSIR_BOOKS, fetchTafsir, tafsirBlocks, type TafsirAuthor } from '@/lib/tafsir';
 import { storage } from '@/lib/storage';
+import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useRouter } from 'expo-router';
 
 /**
@@ -37,6 +38,8 @@ export default function Tafsir() {
   const [book, setBook] = useState<TafsirAuthor>('Ibn Kathir');
   const [surahN, setSurahN] = useState(1);
   const [ayahN, setAyahN] = useState<number | null>(1);
+  /* pass 83-28 — the tafsir card now shares (the Ask-AI button is gone) */
+  const [shareTafsir, setShareTafsir] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
   const [q, setQ] = useState('');
   const [jump, setJump] = useState('');
   const [content, setContent] = useState<SurahData>(null);
@@ -243,15 +246,24 @@ export default function Tafsir() {
                           ))}
                         </View>
                       )}
-                      {/* consistent per-ayah AI action — present on every ayah */}
+                      {/* pass 83-28 — owner: the Ask-DeenLink-AI button is
+                       * removed entirely from the tafsir books; OUR share
+                       * lives here instead (ayah text + tafsir reference). */}
                       <Pressable
-                        accessibilityLabel="ask DeenLink AI about this ayah"
-                        onPress={() => router.push('/tools/ai' as never)}
-                        style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.07)', paddingHorizontal: 12, paddingVertical: 10 }}
+                        accessibilityLabel="share this ayah and its tafsir"
+                        onPress={() => {
+                          haptic.selection();
+                          setShareTafsir({
+                            arabic: a.arabic ?? '',
+                            meaning: `${meta.english} ${surahN}:${a.ayah} · ${bookMeta.label} — ${bookMeta.author}`,
+                            ref: `${meta.english} ${surahN}:${a.ayah} · Tafsir`,
+                          });
+                        }}
+                        style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.35)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(14,122,70,0.05)', paddingHorizontal: 12, paddingVertical: 10 }}
                       >
-                        <FontAwesome5 name="robot" size={12} color="#5BC8F5" />
-                        <T v="bodyS" style={{ flex: 1, fontSize: 11.5, fontWeight: '700', color: d.text }}>Ask DeenLink AI about this ayah</T>
-                        <FontAwesome5 name="arrow-right" size={10} color="#5BC8F5" />
+                        <FontAwesome5 name="share-alt" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                        <T v="bodyS" style={{ flex: 1, fontSize: 11.5, fontWeight: '700', color: d.text }}>Share this ayah</T>
+                        <FontAwesome5 name="arrow-right" size={10} color={isDark ? '#4AE38F' : '#1D6F42'} />
                       </Pressable>
                     </View>
                   ) : null}
@@ -261,6 +273,12 @@ export default function Tafsir() {
           </>
         )}
       </ScrollView>
+      <ContentShareSheet
+        visible={shareTafsir != null}
+        onClose={() => setShareTafsir(null)}
+        card={shareTafsir ? { kind: 'ayah', ...shareTafsir, route: `/read/${surahN}?ayah=${ayahN ?? 1}` } : null}
+        link={`https://app.deenlink.org/read/${surahN}?ayah=${ayahN ?? 1}`}
+      />
     </View>
   );
 }

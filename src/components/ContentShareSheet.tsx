@@ -51,7 +51,10 @@ export function ContentShareSheet({
   const [sent, setSent] = useState<string | null>(null);
   /* pass 49 — route the shared link through /share.php so external apps render a preview card */
   const KIND_MAP: Record<string, 'verse' | 'hadith' | 'dua' | 'post'> = { ayah: 'verse', hadith: 'hadith', dua: 'dua', athkar: 'dua', post: 'post', profile: 'post' };
-  const previewUrl = card ? buildShareUrl(KIND_MAP[card.kind] ?? 'dua', undefined, card.ref || 'DeenLink', card.meaning) : link;
+  /* pass 83-28 — the link preview carries a taste of the ARABIC when the
+   * shared item has it (share.php caps the description at 160 chars). */
+  const previewText = card ? (card.arabic ? `${card.arabic}\n${card.meaning}` : card.meaning) : '';
+  const previewUrl = card ? buildShareUrl(KIND_MAP[card.kind] ?? 'dua', undefined, card.ref || 'DeenLink', previewText) : link;
 
   if (!visible && (svgMode || imgUrl)) { setSvgMode(false); setImgUrl(null); }
   if (!visible) return null;

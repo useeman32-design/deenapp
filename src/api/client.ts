@@ -13,6 +13,7 @@
  * UI always works in previews.
  */
 
+import { Platform } from 'react-native';
 import { storage } from '@/lib/storage';
 import {
   MOCK_COURSES,
@@ -369,7 +370,7 @@ export async function reportPost(postId: number, reason: string): Promise<boolea
 }
 
 /* pass 66-night — groups, server-backed (schema self-creates in common.php). */
-export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string; my_role?: 'owner' | 'admin' | 'member' | null; members?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; role: string }> };
+export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string; my_role?: 'owner' | 'admin' | 'member' | null; members?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; role: string }>; my_request_pending?: boolean; pending_requests?: number };
 export async function groupsList(q?: string): Promise<GroupRow[] | null> {
   /* pass 83-25 — ?q= searches name/bio/desc/category server-side */
   const r = await request<{ status?: string; groups?: GroupRow[] }>(`/api/groups/list.php${q && q.trim() ? `?q=${encodeURIComponent(q.trim().slice(0, 60))}` : ''}`, { auth: true });
@@ -382,6 +383,26 @@ export async function groupGet(id: number): Promise<GroupRow | null> {
 export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
   return r.ok;
+}
+/* pass 83-28 — join REQUESTS: closed groups take a request the owner/admins
+ * approve or decline (was: a hard 403 with no way in). 'requested' = queued. */
+export async function groupJoinRich(id: number, join: boolean): Promise<'joined' | 'requested' | 'left' | null> {
+  const r = await request<{ status?: string; message?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
+  if (!r.ok) return null;
+  if (!join) return 'left';
+  return r.data.status === 'requested' ? 'requested' : 'joined';
+}
+export async function groupJoinRequests(groupId: number): Promise<Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at?: string }> | null> {
+  const r = await request<{ status?: string; requests?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at?: string }> }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, action: 'requests' }, auth: true,
+  });
+  return r.ok && Array.isArray(r.data.requests) ? r.data.requests : null;
+}
+export async function groupJoinDecide(groupId: number, userId: number, approve: boolean): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, action: approve ? 'approve' : 'decline', user_id: userId }, auth: true,
+  });
+  return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
 }
 /* pass 83-25 — owner/admin member management (add/remove/set_role). */
 export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string }> {
@@ -409,28 +430,26 @@ function normalizePostShapes(posts: Post[]): void {
   for (const p of posts) {
     const sp = mapServerPoll((p as { poll?: unknown }).poll);
     if (sp) (p as { poll?: unknown }).poll = sp;
-    if (Array.isArray(p.media)) {
-      p.media = p.media.map((m) => {
-        const mm = m as { url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
-        if (mm.url == null && mm.image_url_1080 != null) {
-          return { type: 'image', url: absMedia(String(mm.image_url_1080)), thumb_url: absMedia(String(mm.image_url_360 ?? mm.image_url_1080)) };
-        }
-        return m;
-      });
-    }
     const au = (p as { audio_url?: unknown }).audio_url;
     if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
-    /* pass 83-19 — video media rows ride as {type:'video', video_url}; lift it
-     * onto the post so FeedCard's existing video player renders it. */
+    /* pass 83-28 — the VIDEO lift runs BEFORE the image lift and the image
+     * lift SKIPS video rows. Before, an image-shaped row carrying a
+     * video_url could be turned into a broken "image" (unplayable empty
+     * media block — the owner's empty-video report) and the video lift
+     * could miss it entirely. */
     if (!p.video_url && Array.isArray(p.media)) {
       const vm = p.media.find((m) => (m as { video_url?: unknown }).video_url != null) as { video_url?: unknown } | undefined;
       if (vm && typeof vm.video_url === 'string' && vm.video_url) p.video_url = absMedia(vm.video_url);
     }
     if (Array.isArray(p.media)) {
       p.media = p.media.map((m) => {
-        const mm = m as { video_url?: unknown; url?: unknown };
-        if (mm.video_url != null && mm.url == null) {
-          return { ...m, type: 'video', url: absMedia(String(mm.video_url)) };
+        const mm = m as { video_url?: unknown; url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
+        if (mm.video_url != null) {
+          /* video rows stay video rows — never lifted into images */
+          return mm.url != null ? m : { ...m, type: 'video', url: absMedia(String(mm.video_url)) };
+        }
+        if (mm.url == null && mm.image_url_1080 != null) {
+          return { type: 'image', url: absMedia(String(mm.image_url_1080)), thumb_url: absMedia(String(mm.image_url_360 ?? mm.image_url_1080)) };
         }
         return m;
       });
@@ -452,12 +471,13 @@ export async function groupCreatePost(
   video?: { uri: string; name?: string; type?: string },
   youtubeUrl?: string,
   onProgress?: (frac: number) => void,
-): Promise<{ id: number } | null> {
+): Promise<{ id: number | null; message?: string } | null> {
   /* pass 83-10 — photos/audio go multipart (same recipe as the feed's
    * createPost: blob: URIs become Files on web, {uri} parts native).
    * pass 83-10b/c — poll options ride along on either transport.
    * pass 83-25 — + local video + YouTube link + image compression + real
-   * upload progress (uploadForm, like the feed composer). */
+   * upload progress (uploadForm, like the feed composer).
+   * pass 83-28 — failures carry the server's message back to the composer. */
   const opts = (pollOptions ?? []).map((o) => o.trim()).filter(Boolean).slice(0, 6);
   const yt = (youtubeUrl ?? '').trim();
   const hasMedia = (!!images && images.length > 0) || !!audio || !!video;
@@ -493,16 +513,18 @@ export async function groupCreatePost(
       }
     }
     const r = hasMedia
-      ? await uploadForm<{ status?: string; id?: number }>('/api/groups/create_post.php', form, onProgress)
-      : await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
-    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : null;
+      ? await uploadForm<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', form, onProgress)
+      : await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
+    /* pass 83-28 — the server's own message rides back ("You are not a
+     * member…", "Posting too fast…") so failures are no longer a mystery */
+    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : { id: null, message: r.data?.message };
   }
-  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', {
+  const r = await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', {
     method: 'POST',
     body: { group_id: groupId, content_text: contentText, ...(opts.length >= 2 ? { poll_options: opts } : {}) },
     auth: true,
   });
-  return r.ok && r.data.id ? { id: r.data.id as number } : null;
+  return r.ok && r.data.id ? { id: r.data.id as number } : { id: null, message: r.data?.message };
 }
 
 /* pass 83-25 — videos-page uploads hit the server (single-shot upload.php path:
@@ -939,8 +961,46 @@ function uploadForm<T>(url: string, form: FormData, onProgress?: (frac: number) 
 }
 
 /* pass 83-24 — shrink photos before upload (owner: 4 images froze the app):
- * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error. */
+ * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error.
+ * pass 83-28 — web NEVER touches expo-image-manipulator: the dynamic import
+ * isn't in the web bundle, and Metro's failed-require path calls
+ * ErrorUtils.reportFatalError BEFORE our try/catch — that was the crash
+ * screen on every web photo post. Web now compresses with a canvas
+ * (createImageBitmap decodes off the main thread), which also kills the
+ * freeze the owner saw when posting images. */
+async function compressImageWeb(uri: string): Promise<string> {
+  try {
+    const W = typeof window !== 'undefined' ? window : undefined;
+    if (!W || typeof W.createImageBitmap !== 'function' || typeof document === 'undefined') return uri;
+    let bmp: ImageBitmap;
+    if (uri.startsWith('blob:') || uri.startsWith('data:')) {
+      const blob = await fetch(uri).then((r) => r.blob());
+      bmp = await createImageBitmap(blob);
+    } else {
+      bmp = await createImageBitmap(await fetch(uri).then((r) => r.blob()));
+    }
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    if (scale >= 1) { bmp.close(); return uri; }
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bmp.close(); return uri; }
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.78));
+    if (!blob) return uri;
+    /* blob: URL — createPost already turns blob: URIs into Files */
+    return URL.createObjectURL(blob);
+  } catch {
+    return uri;
+  }
+}
+
 export async function compressImageForUpload(uri: string): Promise<string> {
+  if (typeof window !== 'undefined' && Platform.OS === 'web') return compressImageWeb(uri);
   try {
     const IM = await import('expo-image-manipulator');
     const info = await (IM as { getImageInfoAsync?: (u: string) => Promise<{ width: number; height: number }> }).getImageInfoAsync?.(uri).catch(() => null);

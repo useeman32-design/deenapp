@@ -86,7 +86,16 @@ export default function EditProfile() {
     });
     setBusy(false);
     if (res.ok) {
-      updateUser({ bio: bio.trim(), aqeedah: aqeedah.trim(), phone: phone.trim(), hide_charity_balance: hideCharity });
+      /* pass 83-28 — the saved questions land in the auth context too, so
+       * change-email sees them WITHOUT a re-login (it used to keep saying
+       * "you haven't set security questions"). */
+      updateUser({
+        bio: bio.trim(), aqeedah: aqeedah.trim(), phone: phone.trim(), hide_charity_balance: hideCharity,
+        ...(sq[0] ? { security_question: sq[0] } : {}),
+        ...(sq[1] ? { security_question_2: sq[1] } : {}),
+        ...(sq[0] && sqAnswers[0].trim() ? { security_answer_set: true } : {}),
+        ...(sq[1] && sqAnswers[1].trim() ? { security_answer_2_set: true } : {}),
+      });
       haptic.success();
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
@@ -100,7 +109,9 @@ export default function EditProfile() {
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <TopBar title="Edit profile" showBack />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 34 }} showsVerticalScrollIndicator={false}>
-        <Surface solid style={{ padding: 18, gap: 14 }}>
+        {/* pass 83-28 — breathing room between every field (they used to sit
+         * almost touching) and proper section headers. */}
+        <Surface solid style={{ padding: 18, gap: 18 }}>
           {/* avatar */}
           <View style={{ alignItems: 'center', gap: 10, paddingBottom: 4 }}>
             <Pressable onPress={() => { haptic.selection(); setPickerOpen(true); }} style={{ width: 96, height: 96, borderRadius: 48, overflow: 'hidden', backgroundColor: theme.cardSoft, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}>
@@ -149,22 +160,32 @@ export default function EditProfile() {
             <T v="meta" style={label}>SECURITY QUESTIONS</T>
             <T v="meta" style={{ marginBottom: 10, textTransform: 'none', letterSpacing: 0, lineHeight: 16 }}>Choose exactly two — used to recover your account if you lose access to your email.</T>
             {([0, 1] as const).map((idx) => (
-              <View key={idx} style={{ marginBottom: 12 }}>
+              <View key={idx} style={{ marginBottom: 14 }}>
                 <T v="meta" style={{ marginBottom: 5 }}>QUESTION {idx + 1}</T>
                 <Pressable onPress={() => { haptic.selection(); setSqOpen(idx); }} style={{ ...field, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <T v="bodyS" style={{ fontSize: 14, color: sq[idx] ? theme.text : theme.subtext, flex: 1 }} numberOfLines={1}>{sq[idx] || 'Select a question'}</T>
                   <FontAwesome5 name="chevron-down" size={12} color={theme.subtext} />
                 </Pressable>
                 {sq[idx] ? (
-                  <TextInput
-                    value={sqAnswers[idx]}
-                    onChangeText={(t) => { const n: [string, string] = [...sqAnswers]; n[idx] = t; setSqAnswers(n); }}
-                    placeholder="Your answer"
-                    placeholderTextColor={theme.subtext}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={{ ...field, marginTop: 8 }}
-                  />
+                  <>
+                    <TextInput
+                      value={sqAnswers[idx]}
+                      onChangeText={(t) => { const n: [string, string] = [...sqAnswers]; n[idx] = t; setSqAnswers(n); }}
+                      placeholder="Your answer"
+                      placeholderTextColor={theme.subtext}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      style={{ ...field, marginTop: 8 }}
+                    />
+                    {/* pass 83-28 — answers are never shown again (they're
+                     * hashed server-side), but the screen must SAY one is
+                     * saved — the owner thought the whole thing never saved. */}
+                    <T v="meta" style={{ marginTop: 6, textTransform: 'none', letterSpacing: 0, color: (idx === 0 ? user?.security_answer_set : user?.security_answer_2_set) && !sqAnswers[idx].trim() ? theme.primary : theme.subtext }}>
+                      {(idx === 0 ? user?.security_answer_set : user?.security_answer_2_set)
+                        ? (sqAnswers[idx].trim() ? 'Saves a NEW answer when you press Save' : '✓ Answer saved — type only to replace it')
+                        : 'No answer saved yet — type one and press Save'}
+                    </T>
+                  </>
                 ) : null}
               </View>
             ))}

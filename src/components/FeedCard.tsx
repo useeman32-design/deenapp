@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, AppState, Dimensions, Easing, FlatList, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
@@ -152,9 +152,30 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
     });
 
   useEffect(() => {
-    if (started && !paused && !outRef.current) player.play();
+    if (started && !paused && !outRef.current && screenFocusedRef.current) player.play();
     else player.pause();
   }, [started, paused, player]);
+
+  /* pass 83-28 — three hard stops so audio never leaks: the card UNMOUNTS,
+   * the SCREEN loses focus (user opened another module — the poll above only
+   * catches scroll, coordinates can stay stale), or the APP is backgrounded. */
+  const screenFocusedRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      screenFocusedRef.current = true;
+      return () => {
+        screenFocusedRef.current = false;
+        try { player.pause(); } catch {}
+      };
+    }, [player]),
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') { try { player.pause(); } catch {} }
+    });
+    return () => sub.remove();
+  }, [player]);
+  useEffect(() => () => { try { player.pause(); } catch {} }, [player]);
 
   /* pass 41 — PAUSE when scrolled out of view, resume when back (user request).
    * measureInWindow works on native AND web, so the poll catches both. */
@@ -218,7 +239,26 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   const webFull = expanded && Platform.OS === 'web';
   const openFull = () => {
     haptic.light();
-    if (Platform.OS === 'web') { setExpanded(true); return; }
+    if (Platform.OS === 'web') {
+      /* pass 83-28 — prefer the REAL browser fullscreen on the mounted
+       * <video> (the position:fixed overlay used to pop a small box at the
+       * top of the screen whenever a nav container left a transform behind).
+       * iOS Safari gets webkitEnterFullscreen; anything else falls back. */
+      try {
+        const host = boxRef.current as unknown as HTMLElement | null;
+        const vid = host?.querySelector?.('video') as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+        if (vid) {
+          if (typeof vid.requestFullscreen === 'function') {
+            const p = vid.requestFullscreen();
+            if (p && typeof p.catch === 'function') p.catch(() => setExpanded(true));
+            return;
+          }
+          if (typeof vid.webkitEnterFullscreen === 'function') { vid.webkitEnterFullscreen(); return; }
+        }
+      } catch { /* fall through to the overlay */ }
+      setExpanded(true);
+      return;
+    }
     /* native: the player's own fullscreen keeps the same playback session;
      * if the API is missing it rejects/throws and we fall back to the modal */
     try {
@@ -455,6 +495,8 @@ export function FeedCard({
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
+  /* pass 83-28 — the preview opens on the image you TAPPED (it always showed the first slide) */
+  const [previewIdx, setPreviewIdx] = useState(0);
   const [pollState, setPollState] = useState<{ voted: number | null; options: Array<{ id: number; text: string; votes: number }> }>(() => ({
     /* pass 66-night — server polls arrive already voted so the card opens truthful */
     voted: post.poll?.voted ?? null,
@@ -979,7 +1021,7 @@ export function FeedCard({
       {/* pass 83-24 — a multi-photo post renders ONLY the carousel; this hero
           used to stack a second container holding the first image on top */}
       {post.image_url && mediaImgs.length <= 1 ? (
-        <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
+        <Pressable onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 280 }} resizeMode="cover" />
           </View>
@@ -988,7 +1030,7 @@ export function FeedCard({
 
       {/* Media image — single tap: preview · double tap: like */}
       {mediaUrl != null && mediaImgs.length <= 1 ? (
-        <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
+        <Pressable onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image
               source={typeof mediaUrl === 'number' ? mediaUrl : { uri: String(mediaUrl) }}
@@ -1018,7 +1060,7 @@ export function FeedCard({
             }}
           >
             {mediaImgs.map((u, i) => (
-              <Pressable key={i} onPress={() => onTap(() => setImgPreview(true))} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>
+              <Pressable key={i} onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>
                 <Image source={{ uri: u }} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60, height: 260, borderRadius: 14 }} resizeMode="cover" />
               </Pressable>
             ))}
@@ -1169,7 +1211,23 @@ export function FeedCard({
       <Modal visible={imgPreview} transparent animationType="fade" onRequestClose={() => setImgPreview(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center' }}>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }} onPress={() => setImgPreview(false)} />
-          {mediaUrl != null ? (
+          {/* pass 83-28 — multi-photo posts get a swipeable gallery that
+              STARTS on the slide you tapped; single images unchanged. */}
+          {mediaImgs.length > 1 ? (
+            <FlatList
+              horizontal
+              pagingEnabled
+              data={mediaImgs}
+              keyExtractor={(u, i) => `${i}-${String(u).slice(0, 24)}`}
+              initialScrollIndex={Math.min(previewIdx, Math.max(0, mediaImgs.length - 1))}
+              getItemLayout={(_, i) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * i, index: i })}
+              onMomentumScrollEnd={(e) => setPreviewIdx(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, Dimensions.get('window').width)))}
+              renderItem={({ item }) => (
+                <Image source={typeof item === 'number' ? item : { uri: String(item) }} style={{ width: Dimensions.get('window').width, height: 560 }} resizeMode="contain" />
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+          ) : mediaUrl != null ? (
             <Image
               source={typeof mediaUrl === 'number' ? mediaUrl : { uri: String(mediaUrl) }}
               style={{ width: '100%', height: 560, borderRadius: 4 }}

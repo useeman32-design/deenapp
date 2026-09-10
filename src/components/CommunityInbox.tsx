@@ -127,7 +127,10 @@ const SEED: Thread[] = [
 ];
 const SEED_NAMES = new Set(SEED.map((t) => t.friend));
 
-const STORE = 'dl.inbox.v2';
+/* pass 83-28 — the inbox cache is PER-ACCOUNT now: the old single global key
+ * served account A's chats to account B after a switch (owner report).
+ * v3 keys carry the user id; the old v2 blob is never read again. */
+const inboxStoreKey = (owner: string | number | null) => `dl.inbox.v3.${owner ?? 'anon'}`;
 
 /* pass 58 — real presence/last-seen from the API, and the same six report
  * reasons the post report sheet uses (src/components/FeedCard.tsx). */
@@ -505,9 +508,24 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   /* pass 83-18 — true while a thread's history is being pulled */
   const [histLoading, setHistLoading] = useState(false);
 
-  /* restore persisted chats */
+  /* pass 83-28 — restore ONLY the signed-in account's chats (see inboxStoreKey). */
+  const ownerRef = useRef<string>('anon');
+  const [ownerReady, setOwnerReady] = useState(false);
   useEffect(() => {
-    storage.getItem(STORE).then((r) => {
+    let dead = false;
+    storage.getItem('dl.user').then((u) => {
+      if (dead) return;
+      try {
+        const parsed = JSON.parse(u ?? '{}') as { id?: number; username?: string };
+        ownerRef.current = String(parsed.id ?? parsed.username ?? 'anon');
+      } catch { ownerRef.current = 'anon'; }
+      setOwnerReady(true);
+    });
+    return () => { dead = true; };
+  }, []);
+  useEffect(() => {
+    if (!ownerReady) return;
+    storage.getItem(inboxStoreKey(ownerRef.current)).then((r) => {
       if (r)
         try {
           const parsed = JSON.parse(r) as Thread[];
@@ -516,10 +534,10 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           setThreads(isLive() ? parsed.filter((t) => !SEED_NAMES.has(t.friend)) : parsed);
         } catch {}
     });
-  }, []);
+  }, [ownerReady]);
   const persist = (next: Thread[]) => {
     setThreads(next);
-    storage.setItem(STORE, JSON.stringify(next)).catch(() => {});
+    storage.setItem(inboxStoreKey(ownerRef.current), JSON.stringify(next)).catch(() => {});
   };
 
   /* pass 64 — native keyboard show/hide (web is handled by the body background). */
@@ -950,14 +968,18 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
       });
       [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
       setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
-      setTimeout(() => {
-        scroller.current?.scrollToEnd({ animated: false });
-        /* web: the RNW ref is null in this build, so land on the newest row via the DOM */
-        if (Platform.OS === 'web') {
-          const node = webScrollNode();
-          if (node) node.scrollTop = node.scrollHeight;
-        }
-      }, 60);
+      /* pass 83-28 — returning from a shared item used to leave the thread
+       * scrolled to the TOP (the scroll raced the layout). Give it a few
+       * frames — same recipe as the send path below. */
+      [0, 60, 160, 300].forEach((t) =>
+        setTimeout(() => {
+          scroller.current?.scrollToEnd({ animated: false });
+          if (Platform.OS === 'web') {
+            const node = webScrollNode();
+            if (node) node.scrollTop = node.scrollHeight;
+          }
+        }, t),
+      );
     }).catch(() => {});
     markRead(cid);
   }, [live, openFriend, convIds, user?.id, markRead]);

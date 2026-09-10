@@ -1119,12 +1119,25 @@ function CommunityScreenInner() {
                 </>
               ) : null}
 
+              {/* pass 83-28 — thumbnails INSIDE the composer (like the group
+               * composer) instead of a filename row: owner asked for exactly
+               * this for both photos and videos. */}
               {imageAttachs.length ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
-                  <FontAwesome5 name="image" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
-                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
-                    {imageAttachs.length === 1 ? imageAttachs[0].name : `${imageAttachs.length} photos attached`}
-                  </T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, width: 0 }} contentContainerStyle={{ gap: 7, paddingRight: 6 }}>
+                    {imageAttachs.map((m, i) => (
+                      <View key={`${m.uri}-${i}`} style={{ position: 'relative' }}>
+                        <ExpoImage source={{ uri: m.uri }} style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder }} contentFit="cover" />
+                        <Pressable
+                          onPress={() => setImageAttachs((cur) => cur.filter((_, j) => j !== i))}
+                          hitSlop={6}
+                          style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <FontAwesome5 name="times" size={9} color="#fff" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
                   <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
                     <FontAwesome5 name="times-circle" size={14} color={d.faint} />
                   </Pressable>
@@ -1132,8 +1145,10 @@ function CommunityScreenInner() {
               ) : null}
 
               {videoAttach ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
-                  <FontAwesome5 name="video" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 }}>
+                  <View style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+                    <FontAwesome5 name="film" size={16} color="rgba(255,255,255,0.75)" />
+                  </View>
                   <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
                     {videoAttach.name}
                   </T>

@@ -15,7 +15,7 @@ import type { AccountResult } from '@/api/client';
 import type { Post, Video } from '@/api/types';
 import { MOCK_ACCOUNTS, MOCK_FEED, MOCK_VIDEOS } from '@/api/mocks';
 
-type Tab = 'top' | 'users' | 'videos' | 'hashtags';
+type Tab = 'top' | 'users' | 'videos' | 'hashtags' | 'groups'; /* pass 83-28 — groups are searchable */
 
 /** pass 67 — pull #hashtags out of post copy (live + demo alike). */
 export function tagsOf(posts: Post[]): Array<{ tag: string; count: number }> {
@@ -132,7 +132,7 @@ export default function SearchScreen() {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [users, setUsers] = useState<AccountResult[] | null>(null);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ top: false, users: false, videos: false, hashtags: false });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ top: false, users: false, videos: false, hashtags: false, groups: false });
   const [recentMore, setRecentMore] = useState(false);
   /* pass 74 — search history (persisted) with clear + show more/less */
   const [history, setHistory] = useState<string[]>([]);
@@ -201,6 +201,22 @@ export default function SearchScreen() {
         .then((r) => { if (on) setQVideos(r); })
         .catch(() => {})
         .finally(() => { if (on) setLoading((l) => ({ ...l, videos: false })); });
+    }, 320);
+    return () => { on = false; clearTimeout(t); };
+  }, [query, searching]);
+
+  /* pass 83-28 — GROUP search: groups/list.php?q= LIKE-matches name/bio/
+   * description/category server-side; rows open the group screen. */
+  const [qGroups, setQGroups] = useState<api.GroupRow[] | null>(null);
+  useEffect(() => {
+    if (!searching || !api.isLive()) { setQGroups(null); return; }
+    let on = true;
+    const t = setTimeout(() => {
+      setLoading((l) => ({ ...l, groups: true }));
+      api.groupsList(query.slice(0, 60))
+        .then((r) => { if (on) setQGroups(r); })
+        .catch(() => {})
+        .finally(() => { if (on) setLoading((l) => ({ ...l, groups: false })); });
     }, 320);
     return () => { on = false; clearTimeout(t); };
   }, [query, searching]);
@@ -350,6 +366,7 @@ export default function SearchScreen() {
     { id: 'users', label: 'Users', icon: 'users' },
     { id: 'videos', label: 'Videos', icon: 'play-circle' },
     { id: 'hashtags', label: 'Hashtags', icon: 'hashtag' },
+    { id: 'groups', label: 'Groups', icon: 'users-cog' }, /* pass 83-28 */
   ];
 
   /* the mixed "Top" list: the single best of each kind, then the rest */
@@ -479,6 +496,31 @@ export default function SearchScreen() {
             matchedVideos.map((v, i) => <RowIn key={v.id} i={i}><VideoRow v={v} /></RowIn>)
           ) : (
             <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 40 }}>No videos found.</T>
+          )
+        ) : tab === 'groups' ? (
+          /* pass 83-28 — group rows: emoji, name, category, member count */
+          loading.groups && !qGroups ? <Skeleton rows={4} shape="user" tint={d.bgSoft} card={d.card} border={d.cardBorder} /> : qGroups && qGroups.length ? (
+            qGroups.map((g, i) => (
+              <RowIn key={g.id} i={i}>
+                <Pressable
+                  onPress={() => { haptic.light(); router.push(`/tools/group?id=srv${g.id}` as never); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10 }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder }}>
+                    <T v="bodyS" style={{ fontSize: 18 }}>{g.emoji ?? '🕌'}</T>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontSize: 13.5, fontWeight: '700', color: d.text }}>{g.name}</T>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
+                      {[g.category, `${g.member_count} member${g.member_count === 1 ? '' : 's'}`, g.open_join ? 'Open' : 'Invite-only'].filter(Boolean).join(' · ')}
+                    </T>
+                  </View>
+                  <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+                </Pressable>
+              </RowIn>
+            ))
+          ) : (
+            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 40 }}>No groups found.</T>
           )
         ) : (
           !posts ? <Skeleton rows={5} shape="tag" tint={d.bgSoft} card={d.card} border={d.cardBorder} /> : matchedTags.length ? (
