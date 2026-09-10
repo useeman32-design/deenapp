@@ -405,11 +405,28 @@ export async function groupJoinDecide(groupId: number, userId: number, approve: 
   return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
 }
 /* pass 83-25 — owner/admin member management (add/remove/set_role). */
-export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string }> {
-  const r = await request<{ status?: string; message?: string; role?: string }>('/api/groups/members.php', {
+export type GroupAddDenial = { username: string; full_name: string };
+export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string; denial?: GroupAddDenial }> {
+  const r = await request<{ status?: string; message?: string; role?: string; code?: string; username?: string; full_name?: string }>('/api/groups/members.php', {
     method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,
   });
-  return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
+  if (r.ok) return { ok: true };
+  /* pass 83-29 — target's "Allow group adding" is OFF → structured denial */
+  const denial = r.data?.code === 'no_group_add' && r.data.username
+    ? { username: String(r.data.username), full_name: String(r.data.full_name ?? '') }
+    : undefined;
+  return { ok: false, message: r.data?.message || 'Please try again.', denial };
+}
+
+/* pass 83-29 — the Settings → Privacy "Allow group adding" switch, mirrored
+ * server-side so the rule binds every admin's client, not just this device. */
+export async function setAllowGroupAdd(allow: boolean): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/users/group_privacy.php', { method: 'POST', body: { allow: allow ? 1 : 0 }, auth: true });
+  return r.ok && r.data?.status === 'success';
+}
+export async function getAllowGroupAdd(): Promise<boolean | null> {
+  const r = await request<{ status?: string; allow_group_add?: number }>('/api/users/group_privacy.php', { auth: true });
+  return r.ok && r.data?.status === 'success' ? Number(r.data.allow_group_add ?? 1) !== 0 : null;
 }
 export async function groupCreate(data: { name: string; bio?: string; category?: string; emoji?: string; open_join?: boolean }): Promise<{ id: number } | null> {
   const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
@@ -1254,6 +1271,15 @@ export async function donationSummary(): Promise<{ total: number; count: number;
   return null;
 }
 
+/* pass 83-29 — public per-user donation totals (profile Charity stat).
+ * Server: api/donations/user_summary.php — no login required; converts to the
+ * viewer's display currency. Returns null when offline/not live. */
+export async function userDonationSummary(userId: number): Promise<{ total: number; count: number; currency: string } | null> {
+  const r = await request<{ status?: string; total?: number; count?: number; currency?: string }>(`/api/donations/user_summary.php?user_id=${Number(userId)}`, { auth: true });
+  if (r.ok && r.data.status === 'success') return { total: Number(r.data.total ?? 0), count: Number(r.data.count ?? 0), currency: String(r.data.currency ?? 'USD') };
+  return null;
+}
+
 /* ---- qur'an extras ---- */
 export type ServerReciter = {
   reciter_key: string;
@@ -1611,6 +1637,8 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 
 /* Slice 9 — live chat (DM + group). */
 export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string;
+  /* pass 83-29 — username of whoever wrote last_body (inbox preview prefix) */
+  last_sender?: string | null;
   /* pass 74 — message requests: 'request' until the recipient accepts, 'declined' once blocked/reported */
   conv_status?: 'request' | 'active' | 'declined'; requested_by?: number | null;
   /* pass 74 — peer display name so the inbox never shows a mock label */

@@ -91,16 +91,14 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
   const area = `${curve} L ${X(end).toFixed(1)},${baseline} L ${X(fajr).toFixed(1)},${baseline} Z`;
 
   const nowMs = now.getTime();
-  /* pass 40 — WRAP FIX: after Isha(+45m) the marker used to keep walking
-   * PAST the arc's right edge until the next day's times snapped it back.
-   * Now the night RETRACES the arc: the moon glides from Isha back toward
-   * Fajr, arriving exactly as the next day begins — no snap, no off-arc. */
-  const nextFajr = fajr + 24 * 3600e3;
+  /* pass 83-29 — owner: the moon must ONLY ever move toward the next prayer
+   * and wait. The pass-40 night retrace glided it backwards toward Fajr
+   * (it "rolled back and started from the back again") — gone. After
+   * Isha(+45m) the marker now PARKS at the arc's end until tomorrow's
+   * Fajr resets the day; during the day it still advances to the next
+   * prayer and sits there. No backwards motion, ever. */
   const isNight = nowMs > end;
-  const nf = isNight ? Math.min((nowMs - end) / Math.max(nextFajr - end, 1), 1) : 0;
-  const sunT = isNight
-    ? end - nf * (end - fajr)
-    : Math.max(nowMs, fajr);
+  const sunT = isNight ? end : Math.max(nowMs, fajr);
   // bright "day so far" segment: Fajr → now
   const elapsedIdx = isNight ? 0 : Math.min(Math.round(((sunT - fajr) / span) * N), N);
   const elapsed =

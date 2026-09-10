@@ -15,7 +15,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
-import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
+import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userDonationSummary, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -84,6 +84,10 @@ function PublicProfileScreenInner() {
   const [livePosts, setLivePosts] = useState<import('@/api/types').Post[] | null>(null);
   /* pass 75 — a real scholar's answered questions come from the server */
   const [liveQAs, setLiveQAs] = useState<Array<{ q: string; a: string }> | null>(null);
+  /* pass 83-29 — Charity stat is REAL: successful-donation total from
+   * api/donations/user_summary.php (viewer currency), honest zero while
+   * loading / offline. The old hard-coded "₦ 12.4k" is gone. */
+  const [charityLabel, setCharityLabel] = useState('0');
   /* pass 75 — account tools: report this account (server account_reports) */
   const [reportOpen, setReportOpen] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
@@ -117,6 +121,20 @@ function PublicProfileScreenInner() {
       if (rows.length) setLiveQAs(rows.map((r) => ({ q: r.question || r.title, a: r.answer })));
     });
   }, [liveP]);
+
+  /* pass 83-29 — pull the viewed account's real donation total */
+  useEffect(() => {
+    if (!liveP?.id) return;
+    let on = true;
+    void userDonationSummary(liveP.id).then((sum) => {
+      if (!on || !sum) return;
+      const sym = sum.currency === 'NGN' ? '₦' : sum.currency === 'USD' ? '$' : sum.currency === 'GBP' ? '£' : sum.currency === 'EUR' ? '€' : `${sum.currency} `;
+      const n = sum.total;
+      const compact = n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}m` : n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : (Number.isInteger(n) ? String(n) : n.toFixed(2));
+      setCharityLabel(`${sym}${compact}`);
+    });
+    return () => { on = false; };
+  }, [liveP?.id]);
 
   const profile: MockProfile | null = useMemo(() => {
     /* pass 66-night — real accounts surface from the server even when the
@@ -443,7 +461,7 @@ function PublicProfileScreenInner() {
                 { label: 'Posts', value: fmt(Math.max(posts.length, liveP?.posts ?? profile.posts_count)), tab: null },
                 { label: 'Followers', value: fmt(followerCount + (following !== !!liveP?.following_by_me ? (following ? 1 : -1) : 0)), tab: 'followers' },
                 { label: 'Following', value: fmt(followingCount), tab: 'following' },
-                { label: 'Charity', value: '₦ 12.4k', tab: null },
+                { label: 'Charity', value: charityLabel, tab: null },
               ].map((s) => {
                 const inner = (
                   <View

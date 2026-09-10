@@ -51,11 +51,18 @@ type Rec = Record<Mode, number> & { rewarded?: string };
 const KEY = () => `dl.zikr.${DAY()}`;
 
 const GROUPS = ['Morning', 'Evening', 'After Prayer', 'General'] as const;
+/* pass 83-29 — owner: no emoji in the section titles; proper icons instead */
 const GROUP_LABEL: Record<(typeof GROUPS)[number], string> = {
-  Morning: '🌅 Morning',
-  Evening: '🌇 Evening',
-  'After Prayer': '🕌 After Prayer',
-  General: '📿 General',
+  Morning: 'Morning',
+  Evening: 'Evening',
+  'After Prayer': 'After Prayer',
+  General: 'General',
+};
+const GROUP_ICON: Record<(typeof GROUPS)[number], string> = {
+  Morning: 'sun',
+  Evening: 'moon',
+  'After Prayer': 'mosque',
+  General: 'ring',
 };
 const isChallenge = (a: Athar) => a.group === 'Morning' || a.group === 'Evening';
 const isDone = (a: Athar, count: number) => (a.count > 0 ? count >= a.count : count > 0);
@@ -434,6 +441,7 @@ export default function ZikrChallenge() {
             return (
               <View key={g} style={{ marginBottom: 18 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 2 }}>
+                  <FontAwesome5 name={GROUP_ICON[g] as never} size={12} color={d.gold} />
                   <T v="bodyS" style={{ fontSize: 14, fontWeight: '800', color: d.text }}>{GROUP_LABEL[g]}</T>
                   <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
                     <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: d.faint }}>{doneCount}/{items.length}</T>
@@ -520,6 +528,8 @@ export default function ZikrChallenge() {
                 <View style={{ marginTop: 18, borderRadius: 16, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder, padding: 16, width: '100%', alignItems: 'center' }}>
                   <T v="arabic" style={{ fontSize: 22, color: d.text, textAlign: 'center', lineHeight: 36 }}>{selectedAthkar.arabic}</T>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext, marginTop: 10, textAlign: 'center', lineHeight: 18 }}>{selectedAthkar.transliteration}</T>
+                  {/* pass 83-29 — the dua's full English meaning */}
+                  {selectedAthkar.meaning ? <T v="bodyS" style={{ fontSize: 12, color: d.text, marginTop: 12, textAlign: 'center', lineHeight: 18, fontStyle: 'italic' }}>{selectedAthkar.meaning}</T> : null}
                   {selectedAthkar.note ? <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 12, textAlign: 'center', lineHeight: 16 }}>{selectedAthkar.note}</T> : null}
                 </View>
 

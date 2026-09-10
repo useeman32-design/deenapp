@@ -3,7 +3,7 @@ import { Animated, Dimensions, Easing, Modal, PanResponder, Pressable, ScrollVie
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle as SvgCircle, Defs as SvgDefs, G as SvgG, LinearGradient as SvgGrad, Path as SvgPath, RadialGradient as SvgRad, Rect as SvgRect, Stop as SvgStop } from 'react-native-svg';
+import Svg, { Circle as SvgCircle, Defs as SvgDefs, Ellipse as SvgEllipse, G as SvgG, LinearGradient as SvgGrad, Line as SvgLine, Path as SvgPath, RadialGradient as SvgRad, Rect as SvgRect, Stop as SvgStop } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { storage } from '@/lib/storage';
 import { T } from '@/components/T';
@@ -25,7 +25,9 @@ import { BackButton } from '@/components/BackButton';
 
 const BG = '#050D09';
 const NEON = '#4AE38F';
-const BEADS = 33;
+/* pass 83-29 — owner asked for MORE beads: the misbaha now carries the full
+ * 99-bead strand (finer beads, denser ring) instead of 33. */
+const BEADS = 99;
 const NEON_DEEP = '#1F8F5C';
 const GOLD = '#E8C96A';
 const GLASS = 'rgba(255,255,255,0.045)';
@@ -55,7 +57,8 @@ const beadCenter = (i: number, w: number, h: number) => {
   const cy = h * 0.55;
   const r = Math.min(w, h) * 0.335;
   const a = -Math.PI / 2 + (i / BEADS) * Math.PI * 2;
-  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: Math.min(w, h) * 0.0315 };
+  /* bead radius scales with the strand length so 99 beads sit tight but readable */
+  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: Math.min(w, h) * (BEADS > 66 ? 0.0195 : 0.0315) };
 };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -333,18 +336,39 @@ export default function Tasbeeh() {
                   </SvgG>
                 );
               })}
-              {/* gold tassel above the ring: collar + silk threads */}
+              {/* pass 83-29 — the imam (head) is now ATTACHED to the strand:
+               * a thread stub rises from the top bead into a gold collar,
+               * the elongated imam bead, then the silk tassel fans out from
+               * its tip — one continuous piece, nothing floating. */}
               <SvgG>
-                <SvgRect x={imgW / 2 - 7} y={imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 36} width={14} height={17} rx={4} fill="url(#silk)" />
-                {[0, 1, 2, 3, 4].map((k) => (
-                  <SvgPath
-                    key={k}
-                    d={`M ${imgW / 2 - 6 + k * 3} ${imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 19} q ${(k - 2) * 5} 26 ${(k - 2) * 7} 46`}
-                    stroke={k % 2 ? 'rgba(232,201,106,0.6)' : '#E8C96A'}
-                    strokeWidth={k === 2 ? 2.2 : 1.4}
-                    fill="none"
-                  />
-                ))}
+                {(() => {
+                  const minWH = Math.min(imgW, imgH);
+                  const ringR = minWH * 0.335;
+                  const cxm = imgW / 2;
+                  const topY = imgH * 0.55 - ringR;
+                  const stub = 14;      /* thread from ring to collar   */
+                  const collar = 12;    /* gold collar height           */
+                  const imam = 20;      /* elongated imam bead height   */
+                  const y0 = topY - stub;
+                  return (
+                    <>
+                      <SvgCircle cx={cxm} cy={topY} r={minWH * 0.024} fill="url(#beadG)" stroke="rgba(255,255,255,0.18)" strokeWidth={0.9} />
+                      <SvgLine x1={cxm} y1={topY - 2} x2={cxm} y2={y0 + 2} stroke="rgba(232,201,106,0.45)" strokeWidth={1.6} />
+                      <SvgRect x={cxm - 7} y={y0 - collar} width={14} height={collar} rx={4} fill="url(#silk)" />
+                      <SvgEllipse cx={cxm} cy={y0 - collar - imam / 2} rx={6.4} ry={imam / 2} fill="url(#beadG)" stroke="rgba(232,201,106,0.5)" strokeWidth={1.1} />
+                      {[0, 1, 2, 3, 4].map((k) => (
+                        <SvgPath
+                          key={k}
+                          d={`M ${cxm - 5 + k * 2.5} ${y0 - collar - imam + 2} q ${(k - 2) * 5} -20 ${(k - 2) * 9} -40`}
+                          stroke={k % 2 ? 'rgba(232,201,106,0.6)' : '#E8C96A'}
+                          strokeWidth={k === 2 ? 2.2 : 1.4}
+                          fill="none"
+                          strokeLinecap="round"
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
               </SvgG>
             </Svg>
             {/* soft blend into the screen bg */}
@@ -426,10 +450,13 @@ export default function Tasbeeh() {
       {/* ── settings sheet ── */}
       <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.75)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={() => setSettingsOpen(false)}>
-          <Pressable style={{ backgroundColor: '#081209', borderRadius: 22, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: 18, paddingTop: 16, width: '100%', maxWidth: 360, maxHeight: '62%' }} onPress={(e) => stopBubble(e)}>
+          <Pressable style={{ backgroundColor: '#081209', borderRadius: 22, borderWidth: 1, borderColor: GLASS_BR, paddingBottom: 18, paddingTop: 16, width: '100%', maxWidth: 360, maxHeight: '78%', overflow: 'hidden' }} onPress={(e) => stopBubble(e)}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.16)', alignSelf: 'center', marginBottom: 14 }} />
             <T v="h3" style={{ fontSize: 15, fontWeight: '800', color: INK, marginHorizontal: 18, marginBottom: 4 }}>Settings</T>
             <T v="caption" style={{ fontSize: 10.5, color: INK_FAINT, marginHorizontal: 18, marginBottom: 12 }}>Choose your dhikr — counts are kept per dhikr, every day.</T>
+            {/* pass 83-29 — the sheet's content overflowed its modal on small
+             * screens; everything below the header now scrolls. */}
+            <ScrollView style={{ maxHeight: 430 }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 6 }} showsVerticalScrollIndicator={false}>
             {PRESETS.map((p) => {
               const on = p.id === presetId;
               const c = counts[p.id] ?? 0;
@@ -437,7 +464,7 @@ export default function Tasbeeh() {
                 <Pressable
                   key={p.id}
                   onPress={() => { pickPreset(p.id); setSettingsOpen(false); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, marginHorizontal: 14, marginTop: 6, borderRadius: 15, borderWidth: 1, borderColor: on ? 'rgba(74,227,143,0.5)' : 'rgba(255,255,255,0.07)', backgroundColor: on ? 'rgba(74,227,143,0.08)' : 'rgba(255,255,255,0.03)', padding: 12 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 6, borderRadius: 15, borderWidth: 1, borderColor: on ? 'rgba(74,227,143,0.5)' : 'rgba(255,255,255,0.07)', backgroundColor: on ? 'rgba(74,227,143,0.08)' : 'rgba(255,255,255,0.03)', padding: 12 }}
                 >
                   <T v="arabic" style={{ fontSize: 15, color: INK, flex: 1 }}>{p.arabic}</T>
                   <View style={{ alignItems: 'flex-end' }}>
@@ -462,9 +489,10 @@ export default function Tasbeeh() {
               <FontAwesome5 name="undo" size={11} color='#FF7B7B' />
               <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: '#FF7B7B' }}>Reset today’s counts</T>
             </Pressable>
-            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(242,247,243,0.3)', textAlign: 'center', marginTop: 16, marginHorizontal: 34, lineHeight: 15 }}>
+            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(242,247,243,0.3)', textAlign: 'center', marginTop: 16, marginBottom: 4, marginHorizontal: 34, lineHeight: 15 }}>
               “Whoever says SubhanAllah 33 times, Alhamdulillah 33 times, Allahu Akbar 33 times after every prayer — that is 99…” (Muslim)
             </T>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>

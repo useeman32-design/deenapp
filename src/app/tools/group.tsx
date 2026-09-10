@@ -507,6 +507,23 @@ function GroupScreenInner() {
       else setMemberError(r.message ?? 'Could not remove that member.');
     });
   };
+  /* pass 83-29 — privacy denials pile up: "Cannot add @u Full Name", or with
+   * more than one, "Cannot add @a, @b and @c" (owner's exact wording). */
+  const [addDenials, setAddDenials] = useState<Array<{ username: string; full_name: string }>>([]);
+  const addDenialsRef = useRef<Array<{ username: string; full_name: string }>>([]);
+  const commitDenial = (d: { username: string; full_name: string }) => {
+    const list = addDenialsRef.current.some((x) => x.username === d.username)
+      ? addDenialsRef.current
+      : [...addDenialsRef.current, d].sort((a, b) => a.username.localeCompare(b.username));
+    addDenialsRef.current = list;
+    setAddDenials([...list]);
+    const names = list.map((x) => `@${x.username}`);
+    setMemberError(
+      list.length === 1
+        ? `Cannot add ${names[0]}${list[0].full_name ? ` ${list[0].full_name}` : ''}`
+        : `Cannot add ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`,
+    );
+  };
   const addServerMember = (uid: number) => {
     const sid = group ? srvGroupId(group) : null;
     if (sid == null) return;
@@ -516,6 +533,7 @@ function GroupScreenInner() {
     groupMembers(sid, 'add', uid).then((r) => {
       setAddBusy(null);
       if (r.ok) refreshRoster(sid);
+      else if (r.denial) commitDenial(r.denial);
       else setMemberError(r.message ?? 'Could not add that account.');
     });
   };
@@ -1106,7 +1124,7 @@ function GroupScreenInner() {
               {canManage ? (
                 <Pressable
                   accessibilityLabel="add members"
-                  onPress={() => { haptic.selection(); setAddOpen(true); }}
+                  onPress={() => { haptic.selection(); addDenialsRef.current = []; setAddDenials([]); setMemberError(null); setAddOpen(true); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, backgroundColor: isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 10, paddingVertical: 7 }}
                 >
                   <FontAwesome5 name="user-plus" size={9} color="#fff" />
@@ -1282,6 +1300,7 @@ function GroupScreenInner() {
                   {(addResults ?? []).map((a) => {
                     const inGroup = (roster ?? []).some((m) => m.id === a.id);
                     const busy = addBusy === a.id;
+                    const denied = addDenials.some((x) => x.username === a.username);
                     return (
                       <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, padding: 11, marginBottom: 8 }}>
                         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(91,200,245,0.12)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -1295,9 +1314,9 @@ function GroupScreenInner() {
                           <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{a.full_name || a.username}</T>
                           <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>@{a.username}</T>
                         </View>
-                        <Pressable onPress={() => addServerMember(a.id)} disabled={inGroup || busy} style={{ borderRadius: 10, backgroundColor: inGroup ? d.bgSoft : isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 13, paddingVertical: 7, minWidth: 64, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
+                        <Pressable onPress={() => addServerMember(a.id)} disabled={inGroup || busy || denied} style={{ borderRadius: 10, backgroundColor: inGroup || denied ? d.bgSoft : isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 13, paddingVertical: 7, minWidth: 64, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
                           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
-                            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: inGroup ? d.faint : '#fff' }}>{inGroup ? 'Added' : '+ Add'}</T>
+                            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: inGroup || denied ? d.faint : '#fff' }}>{denied ? "Can't add" : inGroup ? 'Added' : '+ Add'}</T>
                           )}
                         </Pressable>
                       </View>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { ReciteSearchModal } from '@/components/ReciteSearchModal';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -20,16 +19,6 @@ function QuranHubInner() {
   const d = theme.dash;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  /* pass 34: QURAN SHAZAM — listens with the mic and finds the verse being
-   * recited (even from another phone's speaker); the transcript is matched
-   * against the whole corpus by the reader's fuzzy arabic search. */
-  const [shazamOpen, setShazamOpen] = useState(false);
-  const [heard, setHeard] = useState<string | null>(null);
-  useEffect(() => {
-    if (!heard) return;
-    router.push({ pathname: '/(tabs)/quran/surah', params: { q: heard } } as never);
-    setHeard(null);
-  }, [heard, router]);
 
   const BigCard = ({
     eyebrow,
@@ -161,22 +150,6 @@ function QuranHubInner() {
             onPress={() => router.push('/tools/hadith')}
           />
 
-          {/* Quran Shazam — hear a recitation anywhere, find the verse */}
-          <Pressable
-            accessibilityLabel="quran shazam"
-            onPress={() => { haptic.selection(); setShazamOpen(true); }}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.07)' : 'rgba(212,175,55,0.05)', padding: 15, opacity: pressed ? 0.85 : 1 })}
-          >
-            <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', alignItems: 'center', justifyContent: 'center' }}>
-              <FontAwesome5 name="broadcast-tower" size={16} color="#E8C96A" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Quran Shazam</T>
-              <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, lineHeight: 14 }}>Hear a recitation — even from another phone — and I{"'"}ll find the verse</T>
-            </View>
-            <FontAwesome5 name="microphone" size={15} color="#E8C96A" />
-          </Pressable>
-
           {/* daily ayah + hadith — home-style ornate cards */}
           {([
             { kind: 'ayah', eyebrow: 'DAILY AYAH', icon: 'star-and-crescent', arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا', text: '"For indeed, with hardship [will be] ease."', ref: 'Ash-Sharh 94:6', href: '/read/94' },
@@ -227,47 +200,9 @@ function QuranHubInner() {
             </Pressable>
           ))}
 
-          {/* shortcuts */}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-            {[
-              { icon: 'route', label: 'Seerah', href: '/tools/seerah' },
-              { icon: 'graduation-cap', label: 'Courses', href: '/tools/courses' },
-              { icon: 'quote-right', label: 'Quiz', href: '/tools/quiz' },
-            ].map((s) => (
-              <Pressable
-                key={s.label}
-                onPress={() => {
-                  haptic.selection();
-                  router.push(s.href as never);
-                }}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  alignItems: 'center',
-                  gap: 7,
-                  backgroundColor: d.card,
-                  borderWidth: 1,
-                  borderColor: d.cardBorder,
-                  borderRadius: 14,
-                  paddingVertical: 13,
-                  opacity: pressed ? 0.75 : 1,
-                })}
-              >
-                <FontAwesome5 name={s.icon} size={15} color={d.emerald} />
-                <T v="caption" style={{ color: d.subtext, fontSize: 10.5, fontWeight: '700' }}>
-                  {s.label}
-                </T>
-              </Pressable>
-            ))}
-          </View>
         </View>
       </ScrollView>
 
-      <ReciteSearchModal
-        visible={shazamOpen}
-        onClose={() => setShazamOpen(false)}
-        onText={(t) => { setShazamOpen(false); setHeard(t); }}
-        label="PLAY OR RECITE THE VERSE"
-      />
     </View>
   );
 }

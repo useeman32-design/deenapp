@@ -52,7 +52,7 @@ type Quote = { who: string; text: string };
 type ChatMsg = { id: string; rk?: string; text: string; ago: string; dir: 'them' | 'me'; at?: string; deleted?: boolean; reply?: Quote | null; createdAt?: string; readAt?: string | null };
 /* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
  * somebody else left, so I can see their reaction and still add my own. */
-type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string>; blocked?: boolean; blocked_by?: boolean };
+type Thread = { friend: string; items: ShareItem[]; chat: ChatMsg[]; reactions: Record<string, string>; others?: Record<string, string>; blocked?: boolean; blocked_by?: boolean; last?: { text: string; mine: boolean } | null };
 
 const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
   post: { icon: 'file-alt', label: 'Post', tint: '#5BC8F5' },
@@ -812,9 +812,13 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const gone = new Set<string>();
     /* pass 83-21 — who blocked whom, per peer */
     const flags: Record<string, { b: boolean; by: boolean }> = {};
+    /* pass 83-29 — last message per peer, for the card preview (server sends
+     * the newest non-held body + its sender) */
+    const lasts: Record<string, { text: string; mine: boolean }> = {};
     cs.forEach((c) => {
       const u = c.with_username || c.peer?.username;
       if (!u) { return; }
+      if (c.last_body) { lasts[u] = { text: String(c.last_body), mine: !!c.last_sender && c.last_sender === user?.username }; }
       if (c.peer_seen) { m[u] = String(c.peer_seen); }
       peers[u] = { id: c.peer?.id, name: c.with_name || undefined, photo: c.with_photo ?? null };
       flags[u] = { b: !!c.blocked, by: !!c.blocked_by };
@@ -849,11 +853,15 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     if (live) {
       setThreads((prev) => {
         const have = new Set(prev.map((t) => t.friend));
-        const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
-        /* pass 83-21 — keep each thread's block flags in sync */
-        const next = [...add, ...prev].map((t) => (flags[t.friend] && (t.blocked !== flags[t.friend].b || t.blocked_by !== flags[t.friend].by)
-          ? { ...t, blocked: flags[t.friend].b, blocked_by: flags[t.friend].by }
-          : t));
+        const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {}, last: lasts[u] ?? null }));
+        /* pass 83-21 — keep each thread's block flags in sync
+         * pass 83-29 — and stamp the freshest last-message preview */
+        const next = [...add, ...prev].map((t) => {
+          let n = t;
+          if (flags[t.friend] && (t.blocked !== flags[t.friend].b || t.blocked_by !== flags[t.friend].by)) { n = { ...n, blocked: flags[t.friend].b, blocked_by: flags[t.friend].by }; }
+          if (lasts[t.friend] && (n.last?.text !== lasts[t.friend].text || n.last?.mine !== lasts[t.friend].mine)) { n = { ...n, last: lasts[t.friend] }; }
+          return n;
+        });
         return next.length !== prev.length || next.some((t, i) => t !== [...add, ...prev][i]) ? next : prev;
       });
     }
@@ -1522,7 +1530,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   const body = (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: isDark ? '#07100C' : '#F6FAF7' }}>
       {/* header */}
-      <View style={{ paddingTop: standalone ? insets.top + 8 : 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)' }}>
+      {/* pass 83-29 — always pad the status bar: on NATIVE the modal variants sat flush under it */}
+      <View style={{ paddingTop: insets.top + 8, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)' }}>
         <Pressable onPress={() => (thread ? setOpenFriend(null) : onClose())} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="chevron-left" size={14} color={d.text} />
         </Pressable>
@@ -1684,7 +1693,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                     ) : null}
                   </View>
                   <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
-                    {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
+                    {t.chat.length
+                      ? `${t.chat[t.chat.length - 1].dir === 'me' ? 'You: ' : ''}${t.chat[t.chat.length - 1].text}`
+                      : t.last
+                        ? `${t.last.mine ? 'You: ' : ''}${t.last.text}`
+                        : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
                   </T>
                 </View>
                 {/* pass 83-11 — unread count moved OFF the avatar to the right edge */}
@@ -1880,7 +1893,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
       {menu && thread ? (
         <>
           <Pressable style={{ position: 'absolute', inset: 0, zIndex: 40 }} onPress={() => setMenu(false)} />
-          <View style={{ position: 'absolute', top: (standalone ? insets.top + 8 : 0) + 52, right: 14, zIndex: 50, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, elevation: 8, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }}>
+          <View style={{ position: 'absolute', top: insets.top + 8 + 52, right: 14, zIndex: 50, width: 196, borderRadius: 14, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 6, elevation: 8, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }}>
             {([{ k: 'report', label: reported ? 'Reported ✓' : 'Report', icon: 'flag', color: d.text },
                /* pass 83-14 — unblock right here; settings used to be the only way out */
                { k: 'block', label: (blocked ? 'Unblock ' : 'Block ') + acc(thread.friend).full_name, icon: blocked ? 'unlock' : 'user-slash', color: blocked ? (isDark ? '#4AE38F' : '#0E7A46') : '#E05252' }] as const).map((it2) => (

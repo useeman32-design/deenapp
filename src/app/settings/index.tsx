@@ -89,10 +89,17 @@ function SettingsScreenInner() {
   };
   const [dpOpen, setDpOpen] = useState(false);
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
-  const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true });
+  /* pass 83-29 — groupAdd: when OFF, admins cannot add this account to groups (server-enforced via allow_group_add). */
+  const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true, groupAdd: true });
   const [signOutOpen, setSignOutOpen] = useState(false);
 
   const persist = (key: string, val: unknown) => { storage.setItem(key, JSON.stringify(val)).catch(() => {}); };
+
+  /* pass 83-29 — mirror the group-add preference to the server so the rule
+   * holds for OTHER admins' apps, not just this device. Best-effort. */
+  const syncGroupAdd = (allow: boolean) => {
+    void import('@/api/client').then(({ setAllowGroupAdd }) => setAllowGroupAdd(allow)).catch(() => {});
+  };
 
   const shareApp = async () => {
     haptic.selection();
@@ -266,6 +273,8 @@ function SettingsScreenInner() {
           <Pressable style={{ flex: 1 }} onPress={() => setSheet(null)} />
           <Sheet title="Privacy & Safety">
             <SettingToggleRow label="Allow direct messages" desc="Let others message you" on={priv.dm} onChange={(v) => { const nx = { ...priv, dm: v }; setPriv(nx); persist('dl.priv', nx); }} />
+            <Divider />
+            <SettingToggleRow label="Allow group adding" desc="Admins can add you to groups" on={priv.groupAdd} onChange={(v) => { const nx = { ...priv, groupAdd: v }; setPriv(nx); persist('dl.priv', nx); syncGroupAdd(v); }} />
             <Divider />
             <SettingToggleRow label="Show online status" desc="Others can see when you're active" on={priv.showOnline} onChange={(v) => { const nx = { ...priv, showOnline: v }; setPriv(nx); persist('dl.priv', nx); }} />
             <Divider />
