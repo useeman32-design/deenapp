@@ -1,4 +1,20 @@
 <!-- =====================================================================
+     LATEST — 2026-09-10 · PASS 83-24 BASELINE (new agent session). *** READ FIRST ***
+     deenapp master @ cfd8d98 (pass 83-24) + backup chore (content fallback → backup2)
+     deenlink-api main @ 8913615 (pass 83-24) · deenapp-backup2 refreshed (both snapshots)
+     THE BACKUP IS deenapp-backup2 (snapshot-style: master = app tree,
+     deenlink-api-main = api tree, + content-pack/content.zip at master root).
+     deenapp-backup (no 2) is DEPRECATED — do not use it.
+     CLONE RULE (owner, 2026-09-10): a fresh clone is NOT complete until assets are
+     restored too — workspace pull AND content pack AND avatars/articles check
+     (exact commands in "A FRESH CLONE IS NOT ENOUGH" below). A code-only clone
+     cannot bundle: 6 source files require() assets/content/**.
+     unpack-content.mjs fallback now points at backup2; gh-pages content.zip restored
+     (both previous pack URLs had 404'd — fresh clones could not self-restore).
+     Docs lag: passes 83-14..83-24 exist only as commit messages (docs/ ends at 83-13).
+     ===================================================================== -->
+
+<!-- =====================================================================
      LATEST HANDOFF — 2026-09-06 · PASS 68.  *** START HERE ***
      Detailed state + pending work: CONTINUE.md (same folder)
      ===================================================================== -->

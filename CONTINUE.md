@@ -1,3 +1,17 @@
+# ══ 2026-09-10 — NEW AGENT SESSION · PASS 83-24 BASELINE ══ READ FIRST ══
+# deenapp master = cfd8d98 (pass 83-24) + backup chore (this session, see git log)
+# deenlink-api main = 8913615 (pass 83-24) · deenapp-backup2 refreshed (both snapshots + content-pack)
+# - THE BACKUP IS deenapp-backup2 (old deenapp-backup DEPRECATED). Snapshot-style:
+#   master = app tree snapshot · deenlink-api-main = api tree snapshot ·
+#   content-pack/content.zip at master root. unpack-content.mjs fallback moved to backup2
+#   and gh-pages content.zip restored — BOTH previous pack URLs 404'd on 2026-09-10,
+#   so fresh clones could not self-restore until this fix.
+# - CLONE RULE (owner): fresh agent setup = workspace pull AND asset restore
+#   (content pack + avatars + articles check) — a code-only clone cannot bundle
+#   (6 source files require assets/content/**). Restore commands: HANDOFF-PROMPT.md.
+# - Docs lag: passes 83-14..83-24 exist only as commit messages (docs/ ends at 83-13).
+# ══════════════════════════════════════════════════════════════════
+
 # CONTINUE — pass 42 handoff (2026-09-02)
 
 # ══ CURRENT STATE — PASS 83 SHIPPED (2026-09-08, overnight) ══ READ FIRST ══

@@ -14,10 +14,12 @@ const ZIP = process.env.DL_CONTENT_ZIP ?? "assets/content.zip"; // zip dropped f
 const OUT = 'assets/content';
 /* pass 34d: stable home of the content pack (gh-pages, served verbatim).
  * pass 43: the gh-pages copy 404'd, so this is now a FALLBACK LIST — first 200 wins.
+ * 2026-09-10: fallback moved to deenapp-backup2 (old deenapp-backup deprecated;
+ * both previous URLs 404'd) — backup2/master:/content-pack/content.zip is seeded.
  * npm install downloads it automatically on a fresh clone. */
 const PACK_URLS = (process.env.DL_CONTENT_URL ?? [
   'https://useeman32-design.github.io/deenapp/content/content.zip',
-  'https://raw.githubusercontent.com/useeman32-design/deenapp-backup/master/content-pack/content.zip',
+  'https://raw.githubusercontent.com/useeman32-design/deenapp-backup2/master/content-pack/content.zip',
 ].join(',')).split(',').map((u) => u.trim()).filter(Boolean);
 
 /* The pack also survives as a git blob in deenapp history (full clone only).
