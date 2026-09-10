@@ -1,6 +1,9 @@
-# ══ 2026-09-10 — NEW AGENT SESSION · PASS 83-24 BASELINE ══ READ FIRST ══
-# deenapp master = cfd8d98 (pass 83-24) + backup chore (this session, see git log)
-# deenlink-api main = 8913615 (pass 83-24) · deenapp-backup2 refreshed (both snapshots + content-pack)
+# ══ 2026-09-10 — PASS 83-25 SHIPPED ══ READ FIRST ══
+# deenapp master = 944b78c (pass 83-25 client: groups complete + videos upload)
+# deenlink-api main = b6bcb74 (pass 83-25 backend 4dd9133 + share/logo 0965cf9 + web build)
+# gh-pages = c80a9e8 (entry-e209625d, content pack @ content/content.zip) · api web = entry-2e1458ea
+# cPanel pull STILL PENDING (owner): pulls backend 4dd9133/0965cf9 + web build b6bcb74 live
+# deenapp-backup2 one pass behind (fd0dbfc/73fe90a) — refresh needs OWNER OK per standing rule
 # - THE BACKUP IS deenapp-backup2 (old deenapp-backup DEPRECATED). Snapshot-style:
 #   master = app tree snapshot · deenlink-api-main = api tree snapshot ·
 #   content-pack/content.zip at master root (owner-recoverable; raw needs a token
@@ -10,7 +13,7 @@
 # - CLONE RULE (owner): fresh agent setup = workspace pull AND asset restore
 #   (content pack + avatars + articles check) — a code-only clone cannot bundle
 #   (6 source files require assets/content/**). Restore commands: HANDOFF-PROMPT.md.
-# - Docs lag: passes 83-14..83-24 exist only as commit messages (docs/ ends at 83-13).
+# - Docs lag: passes 83-14..83-25 exist only as commit messages (docs/ ends at 83-13).
 # ══════════════════════════════════════════════════════════════════
 
 # CONTINUE — pass 42 handoff (2026-09-02)

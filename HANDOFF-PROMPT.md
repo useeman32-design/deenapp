@@ -1,7 +1,8 @@
 <!-- =====================================================================
-     LATEST — 2026-09-10 · PASS 83-24 BASELINE (new agent session). *** READ FIRST ***
-     deenapp master @ cfd8d98 (pass 83-24) + backup chore (content fallback → backup2)
-     deenlink-api main @ 8913615 (pass 83-24) · deenapp-backup2 refreshed (both snapshots)
+     LATEST — 2026-09-10 · PASS 83-25 SHIPPED. *** READ FIRST ***
+     deenapp master @ 944b78c (groups complete + videos upload) · gh-pages @ c80a9e8 (entry-e209625d)
+     deenlink-api main @ b6bcb74 (backend 4dd9133 + share/logo 0965cf9 + web entry-2e1458ea)
+     cPanel pull PENDING (owner) · backup2 one pass behind (refresh needs owner OK)
      THE BACKUP IS deenapp-backup2 (snapshot-style: master = app tree,
      deenlink-api-main = api tree, + content-pack/content.zip at master root).
      deenapp-backup (no 2) is DEPRECATED — do not use it.
@@ -12,7 +13,7 @@
      unpack-content.mjs fallback = PUBLIC release-asset URL (backup2 is private so its
      raw URL can't serve fresh clones; its content-pack/ copy is owner-recoverable with PAT).
      gh-pages content.zip restored (both previous pack URLs had 404'd).
-     Docs lag: passes 83-14..83-24 exist only as commit messages (docs/ ends at 83-13).
+     Docs lag: passes 83-14..83-25 exist only as commit messages (docs/ ends at 83-13).
      ===================================================================== -->
 
 <!-- =====================================================================
