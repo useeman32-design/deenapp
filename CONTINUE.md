@@ -1,3 +1,29 @@
+# ══ 2026-09-10 — PASS 83-28 SHIPPED (owner bug-report pass, 20 items) ══ READ FIRST ══
+# deenapp master = 7c7f6d4 (client) · gh-pages = 182aec7 (entry-df6b6e97, LIVE-verified 200 + content.zip intact)
+# deenlink-api main = da558b1 (backend fixes + web root entry-c2139646) — ⚠️ CPANEL PULL PENDING (owner)
+# ROOT CAUSES FIXED (highlights):
+#  - WEB PHOTO-POST CRASH: createPost dynamic-imported expo-image-manipulator (not in web bundle;
+#    Metro reportFatalError fired before try/catch). Web now compresses via canvas (compressImageWeb).
+#  - VIDEO POSTS "EMPTY" from other accounts: feed/create_post stored video basename but file lives
+#    under uploads/posts/YYYY/MM/ → URL 404'd into SPA fallback HTML. Stored path now dated; read-time
+#    glob heal covers old rows (post 105 heals itself). groups/posts.php SELECT was missing p.user_id
+#    + youtube_url → PHP warnings printed INTO the JSON → every group screen froze + posts "failed".
+#  - CHATS LEAKING ACROSS ACCOUNTS: inbox cache key dl.inbox.v2 was GLOBAL → dl.inbox.v3.<uid>.
+#  - SECURITY QUESTIONS: /me never returned them (change-email said "not set"); email-change verify
+#    used password_verify against columns nothing wrote → now sha256(mb_strtolower) scheme (+bcrypt fallback).
+#  - NOTIFICATIONS: expire after 30 days (list filter + 32-day purge). Tabs were already gone (83-26).
+#  - HADITH ?h= BACK-LOOP: auto-entry re-fired on every back → one-shot ref.
+#  - AUDIO PICKER iOS: 'audio/*' hid m4a/aac → public.audio + concrete UTIs.
+#  - WATERMARK DIAGNOSTIC: HEAD download.php now returns X-Deenlink-Ffmpeg: 1|0 — curl -I after the
+#    cPanel pull; a 0 means the HOST lacks ffmpeg (downloads stream unwatermarked by fallback design).
+# ALSO: real share-to-friends on videos page · real account on video uploads · player pauses on
+# unmount/blur/background (feed + reels; no more overlapping audio) · real browser fullscreen on web
+# video · gallery preview opens at tapped slide · group composer two-row redesign · feed composer
+# thumbnails · groups searchable (search tab) · join requests UI · group post errors carry server
+# message + retry state · dark profile skeleton re-themed · edit-profile spacing + answer-saved hints.
+# NOTE: a tool call once printed the api origin URL INCLUDING the token — consider rotating the token.
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-10 — CPANEL PULL DONE — 83-25/83-26 LIVE, VERIFIED ══ READ FIRST ══
 # Owner pulled deenlink-api on cPanel (now main 9ba1ca8: backend 4dd9133+0965cf9+0d1f265 + web entry-f6ed812c).
 # LIVE-VERIFIED via curl on app.deenlink.org (all six markers green):

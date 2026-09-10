@@ -1,5 +1,9 @@
 <!-- =====================================================================
-     LATEST — 2026-09-10 · HOTFIX 83-27 (deenapp master @ 575981e, source-only — Expo Go svg crash fix; web bundles unchanged). *** READ FIRST ***
+     LATEST — 2026-09-10 · PASS 83-28 SHIPPED (20-item owner bug-report pass). *** READ FIRST ***
+     deenapp master @ 7c7f6d4 · gh-pages @ 182aec7 (entry-df6b6e97, LIVE 200) · deenlink-api main @ da558b1 (backend + web entry-c2139646)
+     ⚠️ cPanel pull PENDING (owner): brings 83-28 backend (groups posts fix, video URL heal, notif expiry,
+     join requests, security-question verify, X-Deenlink-Ffmpeg diag) + web root entry-c2139646 live.
+     PREVIOUS — HOTFIX 83-27 (575981e, Expo Go svg crash; carried into 83-28 web bundles).
      PREVIOUS — PASS 83-26 SHIPPED.
      deenapp master @ 68bccf4 (notif de-dummy + share-tap + live quiz/riddle/group shares + watermarked downloads + skeletons + group pill)
      gh-pages @ 3510035 (entry-f6ed812c, LIVE-verified 200)
