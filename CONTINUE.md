@@ -3,8 +3,9 @@
 # deenlink-api main = 8913615 (pass 83-24) · deenapp-backup2 refreshed (both snapshots + content-pack)
 # - THE BACKUP IS deenapp-backup2 (old deenapp-backup DEPRECATED). Snapshot-style:
 #   master = app tree snapshot · deenlink-api-main = api tree snapshot ·
-#   content-pack/content.zip at master root. unpack-content.mjs fallback moved to backup2
-#   and gh-pages content.zip restored — BOTH previous pack URLs 404'd on 2026-09-10,
+#   content-pack/content.zip at master root (owner-recoverable; raw needs a token
+#   since backup2 is PRIVATE). unpack-content.mjs fallback = public release asset;
+#   gh-pages content.zip restored — BOTH previous pack URLs 404'd on 2026-09-10,
 #   so fresh clones could not self-restore until this fix.
 # - CLONE RULE (owner): fresh agent setup = workspace pull AND asset restore
 #   (content pack + avatars + articles check) — a code-only clone cannot bundle

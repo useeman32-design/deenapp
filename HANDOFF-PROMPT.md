@@ -9,8 +9,9 @@
      restored too — workspace pull AND content pack AND avatars/articles check
      (exact commands in "A FRESH CLONE IS NOT ENOUGH" below). A code-only clone
      cannot bundle: 6 source files require() assets/content/**.
-     unpack-content.mjs fallback now points at backup2; gh-pages content.zip restored
-     (both previous pack URLs had 404'd — fresh clones could not self-restore).
+     unpack-content.mjs fallback = PUBLIC release-asset URL (backup2 is private so its
+     raw URL can't serve fresh clones; its content-pack/ copy is owner-recoverable with PAT).
+     gh-pages content.zip restored (both previous pack URLs had 404'd).
      Docs lag: passes 83-14..83-24 exist only as commit messages (docs/ ends at 83-13).
      ===================================================================== -->
 
