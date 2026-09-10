@@ -14,6 +14,7 @@ import { storage } from '@/lib/storage';
 /* pass 66-night — live groups: list/create/join/post ride the real API when a
  * real session exists; the local store stays the gh-pages demo. */
 import { groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/api/client';
+import type { GroupRow } from '@/api/client';
 
 /**
  * Groups (pass 36) — Facebook-style:
@@ -48,12 +49,19 @@ export type Group = {
   avatar?: string;                   /* profile picture (emoji) at creation */
   roles?: Record<string, Role>;      /* member name → role */
   following?: string[];              /* members the user follows */
+  /* pass 83-25 — server groups carry no roles map; my_role is the viewer's
+   * own role (owner/admin/member) straight from list.php/get.php. */
+  my_role?: Role | null;
 };
 
 export function roleOf(g: Group | null | undefined, member: string): Role {
   if (!g) return 'member';
   if (member === ME && g.mine && !g.roles?.[ME]) return 'owner'; /* creators own what they made */
-  return g.roles?.[member] ?? (member === ME && g.mine ? 'owner' : 'member');
+  const r = g.roles?.[member];
+  if (r) return r;
+  /* pass 83-25 — live groups: admins used to read as MEMBER (no roles map) */
+  if (member === ME && g.my_role) return g.my_role;
+  return member === ME && g.mine ? 'owner' : 'member';
 }
 
 export const GROUP_KEY = 'dl.groups.v1';
@@ -74,6 +82,27 @@ export const SEED: Group[] = [
   { id: 'g3', name: 'Sisters of Light', desc: 'A safe space for sisters to learn, ask and grow.', cat: 'Community', open: false, members: ['Khadijah T.'], memberCount: 876, joined: null, bio: 'Sisters only · learn, ask, grow', cover: 'gold', avatar: '🌙', roles: { 'Khadijah T.': 'owner' }, following: [], posts: [] },
 ];
 
+/* pass 83-25 — one server-row → Group mapper shared by the rail loader and
+ * the rail's live search, so both read role/joined state identically. */
+export function mapServerGroup(g: GroupRow): Group {
+  return {
+    id: `srv${g.id}`,
+    name: g.name,
+    desc: g.desc ?? g.bio ?? 'A DeenLink community group.',
+    cat: (['Mosque', 'School', 'Organization', 'Community'].includes(String(g.category)) ? g.category : 'Community') as Group['cat'],
+    open: g.open_join,
+    members: [],
+    memberCount: g.member_count,
+    joined: g.is_member ? 'member' : null,
+    mine: g.is_owner,
+    posts: [],
+    bio: g.bio ?? undefined,
+    cover: g.cover ?? 'emerald',
+    avatar: g.emoji ?? undefined,
+    my_role: g.my_role ?? (g.is_owner ? 'owner' : g.is_member ? 'member' : null),
+  };
+}
+
 export async function loadGroups(): Promise<Group[]> {
   try {
     const r = await storage.getItem(GROUP_KEY);
@@ -88,21 +117,7 @@ export async function loadGroups(): Promise<Group[]> {
     if (isLive()) {
       const rows = await groupsList();
       if (rows) {
-        const server = rows.map((g): Group => ({
-          id: `srv${g.id}`,
-          name: g.name,
-          desc: g.desc ?? g.bio ?? 'A DeenLink community group.',
-          cat: (['Mosque', 'School', 'Organization', 'Community'].includes(String(g.category)) ? g.category : 'Community') as Group['cat'],
-          open: g.open_join,
-          members: [],
-          memberCount: g.member_count,
-          joined: g.is_member ? 'member' : null,
-          mine: g.is_owner,
-          posts: [],
-          bio: g.bio ?? undefined,
-          cover: g.cover ?? 'emerald',
-          avatar: g.emoji ?? undefined,
-        }));
+        const server = rows.map(mapServerGroup);
         const localOnly = local.filter((g) => !g.id.startsWith('srv'));
         return [...server, ...localOnly];
       }
@@ -261,9 +276,32 @@ export function GroupsRail() {
   const router = useRouter();
   const [groups, setGroups] = useState<Group[] | null>(null);
   const [creating, setCreating] = useState(false);
+  /* pass 83-25 — rail search: live sessions query list.php?q= (debounced),
+   * demo sessions filter the local list. */
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<Group[] | null>(null);
 
   useEffect(() => { loadGroups().then(setGroups); }, []);
-  const list = groups ?? [];
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setResults(null); setSearching(false); return; }
+    if (!isLive()) {
+      const needle = q.toLowerCase();
+      setResults((groups ?? []).filter((g) => `${g.name} ${g.desc} ${g.cat}`.toLowerCase().includes(needle)));
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(() => {
+      groupsList(q)
+        .then((rows) => { setResults(rows ? rows.map(mapServerGroup) : []); })
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false));
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  const list = results ?? groups ?? [];
   const openGroup = (id: string) => { haptic.selection(); router.push({ pathname: '/tools/group', params: { id } } as never); };
 
   return (
@@ -276,9 +314,39 @@ export function GroupsRail() {
         </Pressable>
       </View>
 
+      {/* pass 83-25 — search the groups (live: server, demo: local filter) */}
+      <View style={{ marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, marginHorizontal: 16, paddingHorizontal: 11, paddingVertical: 8 }}>
+        <FontAwesome5 name="search" size={11} color={d.faint} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search groups…"
+          placeholderTextColor={d.faint}
+          maxLength={60}
+          returnKeyType="search"
+          style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, paddingVertical: 0 }}
+        />
+        {searching ? (
+          <FontAwesome5 name="circle-notch" size={11} color={d.faint} />
+        ) : query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <FontAwesome5 name="times-circle" size={13} color={d.faint} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {results && !searching && list.length === 0 ? (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' }}>
+          <T v="caption" style={{ fontSize: 11, color: d.faint }}>No groups match “{query.trim()}”.</T>
+        </View>
+      ) : null}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: 4 }}>
         {list.map((g) => {
           const [c1, c2] = gradFor(g.cat);
+          /* pass 83-25 — joined cards show the viewer's real role, not MEMBER */
+          const myRole = g.joined === 'member' ? roleOf(g, ME) : null;
+          const rm = myRole ? ROLE_META[myRole] : null;
           return (
             <Pressable
               key={g.id}
@@ -300,9 +368,10 @@ export function GroupsRail() {
                 </View>
                 <T v="bodyS" style={{ fontWeight: '800', fontSize: 11.5, color: d.text, marginTop: 6 }} numberOfLines={1}>{g.name}</T>
                 <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 2 }}>{g.memberCount.toLocaleString()} members · {g.posts.length} posts</T>
-                <View style={{ marginTop: 7, alignSelf: 'flex-start', borderRadius: 6, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, borderColor: g.joined ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.25)') : d.cardBorder, backgroundColor: g.joined ? (isDark ? 'rgba(74,227,143,0.14)' : 'rgba(29,111,66,0.08)') : 'transparent' }}>
-                  <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: g.joined ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint }}>
-                    {g.joined === 'member' ? 'MEMBER' : g.joined === 'requested' ? 'REQUESTED' : g.open ? 'OPEN' : 'BY REQUEST'}
+                <View style={{ marginTop: 7, alignSelf: 'flex-start', borderRadius: 6, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, borderColor: rm ? `${rm.color}66` : g.joined ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.25)') : d.cardBorder, backgroundColor: rm ? `${rm.color}1A` : g.joined ? (isDark ? 'rgba(74,227,143,0.14)' : 'rgba(29,111,66,0.08)') : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {rm ? <FontAwesome5 name={rm.icon} size={7} color={rm.color} /> : null}
+                  <T v="caption" style={{ fontSize: 8, fontWeight: '800', color: rm ? rm.color : g.joined ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint }}>
+                    {rm ? rm.label : g.joined === 'requested' ? 'REQUESTED' : g.open ? 'OPEN' : 'BY REQUEST'}
                   </T>
                 </View>
               </View>

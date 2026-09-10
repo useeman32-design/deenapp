@@ -378,6 +378,9 @@ function ProfileInner() {
               <FeedCard
                 key={p.id}
                 post={p}
+                /* pass 83-25 — group posts on profiles carry a chip into the group */
+                group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
                 lockProfileNav
                 onLike={like}
                 onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
@@ -397,6 +400,9 @@ function ProfileInner() {
                 <FeedCard
                   key={p.id}
                   post={p}
+                  /* pass 83-25 — group posts on profiles carry a chip into the group */
+                  group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                  onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
                   lockProfileNav
                   onLike={like}
                   onDelete={() => { void api.deletePost(p.id).then((ok) => { if (ok) setPosts((prev) => prev.filter((x) => x.id !== p.id)); }); }}
@@ -411,7 +417,12 @@ function ProfileInner() {
         ) : (
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {saved.map((p) => (
-              <FeedCard key={p.id} post={p} />
+              <FeedCard
+                key={p.id}
+                post={p}
+                group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
+              />
             ))}
             {saved.length === 0 ? (
               <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>

@@ -369,9 +369,10 @@ export async function reportPost(postId: number, reason: string): Promise<boolea
 }
 
 /* pass 66-night — groups, server-backed (schema self-creates in common.php). */
-export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string };
-export async function groupsList(): Promise<GroupRow[] | null> {
-  const r = await request<{ status?: string; groups?: GroupRow[] }>('/api/groups/list.php', { auth: true });
+export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string; my_role?: 'owner' | 'admin' | 'member' | null; members?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; role: string }> };
+export async function groupsList(q?: string): Promise<GroupRow[] | null> {
+  /* pass 83-25 — ?q= searches name/bio/desc/category server-side */
+  const r = await request<{ status?: string; groups?: GroupRow[] }>(`/api/groups/list.php${q && q.trim() ? `?q=${encodeURIComponent(q.trim().slice(0, 60))}` : ''}`, { auth: true });
   return r.ok && Array.isArray(r.data.groups) ? r.data.groups : null;
 }
 export async function groupGet(id: number): Promise<GroupRow | null> {
@@ -381,6 +382,13 @@ export async function groupGet(id: number): Promise<GroupRow | null> {
 export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
   return r.ok;
+}
+/* pass 83-25 — owner/admin member management (add/remove/set_role). */
+export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string; role?: string }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,
+  });
+  return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
 }
 export async function groupCreate(data: { name: string; bio?: string; category?: string; emoji?: string; open_join?: boolean }): Promise<{ id: number } | null> {
   const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
@@ -441,22 +449,31 @@ export async function groupCreatePost(
   images?: Array<{ uri: string; name?: string; type?: string }>,
   pollOptions?: string[],
   audio?: { uri: string; name?: string; type?: string },
+  video?: { uri: string; name?: string; type?: string },
+  youtubeUrl?: string,
+  onProgress?: (frac: number) => void,
 ): Promise<{ id: number } | null> {
   /* pass 83-10 — photos/audio go multipart (same recipe as the feed's
    * createPost: blob: URIs become Files on web, {uri} parts native).
-   * pass 83-10b/c — poll options ride along on either transport. */
+   * pass 83-10b/c — poll options ride along on either transport.
+   * pass 83-25 — + local video + YouTube link + image compression + real
+   * upload progress (uploadForm, like the feed composer). */
   const opts = (pollOptions ?? []).map((o) => o.trim()).filter(Boolean).slice(0, 6);
-  if ((images && images.length) || audio) {
+  const yt = (youtubeUrl ?? '').trim();
+  const hasMedia = (!!images && images.length > 0) || !!audio || !!video;
+  if (hasMedia || yt) {
     const form = new FormData();
     form.append('group_id', String(groupId));
     if (contentText) form.append('content_text', contentText);
+    if (yt) form.append('youtube_url', yt);
     if (opts.length >= 2) form.append('poll_options', JSON.stringify(opts));
     for (const img of (images ?? []).slice(0, 5)) {
-      if (typeof window !== 'undefined' && img.uri.startsWith('blob:')) {
-        const blob = await fetch(img.uri).then((r) => r.blob());
+      const small = await compressImageForUpload(img.uri);
+      if (typeof window !== 'undefined' && small.startsWith('blob:')) {
+        const blob = await fetch(small).then((r) => r.blob());
         form.append('images[]', new File([blob], img.name ?? 'photo.jpg', { type: blob.type || 'image/jpeg' }));
       } else {
-        form.append('images[]', { uri: img.uri, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
+        form.append('images[]', { uri: small, name: img.name ?? 'photo.jpg', type: img.type ?? 'image/jpeg' } as never);
       }
     }
     if (audio) {
@@ -467,8 +484,18 @@ export async function groupCreatePost(
         form.append('audio', { uri: audio.uri, name: audio.name ?? 'audio.mp3', type: audio.type ?? 'audio/mpeg' } as never);
       }
     }
-    const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
-    return r.ok && r.data.id ? { id: r.data.id as number } : null;
+    if (video) {
+      if (typeof window !== 'undefined' && video.uri.startsWith('blob:')) {
+        const blob = await fetch(video.uri).then((r) => r.blob());
+        form.append('video', new File([blob], video.name ?? 'video.mp4', { type: blob.type || 'video/mp4' }));
+      } else {
+        form.append('video', { uri: video.uri, name: video.name ?? 'video.mp4', type: video.type ?? 'video/mp4' } as never);
+      }
+    }
+    const r = hasMedia
+      ? await uploadForm<{ status?: string; id?: number }>('/api/groups/create_post.php', form, onProgress)
+      : await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
+    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : null;
   }
   const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', {
     method: 'POST',
@@ -476,6 +503,27 @@ export async function groupCreatePost(
     auth: true,
   });
   return r.ok && r.data.id ? { id: r.data.id as number } : null;
+}
+
+/* pass 83-25 — videos-page uploads hit the server (single-shot upload.php path:
+ * multipart {description, video_file}; the chunked protocol stays for huge
+ * files). XHR transport so the studio can show real progress. */
+export async function videosUploadReel(
+  file: { uri: string; name?: string; type?: string },
+  caption: string,
+  onProgress?: (frac: number) => void,
+): Promise<{ ok: boolean; id?: number; message?: string }> {
+  const form = new FormData();
+  form.append('description', caption.trim().slice(0, 700) || 'New video on DeenLink');
+  if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
+    const blob = await fetch(file.uri).then((r) => r.blob());
+    form.append('video_file', new File([blob], file.name ?? 'video.mp4', { type: blob.type || 'video/mp4' }));
+  } else {
+    form.append('video_file', { uri: file.uri, name: file.name ?? 'video.mp4', type: file.type ?? 'video/mp4' } as never);
+  }
+  const r = await uploadForm<{ status?: string; message?: string; video?: { id?: number } }>('/api/videos/upload.php', form, onProgress);
+  if (r.ok && r.data && r.data.status === 'success') return { ok: true, id: r.data.video?.id };
+  return { ok: false, message: (r.data as { message?: string } | null)?.message || 'Upload failed — please try again.' };
 }
 
 /* pass 66-night — polls ride on posts; options+votes live in their own tables. */

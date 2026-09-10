@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosView } from '@/api/client';
+import { isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -557,6 +557,8 @@ function VideosFeedInner() {
   const [reposted, setReposted] = useState<Set<number>>(new Set());
   /* pass 70 — real server reels + live repost counts (id = 500000 + server id) */
   const [liveReels, setLiveReels] = useState<MockReel[]>([]);
+  /* pass 83-25 — bumped after a server upload so the new reel jumps in */
+  const [liveTick, setLiveTick] = useState(0);
   const [liveReposts, setLiveReposts] = useState<Record<number, number>>({});
   /* pass 72 — authoritative like counts for server reels + one view per reel
    * per session (add_view also de-dupes server-side per 6h) */
@@ -656,7 +658,7 @@ function VideosFeedInner() {
       setLiveReposts((prev) => ({ ...prev, ...counts }));
       setLikeCounts((prev) => ({ ...prev, ...likes }));
     }).catch(() => {});
-  }, []);
+  }, [liveTick]);
 
   useEffect(() => {
     if (params.create === '1') setCreateOpen(true);
@@ -1474,6 +1476,7 @@ function VideosFeedInner() {
         onClose={() => setCreateOpen(false)}
         onPosted={() => {
           setCreateOpen(false);
+          setLiveTick((t) => t + 1);
           setFeedTab('foryou');
           setIndex(0);
           requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: false }));
@@ -1527,8 +1530,18 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
-  const [picked, setPicked] = useState<{ src: MockReel['src']; poster: MockReel['poster']; label: string } | null>(null);
+  const [picked, setPicked] = useState<{ src: MockReel['src']; poster: MockReel['poster']; label: string; file?: { uri: string; name: string; type?: string } } | null>(null);
   const [posting, setPosting] = useState(false);
+  /* pass 83-25 — server upload progress + inline errors */
+  const [upFrac, setUpFrac] = useState<number | null>(null);
+  const [upError, setUpError] = useState<string | null>(null);
+  /* pass 83-25 — mirror of upload.php's single-shot rules (mp4/webm/ogg/mov/m4v ≤250MB) */
+  const validateReelFile = (name: string, size?: number): string | null => {
+    const ext = (name.split('.').pop() ?? '').toLowerCase();
+    if (!['mp4', 'webm', 'ogg', 'mov', 'm4v'].includes(ext)) return `“${name}” is not a supported video file (mp4, mov, webm, m4v).`;
+    if (size != null && size > 250 * 1024 * 1024) return `“${name}” is over the 250 MB limit.`;
+    return null;
+  };
   const fileRef = useRef<TextInput | null>(null);
 
   const pickFromLibrary = async () => {
@@ -1549,8 +1562,12 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         mediaTypes: ['videos'],
         quality: 1,
       });
-      if (!res.canceled && res.assets?.[0]?.uri) {
-        setPicked({ src: { uri: res.assets[0].uri }, poster: SAMPLE_CLIPS[0].reel.poster, label: res.assets[0].fileName ?? 'Selected video' });
+      const a = res.assets?.[0];
+      if (!res.canceled && a?.uri) {
+        const err = validateReelFile(a.fileName ?? 'video.mp4', a.fileSize ?? undefined);
+        if (err) { setUpError(err); return; }
+        setUpError(null);
+        setPicked({ src: { uri: a.uri }, poster: SAMPLE_CLIPS[0].reel.poster, label: a.fileName ?? 'Selected video', file: { uri: a.uri, name: a.fileName ?? 'video.mp4' } });
       }
     } catch {
       Alert.alert('Could not open the picker', 'Please try again.');
@@ -1560,6 +1577,26 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
   const post = () => {
     if (!picked || posting) return;
     haptic.medium();
+    /* pass 83-25 — live sessions upload to the server (single-shot upload.php
+     * path) with real progress; samples + offline keep the local path. */
+    if (picked.file && isLive()) {
+      setPosting(true);
+      setUpError(null);
+      setUpFrac(0);
+      const cap = caption.trim() || 'New video on DeenLink \uD83C\uDFAC';
+      videosUploadReel(picked.file, cap, (f) => setUpFrac(f)).then((r) => {
+        setPosting(false);
+        setUpFrac(null);
+        if (r.ok) {
+          setPicked(null);
+          setCaption('');
+          onPosted();
+        } else {
+          setUpError(r.message ?? 'Upload failed — please try again.');
+        }
+      });
+      return;
+    }
     setPosting(true);
     setTimeout(() => {
       const reel = addUserReel({
@@ -1637,7 +1674,13 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
                 style={{ display: 'none' }}
                 onChange={(e: unknown) => {
                   const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
-                  if (file) setPicked({ src: { uri: URL.createObjectURL(file) }, poster: SAMPLE_CLIPS[0].reel.poster, label: file.name });
+                  (e as React.ChangeEvent<HTMLInputElement>).target.value = '';
+                  if (!file) return;
+                  const err = validateReelFile(file.name, file.size);
+                  if (err) { setUpError(err); return; }
+                  setUpError(null);
+                  const url = URL.createObjectURL(file);
+                  setPicked({ src: { uri: url }, poster: SAMPLE_CLIPS[0].reel.poster, label: file.name, file: { uri: url, name: file.name, type: file.type } });
                 }}
               />
             ) : null}
@@ -1652,6 +1695,18 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
                   <FontAwesome5 name="times-circle" size={14} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} />
                 </Pressable>
               </View>
+            ) : null}
+
+            {upFrac != null ? (
+              <View style={{ gap: 5 }}>
+                <View style={{ height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)', overflow: 'hidden' }}>
+                  <View style={{ height: '100%', width: `${Math.round(upFrac * 100)}%`, borderRadius: 3, backgroundColor: '#1F8F5C' }} />
+                </View>
+                <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)' }}>Uploading… {Math.round(upFrac * 100)}%</T>
+              </View>
+            ) : null}
+            {upError ? (
+              <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: '#E74C3C' }}>{upError}</T>
             ) : null}
 
             <View>

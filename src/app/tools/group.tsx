@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, Share, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,9 +43,10 @@ function BreathingPosts({ dash }: { dash: { card: string; cardBorder: string } }
     </View>
   );
 }
-import { groupCreatePost, groupDeletePost, groupJoin, groupPosts as groupPostsApi } from '@/api/client';
+import { groupCreatePost, groupDeletePost, groupGet, groupJoin, groupMembers, groupPosts as groupPostsApi, searchAccounts, toggleFollow as apiToggleFollow, type AccountResult, type GroupRow } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { haptic } from '@/lib/haptics';
+import { shareLink } from '@/lib/share';
 import { Image as ExpoImage } from 'expo-image';
 import {
   ME,
@@ -100,8 +101,13 @@ function GroupScreenInner() {
   const [tab, setTab] = useState<Tab>('posts');
   const [composer, setComposer] = useState('');
   /* pass 83-10 — photo posts in groups (same picker pattern as the community
-   * composer: web file input, native expo-image-picker via lazy import) */
-  const [imageAttach, setImageAttach] = useState<{ uri: string; name: string } | null>(null);
+   * composer: web file input, native expo-image-picker via lazy import).
+   * pass 83-25 — up to 5 photos (carousel), + local video + YouTube link. */
+  const [imagesAttach, setImagesAttach] = useState<Array<{ uri: string; name: string }>>([]);
+  const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string; type?: string } | null>(null);
+  const [ytOn, setYtOn] = useState(false);
+  const [ytLink, setYtLink] = useState('');
+  const [uploadFrac, setUploadFrac] = useState<number | null>(null);
   /* pass 83-17 */
   const [loadDone, setLoadDone] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
@@ -128,9 +134,13 @@ function GroupScreenInner() {
         Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: false });
-      if (!res.canceled && res.assets?.[0]?.uri) {
-        setImageAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'photo.jpg' });
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: true, selectionLimit: 5 });
+      if (!res.canceled && res.assets?.length) {
+        /* pass 83-25 — photos are exclusive with video/YouTube (server rule) */
+        setPostError(null);
+        setVideoAttach(null);
+        setYtLink('');
+        setImagesAttach((cur) => [...cur, ...res.assets.filter((a) => a.uri).map((a) => ({ uri: a.uri, name: a.fileName ?? 'photo.jpg' }))].slice(0, 5));
       }
     } catch {
       Alert.alert('Could not open the picker', 'Please try again.');
@@ -147,11 +157,59 @@ function GroupScreenInner() {
       }
       const docPicker = await import('expo-document-picker');
       const res = await docPicker.getDocumentAsync({ type: 'audio/*' });
-      const asset = Array.isArray(res.assets) ? res.assets[0] : (res as { uri?: string; name?: string; mimeType?: string });
+      const asset = (Array.isArray(res.assets) ? res.assets[0] : (res as unknown)) as { uri?: string; name?: string; mimeType?: string; size?: number } | undefined;
       if (res.canceled !== true && asset?.uri) {
-        setAudioAttach({ uri: asset.uri, name: (asset.name as string) ?? 'audio.mp3', type: asset.mimeType as string | undefined });
+        /* pass 83-25 — validate BEFORE attach (the server silently drops bad
+         * files, which read as "nothing happened" / "audio not playing") */
+        const err = validateAudio(asset.name ?? 'audio.mp3', asset.size);
+        if (err) { setPostError(err); return; }
+        setPostError(null);
+        setAudioAttach({ uri: asset.uri, name: asset.name ?? 'audio.mp3', type: asset.mimeType });
       }
     } catch { /* picker unavailable — nothing attached */ }
+  };
+  /* pass 83-25 — client mirrors of the server's media rules (create_post.php):
+   * audio ≤25MB (mp3/m4a/aac/wav/ogg/webm/mka), video ≤50MB (mp4/mov/webm/m4v).
+   * Photos ride the same compression as the feed composer. */
+  const extOf = (name: string) => (name.split('.').pop() ?? '').toLowerCase().split('?')[0];
+  const validateAudio = (name: string, size?: number): string | null => {
+    if (!['mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'webm', 'mka'].includes(extOf(name))) return `“${name}” is not a supported audio file (mp3, m4a, aac, wav, ogg, webm).`;
+    if (size != null && size > 25 * 1024 * 1024) return `“${name}” is over the 25 MB audio limit.`;
+    return null;
+  };
+  const validateVideo = (name: string, size?: number): string | null => {
+    if (!['mp4', 'mov', 'webm', 'm4v'].includes(extOf(name))) return `“${name}” is not a supported video file (mp4, mov, webm, m4v).`;
+    if (size != null && size > 50 * 1024 * 1024) return `“${name}” is over the 50 MB video limit.`;
+    return null;
+  };
+  const YT_RE = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch|shorts|embed|live)|youtu\.be\/)/i;
+  const videoFileRef = useRef<TextInput | null>(null);
+  const pickVideo = async () => {
+    haptic.light();
+    try {
+      if (Platform.OS === 'web') {
+        (videoFileRef.current as unknown as HTMLInputElement | null)?.click?.();
+        return;
+      }
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo-library access to pick a video.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsMultipleSelection: false });
+      const a = res.assets?.[0];
+      if (!res.canceled && a?.uri) {
+        const err = validateVideo(a.fileName ?? 'video.mp4', a.fileSize ?? undefined);
+        if (err) { setPostError(err); return; }
+        setPostError(null);
+        setImagesAttach([]);
+        setYtLink('');
+        setVideoAttach({ uri: a.uri, name: a.fileName ?? 'video.mp4' });
+      }
+    } catch {
+      Alert.alert('Could not open the picker', 'Please try again.');
+    }
   };
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   /* pass 38 management surfaces */
@@ -159,6 +217,16 @@ function GroupScreenInner() {
   const [addOpen, setAddOpen] = useState(false);
   const [roleMenu, setRoleMenu] = useState<string | null>(null);
   const [coverOpen, setCoverOpen] = useState(false);
+  /* pass 83-25 — live roster (get.php members[]), member actions, join busy */
+  const [roster, setRoster] = useState<NonNullable<GroupRow['members']> | null>(null);
+  const [memberBusy, setMemberBusy] = useState<number | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [joinBusy, setJoinBusy] = useState(false);
+  /* pass 83-25 — add-members sheet: live account search */
+  const [addQuery, setAddQuery] = useState('');
+  const [addResults, setAddResults] = useState<AccountResult[] | null>(null);
+  const [addSearching, setAddSearching] = useState(false);
+  const [addBusy, setAddBusy] = useState<number | null>(null);
 
   useEffect(() => {
     loadGroups().then((all) => {
@@ -171,6 +239,14 @@ function GroupScreenInner() {
       /* pass 66-night — live group: pull the real posts behind the srv id */
       const sid = srvGroupId(g);
       if (sid != null) {
+        /* pass 83-25 — roster + the viewer's own role (the Members tab used
+         * to be EMPTY on live groups — members mapped to [] — and every
+         * admin read as MEMBER). */
+        void groupGet(sid).then((row) => {
+          if (!row) return;
+          setGroup((cur) => (cur && cur.id === g.id ? { ...cur, my_role: row.my_role ?? cur.my_role ?? null, mine: row.is_owner } : cur));
+          if (Array.isArray(row.members)) setRoster(row.members);
+        });
         void groupPostsApi(sid).then((rows) => {
           if (!rows) return;
           setServerPosts(rows);
@@ -198,58 +274,106 @@ function GroupScreenInner() {
   const canManage = myRole === 'owner' || myRole === 'admin';
   const isOwner = myRole === 'owner';
 
+  /* pass 83-25 — join/leave show a busy state and ROLL BACK when the server
+   * says no (the old fire-and-forget left phantom memberships; and join used
+   * to set mine:true, which displayed every joiner as the group's OWNER). */
   const join = () => {
-    if (!group) return;
+    if (!group || joinBusy) return;
     haptic.success();
-    upd((x) => ({ ...x, joined: x.open ? 'member' : 'requested', members: x.open ? [...x.members, ME] : x.members, memberCount: x.open ? x.memberCount + 1 : x.memberCount, mine: true }));
-    /* pass 66-night — server membership for live groups */
     const sid = srvGroupId(group);
-    if (sid != null && group.open) void groupJoin(sid, true);
+    if (sid != null && group.open) {
+      setJoinBusy(true);
+      setMemberError(null);
+      upd((x) => ({ ...x, joined: 'member', members: x.members.includes(ME) ? x.members : [...x.members, ME], memberCount: x.memberCount + 1, my_role: 'member' as Role }));
+      groupJoin(sid, true).then((ok) => {
+        setJoinBusy(false);
+        if (ok) {
+          void groupGet(sid).then((row) => {
+            if (!row) return;
+            setGroup((cur) => (cur ? { ...cur, my_role: row.my_role ?? 'member', mine: row.is_owner, memberCount: row.member_count } : cur));
+            if (Array.isArray(row.members)) setRoster(row.members);
+          });
+        } else {
+          upd((x) => ({ ...x, joined: null, members: x.members.filter((m) => m !== ME), memberCount: Math.max(0, x.memberCount - 1), my_role: null }));
+          setMemberError('Could not join — please try again.');
+        }
+      });
+      return;
+    }
+    upd((x) => ({ ...x, joined: x.open ? 'member' : 'requested', members: x.open ? (x.members.includes(ME) ? x.members : [...x.members, ME]) : x.members, memberCount: x.open ? x.memberCount + 1 : x.memberCount, ...(x.open ? { my_role: 'member' as Role } : {}) }));
   };
   const leave = () => {
-    if (!group) return;
+    if (!group || joinBusy) return;
     haptic.selection();
-    upd((x) => ({ ...x, joined: null, members: x.members.filter((m) => m !== ME), memberCount: Math.max(0, x.memberCount - 1) }));
     const sid = srvGroupId(group);
-    if (sid != null) void groupJoin(sid, false);
+    if (sid != null) {
+      setJoinBusy(true);
+      setMemberError(null);
+      upd((x) => ({ ...x, joined: null, members: x.members.filter((m) => m !== ME), memberCount: Math.max(0, x.memberCount - 1), my_role: null, mine: false }));
+      groupJoin(sid, false).then((ok) => {
+        setJoinBusy(false);
+        if (ok) {
+          setRoster(null);
+        } else {
+          upd((x) => ({ ...x, joined: 'member', members: [...x.members, ME], memberCount: x.memberCount + 1 }));
+          setMemberError('Could not leave — please try again.');
+        }
+      });
+      return;
+    }
+    upd((x) => ({ ...x, joined: null, members: x.members.filter((m) => m !== ME), memberCount: Math.max(0, x.memberCount - 1), my_role: null }));
   };
   const post = () => {
     const poll = pollOn ? pollOpts.map((o) => o.trim()).filter(Boolean) : [];
     const pollOk = poll.length >= 2;
-    if ((!composer.trim() && !imageAttach && !audioAttach && !pollOk) || !group) return;
+    const yt = ytOn ? ytLink.trim() : '';
+    if (yt && !YT_RE.test(yt)) { setPostError('That does not look like a YouTube link.'); return; }
+    if ((!composer.trim() && !imagesAttach.length && !audioAttach && !videoAttach && !pollOk && !yt) || !group) return;
     haptic.light();
     const text = composer.trim();
-    const img = imageAttach;
-    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(img ? { image_url: img.uri } : {}) }, ...x.posts] }));
+    const imgs = imagesAttach;
+    const vid = videoAttach;
+    const aud = audioAttach;
+    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(imgs[0] ? { image_url: imgs[0].uri } : {}) }, ...x.posts] }));
     const optId = -Date.now();
     if (serverPosts) {
       const optimistic = {
         id: optId, content_text: text, created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
         like_count: 0, comment_count: 0, liked_by_me: false,
         user: { username: 'you', full_name: 'You', profile_image_url: null },
-        ...(img ? { media: [{ type: 'image', url: img.uri, thumb_url: img.uri }] } : {}),
-        ...(audioAttach ? { audio_url: audioAttach.uri } : {}),
+        ...(imgs.length ? { media: imgs.map((m) => ({ type: 'image', url: m.uri, thumb_url: m.uri })) } : {}),
+        ...(aud ? { audio_url: aud.uri } : {}),
+        ...(vid ? { video_url: vid.uri } : {}),
+        ...(yt ? { youtube_url: yt } : {}),
         ...(pollOk ? { poll: { options: poll.map((o, i) => ({ id: i + 1, text: o, votes: 0 })), voted: null } } : {}),
       } as Post;
       setServerPosts((rows) => [optimistic, ...(rows ?? [])]);
     }
     setComposer('');
-    setImageAttach(null);
+    setImagesAttach([]);
+    setVideoAttach(null);
+    setYtLink('');
     setAudioAttach(null);
     setPollOn(false);
     setPollOpts(['', '']);
     /* pass 66-night — group posts hit the server on live; pass 83-10 — photos ride multipart;
-       83-10b/c — poll options + audio file ride along */
+       83-10b/c — poll options + audio file ride along;
+       pass 83-25 — + video + YouTube + real upload progress. */
     const sid = srvGroupId(group);
     if (sid != null) {
       setPostError(null);
+      if (imgs.length || vid || aud) setUploadFrac(0);
       void groupCreatePost(
         sid,
         text,
-        img ? [{ uri: img.uri, name: img.name, type: 'image/jpeg' }] : undefined,
+        imgs.length ? imgs.map((m) => ({ uri: m.uri, name: m.name, type: 'image/jpeg' })) : undefined,
         pollOk ? poll : undefined,
-        audioAttach ?? undefined,
+        aud ?? undefined,
+        vid ?? undefined,
+        yt || undefined,
+        (f) => setUploadFrac(f),
       ).then((res) => {
+        setUploadFrac(null);
         if (res) {
           /* pass 83-17 — refetch so the real server row (with its real id)
            * replaces the optimistic one. */
@@ -263,6 +387,9 @@ function GroupScreenInner() {
       });
     }
   };
+  /* pass 83-25 — send-button state, computed once (photo/video/YouTube/poll/audio/text) */
+  const ytReady = ytOn && ytLink.trim().length > 0;
+  const canSend = !!group && uploadFrac == null && (!!composer.trim() || imagesAttach.length > 0 || !!audioAttach || !!videoAttach || ytReady || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2));
 
   /* ── pass 38 management actions ── */
   const setRole = (member: string, role: Role) => {
@@ -283,6 +410,75 @@ function GroupScreenInner() {
     haptic.success();
     upd((x) => (x.members.includes(name) ? x : { ...x, members: [...x.members, name], roles: { ...(x.roles ?? {}), [name]: 'member' }, memberCount: x.memberCount + 1 }));
   };
+  /* pass 83-25 — the same actions against the SERVER roster (members.php):
+   * per-row busy state, inline errors, roster refetch on success. */
+  const refreshRoster = (sid: number) => {
+    void groupGet(sid).then((row) => {
+      if (!row) return;
+      if (Array.isArray(row.members)) setRoster(row.members);
+      setGroup((cur) => (cur ? { ...cur, memberCount: row.member_count } : cur));
+    });
+  };
+  const setServerRole = (uid: number, role: 'admin' | 'member') => {
+    const sid = group ? srvGroupId(group) : null;
+    if (sid == null) return;
+    haptic.success();
+    setRoleMenu(null);
+    setMemberBusy(uid);
+    setMemberError(null);
+    groupMembers(sid, 'set_role', uid, role).then((r) => {
+      setMemberBusy(null);
+      if (r.ok) refreshRoster(sid);
+      else setMemberError(r.message ?? 'Could not change the role.');
+    });
+  };
+  const removeServerMember = (uid: number) => {
+    const sid = group ? srvGroupId(group) : null;
+    if (sid == null) return;
+    haptic.medium();
+    setRoleMenu(null);
+    setMemberBusy(uid);
+    setMemberError(null);
+    groupMembers(sid, 'remove', uid).then((r) => {
+      setMemberBusy(null);
+      if (r.ok) refreshRoster(sid);
+      else setMemberError(r.message ?? 'Could not remove that member.');
+    });
+  };
+  const addServerMember = (uid: number) => {
+    const sid = group ? srvGroupId(group) : null;
+    if (sid == null) return;
+    haptic.success();
+    setAddBusy(uid);
+    setMemberError(null);
+    groupMembers(sid, 'add', uid).then((r) => {
+      setAddBusy(null);
+      if (r.ok) refreshRoster(sid);
+      else setMemberError(r.message ?? 'Could not add that account.');
+    });
+  };
+  /* pass 83-25 — follow real accounts from the live roster (toggle_follow) */
+  const [followedIds, setFollowedIds] = useState<Set<number>>(new Set());
+  const toggleServerFollow = (uid: number) => {
+    haptic.light();
+    const want = !followedIds.has(uid);
+    setFollowedIds((s) => { const n = new Set(s); if (want) n.add(uid); else n.delete(uid); return n; });
+    apiToggleFollow(uid, want).then((ok) => {
+      if (!ok) setFollowedIds((s) => { const n = new Set(s); if (want) n.delete(uid); else n.add(uid); return n; });
+    });
+  };
+  /* pass 83-25 — debounced account search while the add sheet is open */
+  useEffect(() => {
+    if (!addOpen || !group || srvGroupId(group) == null) return;
+    const q = addQuery.trim();
+    if (q.length < 2) { setAddResults(null); return; }
+    setAddSearching(true);
+    const t = setTimeout(() => {
+      searchAccounts(q, 12).then((rows) => setAddResults(rows ?? [])).catch(() => setAddResults([])).finally(() => setAddSearching(false));
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addOpen, addQuery]);
   const toggleFollow = (member: string) => {
     haptic.light();
     upd((x) => {
@@ -294,6 +490,27 @@ function GroupScreenInner() {
     haptic.selection();
     setCoverOpen(false);
     upd((x) => ({ ...x, cover: cid }));
+  };
+
+  /* pass 83-25 — share the group (share.php?t=group deep-links back here) */
+  const shareGroup = async () => {
+    if (!group) return;
+    haptic.selection();
+    try {
+      const sid = srvGroupId(group);
+      if (sid != null) {
+        await shareLink({ kind: 'group', id: sid, title: group.name, text: group.bio || group.desc });
+      } else {
+        await Share.share({ message: `${group.name} — join my DeenLink group!` });
+      }
+    } catch { /* dismissed */ }
+  };
+  /* pass 83-25 — post rank: the server's author_role leads (owner>admin>
+   * member); the local roles map is the demo fallback. */
+  const serverRank = (sp: Post): Role => {
+    const ar = String((sp as { author_role?: unknown }).author_role ?? '').toLowerCase();
+    if (ar === 'owner' || ar === 'admin' || ar === 'member') return ar;
+    return group ? roleOf(group, sp.user?.username || '') : 'member';
   };
 
   const feedPosts = useMemo(() => (group ? group.posts : []), [group]);
@@ -378,6 +595,11 @@ function GroupScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
             <T v="h2" style={{ fontWeight: '900', fontSize: 20, color: d.text, flexShrink: 1 }}>{group.name}</T>
             <Badge role={myRole} big />
+            <View style={{ flex: 1 }} />
+            {/* pass 83-25 — share the group */}
+            <Pressable accessibilityLabel="share group" onPress={() => { void shareGroup(); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="share-alt" size={13} color={d.subtext} />
+            </Pressable>
           </View>
           {/* pass 38 — bio directly under the group name */}
           {group.bio ? (
@@ -413,20 +635,28 @@ function GroupScreenInner() {
             <Pressable
               accessibilityLabel={group.joined ? 'leave group' : 'join group'}
               onPress={group.joined ? leave : join}
-              style={{ flex: canManage ? 0.6 : 1, borderRadius: 14, backgroundColor: group.joined ? 'transparent' : (canManage ? 'rgba(212,175,55,0.12)' : isDark ? '#2ECC71' : '#1D6F42'), borderWidth: group.joined || canManage ? 1 : 0, borderColor: group.joined ? d.cardBorder : 'rgba(212,175,55,0.5)', alignItems: 'center', paddingVertical: 13 }}
+              disabled={joinBusy}
+              style={{ flex: canManage ? 0.6 : 1, borderRadius: 14, backgroundColor: group.joined ? 'transparent' : (canManage ? 'rgba(212,175,55,0.12)' : isDark ? '#2ECC71' : '#1D6F42'), borderWidth: group.joined || canManage ? 1 : 0, borderColor: group.joined ? d.cardBorder : 'rgba(212,175,55,0.5)', alignItems: 'center', justifyContent: 'center', paddingVertical: 13, minHeight: 48, opacity: joinBusy ? 0.6 : 1 }}
             >
-              <T v="button" style={{ fontWeight: '800', fontSize: 13, color: group.joined ? d.subtext : canManage ? '#E8C96A' : '#fff' }}>
-                {group.joined === 'member' ? 'Leave' : group.joined === 'requested' ? 'Cancel request' : group.open ? 'Join group' : 'Request to join'}
-              </T>
+              {joinBusy ? (
+                <ActivityIndicator size="small" color={group.joined ? d.subtext : canManage ? '#E8C96A' : '#fff'} />
+              ) : (
+                <T v="button" style={{ fontWeight: '800', fontSize: 13, color: group.joined ? d.subtext : canManage ? '#E8C96A' : '#fff' }}>
+                  {group.joined === 'member' ? 'Leave' : group.joined === 'requested' ? 'Cancel request' : group.open ? 'Join group' : 'Request to join'}
+                </T>
+              )}
             </Pressable>
           </View>
+          {memberError ? (
+            <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginTop: 8 }}>{memberError}</T>
+          ) : null}
         </View>
 
         {/* ── tabs ── */}
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 16 }}>
           {([
             { id: 'posts' as Tab, label: 'Posts', icon: 'th-large', n: group.posts.length },
-            { id: 'members' as Tab, label: 'Members', icon: 'users', n: group.members.length },
+            { id: 'members' as Tab, label: 'Members', icon: 'users', n: roster?.length ?? group.members.length },
             { id: 'about' as Tab, label: 'About', icon: 'info-circle', n: 0 },
           ]).map((t) => {
             const on = tab === t.id;
@@ -459,8 +689,8 @@ function GroupScreenInner() {
                     multiline
                     style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, maxHeight: 84, paddingVertical: 8 }}
                   />
-                  <Pressable onPress={() => { void pickImage(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: imageAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                    <FontAwesome5 name="image" size={14} color={imageAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  <Pressable onPress={() => { void pickImage(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: imagesAttach.length ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="image" size={14} color={imagesAttach.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
                   {/* pass 83-10b — poll builder toggle */}
                   <Pressable onPress={() => { haptic.selection(); setPollOn((v) => !v); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: pollOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
@@ -470,15 +700,44 @@ function GroupScreenInner() {
                   <Pressable onPress={() => { void pickAudio(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: audioAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
                     <FontAwesome5 name="music" size={13} color={audioAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
-                  <Pressable onPress={post} disabled={!composer.trim() && !imageAttach && !audioAttach && pollOpts.filter((o) => o.trim()).length < 2} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: composer.trim() || imageAttach || audioAttach || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2) ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                    <FontAwesome5 name="paper-plane" size={12} color={composer.trim() || imageAttach || audioAttach || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2) ? '#fff' : d.faint} />
+                  {/* pass 83-25 — local video picker */}
+                  <Pressable onPress={() => { void pickVideo(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="video" size={13} color={videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  </Pressable>
+                  {/* pass 83-25 — YouTube link toggle */}
+                  <Pressable onPress={() => { haptic.selection(); setYtOn((v) => !v); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    <FontAwesome5 name="youtube" size={14} color={ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
+                  </Pressable>
+                  <Pressable onPress={post} disabled={!canSend} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: canSend ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                    {uploadFrac != null ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <FontAwesome5 name="paper-plane" size={12} color={canSend ? '#fff' : d.faint} />
+                    )}
                   </Pressable>
                 </View>
-                {imageAttach ? (
+                {imagesAttach.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ alignSelf: 'stretch', marginTop: 6, marginBottom: 2 }} contentContainerStyle={{ gap: 7, paddingTop: 6, paddingRight: 6 }}>
+                    {imagesAttach.map((m, i) => (
+                      <View key={`${m.uri}-${i}`} style={{ position: 'relative' }}>
+                        <ExpoImage source={{ uri: m.uri }} style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder }} contentFit="cover" />
+                        <Pressable onPress={() => setImagesAttach((cur) => cur.filter((_, j) => j !== i))} hitSlop={6} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' }}>
+                          <FontAwesome5 name="times" size={9} color="#fff" />
+                        </Pressable>
+                      </View>
+                    ))}
+                    {imagesAttach.length < 5 ? (
+                      <Pressable onPress={() => { void pickImage(); }} style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome5 name="plus" size={13} color={d.faint} />
+                      </Pressable>
+                    ) : null}
+                  </ScrollView>
+                ) : null}
+                {videoAttach ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 6, marginBottom: 2, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.10)' : 'rgba(14,122,70,0.05)', paddingHorizontal: 8, paddingVertical: 6 }}>
-                    <ExpoImage source={{ uri: imageAttach.uri }} style={{ width: 34, height: 34, borderRadius: 7 }} contentFit="cover" />
-                    <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: d.subtext }} numberOfLines={1}>{imageAttach.name}</T>
-                    <Pressable onPress={() => setImageAttach(null)} hitSlop={8}>
+                    <FontAwesome5 name="video" size={12} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                    <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '700', color: d.subtext }} numberOfLines={1}>{videoAttach.name}</T>
+                    <Pressable onPress={() => setVideoAttach(null)} hitSlop={8}>
                       <FontAwesome5 name="times" size={11} color={d.faint} />
                     </Pressable>
                   </View>
@@ -520,6 +779,33 @@ function GroupScreenInner() {
                     </Pressable>
                   </View>
                 ) : null}
+                {ytOn ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginTop: 6, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#fff', paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <FontAwesome5 name="youtube" size={13} color="#E53E3E" />
+                    <TextInput
+                      value={ytLink}
+                      onChangeText={(v) => { setYtLink(v); if (v.trim()) { setImagesAttach([]); setVideoAttach(null); } }}
+                      placeholder="Paste a YouTube link…"
+                      placeholderTextColor={d.faint}
+                      autoCapitalize="none"
+                      keyboardType="url"
+                      style={{ flex: 1, fontSize: 13.5, fontFamily: 'Poppins-Regular', color: d.text, paddingVertical: 7 }}
+                    />
+                    {ytLink ? (
+                      <Pressable onPress={() => setYtLink('')} hitSlop={8}>
+                        <FontAwesome5 name="times" size={11} color={d.faint} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+                {uploadFrac != null ? (
+                  <View style={{ alignSelf: 'stretch', marginTop: 8, gap: 5 }}>
+                    <View style={{ height: 5, borderRadius: 3, backgroundColor: d.bgSoft, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', width: `${Math.round(uploadFrac * 100)}%`, borderRadius: 3, backgroundColor: isDark ? '#2ECC71' : '#1D6F42' }} />
+                    </View>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: d.faint }}>Uploading… {Math.round(uploadFrac * 100)}%</T>
+                  </View>
+                ) : null}
                 {postError ? (
                   <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginTop: 4 }}>{postError}</T>
                 ) : null}
@@ -528,10 +814,17 @@ function GroupScreenInner() {
                     ref={imageFileRef as never}
                     type="file"
                     accept="image/*"
+                    multiple
                     style={{ display: 'none' }}
                     onChange={(e: unknown) => {
-                      const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
-                      if (file) setImageAttach({ uri: URL.createObjectURL(file), name: file.name });
+                      const files = Array.from((e as React.ChangeEvent<HTMLInputElement>).target.files ?? []).slice(0, 5);
+                      (e as React.ChangeEvent<HTMLInputElement>).target.value = '';
+                      if (files.length) {
+                        setPostError(null);
+                        setVideoAttach(null);
+                        setYtLink('');
+                        setImagesAttach((cur) => [...cur, ...files.map((f) => ({ uri: URL.createObjectURL(f), name: f.name }))].slice(0, 5));
+                      }
                     }}
                   />
                 ) : null}
@@ -543,7 +836,31 @@ function GroupScreenInner() {
                     style={{ display: 'none' }}
                     onChange={(e: unknown) => {
                       const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
-                      if (file) setAudioAttach({ uri: URL.createObjectURL(file), name: file.name, type: file.type });
+                      (e as React.ChangeEvent<HTMLInputElement>).target.value = '';
+                      if (!file) return;
+                      const err = validateAudio(file.name, file.size);
+                      if (err) { setPostError(err); return; }
+                      setPostError(null);
+                      setAudioAttach({ uri: URL.createObjectURL(file), name: file.name, type: file.type });
+                    }}
+                  />
+                ) : null}
+                {Platform.OS === 'web' ? (
+                  <input
+                    ref={videoFileRef as never}
+                    type="file"
+                    accept="video/*"
+                    style={{ display: 'none' }}
+                    onChange={(e: unknown) => {
+                      const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
+                      (e as React.ChangeEvent<HTMLInputElement>).target.value = '';
+                      if (!file) return;
+                      const err = validateVideo(file.name, file.size);
+                      if (err) { setPostError(err); return; }
+                      setPostError(null);
+                      setImagesAttach([]);
+                      setYtLink('');
+                      setVideoAttach({ uri: URL.createObjectURL(file), name: file.name, type: file.type });
                     }}
                   />
                 ) : null}
@@ -567,7 +884,7 @@ function GroupScreenInner() {
                       dash={d}
                       post={sp}
                       group={{ name: group.name, cat: group.cat, avatar: group.avatar, catIcon: catIcon(group.cat) }}
-                      rank={roleOf(group, sp.user?.username || '')}
+                      rank={serverRank(sp)}
                       onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
                       onComments={(pp) => setCommentPost(pp)}
                       /* pass 83-14 — authors delete their own posts; the group
@@ -615,9 +932,9 @@ function GroupScreenInner() {
         {tab === 'members' ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              {group.members.slice(0, 5).map((m, i) => (
-                <View key={m + i} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(212,175,55,0.16)', borderWidth: 2, borderColor: d.card, alignItems: 'center', justifyContent: 'center', marginLeft: i ? -9 : 0 }}>
-                  <T v="caption" style={{ fontWeight: '800', fontSize: 11, color: '#E8C96A' }}>{m.slice(0, 1)}</T>
+              {(roster ? roster.slice(0, 5).map((m) => ({ key: `r${m.id}`, label: (m.full_name || m.username || '?').slice(0, 1) })) : group.members.slice(0, 5).map((m, i) => ({ key: `${m}${i}`, label: m.slice(0, 1) }))).map((a, i) => (
+                <View key={a.key} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(212,175,55,0.16)', borderWidth: 2, borderColor: d.card, alignItems: 'center', justifyContent: 'center', marginLeft: i ? -9 : 0 }}>
+                  <T v="caption" style={{ fontWeight: '800', fontSize: 11, color: '#E8C96A' }}>{a.label}</T>
                 </View>
               ))}
               <T v="caption" style={{ fontSize: 10, color: d.faint, marginLeft: 10, flex: 1 }}>{group.memberCount.toLocaleString()} people are in this group</T>
@@ -632,7 +949,67 @@ function GroupScreenInner() {
                 </Pressable>
               ) : null}
             </View>
-            {group.members.map((m, i) => {
+            {memberError ? (
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginBottom: 10 }}>{memberError}</T>
+            ) : null}
+            {/* pass 83-25 — the LIVE roster: real members, roles, follow, manage */}
+            {roster ? roster.map((rm) => {
+              const rRole = (['owner', 'admin', 'member'].includes(String(rm.role)) ? rm.role : 'member') as Role;
+              const label = rm.full_name || rm.username || 'Member';
+              const menuKey = `srv${rm.id}`;
+              const busy = memberBusy === rm.id;
+              const isSelf = user?.id != null && rm.id === user.id;
+              const following = followedIds.has(rm.id);
+              return (
+                <View key={menuKey} style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isDark ? 'rgba(212,175,55,0.15)' : 'rgba(140,109,31,0.1)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {rm.profile_image_url ? (
+                        <ExpoImage source={{ uri: rm.profile_image_url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      ) : (
+                        <T v="caption" style={{ fontWeight: '800', fontSize: 13, color: '#E8C96A' }}>{label.slice(0, 1)}</T>
+                      )}
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text, flexShrink: 1 }} numberOfLines={1}>{label}{isSelf ? ' (You)' : ''}</T>
+                        <Badge role={rRole} />
+                      </View>
+                      <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>@{rm.username}</T>
+                    </View>
+                    {!isSelf ? (
+                      <Pressable
+                        accessibilityLabel={following ? `unfollow ${label}` : `follow ${label}`}
+                        onPress={() => toggleServerFollow(rm.id)}
+                        style={{ borderRadius: 10, borderWidth: 1, borderColor: following ? d.cardBorder : isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)', backgroundColor: following ? 'transparent' : isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                      >
+                        <FontAwesome5 name={following ? 'user-check' : 'user-plus'} size={9} color={following ? d.subtext : isDark ? '#4AE38F' : '#1D6F42'} />
+                        <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: following ? d.subtext : isDark ? '#4AE38F' : '#1D6F42' }}>{following ? 'Following' : 'Follow'}</T>
+                      </Pressable>
+                    ) : null}
+                    {canManage && !isSelf && rRole !== 'owner' ? (
+                      <Pressable onPress={() => { haptic.selection(); setRoleMenu(roleMenu === menuKey ? null : menuKey); }} hitSlop={8} style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
+                        {busy ? <ActivityIndicator size="small" color={d.subtext} /> : <T v="caption" style={{ color: d.subtext, fontSize: 14, fontWeight: '700' }}>•••</T>}
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {roleMenu === menuKey ? (
+                    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: d.cardBorder, gap: 7 }}>
+                      {isOwner ? (
+                        <Pressable onPress={() => setServerRole(rm.id, rRole === 'admin' ? 'member' : 'admin')} disabled={busy} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(47,164,107,0.4)', backgroundColor: 'rgba(47,164,107,0.07)', paddingHorizontal: 11, paddingVertical: 9, opacity: busy ? 0.5 : 1 }}>
+                          <FontAwesome5 name={rRole === 'admin' ? 'arrow-down' : 'shield-alt'} size={11} color="#2FA46B" />
+                          <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: '#2FA46B' }}>{rRole === 'admin' ? 'Remove admin role' : 'Make admin'}</T>
+                        </Pressable>
+                      ) : null}
+                      <Pressable onPress={() => removeServerMember(rm.id)} disabled={busy} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(229,62,62,0.35)', backgroundColor: 'rgba(229,62,62,0.05)', paddingHorizontal: 11, paddingVertical: 9, opacity: busy ? 0.5 : 1 }}>
+                        <FontAwesome5 name="user-minus" size={11} color="#E53E3E" />
+                        <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: '#E53E3E' }}>Remove from group</T>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            }) : group.members.map((m, i) => {
               const role = roleOf(group, m);
               const isFollowing = (group.following ?? []).includes(m);
               const u = userOf(m);
@@ -724,8 +1101,51 @@ function GroupScreenInner() {
           <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, maxHeight: '70%' }}>
             <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
               <T v="h3" style={{ fontWeight: '900', fontSize: 16, color: d.text, marginBottom: 4 }}>Add members</T>
-              <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 14 }}>From your connections and the DeenLink community</T>
-              {ADDABLE.map((a) => {
+              {srvGroupId(group) != null ? (
+                <>
+                  <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 10 }}>Search DeenLink accounts by name or username</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 11, paddingVertical: 9, marginBottom: 12 }}>
+                    <FontAwesome5 name="search" size={11} color={d.faint} />
+                    <TextInput value={addQuery} onChangeText={setAddQuery} placeholder="Type at least 2 letters…" placeholderTextColor={d.faint} maxLength={40} style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, paddingVertical: 0 }} />
+                    {addSearching ? <ActivityIndicator size="small" color={d.faint} /> : addQuery ? (
+                      <Pressable onPress={() => setAddQuery('')} hitSlop={8}><FontAwesome5 name="times-circle" size={13} color={d.faint} /></Pressable>
+                    ) : null}
+                  </View>
+                  {memberError ? (
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginBottom: 10 }}>{memberError}</T>
+                  ) : null}
+                  {(addResults ?? []).map((a) => {
+                    const inGroup = (roster ?? []).some((m) => m.id === a.id);
+                    const busy = addBusy === a.id;
+                    return (
+                      <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, padding: 11, marginBottom: 8 }}>
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(91,200,245,0.12)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          {a.profile_image_url ? (
+                            <ExpoImage source={{ uri: a.profile_image_url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                          ) : (
+                            <T v="caption" style={{ fontWeight: '800', fontSize: 13, color: '#5BC8F5' }}>{(a.full_name || a.username || '?').slice(0, 1)}</T>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{a.full_name || a.username}</T>
+                          <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>@{a.username}</T>
+                        </View>
+                        <Pressable onPress={() => addServerMember(a.id)} disabled={inGroup || busy} style={{ borderRadius: 10, backgroundColor: inGroup ? d.bgSoft : isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 13, paddingVertical: 7, minWidth: 64, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
+                          {busy ? <ActivityIndicator size="small" color="#fff" /> : (
+                            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: inGroup ? d.faint : '#fff' }}>{inGroup ? 'Added' : '+ Add'}</T>
+                          )}
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                  {addResults && !addSearching && addResults.length === 0 ? (
+                    <T v="caption" style={{ fontSize: 11, color: d.faint, textAlign: 'center', marginTop: 6 }}>No accounts match “{addQuery.trim()}”.</T>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 14 }}>From your connections and the DeenLink community</T>
+                  {ADDABLE.map((a) => {
                 const inGroup = group.members.includes(a.name);
                 return (
                   <View key={a.user} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, padding: 11, marginBottom: 8 }}>
@@ -746,6 +1166,8 @@ function GroupScreenInner() {
                   </View>
                 );
               })}
+                </>
+              )}
             </ScrollView>
           </View>
         </View>

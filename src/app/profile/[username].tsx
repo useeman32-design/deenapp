@@ -601,6 +601,9 @@ function PublicProfileScreenInner() {
                   dash={d}
                   lockProfileNav
                   post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                  /* pass 83-25 — group posts on profiles carry a chip into the group */
+                  group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                  onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
                   onLike={(id) =>
                     setLikedPosts((prev) => {
                       const n = new Set(prev);
@@ -718,6 +721,9 @@ function PublicProfileScreenInner() {
                   dash={d}
                   lockProfileNav
                   post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                  /* pass 83-25 — group posts on profiles carry a chip into the group */
+                  group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                  onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
                   onLike={(id) =>
                     setLikedPosts((prev) => {
                       const n = new Set(prev);

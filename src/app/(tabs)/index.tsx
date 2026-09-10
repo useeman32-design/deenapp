@@ -921,6 +921,9 @@ function HomeInner() {
                   ((p.user as { fields?: string }).fields as string | undefined)
                 }
                 post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                /* pass 83-25 — group posts in the mixed feed carry a chip into the group */
+                group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
+                onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
                 onLike={(id) => togglePostLike(id)}
                 onComments={(pp) => setCommentPost(pp)}
                 onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
