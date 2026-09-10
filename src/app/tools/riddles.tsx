@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -9,7 +9,7 @@ import { haptic } from '@/lib/haptics';
 import { RIDDLES } from '@/data/learn';
 import { addUserPost } from '@/lib/userPosts';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
-import { ShareWithFriends } from '@/components/ShareWithFriends';
+import { FriendsPicker } from '@/components/SendToFriends';
 
 /**
  * Learning — Islamic riddles (pass 32 redesign): one riddle in focus on a
@@ -140,8 +140,19 @@ export default function Riddles() {
           <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>🔀 SHUFFLE RIDDLES</T>
         </Pressable>
       </ScrollView>
-      <ScoreShareSheet visible={scoreCard != null} onClose={() => setScoreCard(null)} card={scoreCard} friends={{ title: `Islamic Riddle — ${r.q.slice(0, 60)}`, preview: shown ? `Answer: ${r.a.slice(0, 50)}` : 'Can you solve it? · deenlink.org/tools/riddles' }} />
-      <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} onSent={() => { setToast('Sent to your friends ✓'); setTimeout(() => setToast(null), 2200); }} title={`Islamic Riddle — ${r.q}`} preview={shown ? `Answer: ${r.a}` : 'Can you solve it? · DeenLink'} />
+      <ScoreShareSheet visible={scoreCard != null} onClose={() => setScoreCard(null)} card={scoreCard} friends={{ title: `Islamic Riddle — ${r.q.slice(0, 60)}`, preview: shown ? `Answer: ${r.a.slice(0, 50)}` : 'Can you solve it? · deenlink.org/tools/riddles' }} friendsLive={{ kind: 'riddle', title: `Islamic Riddle — ${r.q.slice(0, 80)}`, sub: shown ? `Answer: ${r.a.slice(0, 60)}` : 'Can you solve it? · DeenLink', route: '/tools/riddles' }} />
+      <Modal visible={friendsOpen} transparent animationType="slide" onRequestClose={() => setFriendsOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.62)', justifyContent: 'flex-end' }}>
+          <Pressable onPress={() => setFriendsOpen(false)} style={{ flex: 1 }} />
+          <View style={{ backgroundColor: isDark ? '#0C1712' : '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : theme.border, paddingTop: 14, paddingBottom: 30, paddingHorizontal: 14, maxHeight: '78%' }}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ width: 42, height: 4.5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)' }} />
+            </View>
+            {/* pass 83-26 — live share: lands in the real inbox, taps to the riddle */}
+            <FriendsPicker share={{ kind: 'riddle', title: `Islamic Riddle — ${r.q.slice(0, 80)}`, sub: shown ? `Answer: ${r.a.slice(0, 60)}` : 'Can you solve it? · DeenLink', route: '/tools/riddles' }} onDone={() => { setToast('Sent to your friends ✓'); setTimeout(() => { setFriendsOpen(false); setToast(null); }, 1400); }} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

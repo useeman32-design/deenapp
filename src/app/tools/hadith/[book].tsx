@@ -61,7 +61,7 @@ export default function HadithBookScreen() {
     [bmHadith.list, book.id],
   );
   const [limit, setLimit] = useState(25);
-  const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
+  const [shareH, setShareH] = useState<{ arabic: string; meaning: string; ref: string; route?: string } | null>(null);
 
   useEffect(() => {
     if (chapterParam) storage.setItem('dl.hadith.last', JSON.stringify({ book: book.id, chapter: `c${chapterParam}`, at: new Date().toISOString() }));
@@ -300,6 +300,7 @@ export default function HadithBookScreen() {
                           arabic: h.arabic,
                           meaning: enOf(h.english) || h.chapter_name?.english || '',
                           ref: `${book.name} · ${h.chapter_name?.english ? h.chapter_name.english + ' · ' : ''}Hadith ${num}`,
+                          route: `/tools/hadith/${bookId}?h=${num}`,
                         });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: d.cardBorder }}

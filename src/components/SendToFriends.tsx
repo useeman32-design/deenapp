@@ -19,7 +19,8 @@ import { deliverShareToFriends } from '@/components/ShareWithFriends';
  */
 
 export type FriendShare = {
-  kind: 'post' | 'reel' | 'ayah' | 'hadith' | 'dua';
+  /* pass 83-26 — profile cards, quiz/riddle scores and group invites ride the same pipe */
+  kind: 'post' | 'reel' | 'ayah' | 'hadith' | 'dua' | 'profile' | 'quiz' | 'riddle' | 'group';
   title: string;
   sub?: string;
   /* pass 83-20 — where tapping the chat card should navigate */
@@ -141,7 +142,7 @@ export function FriendsPicker({
         } catch {}
       }
     } else {
-      await deliverShareToFriends(targets.map((p) => p.username), share.title, share.sub);
+      await deliverShareToFriends(targets.map((p) => p.username), share.title, share.sub, share.kind, share.route);
       ok = targets.length;
     }
     setSending(false);

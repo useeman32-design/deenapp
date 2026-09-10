@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
+import { BASE, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -575,6 +575,8 @@ function VideosFeedInner() {
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('saved');
   const [createOpen, setCreateOpen] = useState(false);
   const [moreReel, setMoreReel] = useState<MockReel | null>(null);
+  /* pass 83-26 — watermarked-download progress (0..1) for server reels */
+  const [dlProg, setDlProg] = useState<number | null>(null);
   const [sendToOpen, setSendToOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
@@ -773,7 +775,72 @@ function VideosFeedInner() {
 
   const downloadReel = async (reel: MockReel) => {
     haptic.light();
+    /* pass 83-26 — server reels download through the watermarking endpoint
+     * (DeenLink logo + @uploader burned in, TikTok-style) with a live
+     * progress pill on web AND native. Bundled samples keep their instant
+     * local path. */
+    const liveUrl = reel.liveId != null && isLive() ? `${BASE}/api/videos/download.php?video_id=${reel.liveId}` : null;
     try {
+      if (liveUrl) {
+        setDlProg(0);
+        if (Platform.OS === 'web') {
+          const res = await fetch(liveUrl);
+          if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+          const total = Number(res.headers.get('Content-Length') ?? 0);
+          const reader = res.body?.getReader();
+          const chunks: BlobPart[] = [];
+          if (reader) {
+            let got = 0;
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) { chunks.push(value as BlobPart); got += value.length; }
+              if (total > 0) setDlProg(got / total);
+            }
+          } else {
+            chunks.push(await res.blob());
+            setDlProg(1);
+          }
+          const url = URL.createObjectURL(new Blob(chunks, { type: 'video/mp4' }));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `deenlink-video-${reel.liveId}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          setDlProg(null);
+          showToast('Downloading video');
+          return;
+        }
+        /* cheap preflight: YouTube/streamed reels answer 400 without building anything */
+        const probe = await fetch(liveUrl, { method: 'HEAD' }).catch(() => null);
+        if (probe && probe.status === 400) {
+          setDlProg(null);
+          Alert.alert('Download unavailable', 'This video streams from YouTube — only DeenLink uploads can be downloaded.');
+          return;
+        }
+        if (probe && (probe.status < 200 || probe.status >= 300)) throw new Error(`HTTP ${probe.status}`);
+        const { File, Paths } = await import('expo-file-system');
+        const dest = new File(Paths.cache, `deenlink-video-${reel.liveId}.mp4`);
+        const task = File.createDownloadTask(liveUrl, dest, {
+          onProgress: ({ bytesWritten, totalBytes }) => {
+            if (totalBytes > 0) setDlProg(bytesWritten / totalBytes);
+          },
+        });
+        const done = await task.downloadAsync();
+        setDlProg(null);
+        if (!done) throw new Error('download paused');
+        const MediaLibrary = await import('expo-media-library');
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission needed', 'Allow photo-library access to save videos.');
+          return;
+        }
+        await MediaLibrary.saveToLibraryAsync(done.uri);
+        Alert.alert('Saved', 'Watermarked video saved to your gallery.');
+        return;
+      }
       let uri: string;
       if (reel.wm != null) {
         // bundled sample → use the pre-built DeenLink-watermarked copy
@@ -807,7 +874,13 @@ function VideosFeedInner() {
       }
       await MediaLibrary.saveToLibraryAsync(uri);
       Alert.alert('Saved ✓', 'Video saved to your gallery.');
-    } catch {
+    } catch (e) {
+      setDlProg(null);
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('local videos only')) {
+        Alert.alert('Download unavailable', 'This video streams from YouTube — only DeenLink uploads can be downloaded.');
+        return;
+      }
       Alert.alert('Download failed', 'Please try again in a moment.');
     }
   };
@@ -1455,7 +1528,7 @@ function VideosFeedInner() {
                 {/* pass 73 — multi-select + real search; delivers a real chat share */}
                 <FriendsPicker
                   dark
-                  share={{ kind: 'reel', title: moreReel?.caption || 'Check out this reel', sub: moreReel ? `@${moreReel.username} · DeenLink` : undefined }}
+                  share={{ kind: 'reel', title: moreReel?.caption || 'Check out this reel', sub: moreReel ? `@${moreReel.username} · DeenLink` : undefined, route: moreReel ? `/videos?start=${moreReel.id}` : undefined }}
                   onDone={(n2) => {
                     setTimeout(() => {
                       setSendToOpen(false);
@@ -1469,6 +1542,15 @@ function VideosFeedInner() {
           </View>
         </View>
       </Modal>
+
+      {dlProg != null ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: VW / 2 - 110, width: 220, bottom: 168 + insets.bottom, zIndex: 60, borderRadius: 14, backgroundColor: 'rgba(8,14,11,0.92)', borderWidth: 1, borderColor: 'rgba(232,201,106,0.4)', paddingHorizontal: 14, paddingVertical: 10 }}>
+          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#F2F7F3', marginBottom: 6 }}>Downloading... {Math.round(dlProg * 100)}%</T>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.14)' }}>
+            <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(dlProg * 100))}%`, backgroundColor: '#E8C96A' }} />
+          </View>
+        </View>
+      ) : null}
 
       {/* ---------------- create studio ---------------- */}
       <CreateReelModal

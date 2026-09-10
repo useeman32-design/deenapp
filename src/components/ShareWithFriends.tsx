@@ -20,17 +20,17 @@ import { storage } from '@/lib/storage';
 const INBOX_STORE = 'dl.inbox.v2';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-type InboxItem = { id: string; kind: string; title: string; ago: string; dir: 'me' | 'them'; sub?: string };
+type InboxItem = { id: string; kind: string; title: string; ago: string; dir: 'me' | 'them'; sub?: string; route?: string };
 type Thread = { friend: string; items: InboxItem[]; chat: Array<{ id: string; text: string; ago: string; dir: 'me' | 'them' }>; reactions: Record<string, string> };
 
-export async function deliverShareToFriends(friends: string[], title: string, sub?: string): Promise<void> {
+export async function deliverShareToFriends(friends: string[], title: string, sub?: string, kind = 'post', route?: string): Promise<void> {
   if (!friends.length) return;
   let threads: Thread[] = [];
   try {
     threads = JSON.parse((await storage.getItem(INBOX_STORE)) ?? '[]');
   } catch {}
   for (const f of friends) {
-    const item: InboxItem = { id: uid(), kind: 'post', title, ago: 'now', dir: 'me', sub: sub ?? 'Shared in DeenLink' };
+    const item: InboxItem = { id: uid(), kind, title, ago: 'now', dir: 'me', sub: sub ?? 'Shared in DeenLink', ...(route ? { route } : {}) };
     const existing = threads.find((t) => t.friend === f);
     if (existing) existing.items = [...existing.items, item];
     else threads.push({ friend: f, items: [item], chat: [], reactions: {} });

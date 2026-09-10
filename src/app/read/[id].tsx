@@ -80,7 +80,7 @@ function ReaderInner() {
     loadTranslation(lang).then((m) => { if (alive) setTrMap(m); }).catch(() => { if (alive) setTrMap({}); });
     return () => { alive = false; };
   }, [lang]);
-  const [shareAyah, setShareAyah] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
+  const [shareAyah, setShareAyah] = useState<{ arabic: string; meaning: string; ref: string; route?: string } | null>(null);
   const [mushafSurah, setMushafSurah] = useState(n);
   const [countdown, setCountdown] = useState<number | null>(null);
   const announcedNext = useRef<number | null>(null);
@@ -306,7 +306,7 @@ function ReaderInner() {
                   <Pressable
                     onPress={() => {
                       haptic.selection();
-                      setShareAyah({ arabic: a.arabic, meaning: (lang === 'ha' && a.hausa) || a.english || '', ref: `${meta.english} ${n}:${a.ayah}` });
+                      setShareAyah({ arabic: a.arabic, meaning: (lang === 'ha' && a.hausa) || a.english || '', ref: `${meta.english} ${n}:${a.ayah}`, route: `/read/${n}?ayah=${a.ayah}` });
                     }}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                   >

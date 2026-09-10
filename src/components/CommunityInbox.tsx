@@ -20,7 +20,7 @@ import { useRouter } from 'expo-router';
  */
 
 const EMOJIS = ['🤍', '😂', '😮', '🤲', '🔥', '🕌'] as const;
-type Kind = 'post' | 'reel' | 'ayah' | 'hadith' | 'dua' | 'profile';
+type Kind = 'post' | 'reel' | 'ayah' | 'hadith' | 'dua' | 'profile' | 'quiz' | 'riddle' | 'group';
 type ShareItem = {
   id: string;
   /* pass 83-21 — stable render key (see ChatMsg.rk) */
@@ -61,6 +61,9 @@ const KIND_META: Record<Kind, { icon: string; label: string; tint: string }> = {
   hadith: { icon: 'scroll', label: 'Hadith', tint: '#C8A2C8' },
   dua: { icon: 'hands-helping', label: 'Dua', tint: '#F0A8C0' },
   profile: { icon: 'user-circle', label: 'Profile', tint: '#8FD3B6' },
+  quiz: { icon: 'question-circle', label: 'Quiz', tint: '#5BC8F5' },
+  riddle: { icon: 'puzzle-piece', label: 'Riddle', tint: '#E8C96A' },
+  group: { icon: 'users', label: 'Group', tint: '#4AE38F' },
 };
 
 const ago = () => 'now';
@@ -1332,9 +1335,9 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                     </View>
                   ) : it.kind === 'profile' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(143,211,182,0.5)', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)', padding: 10, marginBottom: 7 }}>
-                      <AvatarImage source={null} name="UI" size={40} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
+                      <AvatarImage source={null} name={it.title} size={40} tint="rgba(46,204,113,0.2)" border={d.cardBorder} />
                       <View style={{ flex: 1 }}>
-                        <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>Ustādh Ibrāhīm</T>
+                        <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>{it.title}</T>
                         <T v="caption" numberOfLines={2} style={{ fontSize: 9, color: d.faint, marginTop: 2 }}>{it.sub}</T>
                       </View>
                       <View style={{ borderRadius: 9, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', paddingHorizontal: 10, paddingVertical: 5 }}>
@@ -1348,8 +1351,8 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                   {(it.kind === 'ayah' || it.kind === 'hadith' || it.kind === 'dua') && it.arabic ? (
                     <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 2 }}>{it.title}</T>
                   ) : null}
-                  {(it.kind === 'reel' || it.kind === 'post') ? (
-                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 2 }}>{it.kind === 'reel' ? 'Reel shared from Videos' : 'Post shared from the community feed'}</T>
+                  {(it.kind === 'reel' || it.kind === 'post' || it.kind === 'quiz' || it.kind === 'riddle' || it.kind === 'group') ? (
+                    <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 2 }}>{it.kind === 'reel' ? 'Reel shared from Videos' : it.kind === 'quiz' ? 'Quiz score shared from Islamic Quiz' : it.kind === 'riddle' ? 'Riddle shared from Islamic Riddles' : it.kind === 'group' ? 'Group invite — tap to open and join' : 'Post shared from the community feed'}</T>
                   ) : null}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 }}>
                     <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{mine ? `you shared · ${it.ago}` : `shared with you · ${it.ago}`}</T>

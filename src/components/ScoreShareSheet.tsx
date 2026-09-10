@@ -8,6 +8,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { haptic } from '@/lib/haptics';
 import { saveSvgRefAsJpg, shareSvgRef, svgWebDownload, type SvgRefHandle } from '@/lib/svgExport';
 import { ShareWithFriends } from '@/components/ShareWithFriends';
+import { FriendsPicker, type FriendShare } from '@/components/SendToFriends';
 
 /**
  * pass 38/40 — SQUARE share cards (1080×1080) for quiz results, dhikr counts,
@@ -235,12 +236,16 @@ export function ScoreShareSheet({
   onClose,
   card,
   friends,
+  friendsLive,
 }: {
   visible: boolean;
   onClose: () => void;
   card: ScoreCard | null;
   /* pass 40 — optional "send to friends" action (multi-select picker) */
   friends?: { title: string; preview?: string };
+  /* pass 83-26 — live server-backed friends share (lands in the real inbox
+   * and taps through to `route`); plain `friends` stays the local demo path */
+  friendsLive?: FriendShare;
 }) {
   const { theme, isDark } = useTheme();
   const [design, setDesign] = useState<ScoreDesign>('star');
@@ -328,7 +333,7 @@ export function ScoreShareSheet({
               <FontAwesome5 name="share" size={12} color={theme.text} />
               <T v="bodyS" style={{ fontSize: 12.5, color: theme.text }}>Share</T>
             </Pressable>
-            {friends ? (
+            {(friends || friendsLive) ? (
               <Pressable
                 onPress={() => { haptic.light(); setFriendsOpen(true); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 11 }}
@@ -338,7 +343,21 @@ export function ScoreShareSheet({
               </Pressable>
             ) : null}
           </View>
-          <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} title={friends?.title ?? card.title} preview={friends?.preview} />
+          {friendsLive ? (
+            <Modal visible={friendsOpen} transparent animationType="slide" onRequestClose={() => setFriendsOpen(false)}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.62)', justifyContent: 'flex-end' }}>
+                <Pressable onPress={() => setFriendsOpen(false)} style={{ flex: 1 }} />
+                <View style={{ backgroundColor: isDark ? '#0C1712' : '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : theme.border, paddingTop: 14, paddingBottom: 30, paddingHorizontal: 14, maxHeight: '78%' }}>
+                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 42, height: 4.5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)' }} />
+                  </View>
+                  <FriendsPicker share={friendsLive} onDone={() => setTimeout(() => { setFriendsOpen(false); onClose(); }, 1400)} />
+                </View>
+              </View>
+            </Modal>
+          ) : (
+            <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} title={friends?.title ?? card.title} preview={friends?.preview} />
+          )}
           <T v="caption" style={{ textAlign: 'center', fontSize: 9, color: theme.subtext, marginTop: 8 }}>Tap a colour to shuffle the background · QR opens this screen in DeenLink</T>
         </View>
       </View>

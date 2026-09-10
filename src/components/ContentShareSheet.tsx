@@ -32,7 +32,7 @@ export function ContentShareSheet({
   visible: boolean;
   onClose: () => void;
   /** input for the styled image card */
-  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post'; arabic?: string; meaning: string; ref: string; route?: string } | null;
+  card: { kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post' | 'profile'; arabic?: string; meaning: string; ref: string; route?: string } | null;
   link: string;
   /** pass true to hide the "share as image" row (e.g. profiles) */
   noImage?: boolean;
@@ -50,11 +50,13 @@ export function ContentShareSheet({
   useEffect(() => { canSaveImages().then(setCanSave).catch(() => setCanSave(false)); }, []);
   const [sent, setSent] = useState<string | null>(null);
   /* pass 49 — route the shared link through /share.php so external apps render a preview card */
-  const KIND_MAP: Record<string, 'verse' | 'hadith' | 'dua' | 'post'> = { ayah: 'verse', hadith: 'hadith', dua: 'dua', athkar: 'dua', post: 'post' };
+  const KIND_MAP: Record<string, 'verse' | 'hadith' | 'dua' | 'post'> = { ayah: 'verse', hadith: 'hadith', dua: 'dua', athkar: 'dua', post: 'post', profile: 'post' };
   const previewUrl = card ? buildShareUrl(KIND_MAP[card.kind] ?? 'dua', undefined, card.ref || 'DeenLink', card.meaning) : link;
 
   if (!visible && (svgMode || imgUrl)) { setSvgMode(false); setImgUrl(null); }
   if (!visible) return null;
+  /* pass 83-26 — styled-image cards have no profile layout; render as a post card */
+  const imgCard = card ? { arabic: card.arabic, meaning: card.meaning, ref: card.ref, route: card.route, kind: (card.kind === 'profile' ? 'post' : card.kind) as 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post' } : null;
 
   const shareAsPost = async () => {
     if (!card || posting) return;
@@ -76,7 +78,7 @@ export function ContentShareSheet({
     }
     setBusy(true);
     try {
-      const url = await generateShareCard(card, 'classic');
+      const url = await generateShareCard(imgCard!, 'classic');
       setImgUrl(url);
     } catch {}
     setBusy(false);
@@ -117,7 +119,7 @@ export function ContentShareSheet({
             <View style={{ paddingTop: 8 }}>
               <FriendsPicker
                 share={{
-                  kind: (KIND_MAP[card.kind] === 'verse' ? 'ayah' : KIND_MAP[card.kind] === 'post' ? 'post' : KIND_MAP[card.kind] === 'hadith' ? 'hadith' : 'dua') as FriendShare['kind'],
+                  kind: (card.kind === 'profile' ? 'profile' : KIND_MAP[card.kind] === 'verse' ? 'ayah' : KIND_MAP[card.kind] === 'post' ? 'post' : KIND_MAP[card.kind] === 'hadith' ? 'hadith' : 'dua') as FriendShare['kind'],
                   title: (card.meaning ?? '').slice(0, 160) || 'Shared from DeenLink',
                   sub: card.ref || undefined,
                   route: card.route,
@@ -144,7 +146,7 @@ export function ContentShareSheet({
           {svgMode && card ? (
             <View style={{ paddingHorizontal: 16, alignItems: 'center', gap: 10 }}>
               <View style={{ width: 250, height: 320, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.border }}>
-                <ShareCardSvg input={card} ref={exportRef} />
+                <ShareCardSvg input={imgCard!} ref={exportRef} />
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Pressable onPress={() => { shareSvgRef(exportRef, `deenlink-${card.kind}`, `${card.meaning} — ${card.ref}`).catch(() => {}); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: theme.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}>

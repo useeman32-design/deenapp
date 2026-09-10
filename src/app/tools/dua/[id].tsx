@@ -31,7 +31,7 @@ export default function DuaSection() {
 
   const [pack, setPack] = useState<Record<string, ContentDua[]> | null>(null);
   const [openId, setOpenId] = useState<number | null>(open ? Number(open) : null);
-  const [shareDua, setShareDua] = useState<{ arabic: string; meaning: string; ref: string } | null>(null);
+  const [shareDua, setShareDua] = useState<{ arabic: string; meaning: string; ref: string; route?: string } | null>(null);
   const audio = useAudio();
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export default function DuaSection() {
                   <Pressable
                     onPress={() => {
                       haptic.selection();
-                      setShareDua({ arabic: c.TEXT[0]?.ARABIC_TEXT ?? '', meaning: c.TEXT[0]?.TRANSLATED_TEXT ?? c.TEXT[0]?.ENGLISH_TEXT ?? c.TITLE, ref: `Hisn al-Muslim · ${c.TITLE}` });
+                      setShareDua({ arabic: c.TEXT[0]?.ARABIC_TEXT ?? '', meaning: c.TEXT[0]?.TRANSLATED_TEXT ?? c.TEXT[0]?.ENGLISH_TEXT ?? c.TITLE, ref: `Hisn al-Muslim · ${c.TITLE}`, route: `/tools/dua/${id}` });
                     }}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 2 }}
                   >

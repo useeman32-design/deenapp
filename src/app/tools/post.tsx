@@ -3,7 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { ActivityIndicator } from 'react-native';
+import { FeedSkeleton, LoadError } from '@/components/Skeletons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { FeedCard } from '@/components/FeedCard';
@@ -64,16 +64,13 @@ function PostScreenInner() {
       </View>
 
       {!post && !missed ? (
-        <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-          <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
-          <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>Opening post…</T>
-        </View>
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* pass 83-26 — the post shape breathes while it loads (owner: "be like instagram") */}
+          <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={1} />
+        </ScrollView>
       ) : null}
       {missed ? (
-        <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-          <FontAwesome5 name="question-circle" size={24} color={d.faint} />
-          <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5 }}>This post is no longer available.</T>
-        </View>
+        <LoadError message="Couldn't load this post — it may have been deleted." onBack={() => goBack(router)} faint={d.faint} subtext={d.subtext} text={d.text} cardBorder={d.cardBorder} emerald={d.emerald} darkText={isDark ? '#062312' : '#fff'} />
       ) : null}
 
       {post ? (

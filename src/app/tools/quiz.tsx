@@ -1,10 +1,10 @@
 import { RewardModal } from '@/components/DeenPoints';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Pressable, ScrollView, View } from 'react-native';
+import { Animated, Dimensions, Easing, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
-import { ShareWithFriends } from '@/components/ShareWithFriends';
+import { FriendsPicker } from '@/components/SendToFriends';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { BackButton } from '@/components/BackButton';
 import { addUserPost } from '@/lib/userPosts';
@@ -420,7 +420,18 @@ export default function Quiz() {
         </View>
         {shareToast ? <T v="caption" style={{ fontSize: 10.5, color: '#4AE38F', marginBottom: 16, textAlign: 'center' }}>{shareToast}</T> : null}
         <ScoreShareSheet visible={!!scoreCard} onClose={() => setScoreCard(null)} card={scoreCard} />
-        <ShareWithFriends visible={friendsOpen} onClose={() => setFriendsOpen(false)} onSent={() => setShareToast('Sent to your friends ✓')} title={`Islamic Quiz — I scored ${pct}% (${score}/${answers.length})${cat !== 'All' ? ` · ${cat}` : ''}`} preview="Can you beat me? · deenlink.org/tools/quiz" />
+        <Modal visible={friendsOpen} transparent animationType="slide" onRequestClose={() => setFriendsOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.62)', justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => setFriendsOpen(false)} style={{ flex: 1 }} />
+            <View style={{ backgroundColor: isDark ? '#0C1712' : '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : theme.border, paddingTop: 14, paddingBottom: 30, paddingHorizontal: 14, maxHeight: '78%' }}>
+              <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ width: 42, height: 4.5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)' }} />
+              </View>
+              {/* pass 83-26 — live share: lands in the real inbox, taps to the quiz */}
+              <FriendsPicker share={{ kind: 'quiz', title: `Islamic Quiz — I scored ${pct}% (${score}/${answers.length})${cat !== 'All' ? ` · ${cat}` : ''}`, sub: 'Can you beat me? · DeenLink', route: '/tools/quiz' }} onDone={() => { setShareToast('Sent to your friends ✓'); setTimeout(() => setFriendsOpen(false), 1200); }} />
+            </View>
+          </View>
+        </Modal>
 
         {/* review */}
         <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.7, marginBottom: 9 }}>REVIEW ANSWERS</T>

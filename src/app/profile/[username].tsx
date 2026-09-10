@@ -831,7 +831,7 @@ function PublicProfileScreenInner() {
       <ContentShareSheet
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
-        card={{ kind: 'post', meaning: `${name} (@${profile.username}) — ${profile.bio ?? 'sharing deen together.'}`, ref: 'DeenLink profile' }}
+        card={{ kind: 'profile', meaning: name, ref: `@${profile.username}${profile.bio ? ` · ${profile.bio}` : ''}`, route: `/profile/${profile.username}` }}
         link={`https://deenlink.org/profile/${profile.username}`}
         noImage
       />

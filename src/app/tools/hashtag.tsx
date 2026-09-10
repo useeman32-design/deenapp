@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import type { Post, Video } from '@/api/types';
 import { MOCK_FEED, MOCK_VIDEOS } from '@/api/mocks';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
+import { FeedSkeleton } from '@/components/Skeletons';
 
 /**
  * pass 67 — the hashtag screen: everything filed under #tag — posts first
@@ -63,10 +64,10 @@ function HashtagScreenInner() {
       </View>
 
       {!posts ? (
-        <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-          <ActivityIndicator size="small" color={isDark ? '#4AE38F' : '#1D6F42'} />
-          <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>Loading #{t}…</T>
-        </View>
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* pass 83-26 — breathing feed shape while the tag loads */}
+          <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={2} />
+        </ScrollView>
       ) : null}
 
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>

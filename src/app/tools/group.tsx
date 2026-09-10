@@ -10,6 +10,7 @@ import { T } from '@/components/T';
 import { FeedCard } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
+import { FriendsPicker } from '@/components/SendToFriends';
 
 /* pass 83-17 — skeleton breathing loader (owner: "when opening group the
  * loader should be skeleton breathing loader"). Contents breathe — never a
@@ -111,6 +112,9 @@ function GroupScreenInner() {
   /* pass 83-17 */
   const [loadDone, setLoadDone] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  /* pass 83-26 — posted-success pill (community parity) */
+  const [postedPill, setPostedPill] = useState(false);
   /* pass 83-10b — poll builder (2–6 options) */
   const [pollOn, setPollOn] = useState(false);
   const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
@@ -378,6 +382,9 @@ function GroupScreenInner() {
           /* pass 83-17 — refetch so the real server row (with its real id)
            * replaces the optimistic one. */
           void groupPostsApi(sid).then((rows) => { if (rows) setServerPosts(rows); });
+          haptic.success();
+          setPostedPill(true);
+          setTimeout(() => setPostedPill(false), 2200);
         } else {
           /* the old code ignored failure — the optimistic post just vanished
            * on the next load ("when i post something its just vanished"). */
@@ -385,6 +392,11 @@ function GroupScreenInner() {
           setPostError('Post failed — please try again.');
         }
       });
+    } else {
+      /* local group — the optimistic post above IS the publish */
+      haptic.success();
+      setPostedPill(true);
+      setTimeout(() => setPostedPill(false), 2200);
     }
   };
   /* pass 83-25 — send-button state, computed once (photo/video/YouTube/poll/audio/text) */
@@ -551,6 +563,13 @@ function GroupScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* pass 83-26 — posted-success pill (auto-dismiss, community parity) */}
+      {postedPill ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, backgroundColor: '#1F8F5C', paddingHorizontal: 16, paddingVertical: 9 }}>
+          <FontAwesome5 name="check-circle" size={13} color="#fff" />
+          <T v="caption" style={{ color: '#fff', fontSize: 11.5, fontWeight: '800' }}>Posted</T>
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* ── cover (photo or styled, default fallback) — owner can change it ── */}
         <View>
@@ -600,6 +619,21 @@ function GroupScreenInner() {
             <Pressable accessibilityLabel="share group" onPress={() => { void shareGroup(); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5 name="share-alt" size={13} color={d.subtext} />
             </Pressable>
+            {/* pass 83-26 — invite friends in-app: lands in their inbox, taps back here */}
+            <Pressable accessibilityLabel="invite friends" onPress={() => { haptic.selection(); setInviteOpen(true); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="user-plus" size={13} color={d.subtext} />
+            </Pressable>
+            <Modal visible={inviteOpen} transparent animationType="slide" onRequestClose={() => setInviteOpen(false)}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.62)', justifyContent: 'flex-end' }}>
+                <Pressable onPress={() => setInviteOpen(false)} style={{ flex: 1 }} />
+                <View style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, paddingTop: 14, paddingBottom: 30, paddingHorizontal: 14, maxHeight: '78%' }}>
+                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 42, height: 4.5, borderRadius: 3, backgroundColor: d.cardBorder }} />
+                  </View>
+                  <FriendsPicker share={{ kind: 'group', title: group.name, sub: `${group.memberCount.toLocaleString()} members${group.bio ? ` · ${group.bio.slice(0, 60)}` : ''}`, route: `/tools/group?id=${group.id}` }} onDone={() => setTimeout(() => setInviteOpen(false), 1400)} />
+                </View>
+              </View>
+            </Modal>
           </View>
           {/* pass 38 — bio directly under the group name */}
           {group.bio ? (
