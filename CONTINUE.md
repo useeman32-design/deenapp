@@ -1,3 +1,42 @@
+# ══ 2026-09-11 — PASS 83-29 SHIPPED (owner "Fix these I will test it together", 12 items) ══ READ FIRST ══
+# deenapp master = da5536b (client) · gh-pages = a16dded (entry-20ea9c0a, LIVE-verified 200 + content.zip 200/17.2MB)
+# deenlink-api main = 44e5916 (backend + web root entry-6400e40c) — ⚠️ CPANEL PULL PENDING (owner)
+# WHAT CHANGED (item → fix):
+#  1. INBOX CARDS "shared 0 with you": conversations.php now also emits last_sender (+ last_body already
+#     there); CommunityInbox threads carry last {text, mine} → preview shows the real last message,
+#     "You: " prefix when it was mine; share-fallback only when no message ever.
+#  2. PRAYER MOON ROLLBACK: SunPath parks the marker at arc END after Isha+45m until next-day Fajr —
+#     never moves backward; waits at next prayer (only-forward preserved).
+#  3. TASBEEH: 99 beads (radius 0.0195 when >66) + attached head assembly (ring bead + stub + gold
+#     collar + imam ellipse + 5-strand fan tassel) + settings sheet maxHeight 78% with ScrollView(430).
+#  4. ZIKR CHALLENGE: athkar.ts REWRITTEN — 18 entries with COMPLETE duas (full declarations, full
+#     Ayat al-Kursi, 3-part Raditu, full Ibrahim salawat) + new a17 Hasbiyallahu x7, a18 Bismika
+#     Allahumma + `meaning` on every entry (modal shows it); section emoji → FA5 icons (sun/moon/mosque/ring).
+#  5. FATWA: Ask a Scholar removed (source entry, JSX branch, all ask states + sendQuestion, ASK_CATEGORIES,
+#     unused imports). Direct Fatwas + IslamQA untouched.
+#  6. QURAN SCREEN: Shazam card + ReciteSearchModal + heard-effect + bottom Seerah/Courses/Quiz row removed.
+#  7. COURSES: catalog grown 7 → 20; TEN professional slugs with real curricula (4-5 lessons each, lecture/
+#     reading) + 5-question quizzes each: hadith-sciences, ulum-quran, arabic-grammar, halal-finance,
+#     muslim-family, dawah-skills, prophetic-productivity, public-speaking, teaching-islam, study-research.
+#     lessonsFor/quizFor 'default' fallbacks still cover the other 10.
+#  8. NATIVE VOICE (no code): lib/speech.ts already uses expo-speech-recognition (package ^57 + app.json
+#     plugin). Answer: needs a DEV BUILD (npx expo run:android / eas build --profile dev) — Expo Go can't
+#     load native modules. Until a dev build is installed, native falls back to web-style input.
+#  9. PRIVACY — ALLOW GROUP ADDING: settings sheet toggle (priv.groupAdd → dl.priv + setAllowGroupAdd →
+#     NEW api/users/group_privacy.php, self-heals users.allow_group_add TINYINT DEFAULT 1);
+#     members.php action=add returns 403 {code:'no_group_add', username, full_name} (fails OPEN if the
+#     column is missing); group.tsx accumulates denials → "Cannot add @u Full Name" /
+#     "Cannot add @a, @b and @c" + grey "Can't add" row state. NOTE: dl.priv alone was device-local —
+#     the server column is what binds OTHER admins' clients.
+# 10. INBOX/DM STATUS BAR: CommunityInbox header + ⋮ dropdown now ALWAYS pad insets.top+8 (modal
+#     variants on native sat flush under the status bar).
+# 11. FAKE CHARITY ₦12.4k: removed. New client.userDonationSummary() → api/donations/user_summary.php
+#     (public, per-user, viewer currency) → profile Charity stat shows the real total once loaded, 0 while
+#     loading/offline. NOTE: get_profile_counts.php does NOT return donations (profileCounts().donations
+#     is always 0) — user_summary.php is the live source.
+# tsc exit 0 · node --check on both bundles ok.
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-10 — PASS 83-28 SHIPPED (owner bug-report pass, 20 items) ══ READ FIRST ══
 # deenapp master = 7c7f6d4 (client) · gh-pages = 182aec7 (entry-df6b6e97, LIVE-verified 200 + content.zip intact)
 # deenlink-api main = da558b1 (backend fixes + web root entry-c2139646) — ⚠️ CPANEL PULL PENDING (owner)

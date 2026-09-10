@@ -1,5 +1,20 @@
 <!-- =====================================================================
-     LATEST — 2026-09-10 · PASS 83-28 SHIPPED (20-item owner bug-report pass). *** READ FIRST ***
+     LATEST — 2026-09-11 · PASS 83-29 SHIPPED (12-item owner fix pass). *** READ FIRST ***
+     deenapp master @ da5536b · gh-pages @ a16dded (entry-20ea9c0a, LIVE 200) · deenlink-api main @ 44e5916 (backend + web entry-6400e40c)
+     Items: inbox last-message previews (+last_sender from conversations.php) · prayer sun night-park
+     (no retrace) · tasbeeh 99 beads + attached head + scrollable settings · athkar completed + meanings
+     + FA5 section icons · fatwa Ask-a-Scholar removed · quran Shazam + bottom shortcuts removed ·
+     20 courses (10 professional w/ curricula+quizzes) · real charity stat via donations/user_summary.php ·
+     Allow-group-adding toggle + SERVER enforcement (users/group_privacy.php, members.php 403
+     no_group_add, "Cannot add @u Name" / "Cannot add @a, @b and @c") · inbox/DM status-bar padding.
+     ITEM 8 ANSWER (native voice): expo-speech-recognition already integrated — needs a DEV BUILD
+     (npx expo run:android / eas build), Expo Go cannot load native modules.
+     ⚠️ cPanel pull PENDING (owner) — brings 83-29 backend (group_privacy.php, members.php guard,
+     conversations.php last_sender) + web root entry-6400e40c live. 83-28 backend rides along if not pulled yet.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-10 · PASS 83-28 SHIPPED (20-item owner bug-report pass).
      deenapp master @ 7c7f6d4 · gh-pages @ 182aec7 (entry-df6b6e97, LIVE 200) · deenlink-api main @ da558b1 (backend + web entry-c2139646)
      ⚠️ cPanel pull PENDING (owner): brings 83-28 backend (groups posts fix, video URL heal, notif expiry,
      join requests, security-question verify, X-Deenlink-Ffmpeg diag) + web root entry-c2139646 live.
