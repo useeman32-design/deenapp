@@ -1,3 +1,18 @@
+# ══ 2026-09-10 — CPANEL PULL DONE — 83-25/83-26 LIVE, VERIFIED ══ READ FIRST ══
+# Owner pulled deenlink-api on cPanel (now main 9ba1ca8: backend 4dd9133+0965cf9+0d1f265 + web entry-f6ed812c).
+# LIVE-VERIFIED via curl on app.deenlink.org (all six markers green):
+#   1. / serves entry-f6ed812c6dd26696c1ffa9d59eb14a63.js (83-26 web build)
+#   2. /api/videos/download.php HEAD → 400 "Missing video_id" (was 405) — 0d1f265 live
+#   3. /img/logo.png → 200, 2535B (exact commit size) — watermark mark live
+#   4. /api/notifications/list.php → 401 JSON "Not logged in" — endpoint live
+#   5. /api/chat/common.php → 200 empty = correct (require-only bootstrap, not an endpoint)
+#   6. /share.php?t=group&id=srv1 → "Markaz Ibn Taimiyya — DeenLink Group" (real-name enrichment, 0965cf9 live)
+# Outstanding owner tests (hands-on): web notif de-dummy/DeenLink actor · video download w/ watermark
+# (needs ffmpeg on host — if unwatermarked, check ffmpeg) · share deep-links · groups roster/roles/search/
+# video posts · quiz/riddle/group common chats · skeletons · group posted pill. Phone: git pull + expo start -c (83-27).
+# NOTE: chat/common.php is require-only — do not "fix" its empty 200 for guests.
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-10 — HOTFIX 83-27 (source-only, no web rebuild) ══ READ FIRST ══
 # deenapp master = 575981e (DefaultAvatar raw <svg>/<circle> -> react-native-svg; fixes Expo Go native crash on Home)
 # api/pages UNCHANGED (9ba1ca8 / 3510035 entry-f6ed812c) — web renders both forms fine; next pass carries this into bundles

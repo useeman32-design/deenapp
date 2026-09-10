@@ -4,7 +4,7 @@
      deenapp master @ 68bccf4 (notif de-dummy + share-tap + live quiz/riddle/group shares + watermarked downloads + skeletons + group pill)
      gh-pages @ 3510035 (entry-f6ed812c, LIVE-verified 200)
      deenlink-api main @ 9ba1ca8 (backend 0d1f265 + web entry-f6ed812c)
-     cPanel pull PENDING (owner) — app.deenlink.org still old entry + HEAD 405 · backup2 one pass behind (refresh needs owner OK)
+     cPanel pull DONE (2026-09-10): 83-25/83-26 backend+web LIVE on app.deenlink.org, six markers curl-verified · backup2 one pass behind (refresh needs owner OK)
      THE BACKUP IS deenapp-backup2 (snapshot-style: master = app tree,
      deenlink-api-main = api tree, + content-pack/content.zip at master root).
      deenapp-backup (no 2) is DEPRECATED — do not use it.
