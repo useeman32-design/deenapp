@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { MALE_AVATARS, FEMALE_AVATARS } from '@/data/avatars';
 
-/** Gendered default avatars — male silhouette / female hijab (inline SVG, no network). */
+/** Gendered default avatars — male silhouette / female hijab (inline SVG, no network).
+ * pass 83-27 — react-native-svg primitives (raw lowercase svg DOM tags crash Expo Go
+ * native: "View config getter callback for component circle must be a function"). */
 export function DefaultAvatar({ gender, size = 96 }: { gender?: string | null; size?: number }) {
   const female = (gender ?? '').toLowerCase().startsWith('f');
   const bg = female ? '#F3D9E4' : '#D8E6F3';
@@ -15,23 +18,23 @@ export function DefaultAvatar({ gender, size = 96 }: { gender?: string | null; s
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
       {female ? (
-        <svg width={size} height={size} viewBox="0 0 100 100">
+        <Svg width={size} height={size} viewBox="0 0 100 100">
           {/* hijab */}
-          <path d="M50 16c-16 0-27 12-27 28 0 10 3 17 3 24 0 8-4 12-4 16h56c0-4-4-8-4-16 0-7 3-14 3-24 0-16-11-28-27-28z" fill={fg} />
-          <circle cx="50" cy="44" r="15" fill="#F6E2D5" />
-          <path d="M35 40c0-10 7-17 15-17s15 7 15 17c0 3-1 5-1 5 0-9-6-14-14-14s-14 5-14 14c0 0-1-2-1-5z" fill={fg} />
-          <circle cx="44" cy="45" r="1.8" fill="#3A2A2A" />
-          <circle cx="56" cy="45" r="1.8" fill="#3A2A2A" />
-          <path d="M46 53q4 3 8 0" stroke="#3A2A2A" strokeWidth="1.6" fill="none" strokeLinecap="round" />
-        </svg>
+          <Path d="M50 16c-16 0-27 12-27 28 0 10 3 17 3 24 0 8-4 12-4 16h56c0-4-4-8-4-16 0-7 3-14 3-24 0-16-11-28-27-28z" fill={fg} />
+          <Circle cx="50" cy="44" r="15" fill="#F6E2D5" />
+          <Path d="M35 40c0-10 7-17 15-17s15 7 15 17c0 3-1 5-1 5 0-9-6-14-14-14s-14 5-14 14c0 0-1-2-1-5z" fill={fg} />
+          <Circle cx="44" cy="45" r="1.8" fill="#3A2A2A" />
+          <Circle cx="56" cy="45" r="1.8" fill="#3A2A2A" />
+          <Path d="M46 53q4 3 8 0" stroke="#3A2A2A" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+        </Svg>
       ) : (
-        <svg width={size} height={size} viewBox="0 0 100 100">
+        <Svg width={size} height={size} viewBox="0 0 100 100">
           {/* male silhouette */}
-          <circle cx="50" cy="38" r="17" fill={fg} />
-          <path d="M22 88c0-16 13-26 28-26s28 10 28 26z" fill={fg} />
-          <circle cx="44" cy="37" r="2" fill="#fff" />
-          <circle cx="56" cy="37" r="2" fill="#fff" />
-        </svg>
+          <Circle cx="50" cy="38" r="17" fill={fg} />
+          <Path d="M22 88c0-16 13-26 28-26s28 10 28 26z" fill={fg} />
+          <Circle cx="44" cy="37" r="2" fill="#fff" />
+          <Circle cx="56" cy="37" r="2" fill="#fff" />
+        </Svg>
       )}
     </View>
   );
