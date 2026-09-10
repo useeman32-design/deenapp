@@ -1,3 +1,20 @@
+# ══ 2026-09-10 — PASS 83-26 SHIPPED ══ READ FIRST ══
+# deenapp master = 68bccf4 (83-26 client: notif de-dummy, share-tap, live quiz/riddle/group shares, watermarked downloads, skeletons, group pill)
+# deenlink-api main = 9ba1ca8 (83-26 backend 0d1f265: NULL-actor=>DeenLink, kinds +quiz/riddle/group, download HEAD + web entry-f6ed812c)
+# gh-pages = 3510035 (entry-f6ed812c, content pack intact) · LIVE-verified 200 on new entry
+# app.deenlink.org still serves entry-019f22bd (OLD) + download.php HEAD 405 (OLD) — cPanel pull STILL PENDING (owner):
+#   one pull brings backend 4dd9133/0965cf9/0d1f265 + web build 9ba1ca8 live (watermark needs img/logo.png from that pull)
+# deenapp-backup2 one pass behind — refresh needs OWNER OK per standing rule
+# - THE BACKUP IS deenapp-backup2 (old deenapp-backup DEPRECATED). Snapshot-style:
+#   master = app tree snapshot · deenlink-api-main = api tree snapshot ·
+#   content-pack/content.zip at master root (owner-recoverable; raw needs a token
+#   since backup2 is PRIVATE). unpack-content.mjs fallback = public release asset.
+# - CLONE RULE (owner): fresh agent setup = workspace pull AND asset restore
+#   (content pack + avatars + articles check) — a code-only clone cannot bundle
+#   (6 source files require assets/content/**). Restore commands: HANDOFF-PROMPT.md.
+# - Docs lag: passes 83-14..83-26 exist only as commit messages (docs/ ends at 83-13).
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-10 — PASS 83-25 SHIPPED ══ READ FIRST ══
 # deenapp master = 944b78c (pass 83-25 client: groups complete + videos upload)
 # deenlink-api main = b6bcb74 (pass 83-25 backend 4dd9133 + share/logo 0965cf9 + web build)
