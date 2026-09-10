@@ -1,3 +1,9 @@
+# ══ 2026-09-10 — HOTFIX 83-27 (source-only, no web rebuild) ══ READ FIRST ══
+# deenapp master = 575981e (DefaultAvatar raw <svg>/<circle> -> react-native-svg; fixes Expo Go native crash on Home)
+# api/pages UNCHANGED (9ba1ca8 / 3510035 entry-f6ed812c) — web renders both forms fine; next pass carries this into bundles
+# cPanel pull STILL PENDING (owner) · backup2 one pass behind (refresh needs owner OK)
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-10 — PASS 83-26 SHIPPED ══ READ FIRST ══
 # deenapp master = 68bccf4 (83-26 client: notif de-dummy, share-tap, live quiz/riddle/group shares, watermarked downloads, skeletons, group pill)
 # deenlink-api main = 9ba1ca8 (83-26 backend 0d1f265: NULL-actor=>DeenLink, kinds +quiz/riddle/group, download HEAD + web entry-f6ed812c)

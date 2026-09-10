@@ -1,5 +1,6 @@
 <!-- =====================================================================
-     LATEST — 2026-09-10 · PASS 83-26 SHIPPED. *** READ FIRST ***
+     LATEST — 2026-09-10 · HOTFIX 83-27 (deenapp master @ 575981e, source-only — Expo Go svg crash fix; web bundles unchanged). *** READ FIRST ***
+     PREVIOUS — PASS 83-26 SHIPPED.
      deenapp master @ 68bccf4 (notif de-dummy + share-tap + live quiz/riddle/group shares + watermarked downloads + skeletons + group pill)
      gh-pages @ 3510035 (entry-f6ed812c, LIVE-verified 200)
      deenlink-api main @ 9ba1ca8 (backend 0d1f265 + web entry-f6ed812c)
