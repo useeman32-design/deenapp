@@ -1,5 +1,20 @@
 <!-- =====================================================================
-     LATEST — 2026-09-11 · PASS 83-29 SHIPPED (12-item owner fix pass). *** READ FIRST ***
+     LATEST — 2026-09-11 · PASS 83-30 SHIPPED. *** READ FIRST ***
+     deenapp master @ f7e668c · gh-pages @ 4bce7bc (entry-431a29ee, LIVE 200 + sw.js 200) · deenlink-api main @ 062073d (admin shell v2 + web entry-431a29ee)
+     Donations: Support-DeenLink recipient picker GONE (what-it-funds note instead); ONE searchable
+     currency picker (USD/NGN/EUR/GBP pinned, full Flutterwave-chargeable list; SAR/AED removed) on all
+     3 screens · Hijri calendar bottom description removed · home streak card → Qur'an screen ·
+     ADHAN WITH APP CLOSED: 72h local schedule on MAX channel, tap opens prayer adhan-modal w/ Turn-off,
+     exact-alarm/full-screen permissions added (needs dev build) · browser VAPID push (public/sw.js +
+     subscribe) · ADMIN SPA v2: one chrome/design for every module (admin/assets/shell2.*), sidebar
+     search, pjax with full-load fallback, all 409 api php lint ok, wallpapers wired; gap: hadith admin
+     page is a placeholder (no hadith API — content ships via packs).
+     AdMob rewarded-ads setup guide: REWARDED-ADS-SETUP.md (repo root).
+     ⚠️ cPanel pull PENDING (owner) — admin v2 + web root go live with it.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-11 · PASS 83-29 SHIPPED (12-item owner fix pass).
      deenapp master @ da5536b · gh-pages @ a16dded (entry-20ea9c0a, LIVE 200) · deenlink-api main @ 44e5916 (backend + web entry-6400e40c)
      Items: inbox last-message previews (+last_sender from conversations.php) · prayer sun night-park
      (no retrace) · tasbeeh 99 beads + attached head + scrollable settings · athkar completed + meanings

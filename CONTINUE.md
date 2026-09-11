@@ -1,3 +1,38 @@
+# ══ 2026-09-11 — PASS 83-30 SHIPPED (donations currency, hijri, streaks, adhan lock-screen, admin SPA v2) ══ READ FIRST ══
+# deenapp master = f7e668c (client) · gh-pages = 4bce7bc (entry-431a29ee, LIVE-verified 200 + sw.js 200)
+# deenlink-api main = 062073d (admin shell v2 + web root entry-431a29ee) — ⚠️ CPANEL PULL PENDING (owner)
+# WHAT CHANGED:
+#  1. DONATIONS: "Support DeenLink" no longer shows the recipient picker (was "Choose at least one
+#     recipient"); replaced with a short what-your-donation-funds note. ONE shared searchable currency
+#     picker (components/CurrencyPicker.tsx) on ALL 3 donation screens: USD/NGN/EUR/GBP pinned on top,
+#     full Flutterwave-chargeable list below (SAR/AED REMOVED — payout-only, checkout rejects them).
+#  2. HIJRI CALENDAR: the long "About these dates" description card at the bottom — removed (owner).
+#  3. STREAKS: the home "Quran Streak" card is now tappable → opens the Qur'an screen.
+#  4. ADHAN WHEN APP IS CLOSED (native): lib/adhanNotify.ts schedules LOCAL notifications (next 72h,
+#     exact date triggers) on a MAX-importance "Adhan" channel from the same settings/engine as the
+#     prayer screen; rebuilt on every app start + whenever adhan settings change. Phone in use →
+#     heads-up notification; screen off → sound/vibration (full draw-over needs the dev-build channel
+#     tweak — USE_FULL_SCREEN_INTENT + SCHEDULE_EXACT_ALARM + VIBRATE + WAKE_LOCK + POST_NOTIFICATIONS
+#     already added to app.json). Tapping the notification opens the prayer screen WITH the adhan modal
+#     up (?ring=Param), and the modal has a "Turn off adhan alerts" action (disables + cancels schedule).
+#     ⚠️ Requires a DEV BUILD (Expo Go can't do exact alarms/full-screen reliably).
+#  5. BROWSER NOTIFICATIONS: public/sw.js (push + notificationclick) + lib/push.ts web branch — VAPID
+#     key from api/notifications/web_push_public_key.php, subscribe on user gesture, saved via
+#     web_push_subscribe.php. Server push_notification() already fans out to BOTH web-push and Expo
+#     tokens on every event notification (nothing to change server-side).
+#  6. ADMIN SPA v2 (deenlink-api /admin): ONE chrome + ONE design for ALL modules — admin/assets/
+#     shell2.css + shell2.js (grouped sidebar + search, glass topbar, light/dark, toasts, PA pjax
+#     router: fetch → swap .main-content/.dl-main, adopt <style>+scripts, DOMContentLoaded replay,
+#     fallback to full load on any error). nav.js + shell.js are now thin bootstraps → all 31 admin
+#     pages get the new UI with zero page edits. Menu now includes Videos + Courses + Wallpapers.
+#     index2/settingss/video-management_1/verification.html.bak left out of the menu (duplicates).
+#     All 409 api PHP files lint clean; wallpapers admin page wired (api/admin/wallpapers/*).
+#     KNOWN GAP: hadith-management.html is a static placeholder — no hadith admin API exists (app
+#     hadith content ships via content packs); build a hadith CMS next pass if wanted.
+#  7. Reward-ads (Google AdMob) setup guide → REWARDED-ADS-SETUP.md in the repo root.
+# tsc exit 0 · node --check ok.
+# ══════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-29 SHIPPED (owner "Fix these I will test it together", 12 items) ══ READ FIRST ══
 # deenapp master = da5536b (client) · gh-pages = a16dded (entry-20ea9c0a, LIVE-verified 200 + content.zip 200/17.2MB)
 # deenlink-api main = 44e5916 (backend + web root entry-6400e40c) — ⚠️ CPANEL PULL PENDING (owner)
