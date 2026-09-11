@@ -1,3 +1,45 @@
+# ══ 2026-09-12 — PASS 83-37: ADMIN DATA + QUIZ BANK + ADS KEYS + PROFILE SYNC ══ READ FIRST ══
+# deenapp master = 7093ba8 · dlapi main = c1c3770 (api+admin+RAW web root merged) · gh-pages = 4e22e35.
+# RECOVERY NOTE: /tmp was wiped AND the workspace restored a stale snapshot mid-pass (deenapp back at
+# 731b84b, .git/config gone). Recovery that worked (do this, never force-push):
+#   git remote add origin "https://$(cat .token)@github.com/useeman32-design/deenapp.git"  (config is
+#   NOT snapshotted — always re-add after a restore) → git reset --hard origin/master → re-apply
+#   uncommitted edits (they survive in the snapshot) → dlapi: clone
+#   https://x-access-token:$(cat .token)@github.com/useeman32-design/deenlink-api.git (branch main).
+#
+# OWNER ISSUES 83-37 → FIXES:
+#  1. "Admin modules return zero contents": tables existed but EMPTY. New api/lib/seed_defaults.php
+#     self-seeds on FIRST list hit, COUNT(*)=0-guarded (never overwrites admin edits):
+#     learning_sections ← the 15 modules the app ships (quiz/riddles/jokes + 12 library, icon/grad/
+#     chip/cta/href mirror learning.tsx); courses ← 7 starter courses (= app MOCK_COURSES; 1 module +
+#     3 article lessons each, intro is_preview=1, published+public, pointer HTML → admin editor).
+#     Wired into api/{learning,admin/learning,courses,admin/courses}/list.php.
+#  2. Quizzes add/adjust/remove: bank file learning/data/quiz_questions.json CREATED (166 questions
+#     compiled from src/data/quiz.ts QUIZ_POOL+EXTRA via local tsc; {question,options,correct,
+#     explanation,category,multiCorrect?}). Admin → Quiz Management list/save now has real data.
+#  3. App quiz = admin's bank: new public GET /api/quiz/bank.php (reads the bank file, empty-safe);
+#     client.ts quizBank(); quiz.tsx plays server bank when non-empty, bundled set = offline fallback;
+#     header/chip counts follow the ACTIVE pool. Admin edits reach devices on next quiz open.
+#  4. Posting → profile instant: lib/userPosts.ts markProfileDirty()/consumeProfileDirty();
+#     community.tsx + group.tsx (incl. salvage path) mark on success; profile.tsx useFocusEffect
+#     refetches userPosts+profileCounts when dirty. No pull-to-refresh, no wait.
+#  5. Real charity balance: done in 83-36 (owner-currency totals) — unchanged, still live.
+#  6. Ads keys: admin → Donations & Monetizations → new "Adverts Setup — Your Keys" card (AdSense
+#     client+slot = web/PWA, AdMob app/banner/interstitial/rewarded = native; per policy AdMob never
+#     serves the PWA). Stored via admin settings get/save (ads.* whitelisted), exposed publicly via
+#     settings/public.php ads.* for the app to consume. NOTE: admin settings/get.php was missing
+#     posting.community_video (83-36 toggle didn't round-trip in the UI) — added with ads.*.
+#  7. DeenLink AI page: FOUND ALREADY WIRED (admin/deenlinkai-live.js does overview/datasets/
+#     provider-keys against api/deenai/admin/*; chat.php uses ai_provider_keys). Owner just opens
+#     Admin → DeenLink AI → saves a Groq/Gemini/OpenRouter/HuggingFace key → app AI answers.
+#     api/admin/quiz/common.php now preserves category on saves (app tabs keep working).
+#
+# GATES: tsc --noEmit clean (local 6.0.3) · php -l all touched · _check_calls (5 known vendor
+# imap/idn only) · check-raw OK on merged dlapi tree (204 files) · boot tests :8084 root + :8085 gh
+# (index 200, assets 0 bad, bank.php = 166). OWNER: ONE dlapi cPanel pull ships 83-37 (api+admin+web).
+# Verify after pull: Learning hub modules list + open → contents; Courses show 7 starters + lessons;
+# Quiz plays; Quiz Management lists 166; Adverts Setup card saves; AI page after adding a key.
+
 # ══ 2026-09-11 — PASS 83-36 (latest state) ══
 # deenapp 4daacef · dlapi eb990b3 (OWNER PULL = api + admin + web root) · gh-pages 4e3484f.
 # Scope: delete fix (string-id compare), no self-profile nav, admin video toggle (posting.community_video, default OFF),
