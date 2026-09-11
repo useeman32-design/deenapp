@@ -28,6 +28,10 @@ done
 find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*.json" -o -name "*.svg" -o -name "*.map" \) -print0 |
   xargs -0 perl -pi -e "s#\"/_expo/#\"${BASE}_expo/#g; s#\"/assets/#\"${BASE}assets/#g; s#\"/favicon.ico#\"${BASE}favicon.ico#g"
 
+# pass 83-35 — manifest for the /deenapp/ subpath (paths + link tag), matching
+# the deployed gh-pages flavor.
+node -e "const{readFileSync,writeFileSync}=require('node:fs');let m=readFileSync('dist/manifest.json','utf8');m=m.split('\"start_url\": \"/\"').join('\"start_url\": \"/deenapp/\"').split('\"scope\": \"/\"').join('\"scope\": \"/deenapp/\"').split('\"/icons/').join('\"/deenapp/icons/');writeFileSync('dist/manifest.json',m);let h=readFileSync('dist/index.html','utf8');if(!h.includes('rel=\"manifest\"')){h=h.replace('</head>','<link rel=\"manifest\" href=\"/deenapp/manifest.json\"/></head>');writeFileSync('dist/index.html',h);console.log('gh manifest rewritten+injected');}"
+
 # SPA fallback for GitHub Pages deep links.
 cp dist/index.html dist/404.html
 

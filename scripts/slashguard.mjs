@@ -7,7 +7,11 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
-const BASE = process.env.BASE || '/deenapp';
+/* pass 83-35 — an explicitly EMPTY BASE (export-raw.sh) means the ROOT flavor:
+ * no prefixing at all. `||` made '' fall back to '/deenapp' and poisoned the
+ * root artifact with GH-flavor refs (CHECK-RAW caught it — good gate). */
+const BASE = process.env.BASE !== undefined ? process.env.BASE : '/deenapp';
+const PREFIX = !!BASE;
 const files = execSync('find dist -type f \\( -name "*.js" -o -name "*.html" \\)').toString().trim().split('\n').filter(Boolean);
 
 const OLD_EXT = 'extractExpoPathFromURL=function(t,n=""){return o(n).replace(/^\\//,\'\')}';
@@ -17,14 +21,16 @@ let changed = 0;
 for (const f of files) {
   let s = readFileSync(f, 'utf8');
   const before = s;
-  // idempotent: skip tokens already prefixed with the base
-  s = s.replace(/uri:"\/(?!(deenapp)\/)/g, `uri:"${BASE}/`);
-  s = s.replace(/src="\/(?!(deenapp)\/)/g, `src="${BASE}/`);
-  s = s.replace(/href="\/(?!(deenapp)\/)/g, `href="${BASE}/`);
-  // module-export asset strings: exports="/assets/..." -> prefixed
-  s = s.replace(/(["'])\/assets\/(?!deenapp)/g, `$1${BASE}/assets/`);
-  s = s.split('appendBaseUrl=function(t,n="")').join(`appendBaseUrl=function(t,n="${BASE}/")`);
-  s = s.split('appendBaseUrl=function(t,n="/")').join(`appendBaseUrl=function(t,n="${BASE}/")`);
+  if (PREFIX) {
+    // idempotent: skip tokens already prefixed with the base
+    s = s.replace(/uri:"\/(?!(deenapp)\/)/g, `uri:"${BASE}/`);
+    s = s.replace(/src="\/(?!(deenapp)\/)/g, `src="${BASE}/`);
+    s = s.replace(/href="\/(?!(deenapp)\/)/g, `href="${BASE}/`);
+    // module-export asset strings: exports="/assets/..." -> prefixed
+    s = s.replace(/(["'])\/assets\/(?!deenapp)/g, `$1${BASE}/assets/`);
+    s = s.split('appendBaseUrl=function(t,n="")').join(`appendBaseUrl=function(t,n="${BASE}/")`);
+    s = s.split('appendBaseUrl=function(t,n="/")').join(`appendBaseUrl=function(t,n="${BASE}/")`);
+  }
   if (s.includes(OLD_EXT)) s = s.split(OLD_EXT).join(NEW_EXT);
   if (s !== before) {
     changed += 1;

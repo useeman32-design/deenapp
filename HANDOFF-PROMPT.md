@@ -1,3 +1,15 @@
+# ══ 2026-09-11 — PASS 83-35 (latest state) ══
+# deenapp 5b4a948 · dlapi eb0360e (OWNER PULL — api/ + admin/ + web root) · gh-pages 53ff722 (live for PWA users once Pages CDN settles).
+# Scope: owner's 15-point batch — delete-own-post on HOME, video expand → videos-page reels (NO in-card fullscreen),
+# pinch-in zen reels, group chips on reels + tap-to-group, reels mirrored to community, working search,
+# stop-on-end + stop-on-navigate, text-only optimistic rows, exact community pill in group + videos composers,
+# '*/*' audio picker, YT inline (modal gone), group YT-only "Post text required" fix (multipart by CONTENT TYPE),
+# admin join-request accept/reject page + sidebar links on every admin screen.
+# COMPRESSION: images compressed (≤1600px JPEG q0.78 client + GD 1080/360 server); videos NOT transcoded (no ffmpeg on host).
+# VERIFY AFTER PULL: reel mirror on /videos upload; admin/groups.html approve flow; group YT-only post; audio pick on a REAL device.
+# Native dev build still owed (iOS audio via Files).
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-34 (latest state) ══
 # deenapp a6b015b · dlapi 0caae0f (OWNER PULL) · gh-pages 5efdebd. Scope was group posting + videos only.
 # Native dev build required for the iOS audio UTI fix. See CONTINUE.md header for the diagnose→fix map.

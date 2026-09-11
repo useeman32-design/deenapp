@@ -1,3 +1,42 @@
+# ══ 2026-09-11 — PASS 83-35: OWNER BATCH (videos-page reels, zen, group chips, YT inline, admin join requests) ══ READ FIRST ══
+# deenapp master = 5b4a948 · dlapi main = eb0360e · gh-pages = 53ff722.
+# OWNER: pull dlapi (API + admin) AND copy the RAW artifact to the app root — live is still 83-33.
+# Native rebuild still owed (audio picker '*/*' ships in the JS bundle; iOS Files fix needs the dev build).
+#
+# WHAT SHIPPED (owner's 15-point batch):
+#  1. HOME delete-own-post (FeedCard onDelete → api.deletePost; community already had it).
+#  2. In-post fullscreen REMOVED. Expand button pauses + opens /videos?start=<post id> (reels view).
+#  3. Videos page pinch-IN = zen: video + back button only; scroll to another reel or pinch OUT restores.
+#  4. Group videos in reels carry a group chip (name) → tapping opens the group page.
+#  5. Reels posted on the videos page are MIRRORED server-side into the community feed
+#     (videos/upload.php → hardlink/copy into uploads/posts/YYYY/MM + posts/post_media; best-effort).
+#  6. Videos search now matches caption + @user + display name + scholar fields + group name.
+#  7. Videos STOP at end (loop=false everywhere; replay seeks 0) and pause on tab/push navigation
+#     (videos.tsx screenFocused gate + FeedCard useFocusEffect pause).
+#  8. Optimistic rows are TEXT-ONLY in community AND group — no media until the post lands.
+#  9. Group composer pill = EXACT community pill (insets.top+54, "Posting… N%", 6px #1F8F5C).
+# 10. Videos-page upload pill renamed "Posting… N%" (same style).
+# 11. Audio picker → '*/*' on Android AND iOS (validateAudio still guards; iOS needs dev rebuild to verify).
+# 12. COMPRESSION ANSWER: images ARE compressed (client: ≤1600px JPEG q0.78 via expo-image-manipulator;
+#     server: GD re-encode 1080/360). VIDEOS are NOT compressed/transcoded (shared hosting has no ffmpeg);
+#     caps: 250 MB reels, 50 MB community/group video. The new reel mirror is a HARDLINK (zero extra storage).
+# 13. Group YouTube-only posts: root cause = $multipart decided by !empty($_FILES) → a YT-only multipart
+#     body fell into the JSON branch → empty fields → "Post text required". Now detected by CONTENT TYPE.
+# 14. Admin join requests: api/admin/groups/list.php + decide.php + admin/groups.html (owner UI clone);
+#     "Group Members" sidebar link added to ALL admin pages.
+# 15. YouTube plays INLINE (modal gone); yt_url rows link out directly. Daily-videos library keeps its modal.
+#
+# CLIENT RECOVERY: client.ts had LOST exports to a rollback (groupJoinRich/groupJoinRequests/
+# groupJoinDecide/activeAnnouncement/AnnouncementItem/groupMembers denial) — restored by contract
+# from the server endpoints; tsc is 0 across the app.
+# VIDEO REELS DATA: server community/group video posts now feed the reels list (reel id = post id,
+# deduped against library uploads by file basename). Local-only commReels still ride along.
+# DEPLOY: RAW root artifact ONLY via bash scripts/export-raw.sh (slashguard now honors BASE='' —
+#   it silently GH-prefixed the root build once this pass; CHECK-RAW caught it) + check-raw.mjs + boot test.
+#   gh-pages via scripts/export-web.sh (now injects the PWA manifest link + rewrites manifest paths).
+#   dist/ holds whichever flavor was built LAST — always rebuild before copying.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-34: GROUP POSTING + VIDEOS (owner scope lock) ══ READ FIRST ══
 # deenapp master = a6b015b · dlapi main = 0caae0f (backend hardening 7979d2d + raw web export) · gh-pages = 5efdebd.
 # OWNER: PULL dlapi in cPanel (API + web root both updated). Native app: rebuild needed for UTI fix.
