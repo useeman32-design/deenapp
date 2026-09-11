@@ -106,7 +106,7 @@ export async function initPushNotifications(): Promise<void> {
  * every event notification; this subscribes the browser so they actually
  * arrive. The service worker (public/sw.js) displays them and routes taps.
  * Permission is requested on the next user gesture (browser requirement). */
-async function initWebPush(): Promise<void> {
+export async function initWebPush(): Promise<void> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const { webPushPublicKey, webPushSubscribe, isLive } = await import('@/api/client');

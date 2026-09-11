@@ -40,9 +40,9 @@ export function IosPwaPrompt() {
       if (dead) return;
       const until = Number(v ?? '0');
       if (until && Date.now() < until) return;
-      setTimeout(() => { if (!dead) setShow(true); }, 2600); /* let the first screen settle */
+      setTimeout(() => { if (!dead) setShow(true); }, 6500); /* pass 83-32 — wait until the app has truly settled (owner: it fired on open) */
     }).catch(() => {
-      setTimeout(() => { if (!dead) setShow(true); }, 2600);
+      setTimeout(() => { if (!dead) setShow(true); }, 6500);
     });
     return () => { dead = true; };
   }, []);

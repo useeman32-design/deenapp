@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -184,8 +184,14 @@ function PublicProfileScreenInner() {
      * freezes the memo at null and real accounts show "couldn't find". */
   }, [username, liveP]);
 
-  useEffect(() => {
-    if (liveP?.id == null) { setLivePosts(null); return; }
+  /* pass 83-32 — owner: image/video posts only showed on the profile after a
+   * manual refresh. The posts loader now runs on EVERY screen focus (10s
+   * throttle), so anything posted elsewhere appears the moment you return. */
+  const lastProfilePostsFetch = useRef(0);
+  const loadProfilePosts = useCallback((force = false) => {
+    if (liveP?.id == null) return;
+    if (!force && Date.now() - lastProfilePostsFetch.current < 10000) return;
+    lastProfilePostsFetch.current = Date.now();
     void srvUserPosts(Number(liveP.id))
       .then((rows) => {
         /* pass 83-31 — seed the viewer's REAL like state from the server
@@ -202,6 +208,12 @@ function PublicProfileScreenInner() {
       })
       .catch(() => {});
   }, [liveP?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfilePosts();
+    }, [loadProfilePosts]),
+  );
 
   const isOwnProfile = liveP?.id != null && user?.id != null && Number(liveP.id) === Number(user.id);
 

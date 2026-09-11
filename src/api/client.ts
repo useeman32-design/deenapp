@@ -1059,7 +1059,7 @@ export async function createPost(
   onProgress?: (frac: number) => void,
   /* pass 83-31 — REPOST: id of the original post (caption-only repost) */
   repostOf?: number,
-): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
+): Promise<{ ok: boolean; post?: Post; id?: number | null; message?: string }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
   if (youtubeUrl) form.append('youtube_url', youtubeUrl);
@@ -1088,10 +1088,11 @@ export async function createPost(
   }
   const hasMedia = formHasFiles(form);
   const r = hasMedia
-    ? await uploadForm<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', form, onProgress)
-    : await request<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', { method: 'POST', form });
+    ? await uploadForm<{ status?: string; post?: Post; post_id?: number; id?: number; message?: string }>('/api/feed/create_post.php', form, onProgress)
+    : await request<{ status?: string; post?: Post; post_id?: number; id?: number; message?: string }>('/api/feed/create_post.php', { method: 'POST', form });
   if (r.ok && r.data) return { ok: true, post: r.data.post, id: r.data.post_id ?? r.data.id ?? null };
-  return { ok: false };
+  /* pass 83-32 — surface the server's own reason (rate limit, membership…) */
+  return { ok: false, message: r.data?.message };
 }
 
 /* FormData has no cross-platform "is empty" check */

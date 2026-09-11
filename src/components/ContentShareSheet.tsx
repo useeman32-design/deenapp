@@ -13,7 +13,7 @@ import { PostShareCardSvg } from '@/components/PostShareCardSvg';
 import { canSaveImages, saveSvgRefAsJpg, shareSvgRef, svgRefToPng, pngDataUrlToJpegFile, shareImage, type SvgRefHandle } from '@/lib/svgExport';
 import { buildShareUrl } from '@/lib/share';
 import { addUserPost } from '@/lib/userPosts';
-import { createPost, isLive, API_ORIGIN } from '@/api/client';
+import { isLive, API_ORIGIN } from '@/api/client';
 import type { Post } from '@/api/types';
 
 /**
@@ -53,7 +53,6 @@ export function ContentShareSheet({
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [posting, setPosting] = useState(false);
-  const [reposted, setReposted] = useState(false);
   /* pass 83-31 — full-swap image view (rows hidden while it is up) */
   const [imageMode, setImageMode] = useState(false);
   const [imgRatio, setImgRatio] = useState(0.78);
@@ -66,9 +65,11 @@ export function ContentShareSheet({
   useEffect(() => { canSaveImages().then(setCanSave).catch(() => setCanSave(false)); }, []);
   /* pass 83-31 — reset swap view + repost state whenever the sheet reopens */
   useEffect(() => {
-    if (visible) { setImageMode(false); setImgUrl(null); setReposted(false); }
+    if (visible) { setImageMode(false); setImgUrl(null); }
   }, [visible]);
   const [sent, setSent] = useState<string | null>(null);
+  /* pass 83-32 — copy-link feedback */
+  const [copied, setCopied] = useState(false);
   /* pass 49 — route the shared link through /share.php so external apps render a preview card */
   const KIND_MAP: Record<string, 'verse' | 'hadith' | 'dua' | 'post'> = { ayah: 'verse', hadith: 'hadith', dua: 'dua', athkar: 'dua', post: 'post', profile: 'post' };
   /* pass 83-28 — the link preview carries a taste of the ARABIC when the
@@ -104,7 +105,8 @@ export function ContentShareSheet({
       ?? abs(post.image_url)
       ?? abs(rp?.image_url);
     const name = String(xu.name ?? u.full_name ?? u.username ?? 'DeenLink user');
-    const badge = u.user_type === 'scholar' ? 'gold' : u.verification_badge ? 'green' : null;
+    const badgeRaw = String((u as { verification_badge?: unknown }).verification_badge ?? '');
+    const badge = u.user_type === 'scholar' ? 'gold' : ['green', 'gold', 'blue'].includes(badgeRaw) ? badgeRaw : null; /* pass 83-32 — 'none'/undefined = NO badge */
     return {
       name,
       username: u.username ?? 'user',
@@ -117,29 +119,6 @@ export function ContentShareSheet({
       link: post.id > 0 ? `https://deenlink.org/post/${post.id}` : 'https://deenlink.org',
       timeAgo: post.time_ago,
     };
-  };
-
-  /* REPOST — replaces the old mock "Share as post": creates a real caption-only
-   * repost server-side (posts.repost_of), so the original author's photo, name
-   * and username ride along on the card. Falls back to a local copy offline. */
-  const doRepost = async () => {
-    if (!post || posting || reposted) return;
-    haptic.success();
-    setPosting(true);
-    try {
-      let ok = false;
-      if (isLive() && post.id > 0) {
-        const res = await createPost('', undefined, undefined, undefined, undefined, undefined, post.id);
-        ok = !!res.ok;
-      }
-      if (!ok) {
-        /* offline / non-live: keep the old behaviour so nothing silently dies */
-        await addUserPost(post.content_text ?? `@${post.user?.username ?? ''} on DeenLink`, 'post');
-      }
-      setReposted(true);
-      await new Promise((r) => setTimeout(r, 700));
-      onClose();
-    } catch {} finally { setPosting(false); }
   };
 
   const shareAsPost = async () => {
@@ -290,18 +269,23 @@ export function ContentShareSheet({
             ) : null}
 
             <View style={{ paddingHorizontal: 10, marginTop: 4 }}>
-              <Row icon="link" label="Copy link" tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => { Share.share({ message: previewUrl }).catch(() => {}); }} />
-              {post ? (
-                /* pass 83-31 — REPOST replaces "share as post" for feed posts */
-                <Row
-                  icon={posting ? 'circle-notch' : 'retweet'}
-                  label={posting ? 'Reposting…' : reposted ? 'Reposted' : 'Repost'}
-                  tint={isDark ? '#4AE38F' : '#1D6F42'}
-                  onPress={doRepost}
-                />
-              ) : (
-                <Row icon={posting ? 'circle-notch' : 'edit'} label={posting ? 'Posting…' : 'Share as post'} tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
-              )}
+              <Row icon="link" label={copied ? 'Link copied!' : 'Copy link'} tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={() => {
+                /* pass 83-32 — a real clipboard copy (Share.share on iOS PWA
+                 * handed the OS a JSON file instead of the link). */
+                void (async () => {
+                  try {
+                    const CB = await import('expo-clipboard');
+                    await CB.default.setStringAsync(previewUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2200);
+                  } catch {
+                    Share.share({ message: previewUrl }).catch(() => {});
+                  }
+                })();
+              }} />
+              {/* pass 83-32 — REPOST removed entirely (owner). Posts use the
+               * classic "Share as post" (a copy on the viewer's profile). */}
+              <Row icon={posting ? 'circle-notch' : 'edit'} label={posting ? 'Posting…' : 'Share as post'} tint={isDark ? '#4AE38F' : '#1D6F42'} onPress={shareAsPost} />
               <Row icon="share-alt" label="More options…" tint="#5BC8F5" onPress={() => { Share.share({ message: `${card?.meaning ?? ''}\n\n${card?.ref ?? ''}\n${previewUrl}` }).catch(() => {}); }} />
               {!noImage ? <Row icon="image" label="Share as image" tint="#E8C96A" onPress={makeImage} /> : null}
             </View>

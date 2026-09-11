@@ -94,7 +94,10 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const el = document.createElement('style');
-    const base = window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1');
+    /* pass 83-32 — at the ROOT flavor pathname is '/', and the old replace
+     * returned it verbatim → '//fonts/…' (protocol-relative, host "fonts"). */
+    const dm = window.location.pathname.match(/^(\/deenapp)(?=\/|$)/);
+    const base = dm ? dm[1] : '';
     const faces = [
       ['Poppins', 'Poppins-Regular'],
       ['Poppins-Medium', 'Poppins-Medium'],

@@ -109,12 +109,23 @@ export function FriendsPicker({
     return needle.length >= 2 ? [...base, ...extra] : base;
   }, [people, results, needle]);
 
+  /* pass 83-32 — owner: max 10 friends per share */
+  const MAX_PICK = 10;
+  const [pickHint, setPickHint] = useState<string | null>(null);
   const toggle = (p: Person) => {
     haptic.selection();
     setPicked((prev) => {
       const next = new Map(prev);
-      if (next.has(p.username)) next.delete(p.username);
-      else next.set(p.username, p);
+      if (next.has(p.username)) {
+        next.delete(p.username);
+        setPickHint(null);
+      } else if (next.size >= MAX_PICK) {
+        setPickHint(`You can send to up to ${MAX_PICK} friends at a time.`);
+        return prev;
+      } else {
+        next.set(p.username, p);
+        setPickHint(null);
+      }
       return next;
     });
   };
@@ -186,7 +197,17 @@ export function FriendsPicker({
           onPress={() => {
             haptic.selection();
             const allOn = list.length > 0 && list.every((p) => picked.has(p.username));
-            setPicked(allOn ? new Map() : new Map(list.map((p) => [p.username, p])));
+            if (allOn) { setPicked(new Map()); setPickHint(null); }
+            else {
+              const next = new Map(picked);
+              let added = 0;
+              for (const p of list) {
+                if (next.size >= MAX_PICK) break;
+                if (!next.has(p.username)) { next.set(p.username, p); added++; }
+              }
+              setPicked(next);
+              setPickHint(list.length > added ? `You can send to up to ${MAX_PICK} friends at a time.` : null);
+            }
           }}
           style={{ borderRadius: 11, borderWidth: 1, borderColor: line, paddingHorizontal: 11, paddingVertical: 9 }}
         >
@@ -225,6 +246,7 @@ export function FriendsPicker({
       </ScrollView>
 
       {error ? <T v="caption" style={{ color: '#FF7B7B', fontSize: 10.5, textAlign: 'center', marginTop: 6 }}>{error}</T> : null}
+      {pickHint ? <T v="caption" style={{ color: faint, fontSize: 10, textAlign: 'center', marginTop: 6 }}>{pickHint}</T> : null}
 
       <Pressable
         accessibilityLabel="send to selected friends"

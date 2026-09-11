@@ -171,6 +171,9 @@ function CommunityScreenInner() {
   const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
   /* pass 83-19 — up to 5 photos per post, Instagram-style */
   const [imageAttachs, setImageAttachs] = useState<Array<{ uri: string; name: string }>>([]);
+  /* pass 83-32 — snapshot of the in-flight post, for restore-on-failure */
+  const pendingDraft = useRef<{ text: string; pollOn: boolean; pollOpts: string[]; ytOn: boolean; ytUrl: string; video: typeof videoAttach; images: typeof imageAttachs } | null>(null);
+
   const imageFileRef = useRef<TextInput | null>(null);
 
   /** Pick an image for the post (native picker / web file input). */
@@ -288,6 +291,20 @@ function CommunityScreenInner() {
     setTab(t);
   };
 
+  /* pass 83-32 — a failed post gives everything back to the composer */
+  const restoreComposerDraft = () => {
+    const d = pendingDraft.current;
+    if (!d) { setComposerOpen(true); return; }
+    setCDraft(d.text);
+    setPollOn(d.pollOn);
+    setPollOpts(d.pollOpts);
+    setYtOn(d.ytOn);
+    setYtUrl(d.ytUrl);
+    setVideoAttach(d.video);
+    setImageAttachs(d.images);
+    setComposerOpen(true);
+  };
+
   const submitComposer = () => {
     const t = cDraft.trim();
     const opts = pollOpts.map((o) => o.trim()).filter(Boolean);
@@ -348,6 +365,7 @@ function CommunityScreenInner() {
       if (api.isLive()) {
         const tempId = np.id;
         const heavy = imageAttachs.length > 0 || !!videoAttach;
+        pendingDraft.current = { text: t, pollOn, pollOpts: pollOpts.slice(), ytOn, ytUrl: ytUrl.trim(), video: videoAttach, images: imageAttachs };
         if (heavy) { setPostProg(0); }
         void api
           .createPost(
@@ -365,8 +383,19 @@ function CommunityScreenInner() {
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
             } else {
-              Alert.alert('Post not published', 'Your post is on this device only — please check your connection and try again.');
+              /* pass 83-32 — owner: "show unable to post, not just
+               * disappearing blindly." Drop the optimistic card and hand the
+               * WHOLE draft back (text, attachments, toggles). */
+              setPosts((ps) => ps.filter((x) => x.id !== tempId));
+              restoreComposerDraft();
+              Alert.alert('Unable to post', res.message ? `The server said: ${res.message}\n\nYour text and attachments are back in the composer — try again.` : 'Check your connection and try again — your text and attachments are back in the composer.');
             }
+          })
+          .catch(() => {
+            setPostProg(null);
+            setPosts((ps) => ps.filter((x) => x.id !== tempId));
+            restoreComposerDraft();
+            Alert.alert('Unable to post', 'Check your connection and try again — your text and attachments are back in the composer.');
           });
       }
       setPosting(false);

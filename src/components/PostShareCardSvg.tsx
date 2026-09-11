@@ -121,12 +121,16 @@ export function PostShareCardSvg({ input, ref: _ref }: { input: PostShareCardInp
         </G>
       ) : null}
 
-      {/* likes + comments — the same counts the card shows in-app */}
-      <SvgText x={PAD + 4} y={countsY + 46} fontSize={32} fontWeight="700" fill="#E74C3C">♥</SvgText>
-      <SvgText x={PAD + 56} y={countsY + 46} fontSize={32} fontWeight="700" fill={SUB}>{input.likeCount ?? 0}</SvgText>
-      <Path d={`M ${PAD + 150} ${countsY + 40} c -8 -26 22 -34 32 -12 c 8 -22 38 -14 32 12 c -4 18 -32 32 -32 32 c 0 0 -28 -14 -32 -32 z`} fill="none" stroke={SUB} strokeWidth={4} transform="translate(8,0)" />
-      <SvgText x={PAD + 240} y={countsY + 46} fontSize={32} fontWeight="700" fill={SUB}>{input.commentCount ?? 0}</SvgText>
-      <Path d={`M ${PAD + 300} ${countsY + 24} h 44 a 12 12 0 0 1 12 12 v 18 a 12 12 0 0 1 -12 12 h -20 l -14 14 v -14 h -10 a 12 12 0 0 1 -12 -12 v -18 a 12 12 0 0 1 12 -12 z`} fill="none" stroke={SUB} strokeWidth={4} transform="translate(30,0)" />
+      {/* likes + comments — the same counts the card shows in-app.
+          pass 83-32: feather-style stroke icons (owner: the old glyphs were ugly). */}
+      <G transform={`translate(${PAD + 2}, ${countsY + 10}) scale(1.7)`}>
+        <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="none" stroke="#E74C3C" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" />
+      </G>
+      <SvgText x={PAD + 58} y={countsY + 44} fontSize={32} fontWeight="700" fill={SUB}>{input.likeCount ?? 0}</SvgText>
+      <G transform={`translate(${PAD + 126}, ${countsY + 10}) scale(1.7)`}>
+        <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" fill="none" stroke={SUB} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" />
+      </G>
+      <SvgText x={PAD + 182} y={countsY + 44} fontSize={32} fontWeight="700" fill={SUB}>{input.commentCount ?? 0}</SvgText>
 
       {/* footer: DeenLink brand + QR */}
       <Rect x={0} y={H - footerH} width={W} height={footerH} rx={0} fill="#F2F5F2" />

@@ -3,6 +3,7 @@ import { goBack } from '@/lib/navigation';
 import { Animated, Platform, Pressable, ScrollView, View } from 'react-native';
 import type { DashTheme } from '@/constants/theme';
 import { sendTestPush } from '@/api/client';
+import { initWebPush } from '@/lib/push';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -266,9 +267,17 @@ function TestPushRow({ d, isDark }: { d: DashTheme; isDark: boolean }) {
       let local = '';
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
         try {
+          /* pass 83-32 — pressing the button IS the user gesture: ask for
+           * permission + register the subscription BEFORE the server fires,
+           * so the installed PWA actually has a channel to receive it on. */
+          if (Notification.permission !== 'denied') {
+            await initWebPush();
+          }
           if (Notification.permission === 'granted') {
             new Notification('DeenLink', { body: 'Push notifications are working! 🎉 (local preview)' });
             local = ' — browser preview shown';
+          } else if (Notification.permission === 'default') {
+            local = ' — allow notifications in the browser prompt to receive it';
           }
         } catch {}
       }

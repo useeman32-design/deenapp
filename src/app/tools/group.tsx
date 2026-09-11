@@ -160,12 +160,10 @@ function GroupScreenInner() {
         return;
       }
       const docPicker = await import('expo-document-picker');
-      /* pass 83-28 — iOS: 'audio/*' filters out m4a/aac (owner: "all my audio
-       * files are not pickable"). Concrete UTIs + public.audio let the iOS
-       * picker see them; Android keeps the plain audio/* mime. */
-      const audioTypes = Platform.OS === 'ios'
-        ? ['public.audio', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/mpeg', 'audio/wav', 'audio/ogg']
-        : 'audio/*';
+      /* pass 83-32 — iOS: UTI lists still GREYED OUT files in the Files app
+       * (owner: "I cannot pick an audio"). '*'/'*' shows EVERYTHING enabled;
+       * validateAudio() rejects non-audio picks with a clear message. */
+      const audioTypes = Platform.OS === 'ios' ? '*/*' : 'audio/*';
       const res = await docPicker.getDocumentAsync({ type: audioTypes as never });
       const asset = (Array.isArray(res.assets) ? res.assets[0] : (res as unknown)) as { uri?: string; name?: string; mimeType?: string; size?: number } | undefined;
       if (res.canceled !== true && asset?.uri) {
@@ -399,6 +397,9 @@ function GroupScreenInner() {
     const imgs = imagesAttach;
     const vid = videoAttach;
     const aud = audioAttach;
+    /* pass 83-32 — keep a snapshot so a failed upload hands EVERYTHING back
+     * (owner: "show unable to post not just disappearing blindly") */
+    const draft = { text, imgs, vid, aud, yt, pollOn, poll, ytOn: ytOn || !!yt };
     upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(imgs[0] ? { image_url: imgs[0].uri } : {}) }, ...x.posts] }));
     const optId = -Date.now();
     if (serverPosts) {
@@ -449,11 +450,17 @@ function GroupScreenInner() {
           setPostedPill(true);
           setTimeout(() => setPostedPill(false), 2200);
         } else {
-          /* the old code ignored failure — the optimistic post just vanished
-           * on the next load ("when i post something its just vanished"). */
+          /* pass 83-32 — failure hands the draft back (text + attachments +
+           * toggles), so nothing vanishes blindly. */
           setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));
-          setPostError(res?.message ? `Post failed — ${res.message}` : 'Post failed — please try again.');
+          restoreGroupDraft(draft);
+          setPostError(res?.message ? `Unable to post — ${res.message}` : 'Unable to post — please try again.');
         }
+      }).catch(() => {
+        setUploadFrac(null);
+        setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));
+        restoreGroupDraft(draft);
+        setPostError('Unable to post — check your connection and try again.');
       });
     } else {
       /* local group — the optimistic post above IS the publish */
@@ -465,6 +472,18 @@ function GroupScreenInner() {
   /* pass 83-25 — send-button state, computed once (photo/video/YouTube/poll/audio/text) */
   const ytReady = ytOn && ytLink.trim().length > 0;
   const canSend = !!group && uploadFrac == null && (!!composer.trim() || imagesAttach.length > 0 || !!audioAttach || !!videoAttach || ytReady || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2));
+
+  /* pass 83-32 — put a failed post's content back into the composer */
+  const restoreGroupDraft = (d: { text: string; imgs: typeof imagesAttach; vid: typeof videoAttach; aud: typeof audioAttach; yt: string; pollOn: boolean; poll: string[]; ytOn: boolean }) => {
+    setComposer(d.text);
+    setImagesAttach(d.imgs);
+    setVideoAttach(d.vid);
+    setAudioAttach(d.aud);
+    setYtLink(d.yt);
+    setYtOn(d.ytOn || !!d.yt);
+    setPollOn(d.pollOn);
+    setPollOpts(d.poll.length ? d.poll : ['', '']);
+  };
 
   /* ── pass 38 management actions ── */
   const setRole = (member: string, role: Role) => {

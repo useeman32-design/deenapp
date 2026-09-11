@@ -32,7 +32,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
-import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
+import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, type MockReel } from '@/api/mocks';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
@@ -1587,7 +1587,7 @@ function VideosFeedInner() {
         inline={Platform.OS !== 'web'}
         post={commentPost}
         videoId={commentReel?.liveId ?? null}
-        seed={(commentPost ? (REEL_COMMENTS[commentPost.id] ?? []) as SampleComment[] : [])}
+        seed={[]} /* pass 83-32 — demo comment data removed (owner); live videos use real server comments via videoId */
         onClose={() => setCommentReel(null)}
       />
     </View>

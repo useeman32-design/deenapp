@@ -246,12 +246,16 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
       { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' },
     ]}>
       <View style={{ height: 300 }}>
-        {started ? (
+        {started && !expanded ? (
+          /* pass 83-32 — the inline view UNMOUNTS while fullscreen: two live
+           * <video> elements on one player stuttered and froze the seek bar
+           * (owner report). Playback lives on the player object, so it keeps
+           * running; the modal's single VideoView renders it. */
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
-            {!expanded ? <VideoLoader player={player} /> : null}
+            <VideoLoader player={player} />
           </View>
-        ) : poster != null ? (
+        ) : poster != null && !started ? (
           <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
         ) : null}
         {!started ? (
@@ -640,14 +644,6 @@ export function FeedCard({
                 <T v="caption" numberOfLines={1} style={{ fontSize: 9.5, color: accent, fontWeight: '700' }}>{post.group_name}</T>
               </View>
             ) : null}
-            {/* pass 83-31 — REPOSTED tag (owner: "reposted posts will have
-             * reposted tag with the original owner") */}
-            {post.repost ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3.5, borderWidth: 1, borderColor: `${accent}55`, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 1.5, backgroundColor: `${accent}12` }}>
-                <FontAwesome5 name="retweet" size={8} color={accent} />
-                <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: accent, letterSpacing: 0.5 }}>REPOSTED</T>
-              </View>
-            ) : null}
             {rank ? (
               <View
                 style={{
@@ -839,95 +835,6 @@ export function FeedCard({
             </Pressable>
           ) : null}
         </View>
-      ) : null}
-
-      {/* pass 83-31 — REPOST: the original post rides along, framed — author
-       * (photo, name, @username), content, first photo, counts. Reposter
-       * captions render above (normal body text); the original box mirrors
-       * the "reposted" card the owner described. */}
-      {post.repost ? (
-        post.repost.gone ? (
-          <View style={{ borderWidth: 1, borderColor: hairline, borderRadius: 14, backgroundColor: soft, padding: 14, marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <FontAwesome5 name="ban" size={12} color={sub} />
-              <T v="caption" style={{ color: sub, fontSize: 11.5, fontWeight: '600' }}>The original post is no longer available</T>
-            </View>
-          </View>
-        ) : (
-          <View style={{ borderWidth: 1, borderColor: hairline, borderRadius: 14, overflow: 'hidden', marginBottom: 12, backgroundColor: soft }}>
-            {/* original author header */}
-            <Pressable
-              onPress={() => { if (!lockProfileNav) { haptic.selection(); router.push(`/profile/${post.repost?.user.username}`); } }}
-              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, padding: 11, paddingBottom: 8, opacity: pressed ? 0.7 : 1 })}
-            >
-              <AvatarImage
-                source={(post.repost.user as Record<string, unknown>).profile_image_url as string | null ?? post.repost.user.profile_image ?? null}
-                name={String((post.repost.user as Record<string, unknown>).name ?? post.repost.user.full_name ?? post.repost.user.username)}
-                size={32}
-                tint={`${accent}26`}
-                border={hairline}
-                gender={(post.repost.user as Record<string, unknown>).gender as string | null ?? null}
-              />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <T v="body" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '800', fontSize: 12.5, color: txt, flexShrink: 1 }}>
-                    {String((post.repost.user as Record<string, unknown>).name ?? post.repost.user.full_name ?? post.repost.user.username)}
-                  </T>
-                  {post.repost.user.verification_badge ? <VerificationBadge type={post.repost.user.verification_badge} size={11} /> : null}
-                </View>
-                <T v="caption" numberOfLines={1} style={{ fontSize: 10, color: sub, marginTop: 1 }}>
-                  @{post.repost.user.username} · {post.repost.time_ago ?? ''}
-                </T>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3.5 }}>
-                <FontAwesome5 name="retweet" size={9} color={accent} />
-                <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: accent, letterSpacing: 0.4 }}>ORIGINAL</T>
-              </View>
-            </Pressable>
-            {/* original content */}
-            {post.repost.content_text ? (
-              <T v="bodyS" style={{ paddingHorizontal: 11, paddingBottom: 9, fontSize: 12.5, lineHeight: 18.5, color: txt }}>
-                {post.repost.content_text}
-              </T>
-            ) : null}
-            {/* original photo (if any) */}
-            {(() => {
-              const rImg = post.repost?.image_url ?? null;
-              if (!rImg) return null;
-              return (
-                <View style={{ paddingHorizontal: 11, paddingBottom: 10 }}>
-                  <View style={{ borderRadius: 11, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
-                    <Image source={{ uri: String(rImg) }} style={{ width: '100%', height: 230 }} resizeMode="cover" />
-                  </View>
-                </View>
-              );
-            })()}
-            {/* original video/YouTube → one clean row (keeps the ONE-video-container rule) */}
-            {post.repost.youtube_url || post.repost.youtube_embed_url ? (
-              <Pressable
-                onPress={() => { if (post.repost?.youtube_url) Linking.openURL(post.repost.youtube_url).catch(() => {}); }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 11, marginBottom: 10, backgroundColor: card, borderRadius: 11, borderWidth: 1, borderColor: hairline, padding: 9 }}
-              >
-                <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: danger, alignItems: 'center', justifyContent: 'center' }}>
-                  <PlayIcon size={13} color="#fff" />
-                </View>
-                <T v="bodyS" style={{ flex: 1, color: txt, fontSize: 12 }}>Watch original video</T>
-                <T v="caption" style={{ fontWeight: '700', color: accent, fontSize: 11 }}>Open</T>
-              </Pressable>
-            ) : null}
-            {/* original counts — the card tells the truth about the original */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 11, paddingVertical: 8, borderTopWidth: 1, borderTopColor: hairline }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <HeartIcon size={13} filled={false} color={sub} />
-                <T v="caption" style={{ color: sub, fontSize: 11, fontWeight: '700' }}>{post.repost.like_count ?? 0}</T>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <ChatIcon size={13} color={sub} />
-                <T v="caption" style={{ color: sub, fontSize: 11, fontWeight: '700' }}>{post.repost.comment_count ?? 0}</T>
-              </View>
-            </View>
-          </View>
-        )
       ) : null}
 
       {/* Poll — pro redesign: pick / change / retract your vote */}
