@@ -695,6 +695,9 @@ export interface MockReel {
   accountName?: string;
   accountPic?: string | null;
   reposts?: number;
+  /* pass 83-35 — a group's video keeps its group identity in the reels view */
+  groupId?: number;
+  groupName?: string;
 }
 
 /** TikTok-style vertical feed samples (bundled mp4s, no network needed). */

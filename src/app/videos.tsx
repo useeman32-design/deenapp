@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { BASE, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
+import { BASE, feed as fetchFeed, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,7 +22,7 @@ import {
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -99,6 +99,9 @@ function reelAsPost(r: MockReel, account: (typeof MOCK_ACCOUNTS)[number]): Post 
 function ReelItem({
   reel,
   active,
+  zen,
+  onZenChange,
+  onOpenGroup,
   muted,
   liked,
   saved,
@@ -117,6 +120,9 @@ function ReelItem({
 }: {
   reel: MockReel;
   active: boolean;
+  zen: boolean;
+  onZenChange: (v: boolean) => void;
+  onOpenGroup: (groupId: number) => void;
   muted: boolean;
   liked: boolean;
   saved: boolean;
@@ -146,10 +152,19 @@ function ReelItem({
     [reel.username],
   );
   const player = useVideoPlayer(reel.src, (p) => {
-    p.loop = true;
+    /* pass 83-35 — owner: a finished video STOPS (it used to loop forever) */
+    p.loop = false;
     p.muted = false;
   });
   const [paused, setPaused] = useState(false);
+  const endedRef = useRef(false);
+  useEffect(() => {
+    const sub = (player.addListener as (ev: string, cb: (st: { status?: string }) => void) => { remove: () => void })('statusChange', (st) => {
+      if (st?.status === 'playToEnd') { endedRef.current = true; setPaused(true); }
+      if (st?.status === 'readyToPlay') endedRef.current = false;
+    });
+    return () => sub.remove();
+  }, [player]);
   const [followed, setFollowed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
@@ -197,6 +212,41 @@ function ReelItem({
     setTimeout(() => setBursts((b) => b.filter((it) => it.id !== id)), 780);
   };
 
+  /* ------- pass 83-35 — pinch-IN detector (tiktok-style zen mode) -------
+   * Two-finger pinch on the video: span shrinks < 0.72 → hide all controls
+   * (video + back button only). Pinching out > 1.3 restores them early;
+   * scrolling to another video restores too (the parent resets on index). */
+  const pinchStartSpan = useRef<number | null>(null);
+  const spanOf = (t: Array<{ pageX?: number; pageY?: number }>) => {
+    if (t.length < 2) return 0;
+    const dx = (t[0].pageX ?? 0) - (t[1].pageX ?? 0);
+    const dy = (t[0].pageY ?? 0) - (t[1].pageY ?? 0);
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+  const onTouchStart = (e: { nativeEvent: { touches: Array<{ pageX?: number; pageY?: number }> } }) => {
+    if (e.nativeEvent.touches.length >= 2) {
+      pinchStartSpan.current = spanOf(e.nativeEvent.touches) || null;
+    } else {
+      pinchStartSpan.current = null;
+    }
+  };
+  const onTouchMove = (e: { nativeEvent: { touches: Array<{ pageX?: number; pageY?: number }> } }) => {
+    if (e.nativeEvent.touches.length < 2 || pinchStartSpan.current == null) return;
+    const ratio = spanOf(e.nativeEvent.touches) / Math.max(1, pinchStartSpan.current);
+    if (ratio < 0.72 && !zen) {
+      pinchStartSpan.current = null;
+      haptic.medium();
+      onZenChange(true);
+    } else if (ratio > 1.3 && zen) {
+      pinchStartSpan.current = null;
+      haptic.light();
+      onZenChange(false);
+    }
+  };
+  const onTouchEnd = (e: { nativeEvent: { touches: Array<{ pageX?: number; pageY?: number }> } }) => {
+    if (e.nativeEvent.touches.length < 2) pinchStartSpan.current = null;
+  };
+
   /** tap = play/pause (delayed so a double-tap never pauses) · double-tap = like at finger */
   const onTap = (e: { nativeEvent: { locationX?: number; locationY?: number; pageX?: number; pageY?: number } }) => {
     const now = Date.now();
@@ -220,8 +270,13 @@ function ReelItem({
       tapTimer.current = setTimeout(() => {
         tapTimer.current = null;
         setPaused((p) => {
-          if (p) player.play();
-          else player.pause();
+          if (p) {
+            /* pass 83-35 — replay after the video ended: seek back to 0 */
+            if (endedRef.current) { try { player.currentTime = 0; endedRef.current = false; } catch {} }
+            player.play();
+          } else {
+            player.pause();
+          }
           return !p;
         });
         haptic.selection();
@@ -331,9 +386,9 @@ function ReelItem({
         style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 170 }}
       />
 
-      {/* tap + long-press surface (long-press = more menu) */}
-      <Pressable onPress={onTap} onLongPress={() => onMore(reel)} delayLongPress={380} style={{ position: 'absolute', inset: 0 }} />
-      {paused && active ? (
+      {/* tap + long-press surface (long-press = more menu · 2-finger pinch = zen) */}
+      <Pressable onPress={onTap} onLongPress={() => onMore(reel)} delayLongPress={380} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{ position: 'absolute', inset: 0 }} />
+      {paused && active && !zen ? (
         <View pointerEvents="none" style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
           <View style={{ width: 66, height: 66, borderRadius: 33, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="play" size={25} color="#FFFFFF" />
@@ -346,18 +401,18 @@ function ReelItem({
         <HeartBurst key={b.id} x={b.x} y={b.y} />
       ))}
 
-      {/* right action rail — like · comment · save · share · ••• */}
-      <View style={{ position: 'absolute', right: 12, bottom: 152, gap: 13 }}>
+      {/* right action rail — like · comment · save · share · ••• (hidden in zen) */}
+      {!zen ? <View style={{ position: 'absolute', right: 12, bottom: 152, gap: 13 }}>
         {railButton('heart', likeCount.toLocaleString(), () => { haptic.light(); onLike(reel.id); }, liked ? '#FF5A5A' : undefined)}
         {railButton('comment', String(reel.comments), () => onComments(reel))}
         {railButton('bookmark', (reel.saves + (saved ? 1 : 0)).toLocaleString(), () => { haptic.light(); onSave(reel.id); }, saved ? '#E8C96A' : undefined)}
         {railButton('retweet', reposts.toLocaleString(), () => { haptic.light(); onRepost(reel.id); }, reposted ? '#4AE38F' : undefined)}
         {railButton('share', 'Share', () => { haptic.light(); onShare(reel); })}
         {railButton('ellipsis-h', '', () => { haptic.light(); onMore(reel); })}
-      </View>
+      </View> : null}
 
-      {/* bottom info */}
-      <View style={{ position: 'absolute', left: 14, right: 76, bottom: 96 }}>
+      {/* bottom info (hidden in zen) */}
+      {!zen ? <View style={{ position: 'absolute', left: 14, right: 76, bottom: 96 }}>
         {reel.repostedBy ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Pressable
@@ -413,6 +468,25 @@ function ReelItem({
           </Pressable>
           </View>
         ) : null}
+        {/* pass 83-35 — a group's video names its group here; tapping opens it */}
+        {reel.groupName && reel.groupId != null ? (
+          <Pressable
+            onPress={() => { haptic.light(); onOpenGroup(reel.groupId as number); }}
+            style={({ pressed }) => ({
+              flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', marginBottom: 9,
+              backgroundColor: 'rgba(10,20,14,0.5)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.45)',
+              borderRadius: 999, paddingLeft: 5, paddingRight: 10, paddingVertical: 4, opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(46,204,113,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+              <FontAwesome5 name="users" size={9.5} color="#4AE38F" />
+            </View>
+            <T v="caption" numberOfLines={1} style={{ color: '#EAF7EE', fontSize: 11, fontWeight: '800', maxWidth: 180 }}>
+              {reel.groupName}
+            </T>
+            <FontAwesome5 name="chevron-right" size={9} color="rgba(255,255,255,0.6)" />
+          </Pressable>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
           <Pressable
             onPress={() => onOpenProfile(reel.username)}
@@ -461,15 +535,15 @@ function ReelItem({
             </T>
           </View>
         </View>
-      </View>
+      </View> : null}
 
-      {/* seek line — draggable scrubber */}
-      <View
+      {/* seek line — draggable scrubber (hidden in zen) */}
+      {!zen ? <View
         {...pan.panHandlers}
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 30, justifyContent: 'flex-end' }}
       >
         <SeekTrack progress={progress} scrub={scrub} duration={durSafe(player)} />
-      </View>
+      </View> : null}
     </View>
   );
 }
@@ -570,6 +644,16 @@ function VideosFeedInner() {
   const [avatarPreview, setAvatarPreview] = useState<{ img: number | null; name: string } | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  /* pass 83-35 — pinch-IN hides everything but the video + back button;
+   * scrolling to another video (index change) or pinching out brings them back. */
+  const [zen, setZen] = useState(false);
+  useEffect(() => { setZen(false); }, [index]);
+  /* pass 83-35 — owner: leaving the videos page must STOP the video */
+  const [screenFocused, setScreenFocused] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
+    return () => { setScreenFocused(false); };
+  }, []));
   const [query, setQuery] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('saved');
@@ -591,6 +675,36 @@ function VideosFeedInner() {
   /* pass 42 — UNIVERSAL VIDEOS: community video posts flow INTO the reel feed
    * (only those NOT cross-posted from this composer — those are already here). */
   const [commReels, setCommReels] = useState<MockReel[]>([]);
+  /* pass 83-35 — SERVER community/group video posts join the reels list.
+   * Their reel id IS the post id, so FeedCard's expand → /videos?start=<post id>
+   * lands on exactly that video; group posts carry a group chip. */
+  const [postReels, setPostReels] = useState<MockReel[]>([]);
+  useEffect(() => {
+    if (!isLive()) return;
+    let alive = true;
+    fetchFeed('for-you').then((res) => {
+      if (!alive) return;
+      const vids = (res.posts ?? []).filter((pp) => pp.id > 0 && !!pp.video_url);
+      setPostReels(vids.map((pp) => ({
+        id: pp.id,
+        src: { uri: String(pp.video_url) },
+        poster: { uri: (typeof pp.video_poster === 'object' && pp.video_poster && 'uri' in pp.video_poster ? String(pp.video_poster.uri) : String(pp.video_url)) },
+        username: String(pp.user?.username ?? 'deenlink'),
+        accountName: String(pp.user?.full_name || pp.user?.username || 'DeenLink'),
+        accountPic: (pp.user?.profile_image_url as string | null) ?? null,
+        caption: String(pp.content_text ?? 'Video 🎬'),
+        likes: Number(pp.like_count ?? 0),
+        comments: Number(pp.comment_count ?? 0),
+        saves: 0,
+        views: 0,
+        music: 'Original audio',
+        groupId: pp.group_id ?? undefined,
+        groupName: pp.group_name ?? undefined,
+      })));
+    }).catch(() => { /* reels are best-effort */ });
+    return () => { alive = false; };
+  }, [storeTick]);
+
   useEffect(() => {
     let alive = true;
     listUserPosts().then((ups) => {
@@ -668,7 +782,11 @@ function VideosFeedInner() {
 
   const reels = useMemo(() => {
     void storeTick;
-    const mine: MockReel[] = [...liveReels, ...userReels, ...commReels];
+    /* pass 83-35 — a reel uploaded on THIS page is also mirrored to the
+     * community feed server-side; drop the duplicate copy (same file name). */
+    const upBase = new Set([...liveReels, ...userReels].map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
+    const postClean = postReels.filter((r) => !upBase.has(String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
+    const mine: MockReel[] = [...liveReels, ...userReels, ...commReels, ...postClean];
     if (feedTab === 'following') {
       return [...liveReels, ...mine.filter((r) => r.username === 'abdalrahman'), ...MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username))];
     }
@@ -676,7 +794,7 @@ function VideosFeedInner() {
       return MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username) || r.repostedBy != null);
     }
     return [...mine, ...MOCK_REELS];
-  }, [feedTab, storeTick, commReels, liveReels, userReels]);
+  }, [feedTab, storeTick, commReels, liveReels, userReels, postReels]);
 
   /* pass 72 — count a view the first time a server reel fills the screen */
   useEffect(() => {
@@ -688,16 +806,17 @@ function VideosFeedInner() {
     void videosView(lid);
   }, [index, reels]);
 
+  const startHandled = useRef('');
   useEffect(() => {
-    if (params.start) {
-      const i = reels.findIndex((r) => String(r.id) === params.start);
-      if (i >= 0) {
-        setIndex(i);
-        requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: VH * i, animated: false }));
-      }
+    if (!params.start || startHandled.current === String(params.start)) return;
+    const i = reels.findIndex((r) => String(r.id) === params.start);
+    if (i >= 0) {
+      startHandled.current = String(params.start); /* jump exactly once — refetches must not yank back */
+      setIndex(i);
+      requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: VH * i, animated: false }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.start, storeTick]);
+  }, [params.start, storeTick, reels]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -910,8 +1029,20 @@ function VideosFeedInner() {
     : null;
 
   const q = query.trim().toLowerCase();
+  /* pass 83-35 — search must WORK: captions, @usernames, display names,
+   * scholar fields AND group names all match now (empty captions fall back
+   * to a searchable default, set when the reels were mapped). */
   const results = q
-    ? reels.filter((r) => r.caption.toLowerCase().includes(q) || r.username.toLowerCase().includes(q) || (MOCK_ACCOUNTS.find((a) => a.username === r.username)?.fields ?? '').toLowerCase().includes(q))
+    ? reels.filter((r) => {
+        const hay = [
+          r.caption,
+          r.username,
+          r.accountName ?? '',
+          MOCK_ACCOUNTS.find((a) => a.username === r.username)?.fields ?? '',
+          r.groupName ?? '',
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      })
     : [];
   const savedReels = reels.filter((r) => saved.has(r.id));
   const likedReels = reels.filter((r) => liked.has(r.id));
@@ -919,7 +1050,8 @@ function VideosFeedInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* top bar: back · glassy tabs · search */}
+      {/* top bar: back · glassy tabs · search (hidden while pinched-in) */}
+      {!zen ? (
       <View style={{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
         <Pressable
           onPress={() => goBack(router)}
@@ -1010,6 +1142,18 @@ function VideosFeedInner() {
           <FontAwesome5 name="search" size={14} color="#FFFFFF" />
         </Pressable>
       </View>
+      ) : null}
+
+      {/* pass 83-35 — pinch-IN mode: only the video + a back button remain */}
+      {zen ? (
+        <Pressable
+          onPress={() => goBack(router)}
+          hitSlop={10}
+          style={{ position: 'absolute', top: insets.top + 8, left: 12, zIndex: 30, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(10,20,14,0.45)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <FontAwesome5 name="chevron-left" size={15} color="#FFFFFF" />
+        </Pressable>
+      ) : null}
 
       {/* pager */}
       <FlatList
@@ -1019,7 +1163,10 @@ function VideosFeedInner() {
         renderItem={({ item, index: i }) => (
           <ReelItem
             reel={item}
-            active={i === index}
+            active={screenFocused && i === index}
+            zen={zen}
+            onZenChange={setZen}
+            onOpenGroup={(gid) => router.push({ pathname: '/tools/group', params: { id: String(gid) } } as never)}
             muted={muted}
             liked={liked.has(item.id)}
             saved={saved.has(item.id)}
@@ -1062,7 +1209,7 @@ function VideosFeedInner() {
       />
 
       {/* bottom menu — labels pill + plus fully outside, level */}
-      <View style={{ position: 'absolute', alignSelf: 'center', bottom: 16 + insets.bottom * 0.4, flexDirection: 'row', alignItems: 'center' }}>
+      {!zen ? (<View style={{ position: 'absolute', alignSelf: 'center', bottom: 16 + insets.bottom * 0.4, flexDirection: 'row', alignItems: 'center' }}>
         <View
           style={{
             borderRadius: 27,
@@ -1141,6 +1288,7 @@ function VideosFeedInner() {
           <FontAwesome5 name="plus" size={18} color="#FFFFFF" />
         </Pressable>
       </View>
+      ) : null}
 
       {/* inbox — the SAME universal inbox as the main app: reels/posts/duas/ayahs, chat + reactions */}
       <CommunityInbox visible={inboxOpen} onClose={() => setInboxOpen(false)} />
@@ -1784,7 +1932,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
                 <View style={{ height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)', overflow: 'hidden' }}>
                   <View style={{ height: '100%', width: `${Math.round(upFrac * 100)}%`, borderRadius: 3, backgroundColor: '#1F8F5C' }} />
                 </View>
-                <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)' }}>Uploading… {Math.round(upFrac * 100)}%</T>
+                <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)' }}>Posting… {Math.round(upFrac * 100)}%</T>
               </View>
             ) : null}
             {upError ? (

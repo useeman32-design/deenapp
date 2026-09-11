@@ -36,6 +36,8 @@ export function ContentShareSheet({
   link: string;
   /** pass true to hide the "share as image" row (e.g. profiles) */
   noImage?: boolean;
+  /** pass 83-35 — the raw post (kept for callers; the sheet builds from card) */
+  post?: import('@/api/types').Post;
 }) {
   const { theme, isDark } = useTheme();
   const [imgUrl, setImgUrl] = useState<string | null>(null);

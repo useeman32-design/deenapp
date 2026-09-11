@@ -106,13 +106,26 @@ export function AvatarImage({
 }
 
 /** Inline player for community video posts — plays in the card, expand → modal. */
-function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poster?: number | { uri: string } | null; accent: string; hairline: string }) {
+function VideoPostPlayer({ src, poster, accent, hairline, post, onOpenReels }: { src: string; poster?: number | { uri: string } | null; accent: string; hairline: string; post: Post; onOpenReels?: (post: Post) => void }) {
   const player = useVideoPlayer({ uri: src }, (p) => {
-    p.loop = true;
+    /* pass 83-35 — owner: a finished video must STOP, not loop. Replay
+     * (tapping play at the end) seeks back to 0 first — see the toggle below. */
+    p.loop = false;
     p.muted = false;
   });
+  const endedRef = useRef(false);
+  useEffect(() => {
+    const sub = (player.addListener as (ev: string, cb: (st: { status?: string }) => void) => { remove: () => void })('statusChange', (st) => {
+      if (st?.status === 'playToEnd') { endedRef.current = true; setPaused(true); }
+      if (st?.status === 'readyToPlay') endedRef.current = false;
+    });
+    return () => sub.remove();
+  }, [player]);
+  /* pass 83-35 — owner: leaving the screen (tab switch / push) STOPS the video */
+  useFocusEffect(useCallback(() => () => { try { player.pause(); } catch {} }, [player]));
   const [started, setStarted] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  /* pass 83-35 — in-card fullscreen REMOVED (owner decision): the expand
+   * button hands the video to the VIDEOS page (reels view) via onOpenReels. */
   const [paused, setPaused] = useState(false);
   /* pass 20: seek + speed */
   const [frac, setFrac] = useState(0);
@@ -152,8 +165,10 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
     });
 
   useEffect(() => {
-    if (started && !paused && !outRef.current && screenFocusedRef.current) player.play();
-    else player.pause();
+    if (started && !paused && !outRef.current && screenFocusedRef.current) {
+      if (endedRef.current) { try { player.currentTime = 0; endedRef.current = false; } catch {} }
+      player.play();
+    } else player.pause();
   }, [started, paused, player]);
 
   /* pass 83-28 — three hard stops so audio never leaks: the card UNMOUNTS,
@@ -263,22 +278,17 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
    * old transform-offset bug can't shrink it into a corner box). The inline
    * VideoView stays mounted underneath — playback lives on the SHARED player
    * object, so fullscreen never re-downloads the video (pass 83-24 fix kept). */
-  const openFull = () => {
+  const openReels = () => {
     haptic.light();
-    setExpanded(true);
+    try { player.pause(); } catch {}
+    onOpenReels?.(post);
   };
   return (
     <View ref={boxRef} style={[
-      { borderRadius: expanded && isWeb ? 0 : 14, overflow: 'hidden', borderWidth: expanded && isWeb ? 0 : 1, borderColor: hairline, backgroundColor: '#000' },
+      { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' },
     ]}>
-      <View style={expanded && isWeb ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, height: '100%', width: '100%', zIndex: 9999, elevation: 9999, backgroundColor: '#000' } as unknown as ViewStyle) : { height: 300 }}>
-        {started && (isWeb || !expanded) ? (
-          /* pass 83-34 — WEB: the inline VideoView STAYS MOUNTED through
-           * fullscreen (the box flips to position:fixed instead), so the
-           * <video> element is never destroyed → no re-download, no "loading"
-           * flash when opening fullscreen (owner report ×3).
-           * NATIVE: keep the 83-32 swap — native re-attach is instant and the
-           * modal presentation is cleaner. */
+      <View style={{ height: 300 }}>
+        {started ? (
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
             <VideoLoader player={player} />
@@ -301,17 +311,9 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
             ) : null}
           </Pressable>
         )}
-        {expanded && isWeb ? (
-          <>
-            <Pressable onPress={() => setExpanded(false)} hitSlop={14} style={{ position: 'absolute', top: 48, right: 18, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 30, elevation: 30 }}>
-              <FontAwesome5 name="times" size={15} color="#fff" />
-            </Pressable>
-            {renderBar(true)}
-          </>
-        ) : null}
-        {/* expand — opens the fullscreen modal */}
-        {!(expanded && isWeb) ? <Pressable
-          onPress={openFull}
+        {/* pass 83-35 — expand → the VIDEOS page (reels view); no in-card fullscreen */}
+        {onOpenReels ? <Pressable
+          onPress={openReels}
           hitSlop={8}
           style={{ position: 'absolute', top: 8, right: 8, width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' }}
         >
@@ -319,38 +321,9 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
         </Pressable> : null}
       </View>
 
-      {/* pass 83-31 — fullscreen modal for EVERY platform (web included): the
-          same custom controls, no browser/native chrome. Bound to the same
-          player object → zero reload. */}
-      {!isWeb ? (
-      <Modal visible={expanded} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
-          <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
-            <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
-              {expanded ? <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ flex: 1, backgroundColor: '#000' }} /> : null}
-              {expanded ? <VideoLoader player={player} /> : null}
-            </View>
-          </Pressable>
-          <Pressable onPress={() => setPaused((v) => !v)} style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-            {paused ? (
-              <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="play" size={21} color="#fff" />
-              </View>
-            ) : null}
-          </Pressable>
-          {/* pass 35: cancel rendered AFTER the full-screen pause overlay —
-              it used to sit UNDER it (z-order) and never received taps */}
-          <Pressable onPress={() => setExpanded(false)} hitSlop={14} style={{ position: 'absolute', top: 48, right: 18, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 30, elevation: 30 }}>
-            <FontAwesome5 name="times" size={15} color="#fff" />
-          </Pressable>
-          {/* pass 23: seek + time INSIDE fullscreen (it used to vanish) */}
-          {renderBar(true)}
-        </View>
-      </Modal>
-      ) : null}
     
-      {/* pass 20: seek bar + speed — always visible once started (hidden while web-fullscreen: renderBar(true) owns the screen) */}
-      {started && !(expanded && isWeb) ? renderBar(false) : null}</View>
+      {/* pass 20: seek bar + speed — always visible once started */}
+      {started ? renderBar(false) : null}</View>
   );
 }
 
@@ -375,7 +348,6 @@ export function FeedCard({
   onLike,
   onComments,
   onDismiss,
-  onPlayVideo,
   showActions = true,
   dash,
   field,
@@ -384,18 +356,21 @@ export function FeedCard({
   rank,
   onOpenGroup,
   onDelete,
+  onOpenReels,
   lockProfileNav,
 }: {
   post: Post;
   onLike?: (id: number) => void;
   onComments?: (post: Post) => void;
   onDismiss?: (id: number) => void;
-  onPlayVideo?: (post: Post) => void;
   showActions?: boolean;
   /** pass 83-14 — present when the viewer may delete THIS post (author, or
    *  group owner/admin, or site admin). Renders the Delete row in the ••• menu
    *  and calls onDelete (which hits the server + removes the card). */
   onDelete?: () => void;
+  /** pass 83-35 — owner decision: the in-card fullscreen is GONE. The expand
+   * button opens the video in the VIDEOS page (reels view, scrollable). */
+  onOpenReels?: (post: Post) => void;
   /** pass 83-19 — on a profile page the author's name/avatar must not
    *  navigate back to the same profile (owner: "when user clicked his
    *  profile on his posts it should not navigate to his profile"). */
@@ -959,7 +934,7 @@ export function FeedCard({
       {/* Community video post — plays inline in the card, expand → modal */}
       {post.video_url ? (
         <View style={{ marginBottom: 12 }}>
-          <VideoPostPlayer src={post.video_url} poster={post.video_poster ?? null} accent={accent} hairline={hairline} />
+          <VideoPostPlayer src={post.video_url} poster={post.video_poster ?? null} accent={accent} hairline={hairline} post={post} onOpenReels={onOpenReels} />
         </View>
       ) : null}
 
@@ -1025,12 +1000,10 @@ export function FeedCard({
 
       {/* YouTube — embedded player on web (double-tap likes, tap plays in-app) */}
       {Platform.OS === 'web' && post.youtube_embed_url ? (
+        /* pass 83-35 — owner: NO modal for YouTube. The iframe plays inline;
+         * the old tap-overlay hijacked every click into the video modal. */
         <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, marginBottom: 12, backgroundColor: '#000' }}>
           <YouTubeFrame src={String(post.youtube_embed_url)} height={206} />
-          <Pressable
-            onPress={() => onTap(() => onPlayVideo?.(post))}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          />
         </View>
       ) : post.youtube_embed_url ? (
         <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, marginBottom: 12, backgroundColor: '#000' }}>
@@ -1040,8 +1013,8 @@ export function FeedCard({
         <Pressable
           onPress={() =>
             onTap(() => {
-              if (onPlayVideo) onPlayVideo(post);
-              else if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
+              /* pass 83-35 — direct, no modal */
+              if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
             })
           }
           style={({ pressed }) => ({

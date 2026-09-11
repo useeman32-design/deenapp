@@ -16,7 +16,6 @@ import { storage } from '@/lib/storage';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
-import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { guestBlock, useIsGuest } from '@/lib/guest';
@@ -94,7 +93,6 @@ function CommunityScreenInner() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
-  const [videoPost, setVideoPost] = useState<Post | null>(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<FeedTab>('foryou');
   const [sticky, setSticky] = useState(false);
@@ -289,13 +287,12 @@ function CommunityScreenInner() {
       if (pollOn && opts.length >= 2) {
         np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
       }
-      if (imageAttachs.length) {
-        np.image_url = imageAttachs[0].uri;
-        (np as { media?: unknown }).media = imageAttachs.map((a) => ({ type: 'image', url: a.uri, thumb_url: a.uri }));
-      }
+      /* pass 83-35 — owner: media must NOT appear in the list until the post
+       * finishes. The optimistic row stays TEXT-ONLY; the server refetch (or
+       * the temp-id swap + refresh) brings the real media in. */
       if (videoAttach) {
-        np.video_url = videoAttach.uri;
-        /* pass 42 — UNIVERSAL VIDEOS: a community video post is ALSO a reel */
+        /* pass 42 — UNIVERSAL VIDEOS: a community video post is ALSO a reel
+         * (videos page list — different surface than the posts list) */
         addUserPost(t, 'video', { video: videoAttach.uri });
       }
       if (ytOn && ytUrl.trim()) {
@@ -850,12 +847,8 @@ function CommunityScreenInner() {
                       onLike={(id) => togglePostLike(id)}
                       onComments={(pp) => setCommentPost(pp)}
                       onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
-                      onPlayVideo={(pp) =>
-                        setVideoPost({
-                          ...pp,
-                          like_count: (pp.like_count ?? 0) + (likedPosts.has(pp.id) ? 1 : 0),
-                        })
-                      }
+                      /* pass 83-35 — expand → the VIDEOS page (reels view) */
+                      onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                       /* pass 83-14 — authors can delete their own community posts */
                       onDelete={p.user?.id != null && user?.id != null && p.user.id === user.id ? () => {
                         void api.deletePost(p.id).then((ok) => {
@@ -1304,23 +1297,6 @@ function CommunityScreenInner() {
         onClose={() => setCommentPost(null)}
       />
 
-      {/* Video viewing modal */}
-      {videoPost ? (
-        <VideoModal
-          video={{
-            id: videoPost.id,
-            title: (videoPost.content_text ?? 'Video').slice(0, 60),
-            source_url: (videoPost as { youtube_url?: string }).youtube_url ?? null,
-            embed_url: (videoPost as { youtube_embed_url?: string | null }).youtube_embed_url ?? null,
-            duration: null,
-            view_count: videoPost.like_count ?? 0,
-            like_count: videoPost.like_count ?? 0,
-          }}
-          liked={likedPosts.has(videoPost.id)}
-          onLike={() => togglePostLike(videoPost.id)}
-          onClose={() => setVideoPost(null)}
-        />
-      ) : null}
     </View>
   );
 }

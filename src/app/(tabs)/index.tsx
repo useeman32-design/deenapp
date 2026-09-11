@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -19,6 +19,7 @@ import { resolveLocation, type Loc } from '@/lib/location';
 import { T } from '@/components/T';
 import { SunPath } from '@/components/SunPath';
 import * as api from '@/api/client';
+import { VideoModal } from '@/components/VideoModal';
 import type { Post, Scholar, Video } from '@/api/types';
 import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
 import { storage } from '@/lib/storage';
@@ -35,7 +36,6 @@ import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
 import { GoalCompleteModal } from '@/components/GoalCompleteModal';
 import { useDeenPoints } from '@/components/DeenPoints';
-import { VideoModal } from '@/components/VideoModal';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
 
 /** Soft radial glow (SVG-based, works on all platforms). */
@@ -201,13 +201,22 @@ function HomeInner() {
     : CAMPAIGNS;
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
+  /* pass 83-35 — the daily-videos LIBRARY strip keeps its modal; POST videos
+   * no longer use it (they open the videos page via onOpenReels). */
+  const [videoOpen, setVideoOpen] = useState<Video | null>(null);
+  const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
+  const toggleVideoLike = (id: number) =>
+    setVideoLiked((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   const [posts, setPosts] = useState<Post[]>([]);
   const [followed, setFollowed] = useState<number[]>([]);
-  const [videoOpen, setVideoOpen] = useState<Video | null>(null);
   const [dhOpen, setDhOpen] = useState<'ayah' | 'hadith' | null>(null);
   /* dailyAyah / dailyHadith are universal constants for the day (lib/daily) */
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
-  const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   /* pass 38 — group posts MIXED into the main feed */
   const [hasGroups, setHasGroups] = useState(true);
@@ -236,13 +245,6 @@ function HomeInner() {
       });
     }
   };
-  const toggleVideoLike = (id: number) =>
-    setVideoLiked((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
   const likeSeed = useRef(false);
   useEffect(() => {
     if (!likeSeed.current && posts.length) {
@@ -927,17 +929,15 @@ function HomeInner() {
                 onLike={(id) => togglePostLike(id)}
                 onComments={(pp) => setCommentPost(pp)}
                 onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
-                onPlayVideo={(pp) =>
-                  setVideoOpen({
-                    id: pp.id,
-                    title: (pp.content_text ?? 'Video').slice(0, 60),
-                    source_url: pp.youtube_url as string | null,
-                    embed_url: pp.youtube_embed_url as string | null,
-                    duration: null,
-                    view_count: (pp.like_count as number) ?? 0,
-                    like_count: 0,
-                  })
-                }
+                /* pass 83-35 — expand → the VIDEOS page (reels view) */
+                onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
+                /* pass 83-35 — owner: own posts must be deletable on HOME too */
+                onDelete={p.user?.id != null && user?.id != null && p.user.id === user.id ? () => {
+                  void api.deletePost(p.id).then((ok) => {
+                    if (ok) { setPosts((ps: typeof posts) => ps.filter((x) => x.id !== p.id)); }
+                    else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
+                  });
+                } : undefined}
               />
               </View>
             ))}
@@ -1151,7 +1151,8 @@ function HomeInner() {
        * now opens the full Search screen (/tools/search) with Top / Users /
        * Videos / Hashtags tabs and recent posts. */}
 
-      {/* ── Video viewing modal (reels/shorts-style preview) ── */}
+
+      {/* ── Video viewing modal — DAILY LIBRARY videos only ── */}
       <VideoModal
         video={videoOpen}
         liked={videoLiked.has(videoOpen?.id ?? -1)}

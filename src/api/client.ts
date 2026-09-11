@@ -83,6 +83,19 @@ export interface ApiResult<T> {
   httpStatus?: number;
 }
 
+/* pass 83-35 (re-applies 83-34, lost in a workspace rollback) — a PHP warning
+ * printed ahead of the JSON breaks JSON.parse and reads as "request failed"
+ * even though the write SUCCEEDED. Salvage the first {...} block. */
+function parseLooseJson<T>(text: string | null | undefined): T | null {
+  if (!text) return null;
+  try { return JSON.parse(text) as T; } catch { /* fall through */ }
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]) as T; } catch { /* give up */ } }
+  const idOnly = text.match(/"id"\s*:\s*(\d+)/);
+  if (idOnly && /success/i.test(text)) return { status: 'success', id: Number(idOnly[1]) } as unknown as T;
+  return null;
+}
+
 async function request<T = Record<string, unknown>>(path: string, opts: ReqOptions = {}, _retried = false): Promise<ApiResult<T>> {
   // Mock-only mode: never touch the network; every caller falls back to bundled data.
   if (FORCE_DEMO) return { ok: false, data: {} as T, networkError: true };
@@ -115,11 +128,12 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
   const m = setCookie.match(/deenlink_session=([^;,\s]+)/);
   if (m && m[1] !== 'deleted') session = m[1];
 
+  /* pass 83-35 — read the body as TEXT once, then parse tolerantly (res.json()
+   * consumes the stream, so a polluted body could not be re-read). */
   let data: T;
-  try {
-    data = (await res.json()) as T;
-  } catch {
-    data = {} as T;
+  {
+    const raw = await res.text().catch(() => '');
+    data = (parseLooseJson<T>(raw)) ?? ({} as T);
   }
 
   if (res.ok) live = true;
@@ -384,11 +398,67 @@ export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   return r.ok;
 }
 /* pass 83-25 — owner/admin member management (add/remove/set_role). */
-export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string }> {
-  const r = await request<{ status?: string; message?: string; role?: string }>('/api/groups/members.php', {
-    method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,
+/* ─── pass 83-35 — join-request queue for group owner/admins (members.php
+ * action=requests; `id` in the list IS the user id — approve/decline take it) ─── */
+export interface GroupJoinRequest { id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at: string; }
+export async function groupJoinRequests(groupId: number): Promise<GroupJoinRequest[]> {
+  const r = await request<{ status?: string; requests?: GroupJoinRequest[] }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, action: 'requests' }, auth: true,
+  });
+  return r.ok && Array.isArray(r.data.requests) ? r.data.requests : [];
+}
+export async function groupJoinDecide(groupId: number, userId: number, approve: boolean): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, user_id: userId, action: approve ? 'approve' : 'decline' }, auth: true,
   });
   return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
+}
+/* pass 83-28 — join a closed group → the server answers status:'requested' */
+export async function groupJoinRich(groupId: number, join: boolean): Promise<'joined' | 'requested' | 'left' | 'failed'> {
+  const r = await request<{ status?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: groupId, join }, auth: true });
+  if (!r.ok) return 'failed';
+  const st = String(r.data?.status ?? '');
+  if (st === 'requested') return 'requested';
+  if (st === 'success') return join ? 'joined' : 'left';
+  return 'failed';
+}
+
+/* ─── pass 83-30 — home announcement auto-popup (announcements/active.php) ─── */
+export interface AnnouncementItem {
+  id: number;
+  name: string;
+  target?: string;
+  countries?: string[];
+  userTypes?: string[];
+  mediaType: string;
+  mediaUrl?: string;
+  mediaUrlRaw?: string;
+  youtubeEmbedUrl?: string;
+  actionButtonLabel?: string;
+  actionButtonUrl?: string;
+  startDate?: string;
+  endDate?: string;
+  singleDate?: string;
+  startTime?: string;
+  frequency?: string;
+  customHours?: number | null;
+}
+export async function activeAnnouncement(): Promise<{ item: AnnouncementItem | null; dismissKey: string } | null> {
+  const r = await request<{ status?: string; announcement?: AnnouncementItem | null; dismiss_key?: string }>('/api/announcements/active.php', { auth: true });
+  if (!r.ok || !r.data) return null;
+  return { item: r.data.announcement ?? null, dismissKey: r.data.dismiss_key ?? '' };
+}
+
+export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string; denial?: { username: string; full_name: string } | null }> {
+  const r = await request<{ status?: string; message?: string; role?: string; code?: string; username?: string; full_name?: string }>('/api/groups/members.php', {
+    method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,
+  });
+  if (r.ok) return { ok: true };
+  /* pass 83-29 — structured "does not allow group adds" denial */
+  if (r.data?.code === 'no_group_add') {
+    return { ok: false, denial: { username: String(r.data.username ?? ''), full_name: String(r.data.full_name ?? '') }, message: r.data.message };
+  }
+  return { ok: false, message: r.data?.message || 'Please try again.' };
 }
 export async function groupCreate(data: { name: string; bio?: string; category?: string; emoji?: string; open_join?: boolean }): Promise<{ id: number } | null> {
   const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
@@ -452,7 +522,7 @@ export async function groupCreatePost(
   video?: { uri: string; name?: string; type?: string },
   youtubeUrl?: string,
   onProgress?: (frac: number) => void,
-): Promise<{ id: number } | null> {
+): Promise<{ id: number | null; message?: string }> {
   /* pass 83-10 — photos/audio go multipart (same recipe as the feed's
    * createPost: blob: URIs become Files on web, {uri} parts native).
    * pass 83-10b/c — poll options ride along on either transport.
@@ -493,16 +563,18 @@ export async function groupCreatePost(
       }
     }
     const r = hasMedia
-      ? await uploadForm<{ status?: string; id?: number }>('/api/groups/create_post.php', form, onProgress)
-      : await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
-    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : null;
+      ? await uploadForm<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', form, onProgress)
+      : await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
+    /* pass 83-35 — the server's own reason rides back AND tells the caller it
+     * was a SERVER-SAID error (real failure), not a lost response (salvage). */
+    return r.ok && r.data && r.data.id ? { id: r.data.id as number, message: undefined } : { id: null, message: r.data?.message };
   }
-  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', {
+  const r = await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', {
     method: 'POST',
     body: { group_id: groupId, content_text: contentText, ...(opts.length >= 2 ? { poll_options: opts } : {}) },
     auth: true,
   });
-  return r.ok && r.data.id ? { id: r.data.id as number } : null;
+  return r.ok && r.data && r.data.id ? { id: r.data.id as number, message: undefined } : { id: null, message: r.data?.message };
 }
 
 /* pass 83-25 — videos-page uploads hit the server (single-shot upload.php path:
@@ -921,7 +993,7 @@ function uploadForm<T>(url: string, form: FormData, onProgress?: (frac: number) 
       xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) { onProgress(Math.max(0, Math.min(1, e.loaded / Math.max(1, e.total)))); } };
       xhr.onload = () => {
         let data: T | null = null;
-        try { data = JSON.parse(xhr.responseText) as T; } catch { /* non-JSON body */ }
+        data = parseLooseJson<T>(xhr.responseText); /* pass 83-35 — warning-tolerant */
         /* login rotates the PHP session (and with it the CSRF token); request()
          * recovers by refetching — the uploader must do the same */
         if (xhr.status === 403 && !retried && xhr.responseText.includes('CSRF')) {

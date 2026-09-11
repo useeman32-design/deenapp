@@ -167,7 +167,11 @@ function GroupScreenInner() {
        * m4a, wav, aac…), public.audio is the explicit audio tree. Files in
        * iCloud download on pick (copyToCacheDirectory defaults true).
        * validateAudio() still rejects non-audio picks with a clear message. */
-      const audioTypes = Platform.OS === 'ios' ? ['public.audio', 'public.data'] : 'audio/*';
+      /* pass 83-35 — Android too: the audio/* intent greys m4a/aac in the
+       * Files picker (owner: "I have m4a and aac … it won't work"). ALL
+       * platforms now open the full picker; validateAudio() rejects
+       * non-audio picks with a clear message right after. */
+      const audioTypes = Platform.OS === 'ios' ? ['public.audio', 'public.data'] : '*/*';
       const res = await docPicker.getDocumentAsync({ type: audioTypes as never });
       const asset = (Array.isArray(res.assets) ? res.assets[0] : (res as unknown)) as { uri?: string; name?: string; mimeType?: string; size?: number } | undefined;
       if (res.canceled !== true && asset?.uri) {
@@ -404,16 +408,16 @@ function GroupScreenInner() {
     /* pass 83-32 — keep a snapshot so a failed upload hands EVERYTHING back
      * (owner: "show unable to post not just disappearing blindly") */
     const draft = { text, imgs, vid, aud, yt, pollOn, poll, ytOn: ytOn || !!yt };
-    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(imgs[0] ? { image_url: imgs[0].uri } : {}) }, ...x.posts] }));
+    upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now() }, ...x.posts] })); /* pass 83-35 — no local media preview in the list */
     const optId = -Date.now();
     if (serverPosts) {
       const optimistic = {
         id: optId, content_text: text, created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
         like_count: 0, comment_count: 0, liked_by_me: false,
         user: { username: 'you', full_name: 'You', profile_image_url: null },
-        ...(imgs.length ? { media: imgs.map((m) => ({ type: 'image', url: m.uri, thumb_url: m.uri })) } : {}),
-        ...(aud ? { audio_url: aud.uri } : {}),
-        ...(vid ? { video_url: vid.uri } : {}),
+        /* pass 83-35 — owner: media must NOT show in the list until the post
+         * actually finishes. The optimistic row is TEXT-ONLY ("Posting…");
+         * loadServerPosts() swaps in the real row with its media on success. */
         ...(yt ? { youtube_url: yt } : {}),
         ...(pollOk ? { poll: { options: poll.map((o, i) => ({ id: i + 1, text: o, votes: 0 })), voted: null } } : {}),
       } as Post;
@@ -1048,11 +1052,12 @@ function GroupScreenInner() {
                   </View>
                 ) : null}
                 {uploadFrac != null ? (
-                  <View style={{ alignSelf: 'stretch', marginTop: 8, gap: 5 }}>
-                    <View style={{ height: 5, borderRadius: 3, backgroundColor: d.bgSoft, overflow: 'hidden' }}>
-                      <View style={{ height: '100%', width: `${Math.round(uploadFrac * 100)}%`, borderRadius: 3, backgroundColor: isDark ? '#2ECC71' : '#1D6F42' }} />
+                  /* pass 83-35 — EXACTLY the community composer's progress pill */
+                  <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, borderRadius: 14, backgroundColor: isDark ? 'rgba(10,22,15,0.95)' : 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, paddingVertical: 10, minWidth: 190 }}>
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text, marginBottom: 6 }}>Posting… {Math.round(uploadFrac * 100)}%</T>
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)' }}>
+                      <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(uploadFrac * 100))}%`, backgroundColor: '#1F8F5C' }} />
                     </View>
-                    <T v="caption" style={{ fontSize: 10, fontWeight: '700', color: d.faint }}>Uploading… {Math.round(uploadFrac * 100)}%</T>
                   </View>
                 ) : null}
                 {postError ? (
@@ -1136,6 +1141,7 @@ function GroupScreenInner() {
                       rank={serverRank(sp)}
                       onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
                       onComments={(pp) => setCommentPost(pp)}
+                      onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                       /* pass 83-14 — authors delete their own posts; the group
                        * owner/admin can delete any (the server double-checks) */
                       onDelete={(sp.user?.id != null && user?.id != null && sp.user.id === user.id) || canManage ? () => {
@@ -1170,6 +1176,8 @@ function GroupScreenInner() {
                     rank={roleOf(group, p.author)}
                     onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
                     onComments={(pp) => setCommentPost(pp)}
+                    /* pass 83-35 — expand → the VIDEOS page (reels view) */
+                    onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                   />
                 );
               })
