@@ -1,6 +1,9 @@
 <!-- =====================================================================
      LATEST — 2026-09-11 · PASS 83-31 SHIPPED. *** READ FIRST ***
-     deenapp master @ 47ebae3 · gh-pages @ 3b85505 (entry-29086947, LIVE 200 + sw.js 200) · deenlink-api main @ 559bd6f (backend bba164f + web entry-29086947)
+     deenapp master @ (see git log) · gh-pages @ 3b85505 (entry-29086947, LIVE ✓) · deenlink-api main @ 41b9bb0 (backend bba164f + web ROOT=raw entry-f6de6092 + /deenapp/ compat shim)
+     ⚠️ 83-31 web deploy shipped the GH-PAGES flavor (base /deenapp/) to the cPanel ROOT → white screen
+     ('Unexpected token <' — .js requests got the SPA-fallback HTML). FIXED in 41b9bb0 + boot-tested.
+     RULE: dlapi root = RAW export ONLY; gh-pages = slashguard flavor; serving roots merge, never prune.
      GROUP POSTING FIXED (server youtube block restored — every group post 400'd before) · REPOSTS:
      posts.repost_of healed + create/get embed + FeedCard REPOSTED tag w/ original author box; share
      sheet "Repost" row replaces "share as post" · SHARE-AS-IMAGE: sheet swaps to preview w/ Cancel;

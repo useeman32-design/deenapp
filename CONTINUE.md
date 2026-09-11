@@ -1,3 +1,20 @@
+# ══ 2026-09-11 — HOTFIX 83-31c: cPanel white-screen REAL root cause (WRONG BUILD FLAVOR) ══ READ FIRST ══
+# deenlink-api main = 41b9bb0 (owner: pull AGAIN in cPanel) · deenapp master = dist-root(raw) + docs
+# ROOT CAUSE (reproduced in headless Chrome): the 83-31 deploy copied the GH-PAGES-flavored export
+# (slashguard BASE=/deenapp → every asset URL prefixed /deenapp/) into the app.deenlink.org ROOT.
+# Those paths don't exist there → the SPA fallback served index.html for each .js request (200!) →
+# "Unexpected token '<'" → white screen for everyone (fresh AND cached). The earlier prune theory
+# (83-31b) was only a secondary hazard — the flavor was the killer.
+# FIX (41b9bb0): ROOT = RAW export (entry-f6de6092, src="/_expo/..."); the broken flavor moved under
+# /deenapp/ (incident-window cached pages keep booting); sw.js+favicon exist at BOTH scopes; 83-30
+# chunks (entry-431a29ee) still present for cached 83-30 index.html.
+# ⚠️ STANDING RULES (both in force):
+#   1. app.deenlink.org (dlapi root) gets the RAW export — NEVER slashguard'd.
+#      gh-pages gets the /deenapp slashguard flavor. dist-root in this repo = RAW snapshot.
+#   2. Serving roots MERGE on deploy — never delete existing chunks (cached index.html safety).
+#   3. BOOT-TEST before shipping web: puppeteer (workspace pptr/boot.js) against the merged layout —
+#      rootHtmlLen must be big + zero PAGEERROR. Status codes alone CANNOT catch this (200-HTML fallback).
+# ═════════════════════════════════════════════════════════════════════════════════════
 # ══ 2026-09-11 — HOTFIX 83-31b: cPanel blank-white-screen after pull (MY deploy bug) ══ READ FIRST ══
 # deenlink-api main = fd970a5 (owner: pull AGAIN in cPanel) · deenapp master = docs update
 # ROOT CAUSE: the 83-31 web mirror PRUNED everything not in the fresh export — it deleted .htaccess,
