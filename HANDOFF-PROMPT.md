@@ -1,3 +1,9 @@
+# ══ 2026-09-11 — HOTFIX 83-33b (latest state) ══
+# deenlink-api main = ae2e0a6 — OWNER MUST PULL (live still blank until then; 1f311b1 shipped GH-flavor to root, 3rd occurrence of the 83-31c mistake).
+# ROOT IS NOW: genuine RAW (export-raw.sh + check-raw.mjs gate, merged-tree boot-tested 0/0).
+# RULES: root artifact ONLY via scripts/export-raw.sh; gh via export-web.sh + push immediately; gate with NO pipes; boot-test the merged tree. See CONTINUE.md header.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-33 SHIPPED (latest state) ══
 # deenlink-api main = 1f311b1 (owner: PULL — admin rebuilt on his admin.zip UI + 8 fatal endpoints fixed + CSRF) · deenapp master = 83-32 client (c2b0afd) · gh-pages = 566342a.
 # Admin render-tested 17/17 via pptr admin-test.js (mocked APIs). Build script preserved: /tmp/build_admin.py (workspace-volatile — the committed pages are the artifact).

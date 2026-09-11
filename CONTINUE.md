@@ -1,3 +1,26 @@
+# ══ 2026-09-11 — INCIDENT 83-33b: ROOT SHIPPED GH-FLAVOR (3rd occurrence) — FIXED + GUARDED ══ READ FIRST ══
+# BLANK SCREEN ROOT CAUSE (owner-reported): 1f311b1 copied dist/ to the cPanel root AFTER
+#   export-web.sh had rebuilt dist as the GH flavor → root index.html referenced
+#   /deenapp/_expo/… → white screen. FORENSICS: e99ac46 (the "83-32 raw" push) was ALSO the GH
+#   flavor — since that pull the root actually ran the OLD 83-31 bundle via the /deenapp/ SPA
+#   fallback (masked, not broken). Admin/ + api/ pushes were never affected.
+# FIX (OWNER: PULL AGAIN — final head ae2e0a6): root = genuine RAW flavor (fresh export-raw.sh),
+#   poisoned chunks purged (incl. stale entry-07a8d97e + the 1f311b1 additions), 404.html = raw
+#   index. Verified: check-raw gate 0 /deenapp/ refs on the MERGED tree + puppeteer boot 0 errors
+#   / 0 failed requests. Live stays blank until the owner pulls.
+# ══ IRON RULES (made structural — repeat = inexcusable) ══
+#  1. dist/ for the ROOT may only be produced by:  bash scripts/export-raw.sh
+#     (export + BASE='' slashguard + scripts/check-raw.mjs gate, fails hard on ANY /deenapp/ ref,
+#     missing entry, or missing manifest). Copy to root IMMEDIATELY after — nothing in between.
+#  2. gh-pages flavor: bash scripts/export-web.sh — and push gh-pages IMMEDIATELY after.
+#     After a GH build, dist/ is POISON for the root until export-raw.sh runs again.
+#  3. After ANY root copy: node scripts/check-raw.mjs <root-dir>  (NO pipe — pipes swallow the
+#     exit code; that bit me during the hotfix) + boot-test the MERGED tree (not a side copy):
+#     serve the repo dir, run pptr boot.js against it.
+#  4. /deenapp/ SUBDIR at the root = intentional legacy-flavor home for incident-window cached
+#     pages — check-raw skips it; NEVER delete it casually (cached 83-31/83-32 windows still use it).
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-33: ADMIN DASHBOARD REBUILT ON OWNER UI (SHIPPED) ══ READ FIRST ══
 # deenlink-api main = 1f311b1 — OWNER: PULL IN cPanel (admin APIs rebuilt + this raw web export incl. the app announcements modal). gh-pages=d284552, deenapp master=65cf355. Boot-tested 0/0.
 # WHAT OWNER COMPLAINED → WHAT WAS DONE:
