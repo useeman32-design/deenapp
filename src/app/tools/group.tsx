@@ -44,7 +44,7 @@ function BreathingPosts({ dash }: { dash: { card: string; cardBorder: string } }
     </View>
   );
 }
-import { groupCreatePost, groupDeletePost, groupGet, groupJoin, groupJoinDecide, groupJoinRequests, groupJoinRich, groupMembers, groupPosts as groupPostsApi, searchAccounts, toggleFollow as apiToggleFollow, type AccountResult, type GroupRow } from '@/api/client';
+import { groupCreatePost, publicSettings, groupDeletePost, groupGet, groupJoin, groupJoinDecide, groupJoinRequests, groupJoinRich, groupMembers, groupPosts as groupPostsApi, searchAccounts, toggleFollow as apiToggleFollow, type AccountResult, type GroupRow } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { haptic } from '@/lib/haptics';
 import { shareLink } from '@/lib/share';
@@ -109,6 +109,11 @@ function GroupScreenInner() {
   const [ytOn, setYtOn] = useState(false);
   const [ytLink, setYtLink] = useState('');
   const [uploadFrac, setUploadFrac] = useState<number | null>(null);
+  /* pass 83-36 — admin toggle: community/group video posting OFF by default */
+  const [videoAllowed, setVideoAllowed] = useState(false);
+  useEffect(() => {
+    publicSettings().then((fl: Record<string, boolean | string>) => setVideoAllowed(fl['posting.community_video'] === true)).catch(() => setVideoAllowed(false));
+  }, []);
   /* pass 83-17 */
   const [loadDone, setLoadDone] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
@@ -701,6 +706,16 @@ function GroupScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
+      {/* pass 83-36 — upload progress pill: BYTE-IDENTICAL to community's
+       * (screen-root level, not buried in the composer where it clipped) */}
+      {uploadFrac != null ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, borderRadius: 14, backgroundColor: isDark ? 'rgba(10,22,15,0.95)' : 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, paddingVertical: 10, minWidth: 190 }}>
+          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text, marginBottom: 6 }}>Posting… {Math.round(uploadFrac * 100)}%</T>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)' }}>
+            <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(uploadFrac * 100))}%`, backgroundColor: '#1F8F5C' }} />
+          </View>
+        </View>
+      ) : null}
       {/* pass 83-26 — posted-success pill (auto-dismiss, community parity) */}
       {postedPill ? (
         <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, backgroundColor: '#1F8F5C', paddingHorizontal: 16, paddingVertical: 9 }}>
@@ -952,10 +967,12 @@ function GroupScreenInner() {
                   <Pressable onPress={() => { void pickAudio(); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: audioAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="music" size={13} color={audioAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
-                  {/* pass 83-25 — local video picker */}
+                  {/* pass 83-25 — local video picker (admin toggle) */}
+                  {videoAllowed ? (
                   <Pressable onPress={() => { void pickVideo(); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="video" size={13} color={videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
+                  ) : null}
                   {/* pass 83-25 — YouTube link toggle */}
                   <Pressable onPress={() => { haptic.selection(); setYtOn((v) => !v); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="youtube" size={14} color={ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
@@ -1051,15 +1068,6 @@ function GroupScreenInner() {
                     ) : null}
                   </View>
                 ) : null}
-                {uploadFrac != null ? (
-                  /* pass 83-35 — EXACTLY the community composer's progress pill */
-                  <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, borderRadius: 14, backgroundColor: isDark ? 'rgba(10,22,15,0.95)' : 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, paddingVertical: 10, minWidth: 190 }}>
-                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text, marginBottom: 6 }}>Posting… {Math.round(uploadFrac * 100)}%</T>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)' }}>
-                      <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(uploadFrac * 100))}%`, backgroundColor: '#1F8F5C' }} />
-                    </View>
-                  </View>
-                ) : null}
                 {postError ? (
                   <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: '#E74C3C', marginTop: 4 }}>{postError}</T>
                 ) : null}
@@ -1139,12 +1147,13 @@ function GroupScreenInner() {
                       post={sp}
                       group={{ name: group.name, cat: group.cat, avatar: group.avatar, catIcon: catIcon(group.cat) }}
                       rank={serverRank(sp)}
-                      onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
+                      /* pass 83-36 — already INSIDE the group: tapping the group
+                       * name on a post must not re-navigate into the group */
                       onComments={(pp) => setCommentPost(pp)}
                       onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                       /* pass 83-14 — authors delete their own posts; the group
                        * owner/admin can delete any (the server double-checks) */
-                      onDelete={(sp.user?.id != null && user?.id != null && sp.user.id === user.id) || canManage ? () => {
+                      onDelete={((sp.user?.id != null && user?.id != null && String(sp.user.id) === String(user.id)) || (sp.user?.username && user?.username && sp.user.username === user.username)) || canManage ? () => {
                         void groupDeletePost(sp.id).then((ok) => {
                           if (ok) {
                             setServerPosts((rows) => (rows ?? []).filter((x) => x.id !== sp.id));
@@ -1174,7 +1183,6 @@ function GroupScreenInner() {
                     post={fp}
                     group={{ name: group.name, cat: group.cat, avatar: group.avatar, catIcon: catIcon(group.cat) }}
                     rank={roleOf(group, p.author)}
-                    onOpenGroup={() => router.push({ pathname: '/tools/group', params: { id: group.id } } as never)}
                     onComments={(pp) => setCommentPost(pp)}
                     /* pass 83-35 — expand → the VIDEOS page (reels view) */
                     onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}

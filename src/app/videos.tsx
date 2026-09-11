@@ -31,6 +31,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
@@ -620,6 +621,8 @@ type LibraryTab = 'saved' | 'liked' | 'reposts';
 function VideosFeedInner() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
+  /* pass 83-36 — owner: tapping your own name on a reel must not open your profile */
+  const { user: meUser } = useAuth();
 
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou');
   const [index, setIndex] = useState(0);
@@ -1180,7 +1183,11 @@ function VideosFeedInner() {
             onComments={(r) => { if (guestBlock('Sign in to comment on videos.')) return; setCommentReel(r); }}
             onShare={(r) => setShareReel(r)}
             onAvatar={(img, nm) => setAvatarPreview({ img, name: nm })}
-            onOpenProfile={(u) => router.push(`/profile/${u}?tab=videos` as never)}
+            onOpenProfile={(u) => {
+              /* pass 83-36 — your own reel/profile: no navigation */
+              if (meUser && (u === meUser.username || (meUser.username && `@${meUser.username}` === u))) return;
+              router.push(`/profile/${u}?tab=videos` as never);
+            }}
             onMore={(r) => setMoreReel(r)}
           />
         )}

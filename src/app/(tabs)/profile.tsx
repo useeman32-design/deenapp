@@ -16,6 +16,7 @@ import { AvatarImage } from '@/components/FeedCard';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
+import { symbolFor } from '@/lib/currency';
 import { Platform } from 'react-native';
 import { UI_SCALES, useUIScale, useSetUIScale } from '@/context/UIScale';
 import { DeenPointsBuyModal, RewardModal, useDeenPoints, formatDP } from '@/components/DeenPoints';
@@ -45,7 +46,7 @@ function ProfileInner() {
   const [tab, setTab] = useState<Tab>('posts');
   const saved = useSaved().saved;
   const [posts, setPosts] = useState<Post[]>([]);
-  const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0 });
+  const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0, donations: 0, currency: 'USD' });
   const [checkin, setCheckin] = useState<'idle' | 'done' | 'already'>('idle');
   /* pass 83-20 — the server is the source of truth for today's check-in;
    * local storage alone reset the button to unchecked (owner: "if i checked
@@ -241,7 +242,7 @@ function ProfileInner() {
                 { label: 'Posts', value: fmt(counts.posts), tab: null },
                 { label: 'Followers', value: fmt(counts.followers), tab: 'followers' },
                 { label: 'Following', value: fmt(counts.following), tab: 'following' },
-                { label: 'Charity', value: `₦ ${fmt(counts.donations)}`, tab: null },
+                { label: 'Charity', value: `${symbolFor(counts.currency)} ${fmt(counts.donations)}`, tab: null },
               ].map((s) => {
                 const inner = (
                   <View style={{ flex: 1, borderRadius: 13, backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 9, alignItems: 'center' }}>

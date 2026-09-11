@@ -8,6 +8,7 @@ import {
   persistSession,
   register as apiRegister,
   restoreSession,
+  prefetchHomeData,
 } from '@/api/client';
 import type { User } from '@/api/types';
 import { MOCK_USER } from '@/api/mocks';
@@ -123,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u); void exitGuest();
       setIsDemo(false);
       await persistSession(currentSession() ?? '', null, u);
+      prefetchHomeData(); /* pass 83-36 — instant tabs after OTP resume too */
     };
 
     const logout = async () => {

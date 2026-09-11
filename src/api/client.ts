@@ -232,6 +232,7 @@ export async function login(identifier: string, password: string, rememberMe = t
   if (r.ok && r.data.user) {
     live = true;
     await fetchCsrf();
+    prefetchHomeData(); /* pass 83-36 — content loads WITH the navigation, not after it */
     return { ok: true as const, user: hydrateUser(r.data.user), demo: false };
   }
   if (r.networkError && FORCE_DEMO) await storage.setItem('dl.demoSession', '1');
@@ -398,6 +399,32 @@ export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   return r.ok;
 }
 /* pass 83-25 — owner/admin member management (add/remove/set_role). */
+/* ─── pass 83-36 — public feature flags (settings/public.php, 30s server cache) ─── */
+export async function publicSettings(): Promise<Record<string, boolean | string>> {
+  const r = await request<{ status?: string; settings?: Record<string, boolean | string> }>('/api/settings/public.php', { auth: true });
+  return r.ok && r.data.settings ? r.data.settings : {};
+}
+
+/* ─── pass 83-36 — login-time prefetch: feed + groups fire the moment login
+ * succeeds (owner: the tabs must show content immediately, not seconds later).
+ * The screens consume the cached promise on mount — zero extra requests. ─── */
+let feedPre: Promise<FeedResponse> | null = null;
+let groupsPre: Promise<GroupRow[] | null> | null = null;
+export function prefetchHomeData(): void {
+  if (!feedPre) feedPre = feed('for-you').catch(() => ({ status: 'success', posts: [], next_cursor: null }));
+  if (!groupsPre) groupsPre = groupsList().catch(() => null);
+}
+export function consumeFeedPrefetch(): Promise<FeedResponse> | null {
+  const p = feedPre;
+  feedPre = null;
+  return p;
+}
+export function consumeGroupsPrefetch(): Promise<GroupRow[] | null> | null {
+  const p = groupsPre;
+  groupsPre = null;
+  return p;
+}
+
 /* ─── pass 83-35 — join-request queue for group owner/admins (members.php
  * action=requests; `id` in the list IS the user id — approve/decline take it) ─── */
 export interface GroupJoinRequest { id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at: string; }
@@ -532,6 +559,8 @@ export async function groupCreatePost(
   const yt = (youtubeUrl ?? '').trim();
   const hasMedia = (!!images && images.length > 0) || !!audio || !!video;
   if (hasMedia || yt) {
+    /* pass 83-36 — paint the optimistic row/pill first (see createPost) */
+    if (images && images.length) await new Promise((r) => setTimeout(r, 60));
     const form = new FormData();
     form.append('group_id', String(groupId));
     if (contentText) form.append('content_text', contentText);
@@ -1016,6 +1045,12 @@ export async function compressImageForUpload(uri: string): Promise<string> {
   try {
     const IM = await import('expo-image-manipulator');
     const info = await (IM as { getImageInfoAsync?: (u: string) => Promise<{ width: number; height: number }> }).getImageInfoAsync?.(uri).catch(() => null);
+    /* pass 83-36 — owner: ~2s UI freeze when posting images. On WEB the
+     * manipulator re-encodes on the MAIN THREAD (canvas) — for images that
+     * don't need resizing the re-encode is pure jank, so skip it. Native
+     * keeps compressing (off-thread, saves real upload bytes). */
+    const small = info ? Math.max(info.width, info.height) <= 1600 : false;
+    if (typeof window !== 'undefined' && small && uri.startsWith('blob:')) return uri;
     const tooBig = info ? Math.max(info.width, info.height) > 1600 : true;
     const actions = tooBig
       ? [{ resize: (info && info.width >= info.height) ? { width: 1600 } : { height: 1600 } }]
@@ -1035,6 +1070,9 @@ export async function createPost(
   video?: { uri: string; name?: string; type?: string },
   onProgress?: (frac: number) => void,
 ): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
+  /* pass 83-36 — let the optimistic row + progress pill PAINT before the
+   * (main-thread) image work starts; this kills the posting freeze. */
+  if (images && images.length) await new Promise((r) => setTimeout(r, 60));
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
   if (youtubeUrl) form.append('youtube_url', youtubeUrl);
@@ -1344,11 +1382,11 @@ export async function userPosts(userId?: number): Promise<Post[]> {
   return MOCK_FEED.filter((p) => p.user.username === (MOCK_USER.username ?? ''));
 }
 
-export async function profileCounts(userId?: number): Promise<{ posts: number; followers: number; following: number; donations: number }> {
+export async function profileCounts(userId?: number): Promise<{ posts: number; followers: number; following: number; donations: number; currency: string }> {
   /* pass 71 — was triply broken: the endpoint REQUIRES ?user_id, answers with
    * FLAT counts (no `counts` wrapper), and the fallbacks were hard-coded
    * dummies (3/128/96). Real numbers or honest zeros now. */
-  const r = await request<{ status?: string; posts?: number; followers?: number; following?: number; donations?: number }>(
+  const r = await request<{ status?: string; posts?: number; followers?: number; following?: number; donations?: number; currency?: string }>(
     `/api/users/get_profile_counts.php?user_id=${Number(userId ?? 0)}`,
     { auth: true },
   );
@@ -1358,9 +1396,21 @@ export async function profileCounts(userId?: number): Promise<{ posts: number; f
       followers: Number(r.data.followers ?? 0),
       following: Number(r.data.following ?? 0),
       donations: Number(r.data.donations ?? 0),
+      currency: String(r.data.currency || 'USD'),
     };
   }
-  return { posts: 0, followers: 0, following: 0, donations: 0 };
+  return { posts: 0, followers: 0, following: 0, donations: 0, currency: 'USD' };
+}
+
+/* pass 83-36 — a profile's charity total in the VIEWER's country currency
+ * (donations/user_summary.php does the FX server-side). */
+export async function publicDonationSummary(userId?: number, username?: string): Promise<{ total: number; count: number; currency: string }> {
+  const q = userId != null ? `user_id=${Number(userId)}` : `u=${encodeURIComponent(String(username ?? ''))}`;
+  const r = await request<{ status?: string; total?: number; count?: number; currency?: string }>(`/api/donations/user_summary.php?${q}`, { auth: true });
+  if (r.ok && r.data.status === 'success') {
+    return { total: Number(r.data.total ?? 0), count: Number(r.data.count ?? 0), currency: String(r.data.currency || 'USD') };
+  }
+  return { total: 0, count: 0, currency: 'USD' };
 }
 
 export async function scholars(): Promise<Scholar[]> {

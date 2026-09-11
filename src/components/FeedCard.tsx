@@ -10,6 +10,7 @@ import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { haptic } from '@/lib/haptics';
+import { useAuth } from '@/context/AuthContext';
 import { BookmarkIcon, ChatIcon, FlagIcon, HeartIcon, PlayIcon, ShareIcon } from '@/components/Icons';
 import { savedStore } from '@/lib/savedPosts';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
@@ -401,6 +402,13 @@ export function FeedCard({
   const img = (user as { profile_image_url?: string | number | null }).profile_image_url ?? null;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /* pass 83-36 — owner: tapping YOUR OWN name/avatar on a post must NOT open
+   * your profile (community, groups, home — everywhere FeedCard renders). */
+  const meUser = useAuth().user;
+  const isSelfPost = !!meUser && (
+    (post.user?.id != null && meUser.id != null && String(post.user.id) === String(meUser.id)) ||
+    (!!post.user?.username && !!meUser.username && post.user.username === meUser.username)
+  );
   /* pass 83-19 — Instagram-style multi-photo carousel state */
   const [carouselPage, setCarouselPage] = useState(0);
   const [carouselW, setCarouselW] = useState(0);
@@ -567,7 +575,7 @@ export function FeedCard({
         <Pressable
           hitSlop={8}
           onPress={() => {
-            if (lockProfileNav) return;
+            if (lockProfileNav || isSelfPost) return;
             haptic.selection();
             router.push(`/profile/${user.username}`);
           }}
@@ -576,7 +584,7 @@ export function FeedCard({
           <AvatarImage source={img} name={name} size={42} tint={`${accent}26`} border={dash ? dash.greenBorder : hairline} gender={(user as { gender?: string }).gender ?? null} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-          <Pressable hitSlop={4} onPress={() => { if (!lockProfileNav) router.push(`/profile/${user.username}`); }}>
+          <Pressable hitSlop={4} onPress={() => { if (!lockProfileNav && !isSelfPost) router.push(`/profile/${user.username}`); }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <T v="body" numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '700', fontSize: 13.5, color: txt, flexShrink: 1 }}>
                 {name}
@@ -1011,12 +1019,11 @@ export function FeedCard({
         </View>
       ) : post.youtube_url ? (
         <Pressable
-          onPress={() =>
-            onTap(() => {
-              /* pass 83-35 — direct, no modal */
-              if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
-            })
-          }
+          onPress={() => {
+            /* pass 83-36 — direct open, no 310ms double-tap wait: the row must
+             * feel instant (owner: "refusing to be clicked"). */
+            if (post.youtube_url) Linking.openURL(post.youtube_url).catch(() => {});
+          }}
           style={({ pressed }) => ({
             flexDirection: 'row',
             alignItems: 'center',

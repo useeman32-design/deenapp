@@ -13,7 +13,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 /* pass 66-night — live groups: list/create/join/post ride the real API when a
  * real session exists; the local store stays the gh-pages demo. */
-import { groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/api/client';
+import { consumeGroupsPrefetch, groupCreate, groupsList, groupJoin, groupCreatePost, isLive } from '@/api/client';
 import type { GroupRow } from '@/api/client';
 
 /**
@@ -103,7 +103,7 @@ export function mapServerGroup(g: GroupRow): Group {
   };
 }
 
-export async function loadGroups(): Promise<Group[]> {
+export async function loadGroups(prefetchedServers?: GroupRow[] | null): Promise<Group[]> {
   try {
     const r = await storage.getItem(GROUP_KEY);
     const saved = JSON.parse(r ?? 'null') as Group[] | null;
@@ -115,7 +115,8 @@ export async function loadGroups(): Promise<Group[]> {
     /* pass 66-night — live groups: the server list leads; locally-created
      * (not yet synced) groups ride along so nothing the user made vanishes. */
     if (isLive()) {
-      const rows = await groupsList();
+      /* pass 83-36 — reuse the login-time prefetch when present (no 2nd request) */
+      const rows = prefetchedServers !== undefined ? prefetchedServers : await groupsList();
       if (rows) {
         const server = rows.map(mapServerGroup);
         const localOnly = local.filter((g) => !g.id.startsWith('srv'));
@@ -282,7 +283,11 @@ export function GroupsRail() {
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<Group[] | null>(null);
 
-  useEffect(() => { loadGroups().then(setGroups); }, []);
+  useEffect(() => {
+    /* pass 83-36 — consume the login-time prefetch (no second request) */
+    const pre = consumeGroupsPrefetch();
+    pre ? pre.then((rows) => loadGroups(rows).then(setGroups)) : loadGroups().then(setGroups);
+  }, []);
   useEffect(() => {
     const q = query.trim();
     if (!q) { setResults(null); setSearching(false); return; }

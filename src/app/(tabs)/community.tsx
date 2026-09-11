@@ -47,6 +47,9 @@ function CommunityScreenInner() {
   const router = useRouter();
 
   const [posts, setPosts] = useState<Post[]>(MOCK_FEED);
+  /* pass 83-36 — the admin's Videos-Management toggle. Videos stay OFF until
+   * the owner flips it; the server ALSO rejects video uploads when off. */
+  const [videoAllowed, setVideoAllowed] = useState(false);
 
   /* pass 66-night — live community feed: server posts lead, mock stays as the
    * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
@@ -55,6 +58,10 @@ function CommunityScreenInner() {
     api.feed('for-you').then((r) => {
       if (r.posts && r.posts.length) setPosts(r.posts);
     }).catch(() => {});
+  }, []);
+  /* pass 83-36 — admin toggle: community video posting (default OFF) */
+  useEffect(() => {
+    api.publicSettings().then((fl) => setVideoAllowed(fl['posting.community_video'] === true)).catch(() => setVideoAllowed(false));
   }, []);
 
   /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
@@ -850,7 +857,7 @@ function CommunityScreenInner() {
                       /* pass 83-35 — expand → the VIDEOS page (reels view) */
                       onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                       /* pass 83-14 — authors can delete their own community posts */
-                      onDelete={p.user?.id != null && user?.id != null && p.user.id === user.id ? () => {
+                      onDelete={(p.user?.id != null && user?.id != null && String(p.user.id) === String(user.id)) || (p.user?.username && user?.username && p.user.username === user.username) ? () => {
                         void api.deletePost(p.id).then((ok) => {
                           if (ok) { setPosts((ps) => ps.filter((x) => x.id !== p.id)); }
                           else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
@@ -1017,6 +1024,7 @@ function CommunityScreenInner() {
                     {imageAttachs.length ? `${imageAttachs.length} photo${imageAttachs.length > 1 ? 's' : ''}` : 'Photo'}
                   </T>
                 </Pressable>
+{videoAllowed ? (
                 <Pressable
                   onPress={pickVideo}
                   style={({ pressed }) => ({
@@ -1038,6 +1046,7 @@ function CommunityScreenInner() {
                     {videoAttach ? 'Video attached' : 'Video'}
                   </T>
                 </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => {
                     haptic.selection();

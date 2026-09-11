@@ -29,7 +29,11 @@ export function YouTubePlayer({ embedUrl, height = 210, borderRadius = 12 }: { e
   const { WebView } = require('react-native-webview');
   return (
     <WebView
-      source={{ html }}
+      /* pass 83-36 — owner: the inline player "refused to be clicked". A bare
+       * html source loads from a NULL origin (about:blank) and YouTube BLOCKS
+       * embed playback for unknown origins. baseUrl gives the WebView a real
+       * https origin, so the iframe is allowed to play. */
+      source={{ html, baseUrl: 'https://deenlink.org' }}
       style={{ width: '100%', height, borderRadius, backgroundColor: '#000' }}
       containerStyle={{ overflow: 'hidden', borderRadius }}
       allowsInlineMediaPlayback

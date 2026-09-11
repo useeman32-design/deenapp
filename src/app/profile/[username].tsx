@@ -8,6 +8,8 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { symbolFor } from '@/lib/currency';
+import { publicDonationSummary } from '@/api/client';
 import {
   MOCK_ACCOUNTS,
   MOCK_FEED,
@@ -92,6 +94,9 @@ function PublicProfileScreenInner() {
   const [blockBusy, setBlockBusy] = useState(false);
   /* pass 81 — block/report live in a top-right ⋮ dropdown, not the action row */
   const [menuOpen, setMenuOpen] = useState(false);
+  /* pass 83-36 — REAL charity total (server FX → the VIEWER's country currency);
+   * the old value was a hard-coded ₦ 12.4k mock. */
+  const [charity, setCharity] = useState<{ total: number; count: number; currency: string } | null>(null);
   /* pass 74 — WAIT for the session restore: on a hard navigation (web refresh
    * or an MPA route hop) this screen mounts before /me resolves, isLive() is
    * still false, the fetch was skipped and real accounts showed "not found". */
@@ -212,6 +217,16 @@ function PublicProfileScreenInner() {
   const name = liveP?.full_name || profile.full_name;
   const bioText = liveP?.bio ?? profile.bio ?? null;
   const followerCount = liveP ? liveP.followers : profile.followers;
+  /* pass 83-36 — pull the charity total once the profile identity is known */
+  const charityId = liveP?.id ?? undefined;
+  useEffect(() => {
+    let on = true;
+    if (!isLive()) return;
+    publicDonationSummary(charityId, charityId == null ? String(username ?? '') : undefined)
+      .then((d) => { if (on) setCharity(d); })
+      .catch(() => { if (on) setCharity(null); });
+    return () => { on = false; };
+  }, [charityId, charityId == null ? username : null]);
   const followingCount = liveP ? liveP.following : profile.following;
   const isScholar = !!profile.scholar;
   const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : String(n));
@@ -442,7 +457,7 @@ function PublicProfileScreenInner() {
                 { label: 'Posts', value: fmt(Math.max(posts.length, liveP?.posts ?? profile.posts_count)), tab: null },
                 { label: 'Followers', value: fmt(followerCount + (following !== !!liveP?.following_by_me ? (following ? 1 : -1) : 0)), tab: 'followers' },
                 { label: 'Following', value: fmt(followingCount), tab: 'following' },
-                { label: 'Charity', value: '₦ 12.4k', tab: null },
+                { label: 'Charity', value: charity ? `${symbolFor(charity.currency)} ${fmt(charity.total)}` : '—', tab: null },
               ].map((s) => {
                 const inner = (
                   <View

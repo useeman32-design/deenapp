@@ -256,7 +256,11 @@ function HomeInner() {
   useEffect(() => {
     api.scholars().then((r) => setScholars(r.length ? r : MOCK_SCHOLARS)).catch(() => setScholars(MOCK_SCHOLARS));
     api.videos('daily').then((r) => setVideos(r.length ? r : MOCK_VIDEOS)).catch(() => setVideos(MOCK_VIDEOS));
-    api.feed('for-you').then((r) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED)).catch(() => setPosts(MOCK_FEED));
+    /* pass 83-36 — consume the login-time prefetch (instant), else fetch */
+    const pre = api.consumeFeedPrefetch();
+    const apply = (r: import('@/api/types').FeedResponse) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED);
+    if (pre) pre.then(apply).catch(() => setPosts(MOCK_FEED));
+    else api.feed('for-you').then(apply).catch(() => setPosts(MOCK_FEED));
   }, []);
 
   const toggleFollow = (id: number) => {
@@ -932,7 +936,7 @@ function HomeInner() {
                 /* pass 83-35 — expand → the VIDEOS page (reels view) */
                 onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
                 /* pass 83-35 — owner: own posts must be deletable on HOME too */
-                onDelete={p.user?.id != null && user?.id != null && p.user.id === user.id ? () => {
+                onDelete={(p.user?.id != null && user?.id != null && String(p.user.id) === String(user.id)) || (p.user?.username && user?.username && p.user.username === user.username) ? () => {
                   void api.deletePost(p.id).then((ok) => {
                     if (ok) { setPosts((ps: typeof posts) => ps.filter((x) => x.id !== p.id)); }
                     else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
