@@ -1,5 +1,5 @@
 # ══ 2026-09-11 — PASS 83-33: ADMIN DASHBOARD REBUILT ON OWNER UI (SHIPPED) ══ READ FIRST ══
-# deenlink-api main = 868a7f8 — OWNER: PULL IN cPanel (admin/ + api/ both changed).
+# deenlink-api main = 1f311b1 — OWNER: PULL IN cPanel (admin APIs rebuilt + this raw web export incl. the app announcements modal). gh-pages=d284552, deenapp master=65cf355. Boot-tested 0/0.
 # WHAT OWNER COMPLAINED → WHAT WAS DONE:
 #  · "two headers glitching" = my pass-80/83-30 shell (shell2.js) DELETED his sidebar and injected
 #    its own chrome → header duplication. FIXED: chrome files DELETED (assets/nav.js, shell*.js/css),
