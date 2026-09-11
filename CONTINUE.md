@@ -1,3 +1,18 @@
+# ══ 2026-09-11 — HOTFIX 83-31b: cPanel blank-white-screen after pull (MY deploy bug) ══ READ FIRST ══
+# deenlink-api main = fd970a5 (owner: pull AGAIN in cPanel) · deenapp master = docs update
+# ROOT CAUSE: the 83-31 web mirror PRUNED everything not in the fresh export — it deleted .htaccess,
+# share.php, branding/logo.png, docs/zips/sql AND the previous hashed bundles (entry-431a29ee).
+# Every returning browser held a cached index.html → requested the deleted old entry → 404 →
+# blank white screen. Server itself was healthy (index/entry/APIs all 200).
+# FIX: restored all 17 missing paths from bba164f (git ls-tree diff → checkout) + pushed fd970a5.
+# ⚠️ STANDING RULE — deploys MERGE, never prune:
+#   - copy new dist over the web root / gh-pages;
+#   - NEVER delete existing files that aren't in the new export (old hashed chunks MUST stay so
+#     cached index.html keeps working; each deploy costs ~5-8MB of old chunks — purge manually
+#     every few months if needed);
+#   - the earlier "python3 mirror-prune" recipe in these docs is WRONG for dlapi web root and
+#     gh-pages — superseded by this rule.
+# ═════════════════════════════════════════════════════════════════════════════════════
 # ══ 2026-09-11 — PASS 83-31 SHIPPED (reposts, share-sheet rework, in-app fullscreen, like-state truth, group-post fix) ══ READ FIRST ══
 # deenapp master = 47ebae3 (client) · gh-pages = 3b85505 (entry-29086947, LIVE-verified 200 + sw.js 200)
 # deenlink-api main = 559bd6f (backend bba164f + web root entry-29086947) — ⚠️ CPANEL PULL PENDING (owner)
