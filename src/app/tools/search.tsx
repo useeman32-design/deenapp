@@ -376,8 +376,11 @@ export default function SearchScreen() {
     const bestVideo = matchedVideos[0];
     const bestTag = matchedTags[0];
     const bestAcc = acc?.[0];
-    return { bestAcc, bestPost, bestVideo, bestTag, restPosts: matchedPosts.filter((p) => p !== bestPost).slice(0, 4), restTags: matchedTags.filter((t) => t !== bestTag).slice(0, 3), topAccs: (acc ?? []).slice(0, 3) }; /* pass 74 — up to 3 top accounts */
-  }, [users, matchedPosts, matchedVideos, matchedTags, query]);
+    /* pass 83-31 — owner: matched groups belong in the TOP tab too */
+    const ql = query.toLowerCase();
+    const bestGroup = (qGroups ?? []).find((g) => g.name.toLowerCase().includes(ql) || (g.category ?? '').toLowerCase().includes(ql)) ?? null;
+    return { bestAcc, bestGroup, bestPost, bestVideo, bestTag, restPosts: matchedPosts.filter((p) => p !== bestPost).slice(0, 4), restTags: matchedTags.filter((t) => t !== bestTag).slice(0, 3), topAccs: (acc ?? []).slice(0, 3) }; /* pass 74 — up to 3 top accounts */
+  }, [users, matchedPosts, matchedVideos, matchedTags, query, qGroups]);
 
   const recent = matchedPosts.slice(0, recentMore ? 15 : 5); /* pass 74 — 15 on show more */
 
@@ -476,12 +479,33 @@ export default function SearchScreen() {
               <Skeleton rows={3} shape="post" tint={d.bgSoft} card={d.card} border={d.cardBorder} />
             ) : null}
             {topMix.topAccs.length ? <RowIn i={0}><SectionLabel>{`Top account${topMix.topAccs.length > 1 ? 's' : ''}`}</SectionLabel>{topMix.topAccs.map((a) => <UserRow key={`${a.id}-${a.username}`} u={a} />)}</RowIn> : null}
-            {topMix.bestPost ? <RowIn i={1}><SectionLabel>Top post</SectionLabel><PostRow p={topMix.bestPost} /></RowIn> : null}
-            {topMix.bestVideo ? <RowIn i={2}><SectionLabel>Top video</SectionLabel><VideoRow v={topMix.bestVideo} /></RowIn> : null}
-            {topMix.bestTag ? <RowIn i={3}><SectionLabel>Top hashtag</SectionLabel><TagRow t={topMix.bestTag} /></RowIn> : null}
-            {topMix.restTags.length ? <RowIn i={4}><SectionLabel>More hashtags</SectionLabel>{topMix.restTags.map((t) => <TagRow key={t.tag} t={t} />)}</RowIn> : null}
-            {topMix.restPosts.length ? <RowIn i={5}><SectionLabel>More posts</SectionLabel>{topMix.restPosts.map((p, i2) => <PostRow key={p.id} p={p} />)}</RowIn> : null}
-            {!loading.top && !topMix.bestAcc && !topMix.bestPost && !topMix.bestVideo && !topMix.bestTag ? (
+            {/* pass 83-31 — groups surface in Top as well, not only in the Groups tab */}
+            {topMix.bestGroup ? (
+              <RowIn i={1}>
+                <SectionLabel>Top group</SectionLabel>
+                <Pressable
+                  onPress={() => { haptic.light(); router.push(`/tools/group?id=srv${topMix.bestGroup!.id}` as never); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10 }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: d.bgSoft, borderWidth: 1, borderColor: d.cardBorder }}>
+                    <T v="bodyS" style={{ fontSize: 18 }}>{topMix.bestGroup.emoji ?? '🕌'}</T>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="bodyS" numberOfLines={1} style={{ fontSize: 13.5, fontWeight: '700', color: d.text }}>{topMix.bestGroup.name}</T>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
+                      {[topMix.bestGroup.category, `${topMix.bestGroup.member_count} member${topMix.bestGroup.member_count === 1 ? '' : 's'}`, topMix.bestGroup.open_join ? 'Open' : 'Invite-only'].filter(Boolean).join(' · ')}
+                    </T>
+                  </View>
+                  <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+                </Pressable>
+              </RowIn>
+            ) : null}
+            {topMix.bestPost ? <RowIn i={2}><SectionLabel>Top post</SectionLabel><PostRow p={topMix.bestPost} /></RowIn> : null}
+            {topMix.bestVideo ? <RowIn i={3}><SectionLabel>Top video</SectionLabel><VideoRow v={topMix.bestVideo} /></RowIn> : null}
+            {topMix.bestTag ? <RowIn i={4}><SectionLabel>Top hashtag</SectionLabel><TagRow t={topMix.bestTag} /></RowIn> : null}
+            {topMix.restTags.length ? <RowIn i={5}><SectionLabel>More hashtags</SectionLabel>{topMix.restTags.map((t) => <TagRow key={t.tag} t={t} />)}</RowIn> : null}
+            {topMix.restPosts.length ? <RowIn i={6}><SectionLabel>More posts</SectionLabel>{topMix.restPosts.map((p, i2) => <PostRow key={p.id} p={p} />)}</RowIn> : null}
+            {!loading.top && !topMix.bestAcc && !topMix.bestGroup && !topMix.bestPost && !topMix.bestVideo && !topMix.bestTag ? (
               <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 40 }}>No matches for “{q.trim()}”.</T>
             ) : null}
           </View>

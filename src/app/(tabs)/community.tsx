@@ -8,7 +8,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail, loadGroups } from '@/components/Groups';
-import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
+import { MOCK_ACCOUNTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING } from '@/api/mocks';
 import * as api from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { T } from '@/components/T';
@@ -16,6 +16,7 @@ import { storage } from '@/lib/storage';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
+import { likeStoreSet } from '@/lib/likeStore';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -52,11 +53,46 @@ function CommunityScreenInner() {
   /* pass 66-night — live community feed: server posts lead, mock stays as the
    * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
    * feed uses ('foryou' → for-you). */
-  useEffect(() => {
-    api.feed('for-you').then((r) => {
-      if (r.posts && r.posts.length) setPosts(r.posts);
-    }).catch(() => {});
+  /* pass 83-31 — "posts are slow to reflect": paint the LAST feed instantly
+   * from a local cache, then refresh silently on every tab focus (so likes,
+   * deletes and new posts made elsewhere show up as soon as you return). */
+  const FEED_CACHE = 'dl.feed.cache.v1';
+  const lastFeedFetch = useRef(0);
+  const applyFeed = useCallback((rows: Post[]) => {
+    setPosts(rows);
+    try { void storage.setItem(FEED_CACHE, JSON.stringify(rows.slice(0, 40))); } catch {}
+    setLikedPosts(() => {
+      const n = new Set<number>();
+      for (const pp of rows) {
+        if (pp.liked_by_me) n.add(pp.id); else n.delete(pp.id);
+      }
+      return n;
+    });
   }, []);
+
+  useEffect(() => {
+    void storage.getItem(FEED_CACHE).then((c) => {
+      if (c && posts.length <= MOCK_FEED.length) {
+        const cached = JSON.parse(c) as Post[];
+        if (Array.isArray(cached) && cached.length) setPosts(cached);
+      }
+    }).catch(() => {});
+    void api.feed('for-you').then((r) => {
+      if (r.posts && r.posts.length) { lastFeedFetch.current = Date.now(); applyFeed(r.posts); }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      /* silent refresh on focus — at most once per 15s */
+      if (Date.now() - lastFeedFetch.current < 15000) return;
+      lastFeedFetch.current = Date.now();
+      void api.feed('for-you').then((r) => {
+        if (r.posts && r.posts.length) applyFeed(r.posts);
+      }).catch(() => {});
+    }, [applyFeed]),
+  );
 
   /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
    * ayahs…) live in lib/userPosts — surface them above the mock feed */
@@ -191,6 +227,7 @@ function CommunityScreenInner() {
 
   const togglePostLike = (id: number) => {
     const willLike = !likedPosts.has(id);
+    likeStoreSet(id, willLike); /* pass 83-31 — profile + community share this */
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
@@ -1314,7 +1351,7 @@ function CommunityScreenInner() {
       <CommentsModal
         visible={!!commentPost}
         post={commentPost}
-        seed={commentPost ? (MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? []) as SampleComment[] : []}
+        seed={[]}
         postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />

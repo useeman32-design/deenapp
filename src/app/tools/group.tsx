@@ -245,19 +245,32 @@ function GroupScreenInner() {
    * accept or rejects joining requests") */
   const [joinReqs, setJoinReqs] = useState<Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null }> | null>(null);
   const [reqBusy, setReqBusy] = useState<number | null>(null);
-  const loadServerPosts = (sid: number, localId?: number | string) => {
+  const loadServerPosts = (sid: number, localId?: number | string, retried = false) => {
     setPostsError(false);
-    void groupPostsApi(sid).then((rows) => {
-      if (!rows) { setPostsError(true); return; }
-      setServerPosts(rows);
-      if (!rows.length) return;
-      const lid = localId;
-      setGroup((cur) =>
-        cur && (lid == null ? true : cur.id === lid)
-          ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
-          : cur,
-      );
-    });
+    /* pass 83-31 — owner: loader then "could not load" DESPITE internet.
+     * One silent retry before giving up; rejected fetches now land in the
+     * same handler (they used to slip past .then and leave the skeleton
+     * breathing forever), and the posts call gets a 45s window. */
+    void groupPostsApi(sid)
+      .then((rows) => {
+        if (!rows) {
+          if (!retried) { setTimeout(() => loadServerPosts(sid, localId, true), 900); return; }
+          setPostsError(true);
+          return;
+        }
+        setServerPosts(rows);
+        if (!rows.length) return;
+        const lid = localId;
+        setGroup((cur) =>
+          cur && (lid == null ? true : cur.id === lid)
+            ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
+            : cur,
+        );
+      })
+      .catch(() => {
+        if (!retried) { setTimeout(() => loadServerPosts(sid, localId, true), 900); return; }
+        setPostsError(true);
+      });
   };
 
   useEffect(() => {

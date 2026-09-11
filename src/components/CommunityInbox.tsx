@@ -976,15 +976,25 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
       });
       [...chat, ...items].forEach((c) => freshIds.current.add(c.id));
       setThreads((prev) => prev.map((t) => (t.friend === openFriend ? { ...t, chat, items, reactions, others } : t)));
-      /* pass 83-28 — returning from a shared item used to leave the thread
-       * scrolled to the TOP (the scroll raced the layout). Give it a few
-       * frames — same recipe as the send path below. */
+      /* pass 83-28/83-31 — after the thread loads, go back to where the
+       * viewer WAS (returning from a shared post must not jump to the top),
+       * unless they were at the bottom — then hug the newest message. */
+      const saved = threadScrollPos.current;
+      const restore = saved && saved.friend === (openFriend ?? '') && !saved.atBottom && saved.y > 40;
       [0, 60, 160, 300].forEach((t) =>
         setTimeout(() => {
-          scroller.current?.scrollToEnd({ animated: false });
-          if (Platform.OS === 'web') {
-            const node = webScrollNode();
-            if (node) node.scrollTop = node.scrollHeight;
+          if (restore) {
+            scroller.current?.scrollTo({ y: saved.y, animated: false });
+            if (Platform.OS === 'web') {
+              const node = webScrollNode();
+              if (node) node.scrollTop = saved.y;
+            }
+          } else {
+            scroller.current?.scrollToEnd({ animated: false });
+            if (Platform.OS === 'web') {
+              const node = webScrollNode();
+              if (node) node.scrollTop = node.scrollHeight;
+            }
           }
         }, t),
       );
@@ -1119,6 +1129,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     return els.sort((a, b) => b.scrollHeight - a.scrollHeight)[0] ?? null;
   };
 
+  /* pass 83-31 — scroll restore bookkeeping (see onThreadScroll) */
+  const threadScrollPos = useRef<{ friend: string; y: number; atBottom: boolean } | null>(null);
+  const openThreadFriend = useRef<string | null>(null);
+  useEffect(() => { openThreadFriend.current = openFriend ?? null; }, [openFriend]);
+
   const smoothScrollBottom = () => {
     smoothRef.current = smoothScrollBottom;
     [0, 60, 160, 300].forEach((t) => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), t));
@@ -1136,6 +1151,9 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   const onThreadScroll = (e: { nativeEvent: { contentOffset: { y: number }; layoutMeasurement: { height: number }; contentSize: { height: number } } }) => {
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 60;
+    /* pass 83-31 — remember WHERE the viewer was, per thread, so returning
+     * from a shared post can restore the position instead of jumping to top */
+    threadScrollPos.current = { friend: openThreadFriend.current ?? '', y: contentOffset.y, atBottom: near };
     setAtBottom((p) => (p === near ? p : near));
   };
 

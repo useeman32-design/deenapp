@@ -439,7 +439,7 @@ export default function Donations() {
                 {/* pass 35 — zakat calculator (IslamicAPI live nisab) */}
                 <Pressable
                   accessibilityLabel="calculate my zakat"
-                  onPress={() => { haptic.selection(); setCalc(true); setCalcDone(false); fetchNisab('ngn').then((n) => { setNisab({ gold: n.gold.nisab_amount, silver: n.silver.nisab_amount, rate: n.zakat_rate, currency: n.currency }); setLiveP({ gold: n.gold.unit_price, silver: n.silver.unit_price }); }).catch(() => setNisab(null)); }}
+                  onPress={() => { haptic.selection(); router.push('/tools/zakat'); /* pass 83-31 — open the MAIN zakat calculator */ }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 14 }}
                 >
                   <FontAwesome5 name="calculator" size={13} color="#E8C96A" />

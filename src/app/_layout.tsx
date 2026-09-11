@@ -15,6 +15,7 @@ import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
 import { initGuest } from '@/lib/guest';
+import { IosPwaPrompt } from '@/components/IosPwaPrompt';
 
 initGuest(); // pass 80 — restore guest flag once per app load
 
@@ -194,6 +195,8 @@ export default function RootLayout() {
         <UIScaleProvider>
         <AuthProvider>
           <Root />
+          {/* pass 83-31 — iOS Safari: "Add to Home Screen" nudge (dismissable) */}
+          <IosPwaPrompt />
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>

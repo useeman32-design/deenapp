@@ -23,7 +23,8 @@ import { computePrayerTimesWith, loadPrayerSettings, PRAYER_NAMES } from '@/lib/
  * throws — notifications must not take the app down.
  */
 
-const CHANNEL = 'adhan';
+export const ADHAN_CHANNEL = 'adhan';
+const CHANNEL = ADHAN_CHANNEL;
 const SCHED_KEY = 'dl.adhan.sched.v1';
 const SKIP = 1; /* index of Sunrise — no adhan there (same rule as in-app) */
 
@@ -38,6 +39,37 @@ async function cancelScheduled(): Promise<void> {
 }
 
 /** Remove every scheduled adhan (used by the in-modal "Turn off"). */
+/* pass 83-31 — "Test adhan notification": fires a REAL local notification on
+ * the adhan channel a few seconds out, so the owner can watch the full
+ * behaviour — heads-up in-app, draw-over/full-screen when locked or in a call
+ * (with the config-plugin dev build). */
+export async function scheduleAdhanTest(seconds = 5): Promise<boolean> {
+  try {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+      if (typeof Notification !== 'undefined') {
+        try { if (Notification.permission === 'granted') new Notification("DeenLink — test adhan", { body: 'This is how the adhan alert will appear.' }); } catch {}
+        return true;
+      }
+      return false;
+    }
+    const Notifications = (await import('expo-notifications')).default;
+    const when = new Date(Date.now() + seconds * 1000);
+    await Notifications.scheduleNotificationAsync({
+      identifier: `adhan-test-${when.getTime()}`,
+      content: {
+        title: 'Test — adhan alert 🕌',
+        body: 'This is exactly how the adhan alert will appear. Lock the screen or take a call to see draw-over.',
+        sound: 'default',
+        data: { type: 'adhan', prayer: 'Test' },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, channelId: CHANNEL },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function disableAdhanSchedule(): Promise<void> {
   if (Platform.OS === 'web') return;
   try { await cancelScheduled(); } catch { /* ignore */ }

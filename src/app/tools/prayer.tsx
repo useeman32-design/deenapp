@@ -25,7 +25,7 @@ import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
 import { ADHAN_VOICES, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
-import { disableAdhanSchedule, syncAdhanSchedule } from '@/lib/adhanNotify';
+import { disableAdhanSchedule, scheduleAdhanTest, syncAdhanSchedule } from '@/lib/adhanNotify';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -74,6 +74,8 @@ export default function PrayerTimes() {
   const [preview, setPreview] = useState<'v1' | 'v2' | 'v3' | null>(null);
   /* pass 33: adhan — plays when a prayer time arrives while the app is open */
   const [adhanFor, setAdhanFor] = useState<string | null>(null);
+  /* pass 83-31 — feedback for the 5s adhan-notification test */
+  const [testSent, setTestSent] = useState<number | null>(null);
   /* pass 41 — adhan alert design (5 selectable, persisted) + picker */
   const [adhanDesign, setAdhanDesign] = useState<AdhanDesign>('praying');
   const [adhanPicker, setAdhanPicker] = useState(false);
@@ -274,6 +276,29 @@ export default function PrayerTimes() {
           <FontAwesome5 name="bell" size={13} color="#5BC8F5" />
           <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Preview the adhan alert</T>
           <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>SEE POPUP</T>
+        </Pressable>
+
+        {/* pass 83-31 — REAL notification test (owner: hear the adhan and see
+         * draw-over behaviour with the screen off / during a call) */}
+        <Pressable
+          accessibilityLabel="test adhan notification"
+          onPress={() => {
+            haptic.medium();
+            void scheduleAdhanTest(5).then((ok) => {
+              setTestSent(ok ? 5 : -1);
+              setTimeout(() => setTestSent(null), 8000);
+            });
+          }}
+          style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 10 }}
+        >
+          <FontAwesome5 name="stopwatch" size={13} color="#E8C96A" />
+          <View style={{ flex: 1 }}>
+            <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>Test adhan notification</T>
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>
+              {testSent == null ? 'Fires a real alert in 5s — lock the screen or start a call to see draw-over' : testSent < 0 ? 'Notifications unavailable here' : 'Scheduled — check your notifications in 5s'}
+            </T>
+          </View>
+          <T v="caption" style={{ fontSize: 9, fontWeight: '700', color: d.faint }}>RUN</T>
         </Pressable>
 
         {/* hero — next prayer (pass 29: same background + sun-walk arc as the home hero) */}

@@ -16,6 +16,7 @@ import {
   type MockProfile,
 } from '@/api/mocks';
 import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userDonationSummary, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
+import { likeStoreGet, likeStoreHas, likeStoreSet } from '@/lib/likeStore';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -185,7 +186,21 @@ function PublicProfileScreenInner() {
 
   useEffect(() => {
     if (liveP?.id == null) { setLivePosts(null); return; }
-    void srvUserPosts(Number(liveP.id)).then(setLivePosts).catch(() => {});
+    void srvUserPosts(Number(liveP.id))
+      .then((rows) => {
+        /* pass 83-31 — seed the viewer's REAL like state from the server
+         * (owner: hearts showed unliked on profiles even for liked posts;
+         * re-liking then desynced the count). Local toggles still win. */
+        setLikedPosts(() => {
+          const n = new Set<number>();
+          for (const pp of rows) {
+            if (likeStoreHas(pp.id) ? likeStoreGet(pp.id, false) : !!pp.liked_by_me) n.add(pp.id);
+          }
+          return n;
+        });
+        setLivePosts(rows);
+      })
+      .catch(() => {});
   }, [liveP?.id]);
 
   const isOwnProfile = liveP?.id != null && user?.id != null && Number(liveP.id) === Number(user.id);
@@ -619,18 +634,19 @@ function PublicProfileScreenInner() {
                   key={p.id}
                   dash={d}
                   lockProfileNav
-                  post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                  post={{ ...p, liked_by_me: likeStoreGet(p.id, !!p.liked_by_me), like_count: (p.like_count ?? 0) + (likeStoreGet(p.id, !!p.liked_by_me) === !!p.liked_by_me ? 0 : likeStoreGet(p.id, false) ? 1 : -1) }}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
                   group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
                   onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
-                  onLike={(id) =>
+                  onLike={(id) => {
+                    likeStoreSet(id, !likedPosts.has(id));
                     setLikedPosts((prev) => {
                       const n = new Set(prev);
                       if (n.has(id)) n.delete(id);
                       else n.add(id);
                       return n;
-                    })
-                  }
+                    });
+                  }}
                   onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
                 />
               ))
@@ -739,18 +755,19 @@ function PublicProfileScreenInner() {
                   key={p.id}
                   dash={d}
                   lockProfileNav
-                  post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
+                  post={{ ...p, liked_by_me: likeStoreGet(p.id, !!p.liked_by_me), like_count: (p.like_count ?? 0) + (likeStoreGet(p.id, !!p.liked_by_me) === !!p.liked_by_me ? 0 : likeStoreGet(p.id, false) ? 1 : -1) }}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
                   group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
                   onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
-                  onLike={(id) =>
+                  onLike={(id) => {
+                    likeStoreSet(id, !likedPosts.has(id));
                     setLikedPosts((prev) => {
                       const n = new Set(prev);
                       if (n.has(id)) n.delete(id);
                       else n.add(id);
                       return n;
-                    })
-                  }
+                    });
+                  }}
                   onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
                 />
               ))

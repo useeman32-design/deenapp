@@ -89,6 +89,21 @@ export interface Post {
   user: User;
   media?: PostMedia[];
   audio_url?: string | null; /* pass 83-10c — group audio uploads */
+  /* pass 83-31 — reposts: the ORIGINAL post this one forwards */
+  repost_of?: number | null;
+  repost?: {
+    id: number;
+    content_text?: string | null;
+    youtube_url?: string | null;
+    youtube_embed_url?: string | null;
+    created_at?: string;
+    time_ago?: string;
+    gone?: boolean;
+    image_url?: string | null;
+    like_count?: number;
+    comment_count?: number;
+    user: User;
+  } | null;
   [k: string]: unknown;
 }
 

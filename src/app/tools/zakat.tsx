@@ -22,13 +22,39 @@ const GOLD_FALLBACK = 191313; /* ₦/gram — last fetched live price (offline f
 const SILVER_FALLBACK = 2862;
 
 const num = (s: string) => parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
-const money = (n: number) =>
-  n.toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+
+/* pass 83-31 — the calculator's metal prices are naira (IslamicAPI NG), but a
+ * non-Nigerian account should SEE their own Flutterwave currency. We quote
+ * NGN→viewer-currency once (server converts via USD when needed) and format
+ * every amount through it; without a rate we keep honest naira figures. */
+let moneyCcy = 'NGN';
+let moneyRate = 1;
+const money = (n: number) => {
+  const v = n * moneyRate;
+  try {
+    return v.toLocaleString('en', { style: 'currency', currency: moneyCcy, maximumFractionDigits: moneyCcy === 'NGN' ? 0 : 2 });
+  } catch {
+    return `₦${Math.round(n).toLocaleString('en')}`;
+  }
+};
 
 export default function Zakat() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
+
+  /* pass 83-31 — local display currency (NGN base → viewer's currency) */
+  useEffect(() => {
+    let dead = false;
+    void (async () => {
+      try {
+        const { fxQuoteFor } = await import('@/api/client');
+        const q = await fxQuoteFor('NGN');
+        if (!dead && q) { moneyCcy = q.currency; moneyRate = q.rate; }
+      } catch {}
+    })();
+    return () => { dead = true; };
+  }, []);
 
   const [v, setV] = useState<Record<string, string>>({});
   const [goldGrams, setGoldGrams] = useState('');

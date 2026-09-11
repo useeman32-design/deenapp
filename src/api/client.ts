@@ -53,6 +53,7 @@ export const BASE =
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
 const TIMEOUT = 20000; /* pass 83-1: slow mobile networks need more than 9s before we call it a network error */
+/* pass 83-31 — per-request override; group posts pull big media lists */
 
 /**
  * FORCE_DEMO — mock-only mode.
@@ -75,6 +76,8 @@ interface ReqOptions {
   body?: unknown;
   form?: FormData;
   auth?: boolean;
+  /** pass 83-31 — per-request abort timeout (ms). */
+  timeout?: number;
 }
 
 export interface ApiResult<T> {
@@ -94,7 +97,7 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
   if (opts.method === 'POST' && csrf) headers['X-CSRF-Token'] = csrf;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT);
+  const timer = setTimeout(() => controller.abort(), opts.timeout ?? TIMEOUT);
 
   let res: Response;
   try {
@@ -474,7 +477,7 @@ function normalizePostShapes(posts: Post[]): void {
   }
 }
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
-  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
+  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true, timeout: 45000 });
   if (!r.ok || !Array.isArray(r.data.posts)) return null;
   normalizePostShapes(r.data.posts);
   return r.data.posts;
@@ -664,6 +667,21 @@ export async function fxQuote(): Promise<{ currency: string; rate: number } | nu
   const r = await request<{ status?: string; currency?: string; rate_usd_to_currency?: number }>('/api/payments/fx_quote.php');
   if (r.ok && r.data.currency) return { currency: r.data.currency, rate: Number(r.data.rate_usd_to_currency) || 1 };
   return null;
+}
+
+/* pass 83-31 — rate FROM a base currency (e.g. NGN) TO the viewer's currency.
+ * Returns null when the server has no conversion (caller keeps base figures). */
+export async function fxQuoteFor(base: 'NGN' | 'USD'): Promise<{ currency: string; rate: number } | null> {
+  const r = await request<{ status?: string; currency?: string; rate?: number; source?: string }>(`/api/payments/fx_quote.php?base=${base}`);
+  if (r.ok && r.data.currency && Number(r.data.rate) > 0) return { currency: String(r.data.currency), rate: Number(r.data.rate) };
+  return null;
+}
+
+/* pass 83-31 — "Send test notification" (notifications screen button).
+ * Server pushes via Expo to this account's registered devices. */
+export async function sendTestPush(): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string }>('/api/notifications/send_test_expo.php', { method: 'POST', body: {}, auth: true });
+  return { ok: r.ok && r.data?.status === 'success', message: r.data?.message };
 }
 
 export type FlwCheckout = {
@@ -1039,10 +1057,13 @@ export async function createPost(
   images?: Array<{ uri: string; name?: string; type?: string }>,
   video?: { uri: string; name?: string; type?: string },
   onProgress?: (frac: number) => void,
+  /* pass 83-31 — REPOST: id of the original post (caption-only repost) */
+  repostOf?: number,
 ): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
   if (youtubeUrl) form.append('youtube_url', youtubeUrl);
+  if (repostOf != null && repostOf > 0) form.append('repost_of', String(repostOf));
   if (pollOptions && pollOptions.length >= 2) form.append('poll_options', JSON.stringify(pollOptions.slice(0, 6)));
   if (images && images.length) {
     for (const img of images.slice(0, 5)) {
@@ -1336,7 +1357,14 @@ export async function videosRepost(videoId: number, action: 'repost' | 'undo' | 
 
 export async function courses(): Promise<Course[]> {
   const r = await request<{ status?: string; courses?: Course[] }>('/api/courses/list.php');
-  if (r.ok && Array.isArray(r.data.courses)) return r.data.courses;
+  if (r.ok && Array.isArray(r.data.courses)) {
+    /* pass 83-31 — the live list used to REPLACE the whole catalog, so the app
+     * showed only the one course the server knew about (owner report). Now the
+     * server courses lead and the bundled 20 fill in everything missing. */
+    const have = new Set(r.data.courses.map((c) => String(c.slug ?? c.id)));
+    const extra = MOCK_COURSES.filter((m) => !have.has(String(m.slug ?? m.id)));
+    return [...r.data.courses, ...extra];
+  }
   return MOCK_COURSES;
 }
 
