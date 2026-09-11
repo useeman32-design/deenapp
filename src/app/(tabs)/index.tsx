@@ -586,12 +586,8 @@ function HomeInner() {
             Daily Progress
           </T>
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            {/* Quran streak — pass 83-30: taps open the Qur'an screen */}
-            <Pressable
-              accessibilityLabel="quran-streak"
-              onPress={() => { haptic.selection(); router.push('/(tabs)/quran' as never); }}
-              style={({ pressed }) => ({ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.greenBorder, padding: 14, opacity: pressed ? 0.88 : 1 })}
-            >
+            {/* Quran streak */}
+            <View style={{ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.greenBorder, padding: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <FontAwesome5 name="fire" size={13} color={d.goldBright} />
                 <T v="bodyS" style={{ color: d.text, fontWeight: '600', fontSize: 12.5 }}>
@@ -619,7 +615,7 @@ function HomeInner() {
                   icon={<FontAwesome5 name="book-open" size={15} color={d.emerald} />}
                 />
               </View>
-            </Pressable>
+            </View>
 
             {/* Today's goal — pass 42: taps open the goals modal */}
             <Pressable accessibilityLabel="today-goal" onPress={() => { haptic.selection(); setGoalOpen(true); }} style={({ pressed }) => ({ flex: 1, borderRadius: 20, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, padding: 14, opacity: pressed ? 0.88 : 1 })}>
@@ -1630,17 +1626,9 @@ function HexBadge() {
 /* --------------------- Sun path (time-based day arc) --------------------- */
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
-import { AnnouncementModal } from '@/components/AnnouncementModal';
-
 export default function Home() {
   const guest = useIsGuest();
   /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
   void guest;
-  return (
-    <>
-      <HomeInner />
-      {/* pass 83-33 — admin announcements surface here as a modal (server-targeted) */}
-      <AnnouncementModal />
-    </>
-  );
+  return <HomeInner />;
 }

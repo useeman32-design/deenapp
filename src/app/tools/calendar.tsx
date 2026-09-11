@@ -221,7 +221,16 @@ export default function CalendarScreen() {
           );
         })}
 
-        {/* pass 83-30 — the long explanation card at the bottom was removed by owner request */}
+        {/* pass 40 — where the hijri dates + occasions come from */}
+        <View style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 15, borderWidth: 1, borderColor: isDark ? 'rgba(91,200,245,0.35)' : 'rgba(91,200,245,0.3)', backgroundColor: isDark ? 'rgba(91,200,245,0.07)' : 'rgba(91,200,245,0.05)', padding: 13 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <FontAwesome5 name="info-circle" size={13} color="#5BC8F5" />
+            <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>About these dates</T>
+          </View>
+          <T v="caption" style={{ fontSize: 10, color: d.subtext, lineHeight: 15.5 }}>
+            Hijri dates are computed locally with the tabular Islamic calendar (an arithmetic approximation of the Umm al-Qura calendar, usually within ±1 day). Islamic occasions are fixed hijri dates compiled from widely-accepted lists. The month rolls over automatically at each calculated 1st — it does NOT wait for a physical moon sighting, so for Ramadan, Shawwal (Eid al-Fitr) and Dhul-Hijjah always confirm with your local mosque or moon-sighting committee.
+          </T>
+        </View>
 
       </ScrollView>
 

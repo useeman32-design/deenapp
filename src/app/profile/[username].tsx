@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, Modal, Pressable, ScrollView, Share, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -15,8 +15,7 @@ import {
   MOCK_REELS,
   type MockProfile,
 } from '@/api/mocks';
-import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userDonationSummary, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
-import { likeStoreGet, likeStoreHas, likeStoreSet } from '@/lib/likeStore';
+import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
@@ -85,10 +84,6 @@ function PublicProfileScreenInner() {
   const [livePosts, setLivePosts] = useState<import('@/api/types').Post[] | null>(null);
   /* pass 75 — a real scholar's answered questions come from the server */
   const [liveQAs, setLiveQAs] = useState<Array<{ q: string; a: string }> | null>(null);
-  /* pass 83-29 — Charity stat is REAL: successful-donation total from
-   * api/donations/user_summary.php (viewer currency), honest zero while
-   * loading / offline. The old hard-coded "₦ 12.4k" is gone. */
-  const [charityLabel, setCharityLabel] = useState('0');
   /* pass 75 — account tools: report this account (server account_reports) */
   const [reportOpen, setReportOpen] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
@@ -122,20 +117,6 @@ function PublicProfileScreenInner() {
       if (rows.length) setLiveQAs(rows.map((r) => ({ q: r.question || r.title, a: r.answer })));
     });
   }, [liveP]);
-
-  /* pass 83-29 — pull the viewed account's real donation total */
-  useEffect(() => {
-    if (!liveP?.id) return;
-    let on = true;
-    void userDonationSummary(liveP.id).then((sum) => {
-      if (!on || !sum) return;
-      const sym = sum.currency === 'NGN' ? '₦' : sum.currency === 'USD' ? '$' : sum.currency === 'GBP' ? '£' : sum.currency === 'EUR' ? '€' : `${sum.currency} `;
-      const n = sum.total;
-      const compact = n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}m` : n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : (Number.isInteger(n) ? String(n) : n.toFixed(2));
-      setCharityLabel(`${sym}${compact}`);
-    });
-    return () => { on = false; };
-  }, [liveP?.id]);
 
   const profile: MockProfile | null = useMemo(() => {
     /* pass 66-night — real accounts surface from the server even when the
@@ -184,36 +165,10 @@ function PublicProfileScreenInner() {
      * freezes the memo at null and real accounts show "couldn't find". */
   }, [username, liveP]);
 
-  /* pass 83-32 — owner: image/video posts only showed on the profile after a
-   * manual refresh. The posts loader now runs on EVERY screen focus (10s
-   * throttle), so anything posted elsewhere appears the moment you return. */
-  const lastProfilePostsFetch = useRef(0);
-  const loadProfilePosts = useCallback((force = false) => {
-    if (liveP?.id == null) return;
-    if (!force && Date.now() - lastProfilePostsFetch.current < 10000) return;
-    lastProfilePostsFetch.current = Date.now();
-    void srvUserPosts(Number(liveP.id))
-      .then((rows) => {
-        /* pass 83-31 — seed the viewer's REAL like state from the server
-         * (owner: hearts showed unliked on profiles even for liked posts;
-         * re-liking then desynced the count). Local toggles still win. */
-        setLikedPosts(() => {
-          const n = new Set<number>();
-          for (const pp of rows) {
-            if (likeStoreHas(pp.id) ? likeStoreGet(pp.id, false) : !!pp.liked_by_me) n.add(pp.id);
-          }
-          return n;
-        });
-        setLivePosts(rows);
-      })
-      .catch(() => {});
+  useEffect(() => {
+    if (liveP?.id == null) { setLivePosts(null); return; }
+    void srvUserPosts(Number(liveP.id)).then(setLivePosts).catch(() => {});
   }, [liveP?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadProfilePosts();
-    }, [loadProfilePosts]),
-  );
 
   const isOwnProfile = liveP?.id != null && user?.id != null && Number(liveP.id) === Number(user.id);
 
@@ -235,8 +190,7 @@ function PublicProfileScreenInner() {
   if (!profile) {
     if (!ready || liveLoading) {
       /* session still restoring — never flash "not found" for a real account */
-      /* pass 83-28 — dark skeleton used barely-visible ash blocks; now it wears the app's own card tone + gold border like the light theme */
-      return <BreathingContent bar={isDark ? d.card : 'rgba(20,36,28,0.08)'} bg={d.bg} border={isDark ? d.cardBorder : undefined} />;
+      return <BreathingContent bar={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(20,36,28,0.08)'} bg={d.bg} />;
     }
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
@@ -488,7 +442,7 @@ function PublicProfileScreenInner() {
                 { label: 'Posts', value: fmt(Math.max(posts.length, liveP?.posts ?? profile.posts_count)), tab: null },
                 { label: 'Followers', value: fmt(followerCount + (following !== !!liveP?.following_by_me ? (following ? 1 : -1) : 0)), tab: 'followers' },
                 { label: 'Following', value: fmt(followingCount), tab: 'following' },
-                { label: 'Charity', value: charityLabel, tab: null },
+                { label: 'Charity', value: '₦ 12.4k', tab: null },
               ].map((s) => {
                 const inner = (
                   <View
@@ -646,19 +600,18 @@ function PublicProfileScreenInner() {
                   key={p.id}
                   dash={d}
                   lockProfileNav
-                  post={{ ...p, liked_by_me: likeStoreGet(p.id, !!p.liked_by_me), like_count: (p.like_count ?? 0) + (likeStoreGet(p.id, !!p.liked_by_me) === !!p.liked_by_me ? 0 : likeStoreGet(p.id, false) ? 1 : -1) }}
+                  post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
                   group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
                   onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
-                  onLike={(id) => {
-                    likeStoreSet(id, !likedPosts.has(id));
+                  onLike={(id) =>
                     setLikedPosts((prev) => {
                       const n = new Set(prev);
                       if (n.has(id)) n.delete(id);
                       else n.add(id);
                       return n;
-                    });
-                  }}
+                    })
+                  }
                   onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
                 />
               ))
@@ -767,19 +720,18 @@ function PublicProfileScreenInner() {
                   key={p.id}
                   dash={d}
                   lockProfileNav
-                  post={{ ...p, liked_by_me: likeStoreGet(p.id, !!p.liked_by_me), like_count: (p.like_count ?? 0) + (likeStoreGet(p.id, !!p.liked_by_me) === !!p.liked_by_me ? 0 : likeStoreGet(p.id, false) ? 1 : -1) }}
+                  post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
                   group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
                   onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
-                  onLike={(id) => {
-                    likeStoreSet(id, !likedPosts.has(id));
+                  onLike={(id) =>
                     setLikedPosts((prev) => {
                       const n = new Set(prev);
                       if (n.has(id)) n.delete(id);
                       else n.add(id);
                       return n;
-                    });
-                  }}
+                    })
+                  }
                   onDelete={isOwnProfile ? () => { void srvDeletePost(p.id).then((ok) => { if (ok) setLivePosts((prev) => (prev ?? []).filter((x) => x.id !== p.id)); }); } : undefined}
                 />
               ))
@@ -923,7 +875,7 @@ function PublicProfileScreenInner() {
 /* pass 83-12 — owner: the loading state should be the CONTENT breathing,
  * not an icon. A profile-shaped skeleton (avatar, name, bio, stats, posts)
  * that slowly inhales/exhales until the real page is ready. */
-function BreathingContent({ bar, bg, border }: { bar: string; bg: string; border?: string }) {
+function BreathingContent({ bar, bg }: { bar: string; bg: string }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -951,9 +903,9 @@ function BreathingContent({ bar, bg, border }: { bar: string; bg: string; border
       }}
     >
       <View style={{ alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
-        <View style={{ width: 150, height: 15, borderRadius: 8, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
-        <View style={{ width: 104, height: 11, borderRadius: 6, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
+        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: bar }} />
+        <View style={{ width: 150, height: 15, borderRadius: 8, backgroundColor: bar }} />
+        <View style={{ width: 104, height: 11, borderRadius: 6, backgroundColor: bar }} />
       </View>
       <View style={{ alignItems: 'center', gap: 8, marginTop: 6 }}>
         <View style={{ width: '72%', height: 11, borderRadius: 6, backgroundColor: bar }} />
@@ -966,7 +918,7 @@ function BreathingContent({ bar, bg, border }: { bar: string; bg: string; border
       </View>
       <View style={{ gap: 12, marginTop: 10 }}>
         {Array.from({ length: Math.max(2, Math.min(4, Math.floor((height - 420) / 92))) }).map((_, i) => (
-          <View key={i} style={{ height: 80, borderRadius: 16, backgroundColor: bar, borderWidth: border ? 1 : 0, borderColor: border }} />
+          <View key={i} style={{ height: 80, borderRadius: 16, backgroundColor: bar }} />
         ))}
       </View>
     </Animated.View>

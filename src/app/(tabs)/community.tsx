@@ -8,7 +8,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail, loadGroups } from '@/components/Groups';
-import { MOCK_ACCOUNTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING } from '@/api/mocks';
+import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
 import * as api from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { T } from '@/components/T';
@@ -16,7 +16,6 @@ import { storage } from '@/lib/storage';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommunityInbox } from '@/components/CommunityInbox';
 import { CommentsModal } from '@/components/CommentsModal';
-import { likeStoreSet } from '@/lib/likeStore';
 import { VideoModal } from '@/components/VideoModal';
 import { haptic } from '@/lib/haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -53,46 +52,11 @@ function CommunityScreenInner() {
   /* pass 66-night — live community feed: server posts lead, mock stays as the
    * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
    * feed uses ('foryou' → for-you). */
-  /* pass 83-31 — "posts are slow to reflect": paint the LAST feed instantly
-   * from a local cache, then refresh silently on every tab focus (so likes,
-   * deletes and new posts made elsewhere show up as soon as you return). */
-  const FEED_CACHE = 'dl.feed.cache.v1';
-  const lastFeedFetch = useRef(0);
-  const applyFeed = useCallback((rows: Post[]) => {
-    setPosts(rows);
-    try { void storage.setItem(FEED_CACHE, JSON.stringify(rows.slice(0, 40))); } catch {}
-    setLikedPosts(() => {
-      const n = new Set<number>();
-      for (const pp of rows) {
-        if (pp.liked_by_me) n.add(pp.id); else n.delete(pp.id);
-      }
-      return n;
-    });
-  }, []);
-
   useEffect(() => {
-    void storage.getItem(FEED_CACHE).then((c) => {
-      if (c && posts.length <= MOCK_FEED.length) {
-        const cached = JSON.parse(c) as Post[];
-        if (Array.isArray(cached) && cached.length) setPosts(cached);
-      }
+    api.feed('for-you').then((r) => {
+      if (r.posts && r.posts.length) setPosts(r.posts);
     }).catch(() => {});
-    void api.feed('for-you').then((r) => {
-      if (r.posts && r.posts.length) { lastFeedFetch.current = Date.now(); applyFeed(r.posts); }
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      /* silent refresh on focus — at most once per 15s */
-      if (Date.now() - lastFeedFetch.current < 15000) return;
-      lastFeedFetch.current = Date.now();
-      void api.feed('for-you').then((r) => {
-        if (r.posts && r.posts.length) applyFeed(r.posts);
-      }).catch(() => {});
-    }, [applyFeed]),
-  );
 
   /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
    * ayahs…) live in lib/userPosts — surface them above the mock feed */
@@ -171,9 +135,6 @@ function CommunityScreenInner() {
   const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
   /* pass 83-19 — up to 5 photos per post, Instagram-style */
   const [imageAttachs, setImageAttachs] = useState<Array<{ uri: string; name: string }>>([]);
-  /* pass 83-32 — snapshot of the in-flight post, for restore-on-failure */
-  const pendingDraft = useRef<{ text: string; pollOn: boolean; pollOpts: string[]; ytOn: boolean; ytUrl: string; video: typeof videoAttach; images: typeof imageAttachs } | null>(null);
-
   const imageFileRef = useRef<TextInput | null>(null);
 
   /** Pick an image for the post (native picker / web file input). */
@@ -230,7 +191,6 @@ function CommunityScreenInner() {
 
   const togglePostLike = (id: number) => {
     const willLike = !likedPosts.has(id);
-    likeStoreSet(id, willLike); /* pass 83-31 — profile + community share this */
     setLikedPosts((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
@@ -289,20 +249,6 @@ function CommunityScreenInner() {
     if (t === tab) return;
     haptic.selection();
     setTab(t);
-  };
-
-  /* pass 83-32 — a failed post gives everything back to the composer */
-  const restoreComposerDraft = () => {
-    const d = pendingDraft.current;
-    if (!d) { setComposerOpen(true); return; }
-    setCDraft(d.text);
-    setPollOn(d.pollOn);
-    setPollOpts(d.pollOpts);
-    setYtOn(d.ytOn);
-    setYtUrl(d.ytUrl);
-    setVideoAttach(d.video);
-    setImageAttachs(d.images);
-    setComposerOpen(true);
   };
 
   const submitComposer = () => {
@@ -365,7 +311,6 @@ function CommunityScreenInner() {
       if (api.isLive()) {
         const tempId = np.id;
         const heavy = imageAttachs.length > 0 || !!videoAttach;
-        pendingDraft.current = { text: t, pollOn, pollOpts: pollOpts.slice(), ytOn, ytUrl: ytUrl.trim(), video: videoAttach, images: imageAttachs };
         if (heavy) { setPostProg(0); }
         void api
           .createPost(
@@ -383,19 +328,8 @@ function CommunityScreenInner() {
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
             } else {
-              /* pass 83-32 — owner: "show unable to post, not just
-               * disappearing blindly." Drop the optimistic card and hand the
-               * WHOLE draft back (text, attachments, toggles). */
-              setPosts((ps) => ps.filter((x) => x.id !== tempId));
-              restoreComposerDraft();
-              Alert.alert('Unable to post', res.message ? `The server said: ${res.message}\n\nYour text and attachments are back in the composer — try again.` : 'Check your connection and try again — your text and attachments are back in the composer.');
+              Alert.alert('Post not published', 'Your post is on this device only — please check your connection and try again.');
             }
-          })
-          .catch(() => {
-            setPostProg(null);
-            setPosts((ps) => ps.filter((x) => x.id !== tempId));
-            restoreComposerDraft();
-            Alert.alert('Unable to post', 'Check your connection and try again — your text and attachments are back in the composer.');
           });
       }
       setPosting(false);
@@ -1185,25 +1119,12 @@ function CommunityScreenInner() {
                 </>
               ) : null}
 
-              {/* pass 83-28 — thumbnails INSIDE the composer (like the group
-               * composer) instead of a filename row: owner asked for exactly
-               * this for both photos and videos. */}
               {imageAttachs.length ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 }}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, width: 0 }} contentContainerStyle={{ gap: 7, paddingRight: 6 }}>
-                    {imageAttachs.map((m, i) => (
-                      <View key={`${m.uri}-${i}`} style={{ position: 'relative' }}>
-                        <ExpoImage source={{ uri: m.uri }} style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder }} contentFit="cover" />
-                        <Pressable
-                          onPress={() => setImageAttachs((cur) => cur.filter((_, j) => j !== i))}
-                          hitSlop={6}
-                          style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <FontAwesome5 name="times" size={9} color="#fff" />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </ScrollView>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
+                  <FontAwesome5 name="image" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
+                    {imageAttachs.length === 1 ? imageAttachs[0].name : `${imageAttachs.length} photos attached`}
+                  </T>
                   <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
                     <FontAwesome5 name="times-circle" size={14} color={d.faint} />
                   </Pressable>
@@ -1211,10 +1132,8 @@ function CommunityScreenInner() {
               ) : null}
 
               {videoAttach ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-                    <FontAwesome5 name="film" size={16} color="rgba(255,255,255,0.75)" />
-                  </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
+                  <FontAwesome5 name="video" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
                   <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
                     {videoAttach.name}
                   </T>
@@ -1380,7 +1299,7 @@ function CommunityScreenInner() {
       <CommentsModal
         visible={!!commentPost}
         post={commentPost}
-        seed={[]}
+        seed={commentPost ? (MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? []) as SampleComment[] : []}
         postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />

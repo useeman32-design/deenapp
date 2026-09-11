@@ -15,7 +15,6 @@ import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
 import { initGuest } from '@/lib/guest';
-import { IosPwaPrompt } from '@/components/IosPwaPrompt';
 
 initGuest(); // pass 80 — restore guest flag once per app load
 
@@ -66,10 +65,6 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS === 'web' || !user) return;
     initPushNotifications().catch(() => {});
-    /* pass 83-30 — ring the adhan even when DeenLink is closed: rebuild the
-     * lock-screen schedule (respects dl.prayer.settings.v1.adhan; self-guards
-     * to native + no-op on web). */
-    void import('@/lib/adhanNotify').then(({ syncAdhanSchedule }) => syncAdhanSchedule()).catch(() => {});
   }, [user?.id]);
 
   /* pass 69 — unified bookmark mirror: local first (instant UI), then the
@@ -94,10 +89,7 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const el = document.createElement('style');
-    /* pass 83-32 — at the ROOT flavor pathname is '/', and the old replace
-     * returned it verbatim → '//fonts/…' (protocol-relative, host "fonts"). */
-    const dm = window.location.pathname.match(/^(\/deenapp)(?=\/|$)/);
-    const base = dm ? dm[1] : '';
+    const base = window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1');
     const faces = [
       ['Poppins', 'Poppins-Regular'],
       ['Poppins-Medium', 'Poppins-Medium'],
@@ -198,8 +190,6 @@ export default function RootLayout() {
         <UIScaleProvider>
         <AuthProvider>
           <Root />
-          {/* pass 83-31 — iOS Safari: "Add to Home Screen" nudge (dismissable) */}
-          <IosPwaPrompt />
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>

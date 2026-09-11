@@ -19,20 +19,19 @@ import {
   Share,
   Text,
   TextInput,
-  View, AppState } from 'react-native';
+  View,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useFocusEffect } from 'expo-router';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useAuth } from '@/context/AuthContext';
 import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
-import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, type MockReel } from '@/api/mocks';
+import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
@@ -170,10 +169,6 @@ function ReelItem({
     if (active && !paused) player.play();
     else player.pause();
   }, [active, paused, player]);
-
-  /* pass 83-28 — an unmounting reel MUST release its audio (owner: two
-   * reels' audio played at once on native after fast scrolls). */
-  useEffect(() => () => { try { player.pause(); } catch {} }, [player]);
 
   useEffect(() => {
     player.muted = muted;
@@ -549,24 +544,11 @@ type FeedTab = 'foryou' | 'following' | 'friends';
 type LibraryTab = 'saved' | 'liked' | 'reposts';
 
 function VideosFeedInner() {
-  const { user: acct } = useAuth(); /* pass 83-28 — community video cross-posts carry the real handle */
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
 
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou');
   const [index, setIndex] = useState(0);
-  /* pass 83-28 — the pager's videos must go SILENT the moment the user
-   * opens another module (the list stays mounted under tabs) or backgrounds
-   * the app; a paused bool alone can't do it because `active` stayed true. */
-  const [screenOn, setScreenOn] = useState(true);
-  useFocusEffect(useCallback(() => {
-    setScreenOn(true);
-    return () => setScreenOn(false);
-  }, []));
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (st) => setScreenOn(st === 'active'));
-    return () => sub.remove();
-  }, []);
   const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
   /* pass 69 — saved reels live in the unified server-synced bookmark store */
@@ -620,7 +602,7 @@ function VideosFeedInner() {
             id: 1_000_000 + (u.at % 1_000_000),
             src: { uri: u.video! },
             poster: { uri: u.video! },
-            username: acct?.username ?? 'me',
+            username: 'abdalrahman',
             caption: u.text || 'Community video 🎬',
             likes: 0,
             comments: 0,
@@ -1037,7 +1019,7 @@ function VideosFeedInner() {
         renderItem={({ item, index: i }) => (
           <ReelItem
             reel={item}
-            active={i === index && screenOn}
+            active={i === index}
             muted={muted}
             liked={liked.has(item.id)}
             saved={saved.has(item.id)}
@@ -1216,19 +1198,23 @@ function VideosFeedInner() {
                 <FontAwesome5 name="times" size={15} color="rgba(242,247,243,0.5)" />
               </Pressable>
             </View>
-            {/* pass 83-28 — REAL send-to-friends (multi-select, live search,
-             * delivers a real chat share) replacing the fake MOCK_ACCOUNTS
-             * row that only toasted "Sent to @demo". */}
-            <FriendsPicker
-              dark
-              share={{ kind: 'reel', title: shareReel.caption || 'Check out this video', sub: shareReel.username ? `@${shareReel.username} · DeenLink` : undefined, route: `/videos?start=${shareReel.id}` }}
-              onDone={(n2) => {
-                setTimeout(() => {
-                  setShareReel(null);
-                  showToast(`Sent to ${n2} friend${n2 > 1 ? 's' : ''}`);
-                }, 900);
-              }}
-            />
+            <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginBottom: 10 }}>
+              SEND TO
+            </T>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 6 }}>
+              {MOCK_ACCOUNTS.filter((a) => a.username !== 'abdalrahman').map((a) => (
+                <Pressable
+                  key={a.username}
+                  onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); setShareReel(null); }}
+                  style={{ alignItems: 'center', gap: 6, width: 64 }}
+                >
+                  <AvatarImage source={a.photo ?? null} name={a.full_name} size={52} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
+                  <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 10 }}>
+                    {a.full_name.split(' ')[0]}
+                  </T>
+                </Pressable>
+              ))}
+            </ScrollView>
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 14 }} />
             <Pressable
               onPress={async () => {
@@ -1587,7 +1573,7 @@ function VideosFeedInner() {
         inline={Platform.OS !== 'web'}
         post={commentPost}
         videoId={commentReel?.liveId ?? null}
-        seed={[]} /* pass 83-32 — demo comment data removed (owner); live videos use real server comments via videoId */
+        seed={(commentPost ? (REEL_COMMENTS[commentPost.id] ?? []) as SampleComment[] : [])}
         onClose={() => setCommentReel(null)}
       />
     </View>
@@ -1624,7 +1610,6 @@ function MoreRow({ icon, label, tint, onPress }: { icon: string; label: string; 
 
 function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted: () => void }) {
   const { isDark } = useTheme();
-  const { user: acct } = useAuth(); /* pass 83-28 — the reel is posted as the signed-in account, not the demo */
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
   const [picked, setPicked] = useState<{ src: MockReel['src']; poster: MockReel['poster']; label: string; file?: { uri: string; name: string; type?: string } } | null>(null);
@@ -1699,10 +1684,9 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
       const reel = addUserReel({
         src: picked.src,
         poster: picked.poster,
-        /* pass 83-28 — the reel is YOURS: the demo handle is gone. */
-        username: acct?.username ?? 'me',
+        username: 'abdalrahman',
         caption: caption.trim() || 'New video on DeenLink 🎬',
-        music: `Original audio — ${acct?.full_name ?? acct?.username ?? 'me'}`,
+        music: 'Original audio — Abdulrahman',
       });
       /* pass 42 — UNIVERSAL VIDEOS: a new reel ALSO lands in the community feed */
       addUserPost(reel.caption, 'video', {

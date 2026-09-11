@@ -8,7 +8,8 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { loadFatwas, type Fatwa } from '@/lib/ai';
-import { directFatwas, isLive, type DirectFatwa } from '@/api/client';
+import { askUnreadCount, directFatwas, isLive, myQuestions, scholars, submitQuestion, type DirectFatwa, type MyQuestion } from '@/api/client';
+import type { Scholar } from '@/api/types';
 import { storage } from '@/lib/storage';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -20,10 +21,11 @@ import { useBookmarks } from '@/lib/bookmarks';
  * fatwas (see note at the bottom of the screen for how to add one). */
 const SOURCES = [
   { id: 'direct', name: 'Direct Fatwa', bundled: true, note: 'DeenLink Scholars & fatwas from well-known scholars' },
-  /* pass 83-29 — 'Ask a Scholar' removed by owner request */
+  { id: 'ask', name: 'Ask a Scholar', bundled: false, note: 'Send your own question to a verified scholar' },
   { id: 'islamqa', name: 'IslamQA.info', bundled: true, note: '1,080+ rulings in-app' },
 ] as const;
 
+const ASK_CATEGORIES = ['Prayer', 'Fasting', 'Zakah', 'Hajj', 'Marriage', 'Finance', 'Qur\u2019an', 'Other'];
 
 /* Topic categories — the bundled corpus has no category field, so we bucket
  * rulings by matching keywords in the title/question. Counts are computed from
@@ -52,8 +54,6 @@ function categoryOf(f: Fatwa): string | null {
  * searchable rulings list with correct icons. */
 export default function FatwaBrowser() {
   useEffect(() => { markGoal('fatwa').catch(() => {}); }, []);
-  const live = isLive(); /* pass 83-29 — restored: the scholar-inbox card + direct list need it */
-  const { user } = useAuth();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -74,6 +74,51 @@ export default function FatwaBrowser() {
   useEffect(() => { loadFatwas().then(setAll).catch(() => setAll([])); }, []);
   useEffect(() => { directFatwas(30).then(setDirect).catch(() => setDirect([])); }, []);
 
+  /* ── pass 69 — Ask a Scholar: form state, scholar roster, my questions ── */
+  const [scholarList, setScholarList] = useState<Scholar[]>([]);
+  const [myQs, setMyQs] = useState<MyQuestion[]>([]);
+  const [askUnread, setAskUnread] = useState(0);
+  const [askScholar, setAskScholar] = useState<number | null>(null);
+  const [askTitle, setAskTitle] = useState('');
+  const [askDetails, setAskDetails] = useState('');
+  const [askCat, setAskCat] = useState<string | null>(null);
+  const [askPrivate, setAskPrivate] = useState(false);
+  const [askBonus, setAskBonus] = useState(0);
+  const [askBusy, setAskBusy] = useState(false);
+  const [askMsg, setAskMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const live = isLive();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!live || source !== 'ask') { return; }
+    scholars().then((r) => { setScholarList(r); setAskScholar((cur) => cur ?? (r[0]?.id ?? null)); }).catch(() => {});
+    myQuestions().then((r) => { if (r) { setMyQs(r.questions); } }).catch(() => {});
+    askUnreadCount().then(setAskUnread).catch(() => {});
+  }, [live, source]);
+  const sendQuestion = async () => {
+    if (askBusy || !askScholar) { return; }
+    if (askTitle.trim().length < 5) { setAskMsg({ ok: false, text: 'Give your question a short title (5+ characters).' }); return; }
+    if (askDetails.trim().length < 10) { setAskMsg({ ok: false, text: 'Add a few more details (10+ characters).' }); return; }
+    haptic.light();
+    setAskBusy(true);
+    setAskMsg(null);
+    const r = await submitQuestion({
+      scholar_id: askScholar,
+      title: askTitle.trim(),
+      details: askDetails.trim(),
+      privacy: askPrivate ? 'private' : 'public',
+      category: askCat ?? undefined,
+      additional_deenpoints: askBonus > 0 ? askBonus : undefined,
+    }).catch(() => ({ ok: false }));
+    setAskBusy(false);
+    if (r.ok) {
+      setAskMsg({ ok: true, text: 'Question sent — the scholar will answer in-app. You\u2019ll see it under My Questions.' });
+      setAskTitle(''); setAskDetails(''); setAskBonus(0);
+      const fresh = await myQuestions().catch(() => null);
+      if (fresh) { setMyQs(fresh.questions); }
+    } else {
+      setAskMsg({ ok: false, text: 'Could not send your question. Check your connection and try again.' });
+    }
+  };
   const savedKey = (f: unknown, i: number) => { const id = (f as { id?: number })?.id; return id ? `d${id}` : `i${i}`; };
   const isSaved = (i: number) => { const f = all?.[i]; return f ? bmFatwa.has(savedKey(f, i)) : false; };
   const toggleSave = (i: number) => {
@@ -178,7 +223,7 @@ export default function FatwaBrowser() {
                 style={{ flex: 1, borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 11, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.07)') : d.card }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <FontAwesome5 name={s.id === 'direct' ? 'user-graduate' : 'database'} size={10} color={on ? green : d.faint} />
+                  <FontAwesome5 name={s.id === 'direct' ? 'user-graduate' : s.id === 'ask' ? 'question-circle' : 'database'} size={10} color={on ? green : d.faint} />
                   <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: on ? green : d.text }}>{s.name}</T>
                 </View>
                 <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 3 }}>{s.note}</T>
@@ -187,7 +232,126 @@ export default function FatwaBrowser() {
           })}
         </View>
 
-        {source === 'direct' ? (
+        {source === 'ask' ? (
+          /* ── pass 69 — ASK A SCHOLAR: form + my questions (live API) ── */
+          <View style={{ marginBottom: 16 }}>
+            {!live ? (
+              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16 }}>
+                <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.subtext }}>Ask a Scholar is available on the live app — sign in at app.deenlink.org to send your question to a verified scholar.</T>
+              </View>
+            ) : (
+              <>
+                <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 12, gap: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <FontAwesome5 name="user-graduate" size={11} color={green} />
+                    <T v="h3" style={{ fontSize: 13, fontWeight: '800' }}>Ask a Scholar</T>
+                  </View>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 1, color: d.faint }}>CHOOSE A SCHOLAR</T>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
+                    {scholarList.map((sc) => {
+                      const on = askScholar === sc.id;
+                      return (
+                        <Pressable
+                          key={sc.id}
+                          onPress={() => { haptic.selection(); setAskScholar(sc.id); }}
+                          style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : 'transparent', paddingHorizontal: 12, paddingVertical: 8 }}
+                        >
+                          <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: on ? green : d.subtext }}>{sc.display_name || sc.title || `Scholar ${sc.id}`}</T>
+                        </Pressable>
+                      );
+                    })}
+                    {scholarList.length === 0 ? <T v="caption" style={{ fontSize: 11, color: d.faint }}>Loading scholars…</T> : null}
+                  </ScrollView>
+                  <TextInput
+                    value={askTitle}
+                    onChangeText={setAskTitle}
+                    placeholder="Question title (short)"
+                    placeholderTextColor={d.faint}
+                    maxLength={200}
+                    style={{ borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)', paddingHorizontal: 12, paddingVertical: 11, fontSize: 12.5, color: d.text }}
+                  />
+                  <TextInput
+                    value={askDetails}
+                    onChangeText={setAskDetails}
+                    placeholder="Describe your question in detail…"
+                    placeholderTextColor={d.faint}
+                    maxLength={5000}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    style={{ borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(20,36,28,0.02)', paddingHorizontal: 12, paddingVertical: 11, fontSize: 12.5, color: d.text, minHeight: 84 }}
+                  />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                    {ASK_CATEGORIES.map((c) => {
+                      const on = askCat === c;
+                      return (
+                        <Pressable key={c} onPress={() => { haptic.selection(); setAskCat(on ? null : c); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent', paddingHorizontal: 11, paddingVertical: 6 }}>
+                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? green : d.subtext }}>{c}</T>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {([false, true] as const).map((pv) => {
+                      const on = askPrivate === pv;
+                      return (
+                        <Pressable key={String(pv)} onPress={() => { haptic.selection(); setAskPrivate(pv); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent', paddingHorizontal: 11, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <FontAwesome5 name={pv ? 'lock' : 'globe-africa'} size={9} color={on ? green : d.faint} />
+                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? green : d.subtext }}>{pv ? 'Private' : 'Public'}</T>
+                        </Pressable>
+                      );
+                    })}
+                    <View style={{ flex: 1 }} />
+                    <Pressable onPress={() => setAskBonus((b) => Math.max(0, b - 25))} hitSlop={8} style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                      <FontAwesome5 name="minus" size={9} color={d.subtext} />
+                    </Pressable>
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.subtext, minWidth: 92, textAlign: 'center' }}>{askBonus > 0 ? `+${askBonus} pts bonus` : 'No bonus'}</T>
+                    <Pressable onPress={() => setAskBonus((b) => Math.min(500, b + 25))} hitSlop={8} style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                      <FontAwesome5 name="plus" size={9} color={d.subtext} />
+                    </Pressable>
+                  </View>
+                  <Pressable
+                    onPress={() => { void sendQuestion(); }}
+                    disabled={askBusy || !askScholar}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 12, backgroundColor: askBusy || !askScholar ? d.bgSoft : green, opacity: pressed ? 0.85 : 1 })}
+                  >
+                    {askBusy ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={11} color="#fff" />}
+                    <T v="bodyS" style={{ fontWeight: '900', fontSize: 12.5, color: askBusy || !askScholar ? d.faint : '#fff' }}>{askBusy ? 'Sending…' : 'Send question'}</T>
+                  </Pressable>
+                  {askMsg ? <T v="caption" style={{ fontSize: 11, lineHeight: 16, color: askMsg.ok ? green : '#FF6B6B' }}>{askMsg.text}</T> : null}
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <FontAwesome5 name="list" size={11} color={green} />
+                  <T v="h3" style={{ fontSize: 13, fontWeight: '800' }}>My Questions</T>
+                  {askUnread > 0 ? (
+                    <View style={{ minWidth: 17, borderRadius: 9, backgroundColor: green, paddingHorizontal: 5, paddingVertical: 1.5, alignItems: 'center' }}>
+                      <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#fff' }}>{askUnread} new</T>
+                    </View>
+                  ) : null}
+                </View>
+                {myQs.length === 0 ? (
+                  <T v="caption" style={{ fontSize: 11.5, color: d.faint, textAlign: 'center', paddingVertical: 16 }}>You haven\u2019t asked anything yet.</T>
+                ) : myQs.map((mq) => {
+                  const answered = String(mq.status).toLowerCase() === 'answered';
+                  return (
+                    <View key={mq.id} style={{ borderRadius: 14, borderWidth: 1, borderColor: answered ? (isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.28)') : d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <T v="bodyS" numberOfLines={2} style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: d.text }}>{mq.title}</T>
+                        <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: answered ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)') : 'rgba(232,201,106,0.16)' }}>
+                          <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: answered ? green : '#C9A227' }}>{answered ? 'ANSWERED' : String(mq.status || 'pending').toUpperCase()}</T>
+                        </View>
+                      </View>
+                      {answered && mq.answer ? (
+                        <T v="bodyS" numberOfLines={4} style={{ fontSize: 11.5, lineHeight: 17, color: d.subtext, marginTop: 7 }}>{mq.answer}</T>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </View>
+        ) : source === 'direct' ? (
           /* ── DIRECT FATWAS: DeenLink scholars' answered public questions ── */
           <View style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>

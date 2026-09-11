@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { Animated, Platform, Pressable, ScrollView, View } from 'react-native';
-import type { DashTheme } from '@/constants/theme';
-import { sendTestPush } from '@/api/client';
-import { initWebPush } from '@/lib/push';
+import { Animated, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -192,12 +189,6 @@ function NotificationsInner() {
         </Pressable>
       </View>
 
-      {/* pass 83-31 — "Send test notification": owner asked for a button that
-       * fires a REAL sample push so registration can be verified end-to-end.
-       * Server endpoint pushes via Expo to this account's devices; on web we
-       * also raise a local Notification for instant feedback. */}
-      <TestPushRow d={d} isDark={isDark} />
-
       {loading ? (
         <ScrollView showsVerticalScrollIndicator={false}>
           <LoadingRows card={d.card} cardBorder={d.cardBorder} />
@@ -251,58 +242,6 @@ function NotificationsInner() {
           })}
         </ScrollView>
       )}
-    </View>
-  );
-}
-
-/** pass 83-31 — the sample-notification button row. */
-function TestPushRow({ d, isDark }: { d: DashTheme; isDark: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const send = async () => {
-    if (busy) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      let local = '';
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
-        try {
-          /* pass 83-32 — pressing the button IS the user gesture: ask for
-           * permission + register the subscription BEFORE the server fires,
-           * so the installed PWA actually has a channel to receive it on. */
-          if (Notification.permission !== 'denied') {
-            await initWebPush();
-          }
-          if (Notification.permission === 'granted') {
-            new Notification('DeenLink', { body: 'Push notifications are working! 🎉 (local preview)' });
-            local = ' — browser preview shown';
-          } else if (Notification.permission === 'default') {
-            local = ' — allow notifications in the browser prompt to receive it';
-          }
-        } catch {}
-      }
-      const res = await sendTestPush();
-      setResult(res.ok ? `Sent! It should land on your signed-in device${local === '' ? '' : local}.` : `Couldn't send (${res.message ?? 'not registered or offline'}).${local}`);
-    } catch {
-      setResult("Couldn't send — check your connection.");
-    } finally {
-      setBusy(false);
-      setTimeout(() => setResult(null), 6000);
-    }
-  };
-  return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
-      <Pressable
-        onPress={() => { void send(); }}
-        disabled={busy}
-        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: pressed ? (isDark ? 'rgba(46,204,113,0.14)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)'), paddingHorizontal: 13, paddingVertical: 11, opacity: busy ? 0.7 : 1 })}
-      >
-        <FontAwesome5 name={busy ? 'circle-notch' : 'paper-plane'} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
-        <View style={{ flex: 1 }}>
-          <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{busy ? 'Sending…' : 'Send test notification'}</T>
-          {result ? <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2 }}>{result}</T> : <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }}>Pushes a real sample to your signed-in devices</T>}
-        </View>
-      </Pressable>
     </View>
   );
 }

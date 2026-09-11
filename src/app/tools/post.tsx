@@ -70,7 +70,7 @@ function PostScreenInner() {
         </ScrollView>
       ) : null}
       {missed ? (
-        <LoadError message="This post was deleted or is no longer available." onBack={() => goBack(router)} faint={d.faint} subtext={d.subtext} text={d.text} cardBorder={d.cardBorder} emerald={d.emerald} darkText={isDark ? '#062312' : '#fff'} />
+        <LoadError message="Couldn't load this post — it may have been deleted." onBack={() => goBack(router)} faint={d.faint} subtext={d.subtext} text={d.text} cardBorder={d.cardBorder} emerald={d.emerald} darkText={isDark ? '#062312' : '#fff'} />
       ) : null}
 
       {post ? (

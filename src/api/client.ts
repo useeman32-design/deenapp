@@ -13,7 +13,6 @@
  * UI always works in previews.
  */
 
-import { Platform } from 'react-native';
 import { storage } from '@/lib/storage';
 import {
   MOCK_COURSES,
@@ -53,7 +52,6 @@ export const BASE =
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
 const TIMEOUT = 20000; /* pass 83-1: slow mobile networks need more than 9s before we call it a network error */
-/* pass 83-31 — per-request override; group posts pull big media lists */
 
 /**
  * FORCE_DEMO — mock-only mode.
@@ -76,8 +74,6 @@ interface ReqOptions {
   body?: unknown;
   form?: FormData;
   auth?: boolean;
-  /** pass 83-31 — per-request abort timeout (ms). */
-  timeout?: number;
 }
 
 export interface ApiResult<T> {
@@ -97,7 +93,7 @@ async function request<T = Record<string, unknown>>(path: string, opts: ReqOptio
   if (opts.method === 'POST' && csrf) headers['X-CSRF-Token'] = csrf;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeout ?? TIMEOUT);
+  const timer = setTimeout(() => controller.abort(), TIMEOUT);
 
   let res: Response;
   try {
@@ -373,7 +369,7 @@ export async function reportPost(postId: number, reason: string): Promise<boolea
 }
 
 /* pass 66-night — groups, server-backed (schema self-creates in common.php). */
-export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string; my_role?: 'owner' | 'admin' | 'member' | null; members?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; role: string }>; my_request_pending?: boolean; pending_requests?: number };
+export type GroupRow = { id: number; name: string; bio?: string | null; desc?: string | null; category?: string | null; emoji?: string | null; cover?: string | null; member_count: number; is_member: boolean; is_owner: boolean; open_join: boolean; created_at?: string; my_role?: 'owner' | 'admin' | 'member' | null; members?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; role: string }> };
 export async function groupsList(q?: string): Promise<GroupRow[] | null> {
   /* pass 83-25 — ?q= searches name/bio/desc/category server-side */
   const r = await request<{ status?: string; groups?: GroupRow[] }>(`/api/groups/list.php${q && q.trim() ? `?q=${encodeURIComponent(q.trim().slice(0, 60))}` : ''}`, { auth: true });
@@ -387,49 +383,12 @@ export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
   return r.ok;
 }
-/* pass 83-28 — join REQUESTS: closed groups take a request the owner/admins
- * approve or decline (was: a hard 403 with no way in). 'requested' = queued. */
-export async function groupJoinRich(id: number, join: boolean): Promise<'joined' | 'requested' | 'left' | null> {
-  const r = await request<{ status?: string; message?: string }>('/api/groups/join.php', { method: 'POST', body: { group_id: id, join }, auth: true });
-  if (!r.ok) return null;
-  if (!join) return 'left';
-  return r.data.status === 'requested' ? 'requested' : 'joined';
-}
-export async function groupJoinRequests(groupId: number): Promise<Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at?: string }> | null> {
-  const r = await request<{ status?: string; requests?: Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null; requested_at?: string }> }>('/api/groups/members.php', {
-    method: 'POST', body: { group_id: groupId, action: 'requests' }, auth: true,
-  });
-  return r.ok && Array.isArray(r.data.requests) ? r.data.requests : null;
-}
-export async function groupJoinDecide(groupId: number, userId: number, approve: boolean): Promise<{ ok: boolean; message?: string }> {
-  const r = await request<{ status?: string; message?: string }>('/api/groups/members.php', {
-    method: 'POST', body: { group_id: groupId, action: approve ? 'approve' : 'decline', user_id: userId }, auth: true,
-  });
-  return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
-}
 /* pass 83-25 — owner/admin member management (add/remove/set_role). */
-export type GroupAddDenial = { username: string; full_name: string };
-export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string; denial?: GroupAddDenial }> {
-  const r = await request<{ status?: string; message?: string; role?: string; code?: string; username?: string; full_name?: string }>('/api/groups/members.php', {
+export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string; role?: string }>('/api/groups/members.php', {
     method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,
   });
-  if (r.ok) return { ok: true };
-  /* pass 83-29 — target's "Allow group adding" is OFF → structured denial */
-  const denial = r.data?.code === 'no_group_add' && r.data.username
-    ? { username: String(r.data.username), full_name: String(r.data.full_name ?? '') }
-    : undefined;
-  return { ok: false, message: r.data?.message || 'Please try again.', denial };
-}
-
-/* pass 83-29 — the Settings → Privacy "Allow group adding" switch, mirrored
- * server-side so the rule binds every admin's client, not just this device. */
-export async function setAllowGroupAdd(allow: boolean): Promise<boolean> {
-  const r = await request<{ status?: string }>('/api/users/group_privacy.php', { method: 'POST', body: { allow: allow ? 1 : 0 }, auth: true });
-  return r.ok && r.data?.status === 'success';
-}
-export async function getAllowGroupAdd(): Promise<boolean | null> {
-  const r = await request<{ status?: string; allow_group_add?: number }>('/api/users/group_privacy.php', { auth: true });
-  return r.ok && r.data?.status === 'success' ? Number(r.data.allow_group_add ?? 1) !== 0 : null;
+  return r.ok ? { ok: true } : { ok: false, message: r.data?.message || 'Please try again.' };
 }
 export async function groupCreate(data: { name: string; bio?: string; category?: string; emoji?: string; open_join?: boolean }): Promise<{ id: number } | null> {
   const r = await request<{ status?: string; id?: number }>('/api/groups/create.php', { method: 'POST', body: data, auth: true });
@@ -450,26 +409,28 @@ function normalizePostShapes(posts: Post[]): void {
   for (const p of posts) {
     const sp = mapServerPoll((p as { poll?: unknown }).poll);
     if (sp) (p as { poll?: unknown }).poll = sp;
+    if (Array.isArray(p.media)) {
+      p.media = p.media.map((m) => {
+        const mm = m as { url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
+        if (mm.url == null && mm.image_url_1080 != null) {
+          return { type: 'image', url: absMedia(String(mm.image_url_1080)), thumb_url: absMedia(String(mm.image_url_360 ?? mm.image_url_1080)) };
+        }
+        return m;
+      });
+    }
     const au = (p as { audio_url?: unknown }).audio_url;
     if (typeof au === 'string' && au) (p as { audio_url?: string }).audio_url = absMedia(au);
-    /* pass 83-28 — the VIDEO lift runs BEFORE the image lift and the image
-     * lift SKIPS video rows. Before, an image-shaped row carrying a
-     * video_url could be turned into a broken "image" (unplayable empty
-     * media block — the owner's empty-video report) and the video lift
-     * could miss it entirely. */
+    /* pass 83-19 — video media rows ride as {type:'video', video_url}; lift it
+     * onto the post so FeedCard's existing video player renders it. */
     if (!p.video_url && Array.isArray(p.media)) {
       const vm = p.media.find((m) => (m as { video_url?: unknown }).video_url != null) as { video_url?: unknown } | undefined;
       if (vm && typeof vm.video_url === 'string' && vm.video_url) p.video_url = absMedia(vm.video_url);
     }
     if (Array.isArray(p.media)) {
       p.media = p.media.map((m) => {
-        const mm = m as { video_url?: unknown; url?: unknown; image_url_1080?: unknown; image_url_360?: unknown };
-        if (mm.video_url != null) {
-          /* video rows stay video rows — never lifted into images */
-          return mm.url != null ? m : { ...m, type: 'video', url: absMedia(String(mm.video_url)) };
-        }
-        if (mm.url == null && mm.image_url_1080 != null) {
-          return { type: 'image', url: absMedia(String(mm.image_url_1080)), thumb_url: absMedia(String(mm.image_url_360 ?? mm.image_url_1080)) };
+        const mm = m as { video_url?: unknown; url?: unknown };
+        if (mm.video_url != null && mm.url == null) {
+          return { ...m, type: 'video', url: absMedia(String(mm.video_url)) };
         }
         return m;
       });
@@ -477,7 +438,7 @@ function normalizePostShapes(posts: Post[]): void {
   }
 }
 export async function groupPosts(id: number): Promise<import('@/api/types').Post[] | null> {
-  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true, timeout: 45000 });
+  const r = await request<{ status?: string; posts?: import('@/api/types').Post[] }>(`/api/groups/posts.php?id=${id}`, { auth: true });
   if (!r.ok || !Array.isArray(r.data.posts)) return null;
   normalizePostShapes(r.data.posts);
   return r.data.posts;
@@ -491,13 +452,12 @@ export async function groupCreatePost(
   video?: { uri: string; name?: string; type?: string },
   youtubeUrl?: string,
   onProgress?: (frac: number) => void,
-): Promise<{ id: number | null; message?: string } | null> {
+): Promise<{ id: number } | null> {
   /* pass 83-10 — photos/audio go multipart (same recipe as the feed's
    * createPost: blob: URIs become Files on web, {uri} parts native).
    * pass 83-10b/c — poll options ride along on either transport.
    * pass 83-25 — + local video + YouTube link + image compression + real
-   * upload progress (uploadForm, like the feed composer).
-   * pass 83-28 — failures carry the server's message back to the composer. */
+   * upload progress (uploadForm, like the feed composer). */
   const opts = (pollOptions ?? []).map((o) => o.trim()).filter(Boolean).slice(0, 6);
   const yt = (youtubeUrl ?? '').trim();
   const hasMedia = (!!images && images.length > 0) || !!audio || !!video;
@@ -533,18 +493,16 @@ export async function groupCreatePost(
       }
     }
     const r = hasMedia
-      ? await uploadForm<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', form, onProgress)
-      : await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
-    /* pass 83-28 — the server's own message rides back ("You are not a
-     * member…", "Posting too fast…") so failures are no longer a mystery */
-    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : { id: null, message: r.data?.message };
+      ? await uploadForm<{ status?: string; id?: number }>('/api/groups/create_post.php', form, onProgress)
+      : await request<{ status?: string; id?: number }>('/api/groups/create_post.php', { method: 'POST', form, auth: true });
+    return r.ok && r.data && r.data.id ? { id: r.data.id as number } : null;
   }
-  const r = await request<{ status?: string; id?: number; message?: string }>('/api/groups/create_post.php', {
+  const r = await request<{ status?: string; id?: number }>('/api/groups/create_post.php', {
     method: 'POST',
     body: { group_id: groupId, content_text: contentText, ...(opts.length >= 2 ? { poll_options: opts } : {}) },
     auth: true,
   });
-  return r.ok && r.data.id ? { id: r.data.id as number } : { id: null, message: r.data?.message };
+  return r.ok && r.data.id ? { id: r.data.id as number } : null;
 }
 
 /* pass 83-25 — videos-page uploads hit the server (single-shot upload.php path:
@@ -667,21 +625,6 @@ export async function fxQuote(): Promise<{ currency: string; rate: number } | nu
   const r = await request<{ status?: string; currency?: string; rate_usd_to_currency?: number }>('/api/payments/fx_quote.php');
   if (r.ok && r.data.currency) return { currency: r.data.currency, rate: Number(r.data.rate_usd_to_currency) || 1 };
   return null;
-}
-
-/* pass 83-31 — rate FROM a base currency (e.g. NGN) TO the viewer's currency.
- * Returns null when the server has no conversion (caller keeps base figures). */
-export async function fxQuoteFor(base: 'NGN' | 'USD'): Promise<{ currency: string; rate: number } | null> {
-  const r = await request<{ status?: string; currency?: string; rate?: number; source?: string }>(`/api/payments/fx_quote.php?base=${base}`);
-  if (r.ok && r.data.currency && Number(r.data.rate) > 0) return { currency: String(r.data.currency), rate: Number(r.data.rate) };
-  return null;
-}
-
-/* pass 83-31 — "Send test notification" (notifications screen button).
- * Server pushes via Expo to this account's registered devices. */
-export async function sendTestPush(): Promise<{ ok: boolean; message?: string }> {
-  const r = await request<{ status?: string; message?: string }>('/api/notifications/send_test_expo.php', { method: 'POST', body: {}, auth: true });
-  return { ok: r.ok && r.data?.status === 'success', message: r.data?.message };
 }
 
 export type FlwCheckout = {
@@ -996,46 +939,8 @@ function uploadForm<T>(url: string, form: FormData, onProgress?: (frac: number) 
 }
 
 /* pass 83-24 — shrink photos before upload (owner: 4 images froze the app):
- * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error.
- * pass 83-28 — web NEVER touches expo-image-manipulator: the dynamic import
- * isn't in the web bundle, and Metro's failed-require path calls
- * ErrorUtils.reportFatalError BEFORE our try/catch — that was the crash
- * screen on every web photo post. Web now compresses with a canvas
- * (createImageBitmap decodes off the main thread), which also kills the
- * freeze the owner saw when posting images. */
-async function compressImageWeb(uri: string): Promise<string> {
-  try {
-    const W = typeof window !== 'undefined' ? window : undefined;
-    if (!W || typeof W.createImageBitmap !== 'function' || typeof document === 'undefined') return uri;
-    let bmp: ImageBitmap;
-    if (uri.startsWith('blob:') || uri.startsWith('data:')) {
-      const blob = await fetch(uri).then((r) => r.blob());
-      bmp = await createImageBitmap(blob);
-    } else {
-      bmp = await createImageBitmap(await fetch(uri).then((r) => r.blob()));
-    }
-    const MAX = 1600;
-    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
-    if (scale >= 1) { bmp.close(); return uri; }
-    const w = Math.max(1, Math.round(bmp.width * scale));
-    const h = Math.max(1, Math.round(bmp.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) { bmp.close(); return uri; }
-    ctx.drawImage(bmp, 0, 0, w, h);
-    bmp.close();
-    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.78));
-    if (!blob) return uri;
-    /* blob: URL — createPost already turns blob: URIs into Files */
-    return URL.createObjectURL(blob);
-  } catch {
-    return uri;
-  }
-}
-
+ * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error. */
 export async function compressImageForUpload(uri: string): Promise<string> {
-  if (typeof window !== 'undefined' && Platform.OS === 'web') return compressImageWeb(uri);
   try {
     const IM = await import('expo-image-manipulator');
     const info = await (IM as { getImageInfoAsync?: (u: string) => Promise<{ width: number; height: number }> }).getImageInfoAsync?.(uri).catch(() => null);
@@ -1057,13 +962,10 @@ export async function createPost(
   images?: Array<{ uri: string; name?: string; type?: string }>,
   video?: { uri: string; name?: string; type?: string },
   onProgress?: (frac: number) => void,
-  /* pass 83-31 — REPOST: id of the original post (caption-only repost) */
-  repostOf?: number,
-): Promise<{ ok: boolean; post?: Post; id?: number | null; message?: string }> {
+): Promise<{ ok: boolean; post?: Post; id?: number | null }> {
   const form = new FormData();
   if (contentText) form.append('content_text', contentText);
   if (youtubeUrl) form.append('youtube_url', youtubeUrl);
-  if (repostOf != null && repostOf > 0) form.append('repost_of', String(repostOf));
   if (pollOptions && pollOptions.length >= 2) form.append('poll_options', JSON.stringify(pollOptions.slice(0, 6)));
   if (images && images.length) {
     for (const img of images.slice(0, 5)) {
@@ -1088,11 +990,10 @@ export async function createPost(
   }
   const hasMedia = formHasFiles(form);
   const r = hasMedia
-    ? await uploadForm<{ status?: string; post?: Post; post_id?: number; id?: number; message?: string }>('/api/feed/create_post.php', form, onProgress)
-    : await request<{ status?: string; post?: Post; post_id?: number; id?: number; message?: string }>('/api/feed/create_post.php', { method: 'POST', form });
+    ? await uploadForm<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', form, onProgress)
+    : await request<{ status?: string; post?: Post; post_id?: number; id?: number }>('/api/feed/create_post.php', { method: 'POST', form });
   if (r.ok && r.data) return { ok: true, post: r.data.post, id: r.data.post_id ?? r.data.id ?? null };
-  /* pass 83-32 — surface the server's own reason (rate limit, membership…) */
-  return { ok: false, message: r.data?.message };
+  return { ok: false };
 }
 
 /* FormData has no cross-platform "is empty" check */
@@ -1293,15 +1194,6 @@ export async function donationSummary(): Promise<{ total: number; count: number;
   return null;
 }
 
-/* pass 83-29 — public per-user donation totals (profile Charity stat).
- * Server: api/donations/user_summary.php — no login required; converts to the
- * viewer's display currency. Returns null when offline/not live. */
-export async function userDonationSummary(userId: number): Promise<{ total: number; count: number; currency: string } | null> {
-  const r = await request<{ status?: string; total?: number; count?: number; currency?: string }>(`/api/donations/user_summary.php?user_id=${Number(userId)}`, { auth: true });
-  if (r.ok && r.data.status === 'success') return { total: Number(r.data.total ?? 0), count: Number(r.data.count ?? 0), currency: String(r.data.currency ?? 'USD') };
-  return null;
-}
-
 /* ---- qur'an extras ---- */
 export type ServerReciter = {
   reciter_key: string;
@@ -1358,14 +1250,7 @@ export async function videosRepost(videoId: number, action: 'repost' | 'undo' | 
 
 export async function courses(): Promise<Course[]> {
   const r = await request<{ status?: string; courses?: Course[] }>('/api/courses/list.php');
-  if (r.ok && Array.isArray(r.data.courses)) {
-    /* pass 83-31 — the live list used to REPLACE the whole catalog, so the app
-     * showed only the one course the server knew about (owner report). Now the
-     * server courses lead and the bundled 20 fill in everything missing. */
-    const have = new Set(r.data.courses.map((c) => String(c.slug ?? c.id)));
-    const extra = MOCK_COURSES.filter((m) => !have.has(String(m.slug ?? m.id)));
-    return [...r.data.courses, ...extra];
-  }
+  if (r.ok && Array.isArray(r.data.courses)) return r.data.courses;
   return MOCK_COURSES;
 }
 
@@ -1549,16 +1434,6 @@ export async function awardDeenPoints(activity: string): Promise<{ ok: boolean; 
 }
 
 /** pass 49 — register this device's Expo push token so the server can deliver mobile push. */
-/* pass 83-30 — browser (VAPID) push: public key + subscription save */
-export async function webPushPublicKey(): Promise<string | null> {
-  const r = await request<{ status?: string; public_key?: string }>('/api/notifications/web_push_public_key.php', { auth: true });
-  return r.ok && r.data?.public_key ? String(r.data.public_key) : null;
-}
-export async function webPushSubscribe(subscription: unknown): Promise<boolean> {
-  const r = await request<{ status?: string }>('/api/notifications/web_push_subscribe.php', { method: 'POST', body: { subscription }, auth: true });
-  return r.ok && r.data?.status === 'success';
-}
-
 export async function registerPushToken(token: string, platform?: string): Promise<{ ok: boolean }> {
   if (FORCE_DEMO) return { ok: true };
   const r = await request<{ status?: string }>('/api/notifications/register_expo.php', {
@@ -1583,32 +1458,10 @@ export async function unreadNotifications(): Promise<number> {
   return r.ok ? r.data.unread_count ?? 0 : 0;
 }
 
-export type AnnouncementItem = {
-  id: number;
-  name: string;
-  target: string;
-  countries: string[];
-  userTypes: string[];
-  mediaType: 'image' | 'video' | 'youtube' | string;
-  mediaUrl: string;
-  mediaUrlRaw: string;
-  youtubeEmbedUrl: string;
-  actionButtonLabel: string;
-  actionButtonUrl: string;
-  startDate: string;
-  endDate: string;
-  singleDate: string;
-  startTime: string;
-  [k: string]: unknown;
-};
-
-/* pass 83-33 — home-screen announcement modal payload. The server does the
- * targeting (country / user-type), date window + caching; it returns at most
- * ONE announcement plus a dismiss_key that changes when the admin edits it. */
-export async function activeAnnouncement(): Promise<{ item: AnnouncementItem | null; dismissKey: string } | null> {
-  const r = await request<{ status?: string; announcement?: AnnouncementItem | null; dismiss_key?: string }>('/api/announcements/active.php');
-  if (!r.ok) return null;
-  return { item: r.data.announcement ?? null, dismissKey: String(r.data.dismiss_key ?? '') };
+export async function announcement(): Promise<string | null> {
+  const r = await request<{ status?: string; text?: string; announcement?: string }>('/api/announcements/active.php');
+  if (r.ok) return r.data.text ?? r.data.announcement ?? null;
+  return null;
 }
 
 /* pass 44 — 6-digit email OTP for registration (api/auth/send_otp.php + verify_otp.php). */
@@ -1698,8 +1551,6 @@ export async function prayerTimesCached(locationHash: string): Promise<PrayerTim
 
 /* Slice 9 — live chat (DM + group). */
 export type ChatConversation = { id: number; type: 'dm' | 'group'; title: string; last_body: string | null; peer: { id: number; username: string } | null; with_username?: string; with_photo?: string | null; peer_seen?: string | null; kind?: string;
-  /* pass 83-29 — username of whoever wrote last_body (inbox preview prefix) */
-  last_sender?: string | null;
   /* pass 74 — message requests: 'request' until the recipient accepts, 'declined' once blocked/reported */
   conv_status?: 'request' | 'active' | 'declined'; requested_by?: number | null;
   /* pass 74 — peer display name so the inbox never shows a mock label */
@@ -1938,6 +1789,6 @@ export const api = {
   dailyCheckin,
   wallpapers,
   unreadNotifications,
-  activeAnnouncement,
+  announcement,
   prayerTimesCached,
 };

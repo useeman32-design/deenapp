@@ -320,9 +320,6 @@ export function CommentsModal({
   const liveVideo = videoId != null && videoId > 0 && isLive();
   const live = (postId != null && postId > 0 && isLive()) || liveVideo;
   const me = live && authUser ? { name: authUser.full_name || authUser.username, handle: authUser.username } : ME;
-  /* pass 83-32 — no live backend (demo reel, offline post)? Comments must NOT
-   * post as the demo account (owner report). The composer becomes a note. */
-  const hasLiveBackend = liveVideo || (live && postId != null);
   const mapServer = (c: ServerComment): SampleComment => ({
     id: c.id,
     name: c.user?.name || c.user?.username || 'DeenLink',
@@ -605,7 +602,7 @@ export function CommentsModal({
 
   const addComment = () => {
     const t = draft.trim();
-    if (!t || !hasLiveBackend) return;
+    if (!t) return;
     haptic.light();
     const tempId = Date.now();
     const nc: SampleComment = { id: tempId, name: me.name, handle: me.handle, avatar: null, text: t, time: 'now', likes: 0 };
@@ -937,15 +934,7 @@ export function CommentsModal({
         </View>
       ) : null}
 
-      {/* Add a comment (font 16px → no iOS auto-zoom on focus).
-          pass 83-32 — hidden on demo content: comments only work live. */}
-      {!hasLiveBackend ? (
-        <View style={{ paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: hairline }}>
-          <T v="caption" style={{ fontSize: 11, color: faint, textAlign: 'center' }}>
-            Comments open on community videos — sign in and share yours to join the conversation.
-          </T>
-        </View>
-      ) : (
+      {/* Add a comment (font 16px → no iOS auto-zoom on focus) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: hairline }}>
         <Text
           style={{
@@ -1023,7 +1012,7 @@ export function CommentsModal({
           </T>
         </Pressable>
       </View>
-      )}    </KeyboardAvoidingView>
+    </KeyboardAvoidingView>
   );
 
   if (inline) {
