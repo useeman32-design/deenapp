@@ -1,3 +1,31 @@
+# ══ 2026-09-11 — PASS 83-32: posting reliability + share overhaul + PWA/quiz/videos (SHIPPED) ══ READ FIRST ══
+# deenlink-api main = 57dd492 (df3f091 83-32a + 57dd492 83-32b) — OWNER PULLED df3f091 already
+#   (live verified: create_post.php/posts.php/send_test_expo.php all return clean JSON, no fatals).
+#   ⚠️ OWNER: pull AGAIN in cPanel for 57dd492 (test push → dual channel web-push+Expo).
+# deenapp master = 03b390b · gh-pages = 566342a (both pushed; Pages redeploys automatically).
+# RAW export for cPanel web root: dist/ (built+slashguard'd with BASE='' — root-safe since the
+#   slashguard BASE-empty guard; boot-tested 0 errors). GH flavor: scripts/export-web.sh + slashguard
+#   (default /deenapp), boot-tested 0 errors.
+# WHAT SHIPPED (owner's 14 items):
+#   1. Group posting: backend root cause (lost gp_* helpers) fixed in df3f091 + LIVE; client
+#      group.tsx draft snapshot/restore + explicit "Unable to post" + loader stop.
+#   2/7. Composer (community) same treatment: optimistic post rolls back on failure + Alert.
+#   3/4. PWA: manifest.json + icons (public/), manifest link+theme-color injected by slashguard;
+#      iOS A2HS sheet now waits 6.5s; test-push button asks permission + subscribes web-push ON
+#      THE TAP (user gesture) — server send_test_expo.php fans out via push_notification (both channels).
+#   5. Repost removed everywhere (FeedCard chip + share sheet); share sheet = classic "Share as post"
+#      + Copy link (clipboard URL, no JSON file).
+#   6/8. Share-as-image: feather-style stroke icons, verified badge only for green/gold/blue.
+#   9. Courses: EVERY quiz (13 sets incl. default fallback) now 10 questions.
+#   10. Videos page: REEL_COMMENTS dummy seeds removed; CommentsModal has live-video mode
+#       (videoId) + composer hidden on demo content (no more demo-account comments).
+#   11. Profile: posts loader runs on every focus (10s throttle) — image/video posts appear instantly.
+#   12. Deleted post viewer: "This post was deleted or is no longer available."
+#   13. Videos processing-block + fullscreen perf: fullscreen single-render pass (83-31) + seek
+#       throttle shipped earlier; processing gate needs server is_processed flag surfaced (NEXT).
+# QUIZ DATA NOTE: courses.tsx QUIZZES patched programmatically — lesson bodies untouched (68 body:).
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — HOTFIX 83-31c: cPanel white-screen REAL root cause (WRONG BUILD FLAVOR) ══ READ FIRST ══
 # deenlink-api main = 41b9bb0 (owner: pull AGAIN in cPanel) · deenapp master = dist-root(raw) + docs
 # ROOT CAUSE (reproduced in headless Chrome): the 83-31 deploy copied the GH-PAGES-flavored export

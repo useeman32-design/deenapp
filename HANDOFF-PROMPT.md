@@ -1,3 +1,11 @@
+# ══ 2026-09-11 — PASS 83-32 SHIPPED (latest state) ══
+# deenlink-api main = 57dd492 (83-32a backend helpers restore df3f091 LIVE-VERIFIED + 83-32b dual-channel test push — owner pull AGAIN) · deenapp master = 03b390b · gh-pages = 566342a.
+# Raw cPanel export in dist/ (BASE='' slashguard run — root-safe). GH flavor via export-web.sh.
+# Everything from the owner's 14-item list is addressed; see CONTINUE.md header for the item map.
+# Remaining/next: video processing gate (needs is_processed surfaced in list.php), owner test of
+# group posting + PWA push after pulling 57dd492, iOS audio picker re-test on device.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 <!-- =====================================================================
      LATEST — 2026-09-11 · PASS 83-31 SHIPPED. *** READ FIRST ***
      deenapp master @ (see git log) · gh-pages @ 3b85505 (entry-29086947, LIVE ✓) · deenlink-api main @ 41b9bb0 (backend bba164f + web ROOT=raw entry-f6de6092 + /deenapp/ compat shim)
