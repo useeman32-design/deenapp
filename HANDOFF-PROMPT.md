@@ -1,5 +1,25 @@
 <!-- =====================================================================
-     LATEST — 2026-09-11 · PASS 83-30 SHIPPED. *** READ FIRST ***
+     LATEST — 2026-09-11 · PASS 83-31 SHIPPED. *** READ FIRST ***
+     deenapp master @ 47ebae3 · gh-pages @ 3b85505 (entry-29086947, LIVE 200 + sw.js 200) · deenlink-api main @ 559bd6f (backend bba164f + web entry-29086947)
+     GROUP POSTING FIXED (server youtube block restored — every group post 400'd before) · REPOSTS:
+     posts.repost_of healed + create/get embed + FeedCard REPOSTED tag w/ original author box; share
+     sheet "Repost" row replaces "share as post" · SHARE-AS-IMAGE: sheet swaps to preview w/ Cancel;
+     post replica (avatar/name/@user/content/photo/like+comment counts) + logo + QR (web canvas +
+     native SVG 1080×1280) · VIDEO FULLSCREEN: in-app Modal w/ custom controls ONLY (browser/native
+     player gone; same-player binding = no reload); single video container (media image-filter) ·
+     GROUP FEED: silent retry + 45s timeout + rejections handled · LIKE TRUTH: profile seeds
+     liked_by_me + shared likeStore, delta counts · feed SWR cache + focus refresh (15s) · demo
+     comments REMOVED · zakat CTA → /tools/zakat · zakat/fx ?base=NGN local currency · courses()
+     merges server+bundled 20 · chat scroll restore · iOS PWA add-to-home sheet · test-notification
+     button (send_test_expo.php) + 5s adhan-notification test (scheduleAdhanTest) · withAdhanFullScreen
+     config plugin (channel setFullScreenIntent; needs NEW dev build) · search Top shows groups ·
+     watermark crf20/medium.
+     ⚠️ cPanel pull PENDING (owner) — group-post fix + reposts + fx-base go live with it; Android
+     dev build required for draw-over/adhan tests.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-11 · PASS 83-30 SHIPPED. *** READ FIRST ***
      deenapp master @ f7e668c · gh-pages @ 4bce7bc (entry-431a29ee, LIVE 200 + sw.js 200) · deenlink-api main @ 062073d (admin shell v2 + web entry-431a29ee)
      Donations: Support-DeenLink recipient picker GONE (what-it-funds note instead); ONE searchable
      currency picker (USD/NGN/EUR/GBP pinned, full Flutterwave-chargeable list; SAR/AED removed) on all

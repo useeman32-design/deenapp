@@ -1,3 +1,63 @@
+# ══ 2026-09-11 — PASS 83-31 SHIPPED (reposts, share-sheet rework, in-app fullscreen, like-state truth, group-post fix) ══ READ FIRST ══
+# deenapp master = 47ebae3 (client) · gh-pages = 3b85505 (entry-29086947, LIVE-verified 200 + sw.js 200)
+# deenlink-api main = 559bd6f (backend bba164f + web root entry-29086947) — ⚠️ CPANEL PULL PENDING (owner)
+# WHAT CHANGED (owner's 18-item pass; all 6 PHP files lint clean, tsc 0 errors):
+#  1. GROUP POSTING FIXED (server): api/groups/create_post.php had LOST its youtube parsing block →
+#     $youtubeInput undefined → null !== '' always true → EVERY group post 400'd "Please enter a valid
+#     YouTube link". Block restored + youtube_id_from_url() helper mirrored (AFTER declare(strict_types=1)).
+#  2. REPOSTS (replaces "share as post" for feed posts): posts.repost_of BIGINT NULL auto-healed;
+#     feed/create_post.php accepts repost_of (multipart/JSON, validates original, caption-only);
+#     get_posts.php + get_user_posts.php flag post_repost_of (schema-flags cache STILL v2 — v3 bump NOT
+#     needed, cache is per-filename + new key rides existing file... NOTE: 6h memo → new flag appears
+#     within 6h of deploy or touch storage/cache/feed_schema_flags_v2.json), SELECT repost_of, and embed
+#     `repost: {id, content_text, youtube_url/embed, created_at, time_ago, gone, image_url, like_count,
+#     comment_count, user{name,username,profile_image_url,user_type}}` via batched IN() queries (post_likes
+#     + post_comments is_deleted=0). Client: ContentShareSheet Repost row (server createPost(repostOf),
+     offline fallback addUserPost); FeedCard renders REPOSTED tag + framed ORIGINAL box (author photo,
+#     name, @username, badge, content, first photo, video row, counts) + gone-state.
+#  3. SHARE-AS-IMAGE REWORK: sheet no longer GROWS — "Share as image" swaps the whole sheet to the
+#     preview with Share / Save / Cancel. Post image = faithful post-card replica (avatar, name,
+#     @username+badge, content, photo, like+comment counts) + DeenLink logo strip + QR (post link).
+#     Web: generatePostShareCard() canvas in lib/shareCard.ts. Native: components/PostShareCardSvg.tsx
+#     (1080×1280 fixed canvas, rasterized via svgRefToPng {width:1080,height:1280}).
+#  4. VIDEO FULLSCREEN: ONE path on every platform — the opaque in-app Modal with custom controls
+#     (browser requestFullscreen/webkitEnterFullscreen AND expo enterFullscreen REMOVED; owner: never
+#     the browser native player). Inline VideoView stays mounted; modal binds the SAME player → no reload.
+#     Double-container: FeedCard media for image blocks now filters media_type==='image' only (video in
+#     media[] used to paint a second block).
+#  5. GROUP FEED "could not load": loadServerPosts retries once silently (900ms), rejections now land in
+#     the same handler (skeleton no longer breathes forever), posts call gets timeout 45000 (new
+#     per-request opts.timeout in client request()).
+#  6. LIKE STATE TRUTH: profile/[username].tsx seeds likedPosts from server liked_by_me (get_user_posts
+#     returns it, line 301→398) + new shared src/lib/likeStore.ts overrides; count adjusts by DELTA vs
+#     server state (no double counting). Community feed seeds the same way; toggles write likeStoreSet.
+#  7. POSTS SLOW TO REFLECT: community feed paints from dl.feed.cache.v1 (storage) instantly, silently
+#     refetches on tab focus (15s throttle). Profile breathing skeleton ALREADY existed (BreathingContent,
+#     shows while profile fetch pending) — verified, left as is.
+#  8. DEMO COMMENTS REMOVED ENTIRELY: community.tsx CommentsModal seed={[]} + MOCK_COMMENTS import gone.
+#  9. ZAKAT CTA: charity.tsx "Calculate my zakat" → router.push('/tools/zakat') (main calculator).
+# 10. CURRENCY: zakat.tsx quotes NGN→viewer currency via NEW fxQuoteFor('NGN') (server fx_quote.php now
+#     accepts ?base=NGN — direct rate, else via-USD, honest 0/unavailable) and formats all amounts in the
+#     viewer's Flutterwave currency (NGN fallback when no rate). Courses: client courses() MERGES server
+#     list + bundled MOCK_COURSES (server-only replace made owner see 1; server filter is
+#     status=published AND visibility=public + audience-match — data-side cause documented).
+# 11. CHAT SCROLL RESTORE: CommunityInbox tracks per-thread scrollTop (onThreadScroll) and RESTORES it
+#     after load when returning mid-thread (was: unconditional scrollToEnd → jump to top).
+# 12. iOS PWA PROMPT: components/IosPwaPrompt.tsx (mounted in _layout) — iPhone/iPad Safari, not
+#     standalone → dismissable "Add to Home Screen" sheet (30-day persistence via storage).
+# 13. TEST BUTTONS: notifications screen "Send test notification" (client sendTestPush() →
+#     api/notifications/send_test_expo.php; web local Notification preview). Prayer page "Test adhan
+#     notification" (lib/adhanNotify.ts scheduleAdhanTest(5s) — real local notification on the adhan
+#     channel; lock screen/call shows draw-over with the dev build).
+# 14. DRAW-OVER COMPLETE (dev builds): plugins/withAdhanFullScreen.js config plugin (app.json) patches
+#     AndroidXNotificationsChannelManager.java at prebuild → 'adhan' channel gets setFullScreenIntent
+#     (launch intent), + ensures USE_FULL_SCREEN_INTENT in the manifest. Requires a NEW DEV BUILD.
+# 15. SEARCH TOP TAB: matched group (name/category) renders as "Top group" row between accounts and post.
+# 16. WATERMARK QUALITY: videos/download.php re-encode crf 23→20, veryfast→medium (posted-video mushiness
+#     on downloads). Playback is the raw upload (no client compression exists).
+# NEXT UP: owner cPanel pull for dlapi (backend fixes go LIVE then: group posting + reposts + fx base),
+#  new Android dev build for draw-over + adhan tests, admin-subdomain advice delivered (see reply).
+
 # ══ 2026-09-11 — PASS 83-30 SHIPPED (donations currency, hijri, streaks, adhan lock-screen, admin SPA v2) ══ READ FIRST ══
 # deenapp master = f7e668c (client) · gh-pages = 4bce7bc (entry-431a29ee, LIVE-verified 200 + sw.js 200)
 # deenlink-api main = 062073d (admin shell v2 + web root entry-431a29ee) — ⚠️ CPANEL PULL PENDING (owner)
