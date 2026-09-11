@@ -1,3 +1,9 @@
+# ══ 2026-09-11 — PASS 83-33 SHIPPED (latest state) ══
+# deenlink-api main = 868a7f8 (owner: PULL — admin rebuilt on his admin.zip UI + 8 fatal endpoints fixed + CSRF) · deenapp master = 83-32 client (c2b0afd) · gh-pages = 566342a.
+# Admin render-tested 17/17 via pptr admin-test.js (mocked APIs). Build script preserved: /tmp/build_admin.py (workspace-volatile — the committed pages are the artifact).
+# NEXT: announcements modal in app home (client-side only), then owner device tests.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-32 SHIPPED (latest state) ══
 # deenlink-api main = 57dd492 (83-32a backend helpers restore df3f091 LIVE-VERIFIED + 83-32b dual-channel test push — owner pull AGAIN) · deenapp master = 03b390b · gh-pages = 566342a.
 # Raw cPanel export in dist/ (BASE='' slashguard run — root-safe). GH flavor via export-web.sh.

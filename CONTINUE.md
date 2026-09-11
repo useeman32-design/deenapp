@@ -1,3 +1,37 @@
+# ══ 2026-09-11 — PASS 83-33: ADMIN DASHBOARD REBUILT ON OWNER UI (SHIPPED) ══ READ FIRST ══
+# deenlink-api main = 868a7f8 — OWNER: PULL IN cPanel (admin/ + api/ both changed).
+# WHAT OWNER COMPLAINED → WHAT WAS DONE:
+#  · "two headers glitching" = my pass-80/83-30 shell (shell2.js) DELETED his sidebar and injected
+#    its own chrome → header duplication. FIXED: chrome files DELETED (assets/nav.js, shell*.js/css),
+#    every original page restored BYTE-EXACT from admin.zip (the owner's real UI, real logo).
+#  · "not using real deenlink logo" = chrome drew an SVG mark; his pages use ../img/logo.png ✓ restored.
+#  · "admin name/title not showing" = new assets/dl-identity.js fills his OWN sidebar profile tag
+#    (name, email, gold rank badge Super Admin/Content Manager/Moderator/…) via auth/me.php.
+#    NOT a shell — pure enhancement, injected on every page before report-bell.js.
+#  · "new modules display errors, not working" = ROOT CAUSE: events/learning/defaults endpoints were
+#    FATAL pre-auth (bare require_admin() call + phantom $pdo — stale helper contract; 500 with
+#    empty body, even the 401 never printed). All 8 rewritten on the campaigns pattern
+#    (declare + method guard + db_conn + require_admin($pdo) + try/catch). Gate: _check_calls OK.
+#  · "roles & permissions page is bad" = my chrome did this; original roles.html RESTORED (works:
+#    roles/get.php + save.php + CSRF all live-verified shapes).
+#  · 9 module pages (campaigns, events, learning, athkar, names, prophets, defaults, chat, push)
+#    REBUILT from HIS announcement.html template: same sidebar/header/cards/modals/status badges/
+#    round edit-delete buttons; stats row + search + add/edit/delete wired to real APIs.
+#    Render-tested with puppeteer + mocked APIs: 17/17 pages PASS (1 sidebar, 0 chrome, name+rank,
+#    logo loads, 0 JS errors). Screenshots: /home/user/admin-campaigns.png, admin-dashboard.png.
+#  · CSRF: require_post_with_csrf() added to all 15 admin POST endpoints missing it.
+#  · api/admin/auth/commonn.php orphan (bare require_admin() inside an include!) deleted.
+#  · img/deenPoints.png restored (user-management referenced it, was missing).
+#  · ANNOUNCEMENTS → APP: api/announcements/active.php was ALREADY complete (targeting by country/
+#    user-type, schedule, media, dismiss_key, 30s cache) but the APP never called it — client.ts
+#    announcement() reads wrong keys → always null. NEXT: home modal on index.tsx w/ media+CTA +
+#    storage dismissal by dismiss_key (backend needs NO changes).
+# ADS (answered to owner): AdMob = NATIVE apps only (Android+iOS; Expo dev build OK via
+#    react-native-google-mobile-ads, test unit IDs in dev). AdMob must NOT go in the PWA/web.
+#    AdSense = web + installed PWA (app.deenlink.org). Running both simultaneously is allowed
+#    (separate products/accounts). Do NOT wrap the PWA in a TWA with AdSense (Play policy).
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-32: posting reliability + share overhaul + PWA/quiz/videos (SHIPPED) ══ READ FIRST ══
 # deenlink-api main = 57dd492 (df3f091 83-32a + 57dd492 83-32b) — OWNER PULLED df3f091 already
 #   (live verified: create_post.php/posts.php/send_test_expo.php all return clean JSON, no fatals).
