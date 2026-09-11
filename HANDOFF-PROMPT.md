@@ -1,3 +1,13 @@
+# ══ 2026-09-11 — PASS 83-36 (latest state) ══
+# deenapp 4daacef · dlapi eb990b3 (OWNER PULL = api + admin + web root) · gh-pages 4e3484f.
+# Scope: delete fix (string-id compare), no self-profile nav, admin video toggle (posting.community_video, default OFF),
+# real donation totals + country currency (profile tab + public), login prefetch (instant tabs),
+# image-post freeze fix (paint-then-compress, web small-image skip), YT inline fix (WebView baseUrl),
+# group pill = screen-root byte-identical, ffmpeg compress+watermark lib (self-disabling).
+# VERIFY AFTER PULL: delete own post on HOME; toggle in Admin → Videos Management; Charity shows
+# your currency; post an image (no freeze); tap a YouTube post (plays); which ffmpeg on the host.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ══ 2026-09-11 — PASS 83-35 (latest state) ══
 # deenapp 93153a0 · dlapi 5862cd0 (OWNER PULL — api/ + admin/ + web root, all in-repo) · gh-pages 53ff722 (live for PWA users once Pages CDN settles).
 # Scope: owner's 15-point batch — delete-own-post on HOME, video expand → videos-page reels (NO in-card fullscreen),

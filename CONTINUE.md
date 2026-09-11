@@ -1,3 +1,36 @@
+# ══ 2026-09-11 — PASS 83-36: OWNER BATCH 2 (final social pass) ══ READ FIRST ══
+# deenapp master = 4daacef · dlapi main = eb990b3 (api+admin+RAW web root merged) · gh-pages = 4e3484f.
+#
+# FIXES → WHERE:
+#  1. Delete own post not showing on HOME: ownership test compared int vs string ids → now
+#     String(id)===String(id) OR username match (home + community + group).
+#  2. Tapping YOUR OWN name/avatar on posts (all FeedCards) or your own reel: NO navigation.
+#     Inside a group, the group name on a post no longer re-navigates.
+#  3. Video posting toggle: admin → Videos Management top card "Allow users to post videos in
+#     Community & Groups" (default OFF). Server rejects video uploads in feed/groups create_post
+#     (403 with pointer to videos page); composers hide the button. Videos page unaffected; reels
+#     still mirror into community. Flip the toggle when ready.
+#  4. Currency: get_profile_counts.php returns donations total converted to the PROFILE OWNER's
+#     country currency (pay_country_to_currency + FX). Profile tab Charity shows real total with
+#     the right symbol (was ₦ + 0). Public profile charity now real via user_summary.php
+#     (viewer's currency) — was hard-coded "₦ 12.4k".
+#  5. Instant tabs: login()/adoptSession() prefetch feed+groups; index.tsx/Groups.tsx consume the
+#     promises on mount.
+#  6. Image-post freeze: 60ms paint-yield before compression; web skips canvas re-encode for
+#     images ≤1600px (web manipulator runs on the main thread — that was the 2s freeze).
+#  7. YouTube inline: native WebView got baseUrl=https://deenlink.org (null origin → YouTube
+#     blocked playback). yt-link row opens instantly. Web iframe unchanged (plays inline).
+#  8. ffmpeg: api/lib/video_process.php — 720p H.264 CRF26 + img/logo.png watermark bottom-right
+#     (55% opacity) applied to EVERY uploaded video (videos page + community + group when
+#     re-enabled). SELF-DISABLES if the host has no ffmpeg or exec() is disabled — check with
+#     `which ffmpeg` in cPanel terminal; without it videos upload unchanged (never broken).
+#  9. Group progress pill moved to screen root — byte-identical to community's.
+# JOIN REQUESTS (owner asked how): (a) SITE ADMIN → admin/groups.html "Group Members" → pending
+#     list with Approve/Reject (api/admin/groups/list.php + decide.php). (b) GROUP OWNER/ADMIN
+#     in-app → group page → members section → request queue (members.php approve/decline).
+# ⚠ WORKSPACE IS A SHALLOW CLONE — see 83-35 notes (gh-pages needs explicit depth-1 fetch).
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 # ⚠ WORKSPACE IS A SHALLOW CLONE (storage budget): .git was rebuilt with
 #   fetch --depth=3 (master only). gh-pages ref is NOT fetched by default —
 #   before any gh-pages deploy run: git fetch --depth=1 origin gh-pages
