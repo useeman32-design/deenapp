@@ -1520,6 +1520,16 @@ export async function awardDeenPoints(activity: string): Promise<{ ok: boolean; 
 }
 
 /** pass 49 — register this device's Expo push token so the server can deliver mobile push. */
+/* pass 83-30 — browser (VAPID) push: public key + subscription save */
+export async function webPushPublicKey(): Promise<string | null> {
+  const r = await request<{ status?: string; public_key?: string }>('/api/notifications/web_push_public_key.php', { auth: true });
+  return r.ok && r.data?.public_key ? String(r.data.public_key) : null;
+}
+export async function webPushSubscribe(subscription: unknown): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/notifications/web_push_subscribe.php', { method: 'POST', body: { subscription }, auth: true });
+  return r.ok && r.data?.status === 'success';
+}
+
 export async function registerPushToken(token: string, platform?: string): Promise<{ ok: boolean }> {
   if (FORCE_DEMO) return { ok: true };
   const r = await request<{ status?: string }>('/api/notifications/register_expo.php', {

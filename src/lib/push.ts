@@ -18,6 +18,9 @@ import { registerPushToken } from '@/api/client';
 /** Map a notification's payload to an in-app route. */
 function routeFromData(data: Record<string, unknown> | undefined): string {
   const type = (data?.type as string) ?? '';
+  /* pass 83-30 — the lock-screen adhan notification opens the prayer screen
+   * with the adhan modal up (?ring=<Prayer>), where it can be turned off. */
+  if (type === 'adhan') return `/tools/prayer?ring=${encodeURIComponent(String(data?.prayer ?? ''))}`;
   const entityType = (data?.entityType as string) ?? '';
   const entityId = data?.entityId as string | number | undefined;
   if (type === 'video' || entityType === 'video') return '/videos';
@@ -45,7 +48,7 @@ function openTarget(data: Record<string, unknown> | undefined): void {
  * error.
  */
 export async function initPushNotifications(): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') { await initWebPush(); return; }
   try {
     const [{ default: Device }, Notifications, Constants] = await Promise.all([
       import('expo-device'),
@@ -99,6 +102,47 @@ export async function initPushNotifications(): Promise<void> {
   }
 }
 
+/* pass 83-30 — BROWSER PUSH. The server already sends VAPID web-push for
+ * every event notification; this subscribes the browser so they actually
+ * arrive. The service worker (public/sw.js) displays them and routes taps.
+ * Permission is requested on the next user gesture (browser requirement). */
+async function initWebPush(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const { webPushPublicKey, webPushSubscribe, isLive } = await import('@/api/client');
+    if (!isLive()) return;
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const ensureSub = async () => {
+      if (Notification.permission !== 'granted') return;
+      const key = await webPushPublicKey();
+      if (!key) return;
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing ?? await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      await webPushSubscribe(sub.toJSON()).catch(() => {});
+    };
+    if (Notification.permission === 'granted') { await ensureSub(); return; }
+    if (Notification.permission === 'denied') return;
+    const ask = () => {
+      window.removeEventListener('pointerdown', ask);
+      void Notification.requestPermission().then((p) => { if (p === 'granted') void ensureSub(); }).catch(() => {});
+    };
+    window.addEventListener('pointerdown', ask, { once: true });
+  } catch { /* web push is best-effort */ }
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 /**
  * Subscribe to notification taps (status bar or in-app). Returns a cleanup
  * function synchronously so it can be used directly as a useEffect cleanup;
@@ -112,6 +156,13 @@ export function registerPushResponseHandler(): () => void {
     (async () => {
       try {
         const Notifications = await import('expo-notifications');
+        /* pass 83-30 — COLD START: app killed, adhan rang, user tapped it —
+         * the tap listener below never fires for that launch, so replay the
+         * last notification response once. */
+        void Notifications.getLastNotificationResponseAsync().then((resp) => {
+          const data = resp?.notification.request.content.data as Record<string, unknown> | undefined;
+          if (data && (data.type === 'adhan' || data.entityType || data.type)) openTarget(data);
+        }).catch(() => {});
         const sub = Notifications.addNotificationResponseReceivedListener((response) => {
           openTarget(response.notification.request.content.data as Record<string, unknown> | undefined);
         });

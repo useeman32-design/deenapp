@@ -25,9 +25,10 @@ import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
 import { ADHAN_VOICES, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { disableAdhanSchedule, syncAdhanSchedule } from '@/lib/adhanNotify';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { stopBubble } from '@/lib/press';
 import { storage } from '@/lib/storage';
 
@@ -59,6 +60,8 @@ export default function PrayerTimes() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  /* pass 83-30 — ?ring=<Prayer> arrives from the lock-screen adhan notification tap */
+  const { ring: adhanRing } = useLocalSearchParams<{ ring?: string }> ();
   const [loc, setLoc] = useState<Loc | null>(null);
   const [settings, setSettings] = useState<PrayerSettings>(DEFAULT_SETTINGS);
   const [offset, setOffset] = useState(0);
@@ -74,6 +77,18 @@ export default function PrayerTimes() {
   /* pass 41 — adhan alert design (5 selectable, persisted) + picker */
   const [adhanDesign, setAdhanDesign] = useState<AdhanDesign>('praying');
   const [adhanPicker, setAdhanPicker] = useState(false);
+  /* pass 83-30 — adhan notification tapped: the app opens straight onto the
+   * adhan modal, ringing, with a Turn-off action inside. */
+  useEffect(() => {
+    if (!adhanRing) return;
+    const name = String(adhanRing).split('·')[0];
+    if (!PRAYER_NAMES.includes(name as never)) return;
+    playedRef.current = `${new Date().toDateString()}:notif`;
+    if (playAdhan(settings.adhanVoice)) { setPreview(null); setAdhanFor(`${name}·notif`); }
+    try { router.setParams({ ring: '' } as never); } catch { /* noop */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adhanRing]);
+
   useEffect(() => {
     storage.getItem(ADHAN_DESIGN_KEY).then((v) => {
       if (v && ADHAN_DESIGNS.some((x) => x.id === v)) setAdhanDesign(v as AdhanDesign);
@@ -395,6 +410,19 @@ export default function PrayerTimes() {
                   </Pressable>
                 </View>
               );
+              const turnOff = () => {
+                haptic.medium();
+                const nx = { ...settings, adhan: false };
+                setSettings(nx); savePrayerSettings(nx);
+                void disableAdhanSchedule();
+                stopAdhan(); setAdhanFor(null);
+              };
+              const TurnOff = () => (
+                <Pressable accessibilityLabel="turn adhan alerts off" onPress={turnOff} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+                  <FontAwesome5 name="bell-slash" size={10} color="rgba(245,248,245,0.55)" />
+                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: 'rgba(245,248,245,0.55)' }}>Turn off adhan alerts</T>
+                </Pressable>
+              );
               const StyleSwitch = ({ dark = true }: { dark?: boolean }) => (
                 <Pressable accessibilityLabel="change adhan style" onPress={() => { haptic.selection(); setAdhanPicker(true); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
                   <FontAwesome5 name="palette" size={10} color={D.accent} />
@@ -423,6 +451,7 @@ export default function PrayerTimes() {
                         حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ — Come to prayer, come to success. Reciter: {reciter}
                       </T>
                       <StyleBtns tint={D.accent} />
+                      <TurnOff />
                       <StyleSwitch />
                     </View>
                   </View>
@@ -517,6 +546,7 @@ export default function PrayerTimes() {
                         Come to prayer, come to success — حَيَّ عَلَى الْفَلَاحِ · Reciter: {reciter}
                       </T>
                       <StyleBtns tint={D.accent} />
+                      <TurnOff />
                       <StyleSwitch />
                     </View>
                   </View>
@@ -542,6 +572,7 @@ export default function PrayerTimes() {
                         حَيَّ عَلَى الصَّلَاةِ · حَيَّ عَلَى الْفَلَاحِ{'\n'}Come to prayer, come to success · {reciter}
                       </T>
                       <StyleBtns tint={D.accent} />
+                      <TurnOff />
                       <StyleSwitch />
                     </View>
                   </View>
@@ -667,7 +698,7 @@ export default function PrayerTimes() {
 
               {/* adhan */}
               <Pressable
-                onPress={() => { haptic.selection(); const nx = { ...settings, adhan: !settings.adhan }; setSettings(nx); savePrayerSettings(nx); }}
+                onPress={() => { haptic.selection(); const nx = { ...settings, adhan: !settings.adhan }; setSettings(nx); savePrayerSettings(nx); if (nx.adhan) { void syncAdhanSchedule(); } else { void disableAdhanSchedule(); } }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 13, borderWidth: 1, borderColor: settings.adhan ? 'rgba(74,227,143,0.45)' : d.cardBorder, backgroundColor: settings.adhan ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)') : 'transparent' }}
               >
                 <FontAwesome5 name={settings.adhan ? 'volume-up' : 'volume-mute'} size={14} color={settings.adhan ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
@@ -704,7 +735,7 @@ export default function PrayerTimes() {
                       <Pressable
                         key={v.id}
                         accessibilityLabel={`adhan ${v.label}`}
-                        onPress={() => { haptic.selection(); const nx = { ...settings, adhanVoice: v.id }; setSettings(nx); savePrayerSettings(nx); }}
+                        onPress={() => { haptic.selection(); const nx = { ...settings, adhanVoice: v.id }; setSettings(nx); savePrayerSettings(nx); void syncAdhanSchedule(); }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 11, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.06)') : 'transparent' }}
                       >
                         <FontAwesome5 name="speaker" size={12} color={on ? '#E8C96A' : d.faint} />

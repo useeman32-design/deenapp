@@ -65,6 +65,10 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS === 'web' || !user) return;
     initPushNotifications().catch(() => {});
+    /* pass 83-30 — ring the adhan even when DeenLink is closed: rebuild the
+     * lock-screen schedule (respects dl.prayer.settings.v1.adhan; self-guards
+     * to native + no-op on web). */
+    void import('@/lib/adhanNotify').then(({ syncAdhanSchedule }) => syncAdhanSchedule()).catch(() => {});
   }, [user?.id]);
 
   /* pass 69 — unified bookmark mirror: local first (instant UI), then the

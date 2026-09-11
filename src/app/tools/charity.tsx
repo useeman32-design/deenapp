@@ -17,6 +17,7 @@ import { fetchNisab } from '@/lib/islamicApi';
 import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
 import { markGoal } from '@/lib/routine';
 import { donate } from '@/lib/flutterwave';
+import { CurrencyPicker, currencyByCode } from '@/components/CurrencyPicker';
 import { donationHistory, isLive } from '@/api/client';
 
 /**
@@ -83,7 +84,7 @@ const RECIPIENTS: Record<Cat, string[]> = {
   zakat: ['The poor (fuqara)', 'The needy (masakin)', 'Those employed to collect it', 'New Muslims & hearts to reconcile', 'Freeing captives / those in debt', 'In the cause of Allah', 'Stranded travellers'],
 };
 
-const CURRENCIES = ['NGN ₦', 'USD $', 'GBP £', 'EUR €', 'SAR ﷼', 'GHS ₵', 'KES KSh', 'ZAR R', 'AED د.إ', 'CAD $'];
+/* pass 83-30 — the currency list + searchable picker moved to components/CurrencyPicker (Flutterwave-chargeable only) */
 const FEE_PCT = 5;
 
 const store = {
@@ -195,7 +196,7 @@ export default function Donations() {
   /* pass 39 — recipients are MULTI-select (select all that apply) */
   const [recipients, setRecipients] = useState<string[]>([]);
   const [amount, setAmount] = useState('');
-  const [curIdx, setCurIdx] = useState(0);
+  const [curCode, setCurCode] = useState('NGN'); /* pass 83-30 — searchable picker, same on all 3 screens */
   const [last, setLast] = useState<Dono | null>(null);
   const [history, setHistory] = useState<Dono[]>([]);
   const [openReceipt, setOpenReceipt] = useState<Dono | null>(null);
@@ -233,10 +234,13 @@ export default function Donations() {
     }).catch(() => {});
   }, []);
 
-  const cur = CURRENCIES[curIdx];
+  /* pass 83-30 — Support DeenLink has NO recipients (it funds the platform
+   * itself); the picker text is replaced with what the donation pays for. */
+  const noRecipients = cat === 'deenlink';
+  const curSym = currencyByCode(curCode).symbol;
   const amt = Number(amount.replace(/[^0-9.]/g, ''));
-  const recipient = recipients.join(', ');
-  const valid = amt > 0 && recipients.length > 0;
+  const recipient = noRecipients ? 'DeenLink platform' : recipients.join(', ');
+  const valid = amt > 0 && (noRecipients || recipients.length > 0);
 
   const start = (c: Cat) => {
     haptic.selection();
@@ -256,7 +260,7 @@ export default function Donations() {
     if (!valid) return;
     haptic.success();
     setView('paying');
-    const code = cur.split(' ')[0];
+    const code = curCode;
     const finish = (verified: boolean, ref: string) => {
       const dono: Dono = {
         id: `d${Date.now()}`,
@@ -450,33 +454,43 @@ export default function Donations() {
               </T>
             ) : null}
 
-            <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginBottom: 4 }}>GIVEN TO — SELECT ALL THAT APPLY</T>
-            {recipients.length ? (
-              <T v="caption" style={{ fontSize: 9.5, color: isDark ? '#4AE38F' : '#1D6F42', marginBottom: 8, fontWeight: '700' }}>{recipients.length} recipient{recipients.length > 1 ? 's' : ''} selected</T>
+            {noRecipients ? (
+              /* pass 83-30 — Support DeenLink: no recipient picker — a small
+               * note on what the donation actually funds. */
+              <T v="caption" style={{ fontSize: 10, color: d.subtext, lineHeight: 15.5, marginBottom: 16 }}>
+                Every naira goes into running DeenLink — Qur'an & hadith servers, prayer times and adhan, the AI scholar tools and free fatwas — keeping the whole platform free for the ummah.
+              </T>
             ) : (
-              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 8 }}>You can choose more than one</T>
+              <>
+                <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginBottom: 4 }}>GIVEN TO — SELECT ALL THAT APPLY</T>
+                {recipients.length ? (
+                  <T v="caption" style={{ fontSize: 9.5, color: isDark ? '#4AE38F' : '#1D6F42', marginBottom: 8, fontWeight: '700' }}>{recipients.length} recipient{recipients.length > 1 ? 's' : ''} selected</T>
+                ) : (
+                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginBottom: 8 }}>You can choose more than one</T>
+                )}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                  {RECIPIENTS[cat].map((r) => {
+                    const on = recipients.includes(r);
+                    return (
+                      <Pressable
+                        key={r}
+                        accessibilityLabel={`recipient ${r}`}
+                        onPress={() => toggleRecipient(r)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: on ? `${CAT.tint}88` : d.cardBorder, backgroundColor: on ? `${CAT.tint}1A` : 'transparent', paddingHorizontal: 12, paddingVertical: 7 }}
+                      >
+                        {on ? <FontAwesome5 name="check" size={9} color={CAT.tint} /> : null}
+                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? CAT.tint : d.subtext }}>{r}</T>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
             )}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-              {RECIPIENTS[cat].map((r) => {
-                const on = recipients.includes(r);
-                return (
-                  <Pressable
-                    key={r}
-                    accessibilityLabel={`recipient ${r}`}
-                    onPress={() => toggleRecipient(r)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: on ? `${CAT.tint}88` : d.cardBorder, backgroundColor: on ? `${CAT.tint}1A` : 'transparent', paddingHorizontal: 12, paddingVertical: 7 }}
-                  >
-                    {on ? <FontAwesome5 name="check" size={9} color={CAT.tint} /> : null}
-                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: on ? CAT.tint : d.subtext }}>{r}</T>
-                  </Pressable>
-                );
-              })}
-            </View>
 
             <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginBottom: 8 }}>AMOUNT</T>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 12 }}>
-                <T v="h3" style={{ color: d.faint, fontSize: 15 }}>{cur.split(' ')[1] ?? ''}</T>
+                <T v="h3" style={{ color: d.faint, fontSize: 15 }}>{curSym}</T>
                 <TextInput
                   value={amount}
                   onChangeText={setAmount}
@@ -490,32 +504,26 @@ export default function Donations() {
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {[10, 50, 100, 500].map((q) => (
                 <Pressable key={q} onPress={() => { haptic.selection(); setAmount(String(q)); }} style={{ flex: 1, borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', paddingVertical: 8 }}>
-                  <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: d.subtext }}>{cur.split(' ')[1] ?? ''}{q}</T>
+                  <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: d.subtext }}>{curSym}{q}</T>
                 </Pressable>
               ))}
             </View>
 
             <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: d.faint, marginBottom: 8 }}>CURRENCY</T>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 18, paddingBottom: 2 }}>
-              {CURRENCIES.map((c, i) => {
-                const on = i === curIdx;
-                return (
-                  <Pressable key={c} onPress={() => { haptic.selection(); setCurIdx(i); }} style={{ borderRadius: 999, borderWidth: 1, borderColor: on ? `${CAT.tint}88` : d.cardBorder, backgroundColor: on ? `${CAT.tint}1A` : 'transparent', paddingHorizontal: 13, paddingVertical: 7 }}>
-                    <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: on ? CAT.tint : d.subtext }}>{c}</T>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {/* pass 83-30 — one searchable picker, identical on all three screens */}
+            <View style={{ marginBottom: 18 }}>
+              <CurrencyPicker value={curCode} onChange={setCurCode} tint={CAT.tint} />
+            </View>
 
             {valid ? (
               <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 14 }}>
                 <View style={{ flexDirection: 'row' }}>
                   <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.faint }}>Agency + processing ({FEE_PCT}%)</T>
-                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext }}>−{cur.split(' ')[0]} {((amt * FEE_PCT) / 100).toFixed(2)}</T>
+                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext }}>−{curSym} {((amt * FEE_PCT) / 100).toFixed(2)}</T>
                 </View>
                 <View style={{ flexDirection: 'row', marginTop: 5 }}>
                   <T v="caption" style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: d.text }}>Delivered</T>
-                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{cur.split(' ')[0]} {(amt - (amt * FEE_PCT) / 100).toFixed(2)}</T>
+                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>{curSym} {(amt - (amt * FEE_PCT) / 100).toFixed(2)}</T>
                 </View>
               </View>
             ) : null}
@@ -527,7 +535,7 @@ export default function Donations() {
               style={({ pressed }) => ({ borderRadius: 15, backgroundColor: valid ? CAT.tint : d.cardBorder, alignItems: 'center', paddingVertical: 15, opacity: pressed ? 0.85 : 1 })}
             >
               <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: valid ? '#06140D' : d.faint }}>
-                {valid ? `Pay ${cur.split(' ')[0]} ${amt.toLocaleString()}` : recipients.length ? 'Choose an amount' : 'Choose at least one recipient'}
+                {valid ? `Pay ${curSym} ${amt.toLocaleString()}` : 'Choose an amount'}
               </T>
             </Pressable>
           </>
