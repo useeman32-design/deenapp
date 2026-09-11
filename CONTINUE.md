@@ -1,3 +1,11 @@
+# ⚠ WORKSPACE IS A SHALLOW CLONE (storage budget): .git was rebuilt with
+#   fetch --depth=3 (master only). gh-pages ref is NOT fetched by default —
+#   before any gh-pages deploy run: git fetch --depth=1 origin gh-pages
+#   (then worktree add as usual). Pushes from shallow work fine (verified).
+#   NEVER run `git gc --aggressive` here (it ballooned the pack to 144 MB and
+#   died mid-repack). Full history lives on GitHub — re-clone if ever needed.
+#   deenlink_db (9).sql was deleted from the workspace (canonical copies are in
+#   the dlapi repo). avatar.zip KEPT (avatars restore pack).
 # ══ 2026-09-11 — PASS 83-35: OWNER BATCH (videos-page reels, zen, group chips, YT inline, admin join requests) ══ READ FIRST ══
 # deenapp master = 93153a0 · dlapi main = 5862cd0 (api + admin + RAW WEB ROOT merged — ONE cPanel pull ships everything) · gh-pages = 53ff722.
 # OWNER: ONE dlapi pull in cPanel ships api + admin + the 83-35 web root (boot-tested on the merged tree). Live was 83-33.
