@@ -1,5 +1,87 @@
+# ══ 2026-09-11 — PASS 83-34 (latest state) ══
+# deenapp a6b015b · dlapi 0caae0f (OWNER PULL) · gh-pages 5efdebd. Scope was group posting + videos only.
+# Native dev build required for the iOS audio UTI fix. See CONTINUE.md header for the diagnose→fix map.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
+# ══ 2026-09-11 — HOTFIX 83-33b (latest state) ══
+# deenlink-api main = ae2e0a6 — OWNER MUST PULL (live still blank until then; 1f311b1 shipped GH-flavor to root, 3rd occurrence of the 83-31c mistake).
+# ROOT IS NOW: genuine RAW (export-raw.sh + check-raw.mjs gate, merged-tree boot-tested 0/0).
+# RULES: root artifact ONLY via scripts/export-raw.sh; gh via export-web.sh + push immediately; gate with NO pipes; boot-test the merged tree. See CONTINUE.md header.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
+# ══ 2026-09-11 — PASS 83-33 SHIPPED (latest state) ══
+# deenlink-api main = 1f311b1 (owner: PULL — admin rebuilt on his admin.zip UI + 8 fatal endpoints fixed + CSRF) · deenapp master = 83-32 client (c2b0afd) · gh-pages = 566342a.
+# Admin render-tested 17/17 via pptr admin-test.js (mocked APIs). Build script preserved: /tmp/build_admin.py (workspace-volatile — the committed pages are the artifact).
+# NEXT: announcements modal in app home (client-side only), then owner device tests.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
+# ══ 2026-09-11 — PASS 83-32 SHIPPED (latest state) ══
+# deenlink-api main = 57dd492 (83-32a backend helpers restore df3f091 LIVE-VERIFIED + 83-32b dual-channel test push — owner pull AGAIN) · deenapp master = 03b390b · gh-pages = 566342a.
+# Raw cPanel export in dist/ (BASE='' slashguard run — root-safe). GH flavor via export-web.sh.
+# Everything from the owner's 14-item list is addressed; see CONTINUE.md header for the item map.
+# Remaining/next: video processing gate (needs is_processed surfaced in list.php), owner test of
+# group posting + PWA push after pulling 57dd492, iOS audio picker re-test on device.
+# ═════════════════════════════════════════════════════════════════════════════════════
+
 <!-- =====================================================================
-     LATEST — 2026-09-10 · HOTFIX 83-27 (deenapp master @ 575981e, source-only — Expo Go svg crash fix; web bundles unchanged). *** READ FIRST ***
+     LATEST — 2026-09-11 · PASS 83-31 SHIPPED. *** READ FIRST ***
+     deenapp master @ (see git log) · gh-pages @ 3b85505 (entry-29086947, LIVE ✓) · deenlink-api main @ 41b9bb0 (backend bba164f + web ROOT=raw entry-f6de6092 + /deenapp/ compat shim)
+     ⚠️ 83-31 web deploy shipped the GH-PAGES flavor (base /deenapp/) to the cPanel ROOT → white screen
+     ('Unexpected token <' — .js requests got the SPA-fallback HTML). FIXED in 41b9bb0 + boot-tested.
+     RULE: dlapi root = RAW export ONLY; gh-pages = slashguard flavor; serving roots merge, never prune.
+     GROUP POSTING FIXED (server youtube block restored — every group post 400'd before) · REPOSTS:
+     posts.repost_of healed + create/get embed + FeedCard REPOSTED tag w/ original author box; share
+     sheet "Repost" row replaces "share as post" · SHARE-AS-IMAGE: sheet swaps to preview w/ Cancel;
+     post replica (avatar/name/@user/content/photo/like+comment counts) + logo + QR (web canvas +
+     native SVG 1080×1280) · VIDEO FULLSCREEN: in-app Modal w/ custom controls ONLY (browser/native
+     player gone; same-player binding = no reload); single video container (media image-filter) ·
+     GROUP FEED: silent retry + 45s timeout + rejections handled · LIKE TRUTH: profile seeds
+     liked_by_me + shared likeStore, delta counts · feed SWR cache + focus refresh (15s) · demo
+     comments REMOVED · zakat CTA → /tools/zakat · zakat/fx ?base=NGN local currency · courses()
+     merges server+bundled 20 · chat scroll restore · iOS PWA add-to-home sheet · test-notification
+     button (send_test_expo.php) + 5s adhan-notification test (scheduleAdhanTest) · withAdhanFullScreen
+     config plugin (channel setFullScreenIntent; needs NEW dev build) · search Top shows groups ·
+     watermark crf20/medium.
+     ⚠️ cPanel pull PENDING (owner) — group-post fix + reposts + fx-base go live with it; Android
+     dev build required for draw-over/adhan tests.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-11 · PASS 83-30 SHIPPED. *** READ FIRST ***
+     deenapp master @ f7e668c · gh-pages @ 4bce7bc (entry-431a29ee, LIVE 200 + sw.js 200) · deenlink-api main @ 062073d (admin shell v2 + web entry-431a29ee)
+     Donations: Support-DeenLink recipient picker GONE (what-it-funds note instead); ONE searchable
+     currency picker (USD/NGN/EUR/GBP pinned, full Flutterwave-chargeable list; SAR/AED removed) on all
+     3 screens · Hijri calendar bottom description removed · home streak card → Qur'an screen ·
+     ADHAN WITH APP CLOSED: 72h local schedule on MAX channel, tap opens prayer adhan-modal w/ Turn-off,
+     exact-alarm/full-screen permissions added (needs dev build) · browser VAPID push (public/sw.js +
+     subscribe) · ADMIN SPA v2: one chrome/design for every module (admin/assets/shell2.*), sidebar
+     search, pjax with full-load fallback, all 409 api php lint ok, wallpapers wired; gap: hadith admin
+     page is a placeholder (no hadith API — content ships via packs).
+     AdMob rewarded-ads setup guide: REWARDED-ADS-SETUP.md (repo root).
+     ⚠️ cPanel pull PENDING (owner) — admin v2 + web root go live with it.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-11 · PASS 83-29 SHIPPED (12-item owner fix pass).
+     deenapp master @ da5536b · gh-pages @ a16dded (entry-20ea9c0a, LIVE 200) · deenlink-api main @ 44e5916 (backend + web entry-6400e40c)
+     Items: inbox last-message previews (+last_sender from conversations.php) · prayer sun night-park
+     (no retrace) · tasbeeh 99 beads + attached head + scrollable settings · athkar completed + meanings
+     + FA5 section icons · fatwa Ask-a-Scholar removed · quran Shazam + bottom shortcuts removed ·
+     20 courses (10 professional w/ curricula+quizzes) · real charity stat via donations/user_summary.php ·
+     Allow-group-adding toggle + SERVER enforcement (users/group_privacy.php, members.php 403
+     no_group_add, "Cannot add @u Name" / "Cannot add @a, @b and @c") · inbox/DM status-bar padding.
+     ITEM 8 ANSWER (native voice): expo-speech-recognition already integrated — needs a DEV BUILD
+     (npx expo run:android / eas build), Expo Go cannot load native modules.
+     ⚠️ cPanel pull PENDING (owner) — brings 83-29 backend (group_privacy.php, members.php guard,
+     conversations.php last_sender) + web root entry-6400e40c live. 83-28 backend rides along if not pulled yet.
+     ===================================================================== -->
+
+<!-- =====================================================================
+     PREVIOUS — 2026-09-10 · PASS 83-28 SHIPPED (20-item owner bug-report pass).
+     deenapp master @ 7c7f6d4 · gh-pages @ 182aec7 (entry-df6b6e97, LIVE 200) · deenlink-api main @ da558b1 (backend + web entry-c2139646)
+     ⚠️ cPanel pull PENDING (owner): brings 83-28 backend (groups posts fix, video URL heal, notif expiry,
+     join requests, security-question verify, X-Deenlink-Ffmpeg diag) + web root entry-c2139646 live.
+     PREVIOUS — HOTFIX 83-27 (575981e, Expo Go svg crash; carried into 83-28 web bundles).
      PREVIOUS — PASS 83-26 SHIPPED.
      deenapp master @ 68bccf4 (notif de-dummy + share-tap + live quiz/riddle/group shares + watermarked downloads + skeletons + group pill)
      gh-pages @ 3510035 (entry-f6ed812c, LIVE-verified 200)
