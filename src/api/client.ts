@@ -1583,10 +1583,32 @@ export async function unreadNotifications(): Promise<number> {
   return r.ok ? r.data.unread_count ?? 0 : 0;
 }
 
-export async function announcement(): Promise<string | null> {
-  const r = await request<{ status?: string; text?: string; announcement?: string }>('/api/announcements/active.php');
-  if (r.ok) return r.data.text ?? r.data.announcement ?? null;
-  return null;
+export type AnnouncementItem = {
+  id: number;
+  name: string;
+  target: string;
+  countries: string[];
+  userTypes: string[];
+  mediaType: 'image' | 'video' | 'youtube' | string;
+  mediaUrl: string;
+  mediaUrlRaw: string;
+  youtubeEmbedUrl: string;
+  actionButtonLabel: string;
+  actionButtonUrl: string;
+  startDate: string;
+  endDate: string;
+  singleDate: string;
+  startTime: string;
+  [k: string]: unknown;
+};
+
+/* pass 83-33 — home-screen announcement modal payload. The server does the
+ * targeting (country / user-type), date window + caching; it returns at most
+ * ONE announcement plus a dismiss_key that changes when the admin edits it. */
+export async function activeAnnouncement(): Promise<{ item: AnnouncementItem | null; dismissKey: string } | null> {
+  const r = await request<{ status?: string; announcement?: AnnouncementItem | null; dismiss_key?: string }>('/api/announcements/active.php');
+  if (!r.ok) return null;
+  return { item: r.data.announcement ?? null, dismissKey: String(r.data.dismiss_key ?? '') };
 }
 
 /* pass 44 — 6-digit email OTP for registration (api/auth/send_otp.php + verify_otp.php). */
@@ -1916,6 +1938,6 @@ export const api = {
   dailyCheckin,
   wallpapers,
   unreadNotifications,
-  announcement,
+  activeAnnouncement,
   prayerTimesCached,
 };

@@ -1630,9 +1630,17 @@ function HexBadge() {
 /* --------------------- Sun path (time-based day arc) --------------------- */
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
+import { AnnouncementModal } from '@/components/AnnouncementModal';
+
 export default function Home() {
   const guest = useIsGuest();
   /* pass 83-6 — guests browse this screen; actions pop the login modal (guestBlock) */
   void guest;
-  return <HomeInner />;
+  return (
+    <>
+      <HomeInner />
+      {/* pass 83-33 — admin announcements surface here as a modal (server-targeted) */}
+      <AnnouncementModal />
+    </>
+  );
 }
