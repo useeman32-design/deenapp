@@ -1,6 +1,6 @@
 # ══ 2026-09-11 — PASS 83-35: OWNER BATCH (videos-page reels, zen, group chips, YT inline, admin join requests) ══ READ FIRST ══
-# deenapp master = 5b4a948 · dlapi main = eb0360e · gh-pages = 53ff722.
-# OWNER: pull dlapi (API + admin) AND copy the RAW artifact to the app root — live is still 83-33.
+# deenapp master = 93153a0 · dlapi main = 5862cd0 (api + admin + RAW WEB ROOT merged — ONE cPanel pull ships everything) · gh-pages = 53ff722.
+# OWNER: ONE dlapi pull in cPanel ships api + admin + the 83-35 web root (boot-tested on the merged tree). Live was 83-33.
 # Native rebuild still owed (audio picker '*/*' ships in the JS bundle; iOS Files fix needs the dev build).
 #
 # WHAT SHIPPED (owner's 15-point batch):

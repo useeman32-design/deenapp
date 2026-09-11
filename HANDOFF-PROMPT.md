@@ -1,5 +1,5 @@
 # ══ 2026-09-11 — PASS 83-35 (latest state) ══
-# deenapp 5b4a948 · dlapi eb0360e (OWNER PULL — api/ + admin/ + web root) · gh-pages 53ff722 (live for PWA users once Pages CDN settles).
+# deenapp 93153a0 · dlapi 5862cd0 (OWNER PULL — api/ + admin/ + web root, all in-repo) · gh-pages 53ff722 (live for PWA users once Pages CDN settles).
 # Scope: owner's 15-point batch — delete-own-post on HOME, video expand → videos-page reels (NO in-card fullscreen),
 # pinch-in zen reels, group chips on reels + tap-to-group, reels mirrored to community, working search,
 # stop-on-end + stop-on-navigate, text-only optimistic rows, exact community pill in group + videos composers,
