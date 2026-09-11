@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
-import { FeedCard } from '@/components/FeedCard';
+import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MOCK_COMMENTS } from '@/api/mocks';
 import { FriendsPicker } from '@/components/SendToFriends';
@@ -44,7 +44,7 @@ function BreathingPosts({ dash }: { dash: { card: string; cardBorder: string } }
     </View>
   );
 }
-import { groupCreatePost, groupDeletePost, groupGet, groupJoin, groupMembers, groupPosts as groupPostsApi, searchAccounts, toggleFollow as apiToggleFollow, type AccountResult, type GroupRow } from '@/api/client';
+import { groupCreatePost, groupDeletePost, groupGet, groupJoin, groupJoinDecide, groupJoinRequests, groupJoinRich, groupMembers, groupPosts as groupPostsApi, searchAccounts, toggleFollow as apiToggleFollow, type AccountResult, type GroupRow } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { haptic } from '@/lib/haptics';
 import { shareLink } from '@/lib/share';
@@ -160,7 +160,15 @@ function GroupScreenInner() {
         return;
       }
       const docPicker = await import('expo-document-picker');
-      const res = await docPicker.getDocumentAsync({ type: 'audio/*' });
+      /* pass 83-34 — iOS: the old all-media wildcard string is NOT a UTI; the
+       * picker maps it to nothing and the Files app GREYS OUT audio (owner,
+       * 3rd report). Real UTIs:
+       * public.data is the base type every readable file conforms to (mp3,
+       * m4a, wav, aac…), public.audio is the explicit audio tree. Files in
+       * iCloud download on pick (copyToCacheDirectory defaults true).
+       * validateAudio() still rejects non-audio picks with a clear message. */
+      const audioTypes = Platform.OS === 'ios' ? ['public.audio', 'public.data'] : 'audio/*';
+      const res = await docPicker.getDocumentAsync({ type: audioTypes as never });
       const asset = (Array.isArray(res.assets) ? res.assets[0] : (res as unknown)) as { uri?: string; name?: string; mimeType?: string; size?: number } | undefined;
       if (res.canceled !== true && asset?.uri) {
         /* pass 83-25 — validate BEFORE attach (the server silently drops bad
@@ -232,6 +240,41 @@ function GroupScreenInner() {
   const [addSearching, setAddSearching] = useState(false);
   const [addBusy, setAddBusy] = useState<number | null>(null);
 
+  /* pass 83-28 — posts fetch can FAIL (server hiccup / session drop); it used
+   * to leave the skeleton breathing forever with no way out. */
+  const [postsError, setPostsError] = useState(false);
+  /* pass 83-28 — admin join-request queue (owner: "a place where admin can
+   * accept or rejects joining requests") */
+  const [joinReqs, setJoinReqs] = useState<Array<{ id: number; username: string; full_name: string; profile_image_url?: string | null }> | null>(null);
+  const [reqBusy, setReqBusy] = useState<number | null>(null);
+  const loadServerPosts = (sid: number, localId?: number | string, retried = false) => {
+    setPostsError(false);
+    /* pass 83-31 — owner: loader then "could not load" DESPITE internet.
+     * One silent retry before giving up; rejected fetches now land in the
+     * same handler (they used to slip past .then and leave the skeleton
+     * breathing forever), and the posts call gets a 45s window. */
+    void groupPostsApi(sid)
+      .then((rows) => {
+        if (!rows) {
+          if (!retried) { setTimeout(() => loadServerPosts(sid, localId, true), 900); return; }
+          setPostsError(true);
+          return;
+        }
+        setServerPosts(rows);
+        if (!rows.length) return;
+        const lid = localId;
+        setGroup((cur) =>
+          cur && (lid == null ? true : cur.id === lid)
+            ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
+            : cur,
+        );
+      })
+      .catch(() => {
+        if (!retried) { setTimeout(() => loadServerPosts(sid, localId, true), 900); return; }
+        setPostsError(true);
+      });
+  };
+
   useEffect(() => {
     loadGroups().then((all) => {
       /* pass 83-17 — removed the `?? all[0]` fallback: a stale/wrong id used
@@ -250,17 +293,12 @@ function GroupScreenInner() {
           if (!row) return;
           setGroup((cur) => (cur && cur.id === g.id ? { ...cur, my_role: row.my_role ?? cur.my_role ?? null, mine: row.is_owner } : cur));
           if (Array.isArray(row.members)) setRoster(row.members);
+          /* pass 83-28 — admins pull the join-request queue */
+          if (row.my_role === 'owner' || row.my_role === 'admin' || row.is_owner) {
+            void groupJoinRequests(sid).then((reqs) => setJoinReqs(reqs ?? []));
+          }
         });
-        void groupPostsApi(sid).then((rows) => {
-          if (!rows) return;
-          setServerPosts(rows);
-          if (!rows.length) return;
-          setGroup((cur) =>
-            cur && cur.id === g.id
-              ? { ...cur, posts: rows.map((p) => ({ id: `sp${p.id}`, author: p.user?.full_name || p.user?.username || 'Member', text: p.content_text ?? '', at: new Date(p.created_at ?? Date.now()).getTime() })) }
-              : cur,
-          );
-        });
+        loadServerPosts(sid, g.id);
       }
     });
   }, [id]);
@@ -304,6 +342,31 @@ function GroupScreenInner() {
       });
       return;
     }
+    /* pass 83-28 — closed server groups now send a real JOIN REQUEST the
+     * owner approves/declines (it used to flip a local flag only — and the
+     * server answered every later join with "This group is invite-only"). */
+    if (sid != null) {
+      setJoinBusy(true);
+      setMemberError(null);
+      upd((x) => ({ ...x, joined: 'requested' }));
+      groupJoinRich(sid, true).then((res) => {
+        setJoinBusy(false);
+        if (res === 'requested') {
+          Alert.alert('Request sent', 'The group admin will review your join request.');
+        } else if (res === 'joined') {
+          void groupGet(sid).then((row) => {
+            if (!row) return;
+            setGroup((cur) => (cur ? { ...cur, my_role: row.my_role ?? 'member', mine: row.is_owner, memberCount: row.member_count } : cur));
+            if (Array.isArray(row.members)) setRoster(row.members);
+          });
+          upd((x) => ({ ...x, joined: 'member', my_role: 'member' as Role }));
+        } else if (res === null) {
+          upd((x) => ({ ...x, joined: null }));
+          setMemberError('Could not send the request — please try again.');
+        }
+      });
+      return;
+    }
     upd((x) => ({ ...x, joined: x.open ? 'member' : 'requested', members: x.open ? (x.members.includes(ME) ? x.members : [...x.members, ME]) : x.members, memberCount: x.open ? x.memberCount + 1 : x.memberCount, ...(x.open ? { my_role: 'member' as Role } : {}) }));
   };
   const leave = () => {
@@ -338,6 +401,9 @@ function GroupScreenInner() {
     const imgs = imagesAttach;
     const vid = videoAttach;
     const aud = audioAttach;
+    /* pass 83-32 — keep a snapshot so a failed upload hands EVERYTHING back
+     * (owner: "show unable to post not just disappearing blindly") */
+    const draft = { text, imgs, vid, aud, yt, pollOn, poll, ytOn: ytOn || !!yt };
     upd((x) => ({ ...x, posts: [{ id: `p${Date.now()}`, author: ME, text, at: Date.now(), ...(imgs[0] ? { image_url: imgs[0].uri } : {}) }, ...x.posts] }));
     const optId = -Date.now();
     if (serverPosts) {
@@ -367,6 +433,30 @@ function GroupScreenInner() {
     if (sid != null) {
       setPostError(null);
       if (imgs.length || vid || aud) setUploadFrac(0);
+      /* pass 83-34 — "It says failed, but after a refresh the post is there."
+       * On mobile networks the upload CAN reach the server and commit while
+       * the response never makes it back (screen lock, network switch, proxy
+       * drop). Before declaring failure, silently re-fetch the group feed:
+       * if our post is already there, it SUCCEEDED — reconcile, never nag. */
+      const verifyMaybePosted = async (): Promise<boolean> => {
+        try {
+          const rows = await groupPostsApi(sid);
+          const newest = (rows ?? [])[0] as Post | undefined;
+          if (!newest) return false;
+          if (text !== '') return String(newest.content_text ?? '') === text;
+          /* pure-media post: newest row with media, fresh enough to be ours */
+          const hasMedia = Array.isArray((newest as { media?: unknown[] }).media) && ((newest as { media?: unknown[] }).media ?? []).length > 0;
+          const ts = Date.parse(String(newest.created_at ?? '').replace(' ', 'T') + 'Z');
+          const fresh = Number.isNaN(ts) ? true : Date.now() - ts < 6 * 3600 * 1000;
+          return hasMedia && fresh;
+        } catch { return false; }
+      };
+      const salvageWin = () => {
+        loadServerPosts(sid);
+        haptic.success();
+        setPostedPill(true);
+        setTimeout(() => setPostedPill(false), 2200);
+      };
       void groupCreatePost(
         sid,
         text,
@@ -376,21 +466,35 @@ function GroupScreenInner() {
         vid ?? undefined,
         yt || undefined,
         (f) => setUploadFrac(f),
-      ).then((res) => {
+      ).then(async (res) => {
         setUploadFrac(null);
-        if (res) {
+        /* pass 83-28 — res is {id, message}: only a REAL id counts as a win,
+         * and the server's own message (rate limit, membership…) is shown. */
+        if (res && res.id != null) {
           /* pass 83-17 — refetch so the real server row (with its real id)
            * replaces the optimistic one. */
-          void groupPostsApi(sid).then((rows) => { if (rows) setServerPosts(rows); });
+          loadServerPosts(sid);
           haptic.success();
           setPostedPill(true);
           setTimeout(() => setPostedPill(false), 2200);
         } else {
-          /* the old code ignored failure — the optimistic post just vanished
-           * on the next load ("when i post something its just vanished"). */
+          /* pass 83-34 — the response was lost/mangled but the post may be
+           * committed; verify before calling it a failure. A server-said
+           * error (rate limit, membership…) is a REAL failure — no salvage. */
+          const salvaged = !res?.message ? await verifyMaybePosted() : false;
+          if (salvaged) { salvageWin(); return; }
+          /* pass 83-32 — failure hands the draft back (text + attachments +
+           * toggles), so nothing vanishes blindly. */
           setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));
-          setPostError('Post failed — please try again.');
+          restoreGroupDraft(draft);
+          setPostError(res?.message ? `Unable to post — ${res.message}` : 'Unable to post — please try again.');
         }
+      }).catch(async () => {
+        setUploadFrac(null);
+        if (await verifyMaybePosted()) { salvageWin(); return; }
+        setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));
+        restoreGroupDraft(draft);
+        setPostError('Unable to post — check your connection and try again.');
       });
     } else {
       /* local group — the optimistic post above IS the publish */
@@ -402,6 +506,18 @@ function GroupScreenInner() {
   /* pass 83-25 — send-button state, computed once (photo/video/YouTube/poll/audio/text) */
   const ytReady = ytOn && ytLink.trim().length > 0;
   const canSend = !!group && uploadFrac == null && (!!composer.trim() || imagesAttach.length > 0 || !!audioAttach || !!videoAttach || ytReady || (pollOn && pollOpts.filter((o) => o.trim()).length >= 2));
+
+  /* pass 83-32 — put a failed post's content back into the composer */
+  const restoreGroupDraft = (d: { text: string; imgs: typeof imagesAttach; vid: typeof videoAttach; aud: typeof audioAttach; yt: string; pollOn: boolean; poll: string[]; ytOn: boolean }) => {
+    setComposer(d.text);
+    setImagesAttach(d.imgs);
+    setVideoAttach(d.vid);
+    setAudioAttach(d.aud);
+    setYtLink(d.yt);
+    setYtOn(d.ytOn || !!d.yt);
+    setPollOn(d.pollOn);
+    setPollOpts(d.poll.length ? d.poll : ['', '']);
+  };
 
   /* ── pass 38 management actions ── */
   const setRole = (member: string, role: Role) => {
@@ -457,6 +573,23 @@ function GroupScreenInner() {
       else setMemberError(r.message ?? 'Could not remove that member.');
     });
   };
+  /* pass 83-29 — privacy denials pile up: "Cannot add @u Full Name", or with
+   * more than one, "Cannot add @a, @b and @c" (owner's exact wording). */
+  const [addDenials, setAddDenials] = useState<Array<{ username: string; full_name: string }>>([]);
+  const addDenialsRef = useRef<Array<{ username: string; full_name: string }>>([]);
+  const commitDenial = (d: { username: string; full_name: string }) => {
+    const list = addDenialsRef.current.some((x) => x.username === d.username)
+      ? addDenialsRef.current
+      : [...addDenialsRef.current, d].sort((a, b) => a.username.localeCompare(b.username));
+    addDenialsRef.current = list;
+    setAddDenials([...list]);
+    const names = list.map((x) => `@${x.username}`);
+    setMemberError(
+      list.length === 1
+        ? `Cannot add ${names[0]}${list[0].full_name ? ` ${list[0].full_name}` : ''}`
+        : `Cannot add ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`,
+    );
+  };
   const addServerMember = (uid: number) => {
     const sid = group ? srvGroupId(group) : null;
     if (sid == null) return;
@@ -466,6 +599,7 @@ function GroupScreenInner() {
     groupMembers(sid, 'add', uid).then((r) => {
       setAddBusy(null);
       if (r.ok) refreshRoster(sid);
+      else if (r.denial) commitDenial(r.denial);
       else setMemberError(r.message ?? 'Could not add that account.');
     });
   };
@@ -712,41 +846,122 @@ function GroupScreenInner() {
         {/* ── POSTS — group-first cards ── */}
         {tab === 'posts' ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 12 }}>
+            {/* pass 83-28 — admin join-request queue (accept / reject) */}
+            {canManage && joinReqs && joinReqs.length > 0 ? (
+              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.4)' : 'rgba(140,109,31,0.35)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.07)', padding: 12, gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <FontAwesome5 name="user-clock" size={13} color={isDark ? '#E8C96A' : '#8C6D1F'} />
+                  <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: isDark ? '#E8C96A' : '#8C6D1F' }}>
+                    Join requests · {joinReqs.length}
+                  </T>
+                </View>
+                {joinReqs.map((rq) => (
+                  <View key={rq.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <AvatarImage source={rq.profile_image_url ?? null} name={rq.full_name} size={38} tint={d.bgSoft} border={d.cardBorder} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <T v="bodyS" numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: d.text }}>{rq.full_name}</T>
+                      <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint }}>@{rq.username}</T>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        if (reqBusy != null) return;
+                        const sid = group ? srvGroupId(group) : null;
+                        if (sid == null) return;
+                        setReqBusy(rq.id);
+                        void groupJoinDecide(sid, rq.id, true).then((r) => {
+                          setReqBusy(null);
+                          if (r.ok) {
+                            setJoinReqs((cur) => (cur ?? []).filter((x) => x.id !== rq.id));
+                            setRoster(null);
+                            void groupGet(sid).then((row) => { if (row) { setGroup((cur) => (cur ? { ...cur, memberCount: row.member_count } : cur)); if (Array.isArray(row.members)) setRoster(row.members); } });
+                          } else {
+                            setMemberError(r.message ?? 'Could not approve.');
+                          }
+                        });
+                      }}
+                      disabled={reqBusy != null}
+                      style={{ borderRadius: 10, backgroundColor: isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 14, paddingVertical: 8, opacity: reqBusy === rq.id ? 0.6 : 1 }}
+                    >
+                      <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>{reqBusy === rq.id ? '…' : 'Accept'}</T>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        if (reqBusy != null) return;
+                        const sid = group ? srvGroupId(group) : null;
+                        if (sid == null) return;
+                        setReqBusy(rq.id);
+                        void groupJoinDecide(sid, rq.id, false).then((r) => {
+                          setReqBusy(null);
+                          if (r.ok) setJoinReqs((cur) => (cur ?? []).filter((x) => x.id !== rq.id));
+                          else setMemberError(r.message ?? 'Could not decline.');
+                        });
+                      }}
+                      disabled={reqBusy != null}
+                      style={{ borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,123,123,0.5)' : 'rgba(207,58,58,0.45)', paddingHorizontal: 14, paddingVertical: 8, opacity: reqBusy === rq.id ? 0.6 : 1 }}
+                    >
+                      <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: '#FF7B7B' }}>Decline</T>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {/* pass 83-28 — posts fetch failed: say so, offer a retry (the
+             * skeleton used to breathe forever when this endpoint failed) */}
+            {postsError && serverPosts == null ? (
+              <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 26, alignItems: 'center', gap: 10 }}>
+                <FontAwesome5 name="wifi" size={20} color={d.faint} />
+                <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center' }}>
+                  Couldn't load this group's posts — check your connection.
+                </T>
+                <Pressable
+                  onPress={() => { const sid = group ? srvGroupId(group) : null; if (sid != null) loadServerPosts(sid); }}
+                  style={{ borderRadius: 10, backgroundColor: isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 18, paddingVertical: 9 }}
+                >
+                  <T v="caption" style={{ fontSize: 11.5, fontWeight: '800', color: '#fff' }}>Try again</T>
+                </Pressable>
+              </View>
+            ) : null}
             {isMember ? (
-              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingLeft: 12, paddingRight: 5, paddingVertical: 4, alignItems: 'flex-end' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
-                  <TextInput
-                    value={composer}
-                    onChangeText={setComposer}
-                    placeholder={`Post to ${group.name}…`}
-                    placeholderTextColor={d.faint}
-                    multiline
-                    style={{ flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, maxHeight: 84, paddingVertical: 8 }}
-                  />
-                  <Pressable onPress={() => { void pickImage(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: imagesAttach.length ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+              /* pass 83-28 — the composer used to cram the textfield and six
+               * icon buttons into ONE row (owner: "increase it a bit giving
+               * the icons place to breath and the textfield will have its
+               * full space"). Text on top, tools row underneath. */
+              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingLeft: 14, paddingRight: 12, paddingTop: 12, paddingBottom: 10, gap: 8 }}>
+                <TextInput
+                  value={composer}
+                  onChangeText={setComposer}
+                  placeholder={`Post to ${group.name}…`}
+                  placeholderTextColor={d.faint}
+                  multiline
+                  style={{ fontSize: 16, fontFamily: 'Poppins-Regular', color: d.text, minHeight: 72, maxHeight: 140, textAlignVertical: 'top', paddingBottom: 4 }}
+                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Pressable onPress={() => { void pickImage(); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: imagesAttach.length ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="image" size={14} color={imagesAttach.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
                   {/* pass 83-10b — poll builder toggle */}
-                  <Pressable onPress={() => { haptic.selection(); setPollOn((v) => !v); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: pollOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                  <Pressable onPress={() => { haptic.selection(); setPollOn((v) => !v); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: pollOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="poll-h" size={14} color={pollOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
                   {/* pass 83-10c — audio file picker */}
-                  <Pressable onPress={() => { void pickAudio(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: audioAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                  <Pressable onPress={() => { void pickAudio(); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: audioAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="music" size={13} color={audioAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
                   {/* pass 83-25 — local video picker */}
-                  <Pressable onPress={() => { void pickVideo(); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                  <Pressable onPress={() => { void pickVideo(); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="video" size={13} color={videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
                   {/* pass 83-25 — YouTube link toggle */}
-                  <Pressable onPress={() => { haptic.selection(); setYtOn((v) => !v); }} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : 'transparent', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                  <Pressable onPress={() => { haptic.selection(); setYtOn((v) => !v); }} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.08)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(29,111,66,0.05)'), alignItems: 'center', justifyContent: 'center' }}>
                     <FontAwesome5 name="youtube" size={14} color={ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
                   </Pressable>
-                  <Pressable onPress={post} disabled={!canSend} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: canSend ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                  <View style={{ flex: 1 }} />
+                  <Pressable onPress={post} disabled={!canSend} style={{ width: 44, height: 40, borderRadius: 12, backgroundColor: canSend ? (isDark ? '#2ECC71' : '#1D6F42') : d.bgSoft, alignItems: 'center', justifyContent: 'center' }}>
                     {uploadFrac != null ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <FontAwesome5 name="paper-plane" size={12} color={canSend ? '#fff' : d.faint} />
+                      <FontAwesome5 name="paper-plane" size={13} color={canSend ? '#fff' : d.faint} />
                     )}
                   </Pressable>
                 </View>
@@ -975,7 +1190,7 @@ function GroupScreenInner() {
               {canManage ? (
                 <Pressable
                   accessibilityLabel="add members"
-                  onPress={() => { haptic.selection(); setAddOpen(true); }}
+                  onPress={() => { haptic.selection(); addDenialsRef.current = []; setAddDenials([]); setMemberError(null); setAddOpen(true); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, backgroundColor: isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 10, paddingVertical: 7 }}
                 >
                   <FontAwesome5 name="user-plus" size={9} color="#fff" />
@@ -1151,6 +1366,7 @@ function GroupScreenInner() {
                   {(addResults ?? []).map((a) => {
                     const inGroup = (roster ?? []).some((m) => m.id === a.id);
                     const busy = addBusy === a.id;
+                    const denied = addDenials.some((x) => x.username === a.username);
                     return (
                       <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, padding: 11, marginBottom: 8 }}>
                         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(91,200,245,0.12)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -1164,9 +1380,9 @@ function GroupScreenInner() {
                           <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5, color: d.text }}>{a.full_name || a.username}</T>
                           <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}>@{a.username}</T>
                         </View>
-                        <Pressable onPress={() => addServerMember(a.id)} disabled={inGroup || busy} style={{ borderRadius: 10, backgroundColor: inGroup ? d.bgSoft : isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 13, paddingVertical: 7, minWidth: 64, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
+                        <Pressable onPress={() => addServerMember(a.id)} disabled={inGroup || busy || denied} style={{ borderRadius: 10, backgroundColor: inGroup || denied ? d.bgSoft : isDark ? '#2ECC71' : '#1D6F42', paddingHorizontal: 13, paddingVertical: 7, minWidth: 64, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
                           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
-                            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: inGroup ? d.faint : '#fff' }}>{inGroup ? 'Added' : '+ Add'}</T>
+                            <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: inGroup || denied ? d.faint : '#fff' }}>{denied ? "Can't add" : inGroup ? 'Added' : '+ Add'}</T>
                           )}
                         </Pressable>
                       </View>

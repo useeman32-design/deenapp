@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, AppState, Dimensions, Easing, FlatList, Image, LayoutAnimation, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, TextInput, View, type ViewStyle } from 'react-native';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
@@ -152,9 +152,30 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
     });
 
   useEffect(() => {
-    if (started && !paused && !outRef.current) player.play();
+    if (started && !paused && !outRef.current && screenFocusedRef.current) player.play();
     else player.pause();
   }, [started, paused, player]);
+
+  /* pass 83-28 — three hard stops so audio never leaks: the card UNMOUNTS,
+   * the SCREEN loses focus (user opened another module — the poll above only
+   * catches scroll, coordinates can stay stale), or the APP is backgrounded. */
+  const screenFocusedRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      screenFocusedRef.current = true;
+      return () => {
+        screenFocusedRef.current = false;
+        try { player.pause(); } catch {}
+      };
+    }, [player]),
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') { try { player.pause(); } catch {} }
+    });
+    return () => sub.remove();
+  }, [player]);
+  useEffect(() => () => { try { player.pause(); } catch {} }, [player]);
 
   /* pass 41 — PAUSE when scrolled out of view, resume when back (user request).
    * measureInWindow works on native AND web, so the poll catches both. */
@@ -208,44 +229,61 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
   }, [rate, player]);
 
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+  const isWeb = Platform.OS === 'web';
+  /* pass 83-34 — one seek/speed bar renderer for inline, web-fullscreen and
+   * the native modal (they were three near-identical copies that drifted). */
+  const renderBar = (pill: boolean) => (
+    <View
+      style={pill ? { position: 'absolute', left: 14, right: 14, bottom: Math.max(24, 34), flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(10,20,14,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' } : { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(10,20,14,0.55)' }}
+    >
+      <Pressable onPress={() => setPaused((v) => !v)} hitSlop={8}>
+        <FontAwesome5 name={paused ? 'play' : 'pause'} size={pill ? 13 : 12} color="#FFFFFF" />
+      </Pressable>
+      <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss((dragging ? dragFrac : frac) * dur)}</T>
+      <View
+        {...seekPan().panHandlers}
+        onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
+        style={{ flex: 1, height: 20, justifyContent: 'center' }}
+      >
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.24)' }} />
+        <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
+        <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F', transform: [{ scale: dragging ? 1.25 : 1 }] }} />
+      </View>
+      <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
+      <Pressable onPress={cycleRate} hitSlop={8} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+        <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
+      </Pressable>
+    </View>
+  );
 
   const boxRef = useRef<View>(null);
-  /* pass 83-24 — the expanded view used to mount a SECOND <video> for the same
-   * source: web re-downloaded it and sat on "loading" until the user poked
-   * pause/play (owner report). Web now flips THIS container to a fixed
-   * fullscreen overlay so the one and only <video> element stays mounted;
-   * native asks the player for its real fullscreen instead. */
-  const webFull = expanded && Platform.OS === 'web';
+  /* pass 83-31 — owner: "fullscreen must use the app's player, never the
+   * browser/native player." ONE path now: the opaque in-app Modal with the
+   * custom controls (its portal escapes transformed ancestors on web, so the
+   * old transform-offset bug can't shrink it into a corner box). The inline
+   * VideoView stays mounted underneath — playback lives on the SHARED player
+   * object, so fullscreen never re-downloads the video (pass 83-24 fix kept). */
   const openFull = () => {
     haptic.light();
-    if (Platform.OS === 'web') { setExpanded(true); return; }
-    /* native: the player's own fullscreen keeps the same playback session;
-     * if the API is missing it rejects/throws and we fall back to the modal */
-    try {
-      const fn = (player as unknown as { enterFullscreen?: (o?: unknown) => Promise<void> }).enterFullscreen;
-      if (fn) {
-        const r = fn.call(player, { screenOrientation: 'default' });
-        if (r && typeof r.catch === 'function') { r.catch(() => setExpanded(true)); return; }
-        return;
-      }
-    } catch { /* fall through */ }
     setExpanded(true);
   };
   return (
     <View ref={boxRef} style={[
-      { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline, backgroundColor: '#000' },
-      /* 'fixed' is a react-native-web value; the cast keeps RN's types happy */
-      webFull ? { position: 'fixed' as 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2147483000, borderRadius: 0, borderWidth: 0 } : null,
+      { borderRadius: expanded && isWeb ? 0 : 14, overflow: 'hidden', borderWidth: expanded && isWeb ? 0 : 1, borderColor: hairline, backgroundColor: '#000' },
     ]}>
-      <View style={{ height: webFull ? '100%' : 300 }}>
-        {started && !(expanded && Platform.OS !== 'web') ? (
+      <View style={expanded && isWeb ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, height: '100%', width: '100%', zIndex: 9999, elevation: 9999, backgroundColor: '#000' } as unknown as ViewStyle) : { height: 300 }}>
+        {started && (isWeb || !expanded) ? (
+          /* pass 83-34 — WEB: the inline VideoView STAYS MOUNTED through
+           * fullscreen (the box flips to position:fixed instead), so the
+           * <video> element is never destroyed → no re-download, no "loading"
+           * flash when opening fullscreen (owner report ×3).
+           * NATIVE: keep the 83-32 swap — native re-attach is instant and the
+           * modal presentation is cleaner. */
           <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
             <VideoView player={player} contentFit="contain" nativeControls={false} playsInline style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
-            {started && !expanded ? <VideoLoader player={player} /> : null}
+            <VideoLoader player={player} />
           </View>
-        ) : started && expanded && Platform.OS !== 'web' ? (
-          <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000' }} />
-        ) : poster != null ? (
+        ) : poster != null && !started ? (
           <Image source={poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
         ) : null}
         {!started ? (
@@ -263,28 +301,29 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
             ) : null}
           </Pressable>
         )}
+        {expanded && isWeb ? (
+          <>
+            <Pressable onPress={() => setExpanded(false)} hitSlop={14} style={{ position: 'absolute', top: 48, right: 18, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 30, elevation: 30 }}>
+              <FontAwesome5 name="times" size={15} color="#fff" />
+            </Pressable>
+            {renderBar(true)}
+          </>
+        ) : null}
         {/* expand — opens the fullscreen modal */}
-        <Pressable
+        {!(expanded && isWeb) ? <Pressable
           onPress={openFull}
           hitSlop={8}
           style={{ position: 'absolute', top: 8, right: 8, width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' }}
         >
           <FontAwesome5 name="expand" size={13} color="#FFFFFF" />
-        </Pressable>
+        </Pressable> : null}
       </View>
 
-      {/* pass 83-24 — web closes from the overlay's own X; the Modal path is
-          the native fallback only (it remounts the video, web must not) */}
-      {webFull ? (
-        <Pressable
-          onPress={() => setExpanded(false)}
-          hitSlop={10}
-          style={{ position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(4,12,8,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
-        >
-          <FontAwesome5 name="times" size={15} color="#FFFFFF" />
-        </Pressable>
-      ) : null}
-      <Modal visible={expanded && Platform.OS !== 'web'} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
+      {/* pass 83-31 — fullscreen modal for EVERY platform (web included): the
+          same custom controls, no browser/native chrome. Bound to the same
+          player object → zero reload. */}
+      {!isWeb ? (
+      <Modal visible={expanded} transparent animationType="slide" onRequestClose={() => setExpanded(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
           <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={() => setExpanded(false)}>
             <View onStartShouldSetResponder={() => true} style={{ height: '78%' }} pointerEvents="none">
@@ -305,71 +344,13 @@ function VideoPostPlayer({ src, poster, accent, hairline }: { src: string; poste
             <FontAwesome5 name="times" size={15} color="#fff" />
           </Pressable>
           {/* pass 23: seek + time INSIDE fullscreen (it used to vanish) */}
-          <View
-            style={{
-              position: 'absolute',
-              left: 14,
-              right: 14,
-              bottom: Math.max(24, 34),
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 10,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 14,
-              backgroundColor: 'rgba(10,20,14,0.6)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.14)',
-            }}
-          >
-            <Pressable onPress={() => setPaused((v) => !v)} hitSlop={8}>
-              <FontAwesome5 name={paused ? 'play' : 'pause'} size={13} color="#FFFFFF" />
-            </Pressable>
-            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss((dragging ? dragFrac : frac) * dur)}</T>
-            <View
-              {...seekPan().panHandlers}
-              onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
-              style={{ flex: 1, height: 20, justifyContent: 'center' }}
-            >
-              <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }} />
-              <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
-              <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F' }} />
-            </View>
-            <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
-            <Pressable onPress={cycleRate} hitSlop={8} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
-              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
-            </Pressable>
-          </View>
+          {renderBar(true)}
         </View>
       </Modal>
+      ) : null}
     
-      {/* pass 20: seek bar + speed — always visible once started */}
-      {started ? (
-        <View
-          style={[
-            { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(10,20,14,0.55)' },
-            { backdropFilter: 'blur(14px) saturate(1.3)', WebkitBackdropFilter: 'blur(14px) saturate(1.3)' } as unknown as ViewStyle,
-          ]}
-        >
-          <Pressable onPress={() => setPaused((p) => !p)} hitSlop={6}>
-            <FontAwesome5 name={paused ? 'play' : 'pause'} size={12} color="#FFFFFF" />
-          </Pressable>
-          <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(frac * dur)}</T>
-          <View
-            {...seekPan().panHandlers}
-            onLayout={(e) => (barW.current = e.nativeEvent.layout.width)}
-            style={{ flex: 1, height: 20, justifyContent: 'center' }}
-          >
-            <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' }} />
-            <View style={{ position: 'absolute', left: 0, width: `${(dragging ? dragFrac : frac) * 100}%`, height: 4, borderRadius: 2, backgroundColor: '#4AE38F' }} />
-            <View style={{ position: 'absolute', left: `${(dragging ? dragFrac : frac) * 100}%`, marginLeft: -5.5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#4AE38F', transform: [{ scale: dragging ? 1.25 : 1 }] }} />
-          </View>
-          <T v="caption" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.75)', fontVariant: ['tabular-nums'] }}>{mmss(dur)}</T>
-          <Pressable onPress={cycleRate} hitSlop={6} style={{ borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>{rate}x</T>
-          </Pressable>
-        </View>
-      ) : null}</View>
+      {/* pass 20: seek bar + speed — always visible once started (hidden while web-fullscreen: renderBar(true) owns the screen) */}
+      {started && !(expanded && isWeb) ? renderBar(false) : null}</View>
   );
 }
 
@@ -455,6 +436,8 @@ export function FeedCard({
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
+  /* pass 83-28 — the preview opens on the image you TAPPED (it always showed the first slide) */
+  const [previewIdx, setPreviewIdx] = useState(0);
   const [pollState, setPollState] = useState<{ voted: number | null; options: Array<{ id: number; text: string; votes: number }> }>(() => ({
     /* pass 66-night — server polls arrive already voted so the card opens truthful */
     voted: post.poll?.voted ?? null,
@@ -522,7 +505,13 @@ export function FeedCard({
   };
 
   const fieldLabel = field || (user as { fields?: string | null }).fields || user.scholar?.fields_of_knowledge || null;
-  const media = post.media?.[0];
+  /* pass 83-31 — owner: "post card shows 2 video containers." When media[]
+   * carries the video entry, the old `media?.[0]` picked it and painted it
+   * AGAIN as an <Image> block under the inline player. Media for the image
+   * blocks is now IMAGE-kind only — the video plays in exactly one place. */
+  const media =
+    (post.media ?? []).find((m) => String((m as Record<string, unknown>).media_type ?? m.type ?? 'image') === 'image') ??
+    (post.video_url ? undefined : post.media?.[0]);
   const mediaUrl = media?.url as string | number | null | undefined;
   /* pass 83-19 — image-only urls from media[] for the swipe carousel */
   const mediaImgs = (post.media ?? [])
@@ -979,7 +968,7 @@ export function FeedCard({
       {/* pass 83-24 — a multi-photo post renders ONLY the carousel; this hero
           used to stack a second container holding the first image on top */}
       {post.image_url && mediaImgs.length <= 1 ? (
-        <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
+        <Pressable onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image source={{ uri: post.image_url }} style={{ width: '100%', height: 280 }} resizeMode="cover" />
           </View>
@@ -988,7 +977,7 @@ export function FeedCard({
 
       {/* Media image — single tap: preview · double tap: like */}
       {mediaUrl != null && mediaImgs.length <= 1 ? (
-        <Pressable onPress={() => onTap(() => setImgPreview(true))} style={{ marginBottom: 12 }}>
+        <Pressable onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ marginBottom: 12 }}>
           <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: hairline }}>
             <Image
               source={typeof mediaUrl === 'number' ? mediaUrl : { uri: String(mediaUrl) }}
@@ -1018,7 +1007,7 @@ export function FeedCard({
             }}
           >
             {mediaImgs.map((u, i) => (
-              <Pressable key={i} onPress={() => onTap(() => setImgPreview(true))} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>
+              <Pressable key={i} onPress={() => onTap(() => { setPreviewIdx(mediaImgs.length > 1 ? carouselPage : 0); setImgPreview(true); })} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60 }}>
                 <Image source={{ uri: u }} style={{ width: carouselW > 0 ? carouselW : Dimensions.get('window').width - 60, height: 260, borderRadius: 14 }} resizeMode="cover" />
               </Pressable>
             ))}
@@ -1145,6 +1134,7 @@ export function FeedCard({
         onClose={() => setShareOpen(false)}
         card={{ kind: 'post', arabic: '', meaning: post.content_text ?? `${name} on DeenLink`, ref: `@${user.username} · DeenLink`, route: post.id > 0 ? `/tools/post?id=${post.id}` : undefined }}
         link={`https://deenlink.org/post/${post.id}`}
+        post={post}
       />
 
       {/* Double-tap heart burst (over the whole card) */}
@@ -1169,7 +1159,23 @@ export function FeedCard({
       <Modal visible={imgPreview} transparent animationType="fade" onRequestClose={() => setImgPreview(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center' }}>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }} onPress={() => setImgPreview(false)} />
-          {mediaUrl != null ? (
+          {/* pass 83-28 — multi-photo posts get a swipeable gallery that
+              STARTS on the slide you tapped; single images unchanged. */}
+          {mediaImgs.length > 1 ? (
+            <FlatList
+              horizontal
+              pagingEnabled
+              data={mediaImgs}
+              keyExtractor={(u, i) => `${i}-${String(u).slice(0, 24)}`}
+              initialScrollIndex={Math.min(previewIdx, Math.max(0, mediaImgs.length - 1))}
+              getItemLayout={(_, i) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * i, index: i })}
+              onMomentumScrollEnd={(e) => setPreviewIdx(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, Dimensions.get('window').width)))}
+              renderItem={({ item }) => (
+                <Image source={typeof item === 'number' ? item : { uri: String(item) }} style={{ width: Dimensions.get('window').width, height: 560 }} resizeMode="contain" />
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+          ) : mediaUrl != null ? (
             <Image
               source={typeof mediaUrl === 'number' ? mediaUrl : { uri: String(mediaUrl) }}
               style={{ width: '100%', height: 560, borderRadius: 4 }}
