@@ -40,3 +40,15 @@ export async function addUserPost(text: string, kind = 'post', extra?: Partial<O
   } catch {}
   return p;
 }
+
+/* ── pass 83-37 — profile freshness ──
+ * Any successful post marks the profile dirty; the profile tab refetches its
+ * posts + counts the next time it comes into focus (owner: "posting should
+ * sync directly with my profile, no refresh or long wait"). */
+let profileDirty = false;
+export function markProfileDirty(): void { profileDirty = true; }
+export function consumeProfileDirty(): boolean {
+  const v = profileDirty;
+  profileDirty = false;
+  return v;
+}

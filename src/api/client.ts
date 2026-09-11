@@ -1834,6 +1834,26 @@ export async function aiServerStatus(): Promise<{ connected: boolean }> {
 }
 
 /* pass 53 — server-side AI using DB-stored Groq key (no manual key entry) */
+/* pass 83-37 — the admin-managed quiz bank. Admin edits in Quiz Management
+ * land in learning/data/quiz_questions.json; the app plays from THIS
+ * endpoint and keeps its bundled set as offline fallback. */
+export type QuizBankItem = {
+  question: string;
+  options: string[];
+  correct: number;
+  explanation: string;
+  category?: string;
+  multiCorrect?: number[];
+};
+export async function quizBank(): Promise<QuizBankItem[]> {
+  try {
+    const r = await request<{ status?: string; questions?: QuizBankItem[] }>('/api/quiz/bank.php', { method: 'GET' });
+    return Array.isArray(r.data.questions) ? r.data.questions : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function deenAiChatServer(question: string, messages?: Array<{ role: string; content: string }>, model?: string): Promise<{ ok: boolean; answer?: string; model?: string; error?: string }> {
   const r = await request<{ status?: string; answer?: string; model?: string; message?: string }>(`/api/deenai/chat.php`, {
     method: 'POST',

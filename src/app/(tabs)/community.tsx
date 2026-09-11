@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
-import { addUserPost, listUserPosts } from '@/lib/userPosts';
+import { addUserPost, listUserPosts, markProfileDirty } from '@/lib/userPosts';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -329,6 +329,7 @@ function CommunityScreenInner() {
             setPostProg(null);
             if (res.ok && res.id) {
               setPosts((ps) => ps.map((p) => (p.id === tempId ? { ...p, id: res.id as number } : p)));
+              markProfileDirty(); /* pass 83-37 — profile refetches on next focus */
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
             } else {

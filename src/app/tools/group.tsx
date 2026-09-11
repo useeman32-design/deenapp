@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { markProfileDirty } from '@/lib/userPosts';
 import { goBack } from '@/lib/navigation';
 import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, Share, Switch, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -483,6 +484,7 @@ function GroupScreenInner() {
           /* pass 83-17 — refetch so the real server row (with its real id)
            * replaces the optimistic one. */
           loadServerPosts(sid);
+          markProfileDirty(); /* pass 83-37 — profile refetches on next focus */
           haptic.success();
           setPostedPill(true);
           setTimeout(() => setPostedPill(false), 2200);
@@ -491,7 +493,7 @@ function GroupScreenInner() {
            * committed; verify before calling it a failure. A server-said
            * error (rate limit, membership…) is a REAL failure — no salvage. */
           const salvaged = !res?.message ? await verifyMaybePosted() : false;
-          if (salvaged) { salvageWin(); return; }
+          if (salvaged) { markProfileDirty(); salvageWin(); return; }
           /* pass 83-32 — failure hands the draft back (text + attachments +
            * toggles), so nothing vanishes blindly. */
           setServerPosts((rows) => (rows ?? []).filter((r) => r.id !== optId));

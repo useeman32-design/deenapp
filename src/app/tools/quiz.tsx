@@ -14,6 +14,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
 import { QUIZ_POOL, QUIZ_POOL_EXTRA, type QuizQ } from '@/data/quiz';
+import { quizBank } from '@/api/client';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -64,7 +65,32 @@ export default function Quiz() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lock = useRef(false);
 
-  const FULL = useMemo(() => [...QUIZ_POOL, ...QUIZ_POOL_EXTRA], []);
+  /* pass 83-37 — play from the ADMIN-MANAGED bank when the server has one
+   * (edits in Admin → Quiz Management reach every device instantly); the
+   * bundled set remains the offline fallback. */
+  const [serverQs, setServerQs] = useState<QuizQ[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    quizBank().then((rows) => {
+      if (!alive || !rows.length) return;
+      const mapped = rows.map((r, i) => {
+        const cat = (['Quran', 'Hadith', 'Fiqh', 'Seerah', 'Aqidah'] as const).find((c) => c === r.category) || 'Quran';
+        const q: QuizQ = {
+          id: i + 1,
+          category: cat,
+          question: r.question,
+          options: r.options,
+          answer: r.correct,
+          explanation: r.explanation,
+        };
+        if (r.multiCorrect && r.multiCorrect.length > 1) q.answers = r.multiCorrect;
+        return q;
+      });
+      setServerQs(mapped);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const FULL = useMemo<QuizQ[]>(() => (serverQs && serverQs.length ? serverQs : [...QUIZ_POOL, ...QUIZ_POOL_EXTRA]), [serverQs]);
   const pool = useMemo<QuizQ[]>(() => (cat === 'All' ? FULL : FULL.filter((q) => q.category === cat)), [cat, FULL]);
 
   const clearTimer = () => {
@@ -146,7 +172,7 @@ export default function Quiz() {
             </View>
             <View style={{ flex: 1 }}>
               <T v="h2" style={{ fontWeight: '800', fontSize: 21 }}>Islamic Quiz</T>
-              <T v="caption" style={{ fontSize: 11, marginTop: 1 }}>{QUIZ_POOL.length} questions · {CATS.length - 1} categories · {SECONDS}s each</T>
+              <T v="caption" style={{ fontSize: 11, marginTop: 1 }}>{FULL.length} questions · {CATS.length - 1} categories · {SECONDS}s each</T>
             </View>
           </View>
         </View>
@@ -156,7 +182,7 @@ export default function Quiz() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
             {CATS.map((c) => {
               const on = cat === c;
-              const n = c === 'All' ? QUIZ_POOL.length : QUIZ_POOL.filter((x) => x.category === c).length;
+              const n = c === 'All' ? FULL.length : FULL.filter((x) => x.category === c).length;
               return (
                 <Pressable
                   key={c}

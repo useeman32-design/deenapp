@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { storage } from '@/lib/storage';
+import { consumeProfileDirty } from '@/lib/userPosts';
 import { markActive, markGoal } from '@/lib/routine';
 import * as api from '@/api/client';
 import type { Post } from '@/api/types';
@@ -82,6 +84,15 @@ function ProfileInner() {
     api.userPosts(user?.id != null ? Number(user.id) : undefined).then(setPosts);
     if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
   }, [user?.id]);
+
+  /* pass 83-37 — posting syncs straight into the profile: any screen that
+   * committed a post marks the profile dirty and this refetches the moment
+   * the tab regains focus (no pull-to-refresh, no long wait). */
+  useFocusEffect(() => {
+    if (!consumeProfileDirty()) return;
+    api.userPosts(user?.id != null ? Number(user.id) : undefined).then(setPosts);
+    if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
+  });
 
   const name = (user?.full_name as string) || (user?.username as string) || 'Muslim';
   const badge = (user?.verification_badge as string) || '';
