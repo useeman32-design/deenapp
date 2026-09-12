@@ -1,3 +1,26 @@
+# ══ 2026-09-12 — PASS 83-38b: LAUNCH CLEANUP TOOL + FINAL DEMO SCRUB ══ READ FIRST ══
+# deenapp master = cc3783b · dlapi main = da8eb50 (api+admin+RAW web root merged) · gh-pages = 5a20167.
+# OWNER REPEATED "remove every demo data in the live" → TWO MORE THINGS SHIPPED:
+#  1. LAUNCH CLEANUP (admin dashboard card, under the stats grid): one click per section —
+#     Community posts / Videos / Notifications / Chat / Starter courses (83-37) / Learning
+#     modules (83-37). Backend: api/admin/launch_cleanup.php (admin session + CSRF; 401 unauth;
+#     money/users/settings/quiz-bank NEVER touched). PURGED SEEDS STAY PURGED: purge flips
+#     seeds.courses_disabled / seeds.learning_disabled in system_settings; seed_defaults.php
+#     checks the switch (verified E2E on a real MariaDB: purge+hit→0, switch off→7 return).
+#     phpMyAdmin alternative unchanged: scripts/purge-demo-content.sql.
+#  2. FINAL DEMO SCRUB in the app (deep sweep): demo DM threads (CommunityInbox SEED — legacy
+#     cached demo chats scrubbed by name), demo notifications (SEED), demo scholar Q&A
+#     ([username] ANSWERED), video-share demo threads (videos INBOX_THREADS → honest empty state),
+#     demo persona names ("Abdulrahman Al-Harbi"/"abdalrahman" → You/me), ALL pravatar.cc avatars
+#     → real photos or initials (AvatarImage). grep-clean: zero demo strings remain.
+#  SANDBOX E2E (real MariaDB): /api/learning/list → 15 modules · /api/courses/list → 7 courses ·
+#  /api/quiz/bank.php → 166 · launch_cleanup unauth → 401 · seed kill-switch verified.
+#  NOTE: api/config/config.php is GITIGNORED (live secrets) — fresh clones need it from the host;
+#  the owner's cPanel tree already has it. learning/list.php fatals without it (by design).
+#  GATES: tsc clean · php -l · _check_calls (5 known vendor only) · CHECK-RAW OK (220 files) ·
+#  boot root+gh 200/assets ok. RECOVERY (2 stale restores this pass): soft-reset onto origin
+#  kept history clean — never force-push.
+
 # ══ 2026-09-12 — PASS 83-38: REAL DATA ONLY (all demo content removed) ══ READ FIRST ══
 # deenapp master = 4acc2e6 · dlapi main = eb06b44 (api+admin+RAW web root merged) · gh-pages = 462661c.
 # OWNER: "remove every demo data in the live — posts and everything, videos samples too — we only
