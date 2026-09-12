@@ -1,3 +1,32 @@
+# ══ 2026-09-12 — PASS 83-39 DESIGN-UNIFORMITY: EVERY ADMIN PAGE NOW WEARS THE OWNER'S CANONICAL DESIGN ══
+# deenapp master = 02e3a2e (UNCHANGED — this pass is admin-only) · dlapi main = c00270e.
+# OWNER ACTION: ONE dlapi cPanel pull → hard refresh. Fixes "pages look half done, menu not styled".
+# ── WHAT SHIPPED ──
+#  • 9 pages rebuilt 1:1 from announcement.html canonical chrome (inline styles, pageLoader, mobile
+#    top bar, shared sidebar, welcome row, theme light/dark, profile modal, report bell, dl-identity):
+#    articles-management, jokes-management, riddles-management, lessons-management, fatwa-management,
+#    tafsir-management, shop, boost (+ shop-orders NEW).
+#  • boost.html is now the real Account Boosting console: search any account (typeahead), create
+#    followers/likes orders, drip-rate selector, live progress bars, pause/resume/cancel, actor pool
+#    grid — every drip event notifies the user.
+#  • shop-orders.html NEW (sidebar: Business → Shop Orders): buyer/address/items per order, status
+#    dropdown pending→paid→processing→shipped→delivered/cancelled, totals + order value stats.
+#  • Menu uniformity: sidebar.js is the single source (39 items + Shop Orders), active item derived
+#    from URL on every page — no more per-page hand-copied menus.
+# ── REAL BUGS FOUND & FIXED ──
+#  • DELETE on the 5 content endpoints was DEAD CODE (users/common.php require_post_with_csrf 405s
+#    non-POST) → delete buttons could never work. Now POST+DELETE both allowed w/ CSRF.
+#  • storage/cache/*.stamp were committed — on any fresh clone their fresh mtime made ensure() skip
+#    table creation → content APIs 500. Now untracked + gitignored.
+# GATES: node-vm parse OK on all 9 · E2E 48/48 (login, full CRUD round-trips ×5 content modules,
+# tafsir toggle→public follows→restore, boost create/pause/resume/cancel/actors, shop orders status,
+# all 9 page bodies w/ canonical chrome) · PHP lint OK.
+# RIG: /home/user/rig/{setup-db.sh,e2e.py,genpages.py,genboost.py} — full sandbox rig + E2E suite,
+# reproducible after every sandbox wipe (3 wipes survived this session).
+# NEXT: donations E2E (reset_donations {"pin":"230720"}) · DeenLink AI mgmt cleanup · wallpapers
+#   display wiring · quiz management wiring · prophets/duas/names public-API switch · reports wire ·
+#   backup restore · verification & premium.
+
 # ══ 2026-09-12 — PASS 83-39 BATCH 2: LEARNING HUB MODULES (lessons · riddles · fatwa · tafsir — admin-editable → app) ══
 # deenapp master = 395aa55 · dlapi main = ef7549d · gh-pages = 33fc31f.
 # OWNER ACTION: ONE dlapi cPanel pull (same as batch 1) — ships api + admin + new web root. Hard refresh.
