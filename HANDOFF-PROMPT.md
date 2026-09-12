@@ -1,3 +1,55 @@
+# ══ 2026-09-12 — PASS 83-39: ADMIN OVERHAUL BATCH 1 (videos fix · shop · articles · jokes · boost · module toggles) ══
+# deenapp master = 0ad58fd · dlapi main = 601d386 · gh-pages = e5a8229.
+# OWNER ACTION: ONE dlapi cPanel pull ships everything (api + admin + RAW web root) → hard refresh.
+# gh-pages updated automatically. THEN add ONE cPanel cron for the boost drip (every minute):
+#   php /home/<user>/public_html/api/admin/boost/cron.php >/dev/null 2>&1
+#   (without cron, boosts still drip whenever an admin opens Account Boosting — just slower).
+# ── FIXED ──
+#  • VIDEOS "failed to load management data": 4 files required ../admin/videos/common.php (missing
+#    path → 500) + the seeder inserted account_id=1 with an EMPTY video_accounts (FK 1452 → 500).
+#    Fixed both; verified 200 with content on a fresh DB.
+#  • REPLY-TO-COMPLAINT 500 (owner-reported): endpoint read $_SESSION['user_id'] (admin sessions
+#    store admin_user_id) → FK violation fk_complaints_admin on every reply. Fixed + hardened
+#    (NULL when admin id is not a users row). Verified: reply saved, status resolved.
+# ── NEW MODULES (admin) ──
+#  • Shop Management (admin/shop.html + api/admin/shop/{products,orders,stats}.php): stats cards,
+#    products CRUD, orders + status flow; seeded 13 real products. App reads the same tables.
+#  • Islamic Articles (admin/articles-management.html) + Islamic Jokes (admin/jokes-management.html)
+#    + api/admin/content/{articles,jokes}.php — seeded from the app's bundled content (6 / 10).
+#    App now fetches /api/content/{articles,jokes}.php (server-first, bundled fallback) via
+#    src/lib/articlesStore.ts — admin edits REACH the app.
+#  • Account Boosting (admin/boost.html + api/admin/boost/*): 12 dummy ACTOR accounts (real
+#    profile images from avatar.zip → img/profile/actors/, distinct names, varied follower counts,
+#    viewable profiles); orders drip ~3/min (rate 1–10) with a push/in-app notification PER EVENT;
+#    likes hit community/group posts + videos; pause/resume/cancel; progress bars; actor pool view.
+#  • SINGLE SHARED SIDEBAR: admin/assets/sidebar.js (one menu, active item from URL) injected into
+#    ALL 33 admin pages + nav-section CSS in perms.css — fixes the menu-jumping bug. Pages to
+#    create earlier (articles/jokes/shop/boost) now exist.
+# ── WIRED/EDITABLE ──
+#  • App Defaults: seeded 6 rotating goal sets + 6 quick-access defaults (admin defaults.html is
+#    editable; app reads /api/defaults/get.php). Prophets (25) / Duas&Athkar (32) / Names (99)
+#    admin lists now return content (list.php aliases + seed-on-empty from app data).
+#  • Module on/off toggles: System Settings → "App Modules" — 12 NEW keys (shop boost learning
+#    quiz articles jokes chat wallpapers events names athkar prophets) + existing 8. Off = app
+#    shows "Under maintenance" gate (src/app/tools/_layout.tsx + src/lib/maintenance.ts; fails OPEN).
+#  • DeenPoints: "Clear old data" danger-zone button (api/admin/deenpoints/purge.php, master pin
+#    230720 — same as donations reset) wipes ledger + one-time reward markers only.
+# ── APP (deenapp) ──
+#  • Comment report: tiny red flag next to every comment → reason picker → report_comment.php
+#    (flows into admin Reports & Moderation).
+#  • Charity balance REMOVED from profile (quick button) + edit-profile (hide-charity toggle gone).
+#  • Shop: demo order/cart fabrication REMOVED (LIVE = real data only; explicit "unable to place
+#    order" when server unreachable).
+# GATES: tsc clean · CHECK-RAW OK (128 files, 0 /deenapp/ refs) · boot root 200/assets 0 bad ·
+# unauth shared_with_me 401 · quiz bank 166 · every new endpoint 200-verified on sandbox MariaDB.
+# INCIDENT: sandbox recycle rolled deenapp .git back to 83-37 (snapshot file-cap dropped objects).
+#   Working tree was intact → re-anchored: fetch origin (token URL from CONTINUE.md:91) →
+#   git reset 5e492d4 → only true 83-39 diffs remained → commit. gh-pages got one empty push
+#   (56656e0) mid-repair, restored in e5a8229 (475 files) — no force-push used.
+# NEXT (83-39 continues): Learning Hub per-module click-through screens polish, donations app↔admin
+#   complaint flow polish, AI mgmt cleanup, wallpapers/avatar admin upload wiring, prophets public
+#   API for app, verification & premium wiring, backups restore test, reports real-data sweep.
+
 # ══ 2026-09-13 — PASS 83-38d: OWNER DESIGN — Quran page cleanup (permanent this time) ══
 # deenapp master = 6f3f680 · dlapi main = 56e010d · gh-pages = c790e02.
 # OWNER pulled in cPanel, saw the removed design come back: he had hand-removed Quran Shazam +
