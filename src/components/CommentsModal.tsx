@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -144,6 +144,7 @@ function CommentRow({
   repliesOpen,
   onOpenProfile,
   onClose,
+  onReport,
   colors,
 }: {
   c: SampleComment;
@@ -157,6 +158,7 @@ function CommentRow({
   repliesOpen: boolean;
   onOpenProfile: (handle: string) => void;
   onClose?: () => void;
+  onReport: (c: SampleComment) => void;
   colors: {
     txt: string;
     sub: string;
@@ -219,6 +221,10 @@ function CommentRow({
               Reply
             </T>
           </Pressable>
+          {/* pass 83-39 — tiny red flag: tap to report this comment */}
+          <Pressable hitSlop={8} onPress={() => onReport(c)} accessibilityLabel="Report comment">
+            <FontAwesome5 name="flag" size={9} color="#E74C3C" />
+          </Pressable>
           {nReplies > 0 ? (
             <Pressable hitSlop={6} onPress={() => onToggleReplies(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <T v="caption" style={{ fontSize: 9.5, color: colors.emerald, fontWeight: '700' }}>
@@ -255,6 +261,7 @@ function CommentRow({
                 repliesOpen={repliesOpen}
                 onOpenProfile={onOpenProfile}
                 onClose={onClose}
+                onReport={onReport}
                 colors={colors}
               />
             ))}
@@ -580,8 +587,30 @@ export function CommentsModal({
   /** Opens a public profile — closes this sheet first so it never lingers. */
   const openProfile = (handle: string) => {
     haptic.selection();
-    onClose();
+    onClose?.();
     setTimeout(() => router.push(`/profile/${handle}`), 140);
+  };
+
+  /* pass 83-39 — comment reporting: reason picker → /api/feed/report_comment.php */
+  const [reportedIds, setReportedIds] = useState<Set<number>>(new Set());
+  const handleReportComment = (c: SampleComment) => {
+    const reasons = ['Spam or scam', 'Abuse or harassment', 'Hate speech', 'Misinformation', 'Something else'];
+    Alert.alert('Report comment', 'Why are you reporting this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      ...reasons.map((rn) => ({
+        text: rn,
+        onPress: () => {
+          void api.reportComment(c.id, rn).then((okR) => {
+            if (okR) {
+              setReportedIds((prev) => new Set(prev).add(c.id));
+              Alert.alert('Reported', 'Jazakallahu khairan. Our moderators will review this comment.');
+            } else {
+              Alert.alert('Failed', 'Could not submit the report right now. Please try again.');
+            }
+          });
+        },
+      })),
+    ]);
   };
 
   const pushComment = (nc: SampleComment) => {
@@ -851,6 +880,7 @@ export function CommentsModal({
                 repliesOpen={openReplies.has(c.id)}
                 onOpenProfile={openProfile}
                 onClose={onClose}
+                onReport={handleReportComment}
                 colors={colors}
               />
             ))}

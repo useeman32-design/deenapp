@@ -7,6 +7,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { ARTICLES } from '@/data/learn';
+import { useArticlesList } from '@/lib/articlesStore';
 
 /** Learning — Articles: a list of short authentic reads; tap to open the reader. */
 export default function Articles() {
@@ -14,12 +15,13 @@ export default function Articles() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const list = useArticlesList();
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <TopBar showBack title="Articles" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
-        {ARTICLES.map((a, i) => (
+        {list.map((a, i) => (
           <Pressable
             key={i}
             onPress={() => { haptic.selection(); router.push(`/tools/article/${i}` as never); }}

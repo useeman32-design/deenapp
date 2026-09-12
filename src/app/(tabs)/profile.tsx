@@ -312,15 +312,6 @@ function ProfileInner() {
                   {checkin === 'done' ? 'Checked In' : checkin === 'already' ? 'Checked In' : 'Check In'}
                 </T>
               </Pressable>
-              <Pressable
-                onPress={() => {
-                  haptic.selection();
-                  router.push('/tools/charity' as never);
-                }}
-                style={({ pressed }) => ({ width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, opacity: pressed ? 0.8 : 1 })}
-              >
-                <FontAwesome5 name="hand-holding-heart" size={14} color={d.emerald} />
-              </Pressable>
             </View>
           </View>
         </View>

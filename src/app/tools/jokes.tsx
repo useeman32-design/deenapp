@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Share } from 'react-native';
@@ -8,6 +8,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { JOKES } from '@/data/learn';
+import { fetchJokes } from '@/api/client';
 import { addUserPost } from '@/lib/userPosts';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
 import { ShareWithFriends } from '@/components/ShareWithFriends';
@@ -18,8 +19,16 @@ export default function Jokes() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const [i, setI] = useState(0);
+  /* pass 83-39 — admin-managed jokes from the server; bundled deck as fallback */
+  const [serverJokes, setServerJokes] = useState<Array<{ setup: string; punch: string }> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchJokes().then((js) => { if (alive && js) setServerJokes(js.map((j) => ({ setup: j.setup, punch: j.punch }))); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const deck = serverJokes && serverJokes.length ? serverJokes : JOKES;
   const [posting, setPosting] = useState(false);
-  const j = JOKES[i % JOKES.length];
+  const j = deck[i % deck.length];
   const [shown, setShown] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);

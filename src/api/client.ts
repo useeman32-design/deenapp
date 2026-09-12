@@ -371,6 +371,31 @@ export async function groupDeletePost(postId: number): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/groups/delete_post.php', { method: 'POST', body: { post_id: postId }, auth: true });
   return r.ok && r.data.status === 'success';
 }
+/* pass 83-39 — admin-managed Islamic articles + jokes (server content; bundled fallback) */
+export type ServerArticle = { id: number; title: string; tag: string; mins: number; icon: string; img_key: string; body: string; is_active: number };
+export type ServerJoke = { id: number; setup: string; punch: string; is_active: number };
+
+export async function fetchArticles(): Promise<ServerArticle[] | null> {
+  try {
+    const r = await request<{ status?: string; items?: ServerArticle[] }>('/api/content/articles.php', { auth: false });
+    if (r.ok && Array.isArray(r.data.items) && r.data.items.length) return r.data.items.filter((a) => a.is_active !== 0);
+  } catch {}
+  return null;
+}
+
+export async function fetchJokes(): Promise<ServerJoke[] | null> {
+  try {
+    const r = await request<{ status?: string; items?: ServerJoke[] }>('/api/content/jokes.php', { auth: false });
+    if (r.ok && Array.isArray(r.data.items) && r.data.items.length) return r.data.items.filter((j) => j.is_active !== 0);
+  } catch {}
+  return null;
+}
+
+/* pass 83-39 — comment reporting (tiny red flag next to comments in the app) */
+export async function reportComment(commentId: number, reason: string): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/feed/report_comment.php', { method: 'POST', body: { comment_id: commentId, reason }, auth: true });
+  return r.ok;
+}
 export async function reportPost(postId: number, reason: string): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/feed/report_post.php', { method: 'POST', body: { post_id: postId, reason }, auth: true });
   return r.ok;

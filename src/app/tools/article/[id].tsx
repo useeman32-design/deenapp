@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { ARTICLES } from '@/data/learn';
+import { useArticlesList } from '@/lib/articlesStore';
 
 /** Article reader — full text + native share sheet. */
 export default function ArticleReader() {
@@ -17,7 +18,8 @@ export default function ArticleReader() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const a = ARTICLES[Number(id)] ?? ARTICLES[0];
+  const list = useArticlesList();
+  const a = list[Number(id)] ?? list[0] ?? ARTICLES[0];
   const idx = Number(id) || 0;
 
   const share = async () => {

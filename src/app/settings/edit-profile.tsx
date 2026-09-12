@@ -42,7 +42,6 @@ export default function EditProfile() {
   const [bio, setBio] = useState((user?.bio as string) ?? '');
   const [aqeedah, setAqeedah] = useState((user?.aqeedah as string) ?? '');
   const [phone, setPhone] = useState((user?.phone as string) ?? '');
-  const [hideCharity, setHideCharity] = useState(Boolean(user?.hide_charity_balance));
   const [busy, setBusy] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string>((user?.profile_image_url as string) ?? '');
   const [useDefault, setUseDefault] = useState<boolean>(!(user?.profile_image_url));
@@ -78,7 +77,6 @@ export default function EditProfile() {
       bio: bio.trim(),
       aqeedah: aqeedah.trim(),
       phone: phone.trim(),
-      hide_charity_balance: hideCharity,
       ...(sq[0] ? { security_question: sq[0] } : {}),
       ...(sq[0] && sqAnswers[0].trim() ? { security_answer: sqAnswers[0].trim() } : {}),
       ...(sq[1] ? { security_question_2: sq[1] } : {}),
@@ -86,7 +84,7 @@ export default function EditProfile() {
     });
     setBusy(false);
     if (res.ok) {
-      updateUser({ bio: bio.trim(), aqeedah: aqeedah.trim(), phone: phone.trim(), hide_charity_balance: hideCharity });
+      updateUser({ bio: bio.trim(), aqeedah: aqeedah.trim(), phone: phone.trim() });
       haptic.success();
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
@@ -171,14 +169,6 @@ export default function EditProfile() {
             <T v="meta" style={{ marginTop: 2 }}>{sq.filter(Boolean).length}/2 selected</T>
           </View>
 
-          {/* hide charity balance */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 2 }}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <T v="body">Hide charity balance</T>
-              <T v="meta" style={{ marginTop: 2 }}>Privacy setting — others can't see your balance.</T>
-            </View>
-            <Switch value={hideCharity} onValueChange={setHideCharity} trackColor={{ false: theme.border, true: theme.primary }} thumbColor="#fff" />
-          </View>
 
           <Pressable onPress={save} disabled={busy} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.primary, borderRadius: 13, padding: 14, opacity: pressed || busy ? 0.85 : 1 })}>
             <FontAwesome5 name={saved ? 'check' : 'save'} size={14} color="#fff" />

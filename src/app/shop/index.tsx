@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,7 +21,6 @@ import { LoginRequired } from '@/components/LoginRequired';
  * The module owns its bottom menu: Shop | Cart | Orders. */
 
 type Tab = 'shop' | 'cart' | 'orders';
-type DemoLine = { product: ShopProduct; qty: number };
 
 function ShopScreenInner() {
   const { fmt } = useCurrency();
@@ -39,8 +38,6 @@ function ShopScreenInner() {
   const [cart, setCart] = useState<ShopCart | null>(null);
   const [orders, setOrders] = useState<ShopOrder[] | null>(null);
   /* demo (offline) mirrors of the server state */
-  const [demoLines, setDemoLines] = useState<DemoLine[]>([]);
-  const [demoOrders, setDemoOrders] = useState<ShopOrder[]>([]);
   /* checkout sheet */
   const [checkout, setCheckout] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -72,18 +69,15 @@ function ShopScreenInner() {
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
   const loadCart = useCallback(() => {
-    if (!live) {
-      setCart({ items: demoLines.map((l) => ({ ...l.product, qty: l.qty })), count: demoLines.reduce((s, l) => s + l.qty, 0), total: demoLines.reduce((s, l) => s + l.product.price * l.qty, 0) });
-      return;
-    }
-    shopCart().then(setCart).catch(() => {});
-  }, [live, demoLines]);
+    /* pass 83-39 — LIVE = real data only: the cart is the server cart. */
+    if (live) shopCart().then(setCart).catch(() => setCart({ items: [], count: 0, total: 0 }));
+  }, [live]);
   useEffect(() => { if (tab === 'cart') loadCart(); }, [tab, loadCart]);
 
   const loadOrders = useCallback(() => {
-    if (!live) { setOrders(demoOrders); return; }
+    /* pass 83-39 — LIVE = real data only: server orders or a real empty state */
     shopOrders().then((r) => setOrders(r ?? [])).catch(() => setOrders([]));
-  }, [live, demoOrders]);
+  }, []);
   useEffect(() => { if (tab === 'orders') loadOrders(); }, [tab, loadOrders]);
 
   const list = useMemo(() => {
@@ -93,11 +87,7 @@ function ShopScreenInner() {
 
   const changeQty = async (p: ShopProduct, next: number) => {
     haptic.selection();
-    if (!live) {
-      setDemoLines((prev) => next <= 0 ? prev.filter((l) => l.product.id !== p.id) : prev.some((l) => l.product.id === p.id) ? prev.map((l) => l.product.id === p.id ? { ...l, qty: next } : l) : [...prev, { product: p, qty: next }]);
-      return;
-    }
-    const ok = next <= 0
+    if (!live) return; /* pass 83-39 — LIVE = real data only: server cart only */    const ok = next <= 0
       ? await shopCartAction('remove', p.id)
       : await shopCartAction((cart?.items ?? []).some((i) => i.id === p.id) ? 'qty' : 'add', p.id, next);
     if (ok) loadCart();
@@ -111,13 +101,9 @@ function ShopScreenInner() {
     }
     setPlacing(true);
     if (!live) {
-      const id = 1000 + demoOrders.length + 1;
-      setDemoOrders((prev) => [{ id, status: 'pending', total: cart?.total ?? 0, currency: 'USD', created_at: new Date().toISOString().slice(0, 19).replace('T', ' '), ship_to: `${form.city}, ${form.country}`, items: demoLines.map((l) => ({ product_id: l.product.id, title: l.product.title, price: l.product.price, qty: l.qty, image_key: l.product.image_key })) }, ...prev]);
-      setDemoLines([]);
+      /* pass 83-39 — LIVE = real data only: no fabricated demo orders. */
       setPlacing(false);
-      setPlaced(id);
-      setPlacedTotal(cart?.total ?? 0);
-      haptic.success();
+      Alert.alert('Unable to place order', 'The shop is not reachable right now. Please check your connection and try again.');
       return;
     }
     const res = await shopCheckout(form).catch(() => null);
