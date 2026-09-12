@@ -1,3 +1,22 @@
+# ══ 2026-09-12 — PASS 83-38c: VIDEO SHARING IS REAL (+ "no shared videos yet" explained) ══
+# deenapp master = 828466e · dlapi main = ceb46c1 (api+admin+RAW web root merged) · gh-pages = 45a28e0.
+# OWNER ASKED what "No shared videos yet" meant. Truth found while answering:
+#  • The old Videos-page "shared with you" inbox was DEMO (5 fake friends, fake shares) AND its
+#    component was DEAD CODE (never rendered). The quick "SEND TO" row + friends modal faked
+#    success (toast "Sent to @x" WITHOUT sending anything).
+#  FIX (shipped):
+#  • Share sheet SEND TO + friends-modal send now REALLY deliver: chatStartDMByUsername →
+#    chatSendShare(kind 'reel', payload {sub, route /videos?start=<id>}) — the recipient gets a
+#    real share card in the DM (CommunityInbox) and long-press routes back to the video.
+#    Failures toast "Unable to send…" (never fake success).
+#  • Dead InboxOverlay deleted (~280 lines). Recipients see shares in their DM inbox (real).
+#  • NEW api/chat/shared_with_me.php (GET ?kind=reel): every share actually sent/received in my
+#    DMs (group + deleted excluded; peer identity + payload). SQL verified on seeded MariaDB
+#    (group/deleted filtered, both directions). 401 unauth. Ready if owner wants a dedicated
+#    "videos shared with me" screen later; client helper chatSharedWithMe() ships in client.ts.
+#  GATES: tsc clean · _check_calls 5 vendor-only · CHECK-RAW OK (221 files) · boot root 200/assets ok.
+#  Commits: dlapi a45c0cb (endpoint) + ceb46c1 (web merge); deenapp 828466e; gh-pages 45a28e0.
+
 # ══ 2026-09-12 — PASS 83-38b: LAUNCH CLEANUP TOOL + FINAL DEMO SCRUB ══ READ FIRST ══
 # deenapp master = cc3783b · dlapi main = da8eb50 (api+admin+RAW web root merged) · gh-pages = 5a20167.
 # OWNER REPEATED "remove every demo data in the live" → TWO MORE THINGS SHIPPED:
