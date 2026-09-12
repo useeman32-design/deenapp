@@ -20,7 +20,8 @@ import { addComment as srvAddComment, addReply as srvAddReply, getComments, isLi
 import { useAuth } from '@/context/AuthContext';
 const REPLY_OFF = 1_000_000_000;
 
-const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
+/* pass 83-38 — no demo persona */
+const ME = { name: 'You', handle: 'me' };
 
 /* ﷺ (sallallahu alayhi wasallam ligature U+FDFA) and Subhanahu wa ta'ala lead the picker. */
 const EMOJIS = ['ﷺ', 'سُبْحَانَهُ وَتَعَالَى', '😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];

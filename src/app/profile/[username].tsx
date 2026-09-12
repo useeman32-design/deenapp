@@ -24,30 +24,7 @@ const patternLight = require('../../../assets/img/pattern-light.png');
 
 const W = Dimensions.get('window').width;
 
-const ANSWERED: Record<string, Array<{ q: string; a: string }>> = {
-  alameen: [
-    {
-      q: 'Can I pray the Qasr shortening while travelling in the city?',
-      a: 'You may shorten the four-rak’ah prayers to two if your journey meets the conditions (distance and intent). If you settle in a place for a known duration (≈10 days or more), pray them in full.',
-    },
-    {
-      q: 'Is it permissible to delay Isha past midnight for a better congregation?',
-      a: 'The preferred time ends before midnight. Delaying past midnight is only disliked if it becomes a habit; waiting briefly for the Imaam is acceptable with a sound intention.',
-    },
-  ],
-  kunfai_ibrahim: [
-    {
-      q: 'My student keeps merging the letters in madd — how do I correct this?',
-      a: 'Start with the madd al-thabīʿī (2 counts) on isolated words until it is automatic, then move into short āyāt. Slower, measured recitation cures most merging.',
-    },
-  ],
-  usman_ahmad: [
-    {
-      q: 'What is the ruling on recording the Imam and distributing the khutbah?',
-      a: 'Permissible if there is no deception or false attribution — many masjids do this for those who miss Jumuʿah. Ensure the context of the speech is preserved.',
-    },
-  ],
-};
+/* pass 83-38 — demo scholar Q&A removed; only real answers render */
 
 type ProfileTab = 'posts' | 'questions' | 'videos';
 
@@ -178,7 +155,7 @@ function PublicProfileScreenInner() {
   );
   /* live scholar → the server's answered questions win over the demo set */
   const answered = (liveP?.user_type === 'scholar' || profile?.scholar)
-    ? (liveQAs ?? ANSWERED[username] ?? [])
+    ? (liveQAs ?? [])
     : [];
 
   if (!profile) {

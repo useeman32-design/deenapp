@@ -10,6 +10,8 @@ import { DeenPointsPill } from '@/components/DeenPoints';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import * as api from '@/api/client';
+import { AvatarImage } from '@/components/FeedCard';
+import { useAuth } from '@/context/AuthContext';
 import type { Scholar } from '@/api/types';
 import { DPIcon } from '@/components/DeenPoints';
 
@@ -39,7 +41,6 @@ const CAT_META: Record<string, { icon: string; tint: string }> = {
 };
 const QCATS = ['Aqeedah', 'Fiqh', 'Hadith', 'Tafsir', 'Zakah', 'Marriage', 'Inheritance', 'Youth', 'Other'];
 const POINTS_KEY = 'dl.scholars.questions.v1';
-const AV = ['https://i.pravatar.cc/120?img=11', 'https://i.pravatar.cc/120?img=12', 'https://i.pravatar.cc/120?img=32'];
 
 type Question = {
   id: string;
@@ -61,7 +62,10 @@ type Question = {
 /* pass 83-38 — demo public Q&A removed; only real answered questions render */
 /* pass 42 — Q&A identity helpers: avatars + info for BOTH sides of every
  * answered exchange (asker row + scholar row with title · madhhab · institute) */
-const scholarAv = (id: number) => AV[(id - 1) % AV.length] ?? AV[0];
+const scholarPhoto = (s: unknown): string | null => {
+  const o = s as { photo?: unknown; profile_image_url?: unknown } | null;
+  return typeof o?.photo === 'string' ? o.photo : typeof o?.profile_image_url === 'string' ? o.profile_image_url : null;
+};
 /* pass 83-38 — the roster is server-fed (Admin → Scholars); no demo list */
 let SCHOLAR_ROSTER: Scholar[] = [];
 const scholarOf = (id: number) => SCHOLAR_ROSTER.find((m) => m.id === id) ?? null;
@@ -75,6 +79,7 @@ const timeAgo = (t: number) => {
 };
 
 export default function Scholars() {
+  const { user: me } = useAuth(); /* pass 83-38 - real own avatar */
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -219,7 +224,7 @@ export default function Scholars() {
                 onPress={() => { haptic.selection(); setAsking(s.id); }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9, opacity: pressed ? 0.85 : 1 })}
               >
-                <Image source={{ uri: AV[(s.id - 1) % AV.length] }} style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.5)' }} />
+                <AvatarImage source={scholarPhoto(s)} name={s.display_name || 'Scholar'} size={46} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.5)" />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <FontAwesome5 name="certificate" size={10} color="#E8C96A" />
@@ -289,7 +294,7 @@ export default function Scholars() {
                     <View style={{ marginTop: 10, gap: 8 }}>
                       {/* pass 42 — asker (you): avatar + info */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Image source={{ uri: 'https://i.pravatar.cc/120?img=68' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
+                        <AvatarImage source={(me?.profile_image_url as string | null) ?? null} name="You" size={28} tint={d.bgSoft} border={d.cardBorder} />
                         <View style={{ flex: 1 }}>
                           <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>You</T>
                           <T v="caption" style={{ fontSize: 9, color: d.faint }}>{x.isPublic ? 'asked publicly' : 'asked privately'} · {timeAgo(x.at)}</T>
@@ -298,7 +303,7 @@ export default function Scholars() {
                       {/* pass 42 — scholar: avatar + credentials + the answer */}
                       <View style={{ borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Image source={{ uri: scholarAv(x.scholarId) }} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.55)' }} />
+                          <AvatarImage source={scholarPhoto(scholarOf(x.scholarId))} name={scholarOf(x.scholarId)?.display_name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
                           <View style={{ flex: 1 }}>
                             <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
                             <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>
@@ -332,7 +337,7 @@ export default function Scholars() {
                     <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
                     {/* pass 42 — asker: avatar + info */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <Image source={{ uri: x.asker?.av ?? 'https://i.pravatar.cc/120?img=33' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder }} />
+                      <AvatarImage source={(x.asker?.av as string | undefined) ?? null} name={x.asker?.name ?? 'Community member'} size={28} tint={d.bgSoft} border={d.cardBorder} />
                       <View style={{ flex: 1 }}>
                         <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.asker?.name ?? 'Community member'}</T>
                         <T v="caption" style={{ fontSize: 9, color: d.faint }}>asked · {x.isPublic ? 'public question' : 'private question'}</T>
@@ -341,7 +346,7 @@ export default function Scholars() {
                     {/* pass 42 — scholar: avatar + credentials + the answer */}
                     <View style={{ marginTop: 8, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Image source={{ uri: scholarAv(x.scholarId) }} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.55)' }} />
+                        <AvatarImage source={scholarPhoto(scholarOf(x.scholarId))} name={scholarOf(x.scholarId)?.display_name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
                         <View style={{ flex: 1 }}>
                           <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
                           <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>

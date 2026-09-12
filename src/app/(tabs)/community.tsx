@@ -24,7 +24,8 @@ import { LoginRequired } from '@/components/LoginRequired';
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
 
-const ME = { name: 'Abdulrahman Al-Harbi', handle: 'abdalrahman' };
+/* pass 83-38 — no demo persona: the signed-in user's own identity only */
+const ME = { name: 'You', handle: 'me' };
 /* ﷺ (sallallahu alayhi wasallam ligature U+FDFA) and Subhanahu wa ta'ala lead the picker. */
 const EMOJIS = ['ﷺ', 'سُبْحَانَهُ وَتَعَالَى', '😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
 

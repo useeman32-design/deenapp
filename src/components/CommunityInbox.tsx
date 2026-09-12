@@ -95,36 +95,10 @@ const THUMBS = {
   mecca: require('../../assets/img/mecca.jpg'),
   medina: require('../../assets/img/medina.jpg'),
 };
-const SEED: Thread[] = [
-  { friend: 'aisha_yusuf', items: [
-    { id: uid(), kind: 'post', title: 'Never underestimate a single ayah a day…', ago: '2h', dir: 'them', thumb: THUMBS.quran, sub: 'aisha_yusuf · 214 likes · 36 comments' },
-    { id: uid(), kind: 'ayah', title: 'Surah Al-Fatiha · Ayah 5', ago: '6h', dir: 'them', arabic: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ', refLabel: 'Al-Fatiha 1:5 · tap to read' },
-    { id: uid(), kind: 'dua', title: 'Dua before sleeping — Hisn al-Muslim', ago: '1d', dir: 'them', arabic: 'بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا', refLabel: 'Hisn al-Muslim · sleeping dua' },
-  ], chat: [
-    { id: uid(), text: 'This dua changed my nights, try it tonight inshaAllah', ago: '1d', dir: 'them' },
-  ], reactions: {} },
-  { friend: 'alameen', items: [
-    { id: uid(), kind: 'reel', title: 'Quran recitation — Al-Furqan', ago: '5h', dir: 'them', thumb: THUMBS.mecca, dur: '0:48' },
-    { id: uid(), kind: 'post', title: 'Reminder: the dua of Yunus (as)', ago: '2d', dir: 'them', thumb: THUMBS.mosque, sub: 'alameen · 1.2k likes · 204 comments' },
-  ], chat: [], reactions: {} },
-  { friend: 'usman_ahmad', items: [
-    { id: uid(), kind: 'ayah', title: 'Ash-Sharh · Ayah 6', ago: '9h', dir: 'them', arabic: 'إِنَّ مَعَ الْعُسْرِ يُسْرًا', refLabel: 'Ash-Sharh 94:6 · tap to read' },
-    { id: uid(), kind: 'reel', title: 'One ummah, one qiblah', ago: '1d', dir: 'them', thumb: THUMBS.medina, dur: '1:12' },
-  ], chat: [], reactions: {} },
-  { friend: 'Gimba', items: [
-    { id: uid(), kind: 'dua', title: 'Dua after adhan', ago: '1d', dir: 'them', arabic: 'اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ', refLabel: 'Hisn al-Muslim · after adhan' },
-    { id: uid(), kind: 'hadith', title: 'Bukhari · “None of you truly believes…”', ago: '1d', dir: 'them', arabic: 'لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ', refLabel: 'Sahih al-Bukhari 13 · tap to open' },
-  ], chat: [], reactions: {} },
-  { friend: 'mayanchie12', items: [
-    { id: uid(), kind: 'post', title: 'Seerah quiz — how many events do you know?', ago: '2d', dir: 'them', thumb: THUMBS.mosque, sub: 'mayanchie12 · 88 likes · 41 comments' },
-  ], chat: [], reactions: {} },
-  { friend: 'maryam_s', items: [
-    { id: uid(), kind: 'profile', title: 'Profile — Ustādh Ibrāhīm (quran teacher)', ago: '3h', dir: 'them', sub: '@ustadh_ibrahim · 4.2k followers · Quran & Tajwid' },
-    { id: uid(), kind: 'reel', title: 'Beautiful adhan from Makkah', ago: '8h', dir: 'them', thumb: THUMBS.mecca, dur: '2:05' },
-    { id: uid(), kind: 'post', title: 'Jumu’ah reminder — arrive early', ago: '2d', dir: 'them', thumb: THUMBS.quran, sub: 'maryam_s · 530 likes · 77 comments' },
-  ], chat: [], reactions: {} },
-];
-const SEED_NAMES = new Set(SEED.map((t) => t.friend));
+/* pass 83-38 — demo DM threads removed: chats are server-only.
+ * The names below scrub previously-cached demo threads from local storage. */
+const LEGACY_DEMO_NAMES = new Set(['aisha_yusuf', 'alameen', 'usman_ahmad', 'Gimba', 'mayanchie12', 'maryam_s']);
+const SEED_NAMES = LEGACY_DEMO_NAMES;
 
 const STORE = 'dl.inbox.v2';
 
@@ -425,7 +399,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   const [unblockedFlash, setUnblockedFlash] = useState<string | null>(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [reqBusy, setReqBusy] = useState<string | null>(null);
-  const [threads, setThreads] = useState<Thread[]>(() => (isLive() ? [] : SEED));
+  const [threads, setThreads] = useState<Thread[]>([]); /* pass 83-38 — real chats only */
   const [openFriend, setOpenFriend] = useState<string | null>(initialFriend);
   /* pass 83-23 — leaving a thread marks it read one last time, so the list
    * badge never comes back for messages seen on the way out. */
@@ -519,7 +493,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           const parsed = JSON.parse(r) as Thread[];
           /* pass 81 — persisted state can still hold demo threads from older
            * builds/sessions: never let them back in once we're live. */
-          setThreads(isLive() ? parsed.filter((t) => !SEED_NAMES.has(t.friend)) : parsed);
+          setThreads(parsed.filter((t) => !SEED_NAMES.has(t.friend))); /* scrub legacy demo threads */
         } catch {}
     });
   }, []);

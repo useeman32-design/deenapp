@@ -1994,28 +1994,8 @@ const INBOX_EMOJIS = ['❤️', '😂', '😮', '🤲', '🔥', '🤍'] as const
 type ShareEntry = { reelId: number; ago: string; dir: 'them' | 'me' };
 type FriendThread = { friend: string; items: ShareEntry[] };
 
-const INBOX_THREADS: FriendThread[] = [
-  { friend: 'aisha_yusuf', items: [
-    { reelId: 204, ago: '2h', dir: 'them' },
-    { reelId: 201, ago: '1d', dir: 'me' },
-    { reelId: 205, ago: '3d', dir: 'them' },
-  ] },
-  { friend: 'alameen', items: [
-    { reelId: 201, ago: '5h', dir: 'them' },
-    { reelId: 203, ago: '2d', dir: 'them' },
-  ] },
-  { friend: 'usman_ahmad', items: [
-    { reelId: 203, ago: '9h', dir: 'them' },
-    { reelId: 202, ago: '4d', dir: 'me' },
-  ] },
-  { friend: 'Gimba', items: [
-    { reelId: 205, ago: '1d', dir: 'them' },
-  ] },
-  { friend: 'mayanchie12', items: [
-    { reelId: 202, ago: '2d', dir: 'them' },
-    { reelId: 204, ago: '5d', dir: 'me' },
-  ] },
-];
+/* pass 83-38 — demo share threads removed; the inbox lists real shares only */
+const INBOX_THREADS: FriendThread[] = [];
 
 function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (reelId: number) => void }) {
   const insets = useSafeAreaInsets();
@@ -2192,6 +2172,11 @@ function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (r
         <FontAwesome5 name="video" size={16} color="rgba(242,247,243,0.4)" />
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {INBOX_THREADS.length === 0 ? (
+          <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 12, textAlign: 'center', marginTop: 30 }}>
+            No shared videos yet. Tap the share icon on any video to send it to someone you follow.
+          </T>
+        ) : null}
         {INBOX_THREADS.map((t) => {
           const a = acc(t.friend);
           const first = reel(t.items[0].reelId);

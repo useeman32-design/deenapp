@@ -83,16 +83,7 @@ function mapLive(rows: NotifRow[]): Notif[] {
   });
 }
 
-/* offline fallback only — never shown while a live fetch is in flight. */
-const SEED: Notif[] = [
-  { id: 'n1', kind: 'like', user: 'aisha_yusuf', text: 'liked your comment on “Never underestimate a single ayah a day”', ago: '12m' },
-  { id: 'n2', kind: 'follow', user: 'alameen', text: 'started following you', ago: '1h' },
-  { id: 'n3', kind: 'repost', user: 'usman_ahmad', text: 'reposted your reel “One ummah, one qiblah”', ago: '3h', read: true },
-  { id: 'n4', kind: 'mention', user: 'Gimba', text: 'mentioned you: “Jazakallahu khairan @you for the reminder”', ago: '5h', read: true },
-  { id: 'n5', kind: 'system', text: 'Ramadan starts in 2 weeks — set your daily worship goal now', ago: '1d', read: true, actorId: 0 },
-  { id: 'n6', kind: 'like', user: 'mayanchie12', text: 'and 23 others liked your post', ago: '1d', read: true },
-  { id: 'n7', kind: 'follow', user: 'kunfai_ibrahim', text: 'started following you', ago: '2d', read: true },
-];
+/* pass 83-38 — demo notifications removed: the list is server-only */
 
 const KIND_META: Record<Notif['kind'], { icon: string; tint: string }> = {
   chat: { icon: 'comment-dots', tint: '#4AE38F' },
@@ -134,7 +125,7 @@ function NotificationsInner() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [read, setRead] = useState<Set<string>>(new Set(SEED.filter((n) => n.read).map((n) => n.id)));
+  const [read, setRead] = useState<Set<string>>(new Set());
   /* pass 68 — live mode: real notifications (chat messages first), polled
    * every 30s, all marked read on open so the home bell clears. */
   const live = isLive();
@@ -155,7 +146,7 @@ function NotificationsInner() {
   /* pass 83-26 — live shows the server list (or the loader, or the empty
    * state); the dummy seed only exists for the offline build. */
   const loading = live && liveList == null;
-  const source = live ? (liveList ?? []) : SEED;
+  const source = live ? (liveList ?? []) : []; /* pass 83-38 — real notifications only */
   const isUnread = (x: Notif) => (x.id.startsWith('L') ? !x.read : !read.has(x.id));
   const newCount = useMemo(() => source.filter(isUnread).length, [source]);
   const tap = (n: Notif) => {
