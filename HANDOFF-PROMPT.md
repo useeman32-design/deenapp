@@ -1,3 +1,31 @@
+# ══ 2026-09-12 — PASS 83-38: REAL DATA ONLY (all demo content removed) ══ READ FIRST ══
+# deenapp master = 4acc2e6 · dlapi main = eb06b44 (api+admin+RAW web root merged) · gh-pages = 462661c.
+# OWNER: "remove every demo data in the live — posts and everything, videos samples too — we only
+# serve real data now." DONE ON BOTH SIDES:
+#   APP BUILD (never fabricates anything anymore):
+#    • client.ts: feed/videos/courses/scholars/events/userPosts fall back to EMPTY — no mock fill.
+#    • mocks.ts gutted to types + preview-only MOCK_USER (FORCE_DEMO never runs on app domains) +
+#      bundled wallpapers (real shipped feature). All fake posts/accounts/comments/videos/reels/
+#      trending/followed/profiles/scholars/courses/events deleted.
+#    • Videos page: sample clips GONE from create studio (library/file pick only); reels feed plays
+#      server reels only; offline posting shows "Unable to post — you appear to be offline" (no demo
+#      persona reel); reels/community cross-post lists use the REAL follow graph (getConnections).
+#    • Community/Home/Search/Hashtag: no demo feed fill; account search = api.searchAccounts;
+#      Following tab = real follow graph; TRENDING renders only with real data (empty now).
+#    • Mentions (CommentsModal), Share/Send-to-friends, DM forward list, new-chat → real connections.
+#    • Notifications: no mock actor enrichment. Post deep-link: server-only ("missed" if absent).
+#    • Scholars page: roster from api.scholars() (server); demo public Q&A removed.
+#    • Profile pages: no fabricated profiles — real server profile or honest "not found".
+#   DATABASE (owner-run, in dlapi scripts/purge-demo-content.sql):
+#    • CHECK counts + labelled optional purges: posts(+media/likes/comments/replies/polls/reports),
+#      videos(+likes/comments/views/reposts), notifications, chat, and opt-out for 83-37 seeds
+#      (starter courses + learning modules). Money/points/accounts NEVER touched.
+#   KEPT (not demo): 166-question quiz bank, seeded learning modules + 7 starter courses
+#    (owner-editable in admin — say the word and they go), wallpapers, quiz/riddles/jokes packs.
+#   GATES: tsc clean (6.0.3) · CHECK-RAW OK on merged dlapi (212 files) · boot :8086 root + :8087 gh
+#   (200, assets 0 bad, bank 166) · pushed: deenapp 4acc2e6, dlapi eb06b44, gh-pages 462661c.
+#   OWNER: one dlapi cPanel pull = new build + purge script; run the SQL for the sections wanted.
+
 # ══ 2026-09-12 — PASS 83-37: ADMIN DATA + QUIZ BANK + ADS KEYS + PROFILE SYNC ══ READ FIRST ══
 # deenapp master = 7093ba8 · dlapi main = c1c3770 (api+admin+RAW web root merged) · gh-pages = 4e22e35.
 # RECOVERY NOTE: /tmp was wiped AND the workspace restored a stale snapshot mid-pass (deenapp back at
