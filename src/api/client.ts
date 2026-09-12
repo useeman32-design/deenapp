@@ -1706,6 +1706,31 @@ export async function chatStartDM(userId: number): Promise<number | null> {
 }
 /** pass 60 — open (or reuse) a DM by USERNAME. The app navigates profiles by
  *  username, so the id is resolved server-side and never exposed to the client. */
+/* pass 83-38b — REAL feed for the Videos-page inbox: every reel (or any kind)
+ * actually shared inside my DM conversations, both directions, with the peer's
+ * identity. Replaces the old hardcoded demo threads. */
+export type ChatSharedRow = {
+  id: number;
+  conversation_id: number;
+  kind: string;
+  title: string;
+  payload: { sub?: string; route?: string; dur?: string; arabic?: string; refLabel?: string } | null;
+  created_at: string;
+  mine: boolean;
+  sender_username: string | null;
+  peer_username: string | null;
+  peer_name: string | null;
+  peer_photo: string | null;
+};
+export async function chatSharedWithMe(kind = 'reel'): Promise<ChatSharedRow[]> {
+  try {
+    const r = await request<{ status?: string; shares?: ChatSharedRow[] }>(`/api/chat/shared_with_me.php${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`, { auth: true });
+    return r.ok && Array.isArray(r.data.shares) ? r.data.shares : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function chatStartDMByUsername(username: string): Promise<{ cid: number; status?: string; error?: string } | null> {
   /* pass 83-9 — also return the conversation status: a brand-new thread with
    * someone who doesn't follow back opens as a 'request' (3-message limit),

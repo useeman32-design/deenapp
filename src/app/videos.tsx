@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { BASE, feed as fetchFeed, getConnections as apiGetConnections, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
+import { BASE, chatSendShare, chatStartDMByUsername, feed as fetchFeed, getConnections as apiGetConnections, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -53,6 +53,17 @@ const { height: VH, width: VW } = Dimensions.get('window');
 const SAVES_KEY = 'dl.reels.saved';
 const REPOST_KEY = 'dl.reels.reposted';
 const SPEEDS = [0.5, 1, 2, 3];
+
+/* pass 83-38b — compact "2h / 3d" label from a real 'Y-m-d H:i:s' timestamp */
+const timeAgoShort = (sqlTime: string): string => {
+  const t = new Date(String(sqlTime).replace(' ', 'T') + 'Z').getTime();
+  if (!Number.isFinite(t)) return '';
+  const mins = Math.max(1, Math.round((Date.now() - t) / 60000));
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.round(hrs / 24)}d`;
+};
 
 const fmtTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -640,6 +651,20 @@ function VideosFeedInner() {
   const [inboxOpen, setInboxOpen] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<{ img: number | null; name: string } | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  /* pass 83-38b — REAL send: opens (or reuses) the DM and drops a reel share in it.
+   * The old quick-row only showed a "Sent" toast without sending anything. */
+  const sendReelTo = async (username: string) => {
+    const cap = shareReel?.caption || moreReel?.caption || 'Check out this video on DeenLink';
+    const vid = shareReel?.liveId ?? moreReel?.liveId ?? null;
+    const started = await chatStartDMByUsername(username).catch(() => null);
+    if (!started?.cid) { showToast(`Unable to send to @${username}`); return false; }
+    const sent = await chatSendShare(started.cid, 'reel', cap.slice(0, 180), {
+      sub: `@${shareReel?.username ?? moreReel?.username ?? 'deenlink'} · DeenLink`,
+      ...(vid ? { route: `/videos?start=${vid}` } : {}),
+    }).catch(() => null);
+    if (!sent) { showToast(`Unable to send to @${username}`); return false; }
+    return true;
+  };
   /* pass 83-38 — friends lists come from the REAL follow graph */
   const [friends, setFriends] = useState<Array<{ username: string; full_name: string; photo?: string | number | null }>>([]);
   useEffect(() => {
@@ -1328,7 +1353,18 @@ function VideosFeedInner() {
                     </T>
                   </View>
                   <Pressable
-                    onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); }}
+                    onPress={async () => {
+                      haptic.light();
+                      const cap = moreReel?.caption || 'Check out this video on DeenLink';
+                      const vid = moreReel?.liveId ?? null;
+                      const started = await chatStartDMByUsername(a.username).catch(() => null);
+                      if (!started?.cid) { showToast(`Unable to send to @${a.username}`); return; }
+                      const sent = await chatSendShare(started.cid, 'reel', String(cap).slice(0, 180), {
+                        sub: `@${moreReel?.username ?? 'deenlink'} · DeenLink`,
+                        ...(vid ? { route: `/videos?start=${vid}` } : {}),
+                      }).catch(() => null);
+                      showToast(sent ? `Sent to @${a.username}` : `Unable to send to @${a.username}`);
+                    }}
                     style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(46,204,113,0.18)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.45)' }}
                   >
                     <T v="caption" style={{ color: '#4AE38F', fontWeight: '800', fontSize: 10.5 }}>
@@ -1362,7 +1398,11 @@ function VideosFeedInner() {
               {friends.map((a) => (
                 <Pressable
                   key={a.username}
-                  onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); setShareReel(null); }}
+                  onPress={async () => {
+                    haptic.light();
+                    const ok = await sendReelTo(a.username);
+                    if (ok) { showToast(`Sent to @${a.username}`); setShareReel(null); }
+                  }}
                   style={{ alignItems: 'center', gap: 6, width: 64 }}
                 >
                   <AvatarImage source={a.photo ?? null} name={a.full_name} size={52} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
@@ -1989,228 +2029,21 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
 /*   Double-tap a reel bubble → emoji panel → react.                   */
 /* ------------------------------------------------------------------ */
 
-const INBOX_EMOJIS = ['❤️', '😂', '😮', '🤲', '🔥', '🤍'] as const;
 
-type ShareEntry = { reelId: number; ago: string; dir: 'them' | 'me' };
-type FriendThread = { friend: string; items: ShareEntry[] };
-
-/* pass 83-38 — demo share threads removed; the inbox lists real shares only */
-const INBOX_THREADS: FriendThread[] = [];
-
-function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (reelId: number) => void }) {
-  const insets = useSafeAreaInsets();
-  const [thread, setThread] = useState<FriendThread | null>(null);
-  const [reactions, setReactions] = useState<Record<string, string>>({});
-  const [emojiFor, setEmojiFor] = useState<string | null>(null);
-  const lastTap = useRef<{ key: string; t: number }>({ key: '', t: 0 });
-  const pop = useRef(new Animated.Value(0)).current;
-
-  const popIn = () => {
-    pop.setValue(0);
-    Animated.spring(pop, { toValue: 1, useNativeDriver: true, friction: 4, tension: 70 }).start();
-  };
-
-  const onTapBubble = (key: string) => {
-    const now = Date.now();
-    const isDouble = lastTap.current.key === key && now - lastTap.current.t < 320;
-    lastTap.current = { key, t: now };
-    if (isDouble) {
-      haptic.light();
-      setEmojiFor(key);
-    }
-  };
-
-  const react = (key: string, emoji: string) => {
-    haptic.success();
-    setReactions((r) => ({ ...r, [key]: r[key] === emoji ? '' : emoji }));
-    setEmojiFor(null);
-    popIn();
-  };
-
-  /* pass 83-38 — demo thread data removed (these helpers stay for the
-   * now-unreachable thread view and render blanks safely) */
-  const acc = (u: string) => ({ username: u, full_name: u, photo: null as string | null });
-  const reel = (id: number): MockReel => ({ id, src: { uri: '' }, poster: { uri: '' }, username: '', caption: '', likes: 0, comments: 0, saves: 0, views: 0, music: '' });
-
-  /* ---------- level 2 — the reel thread with one friend ---------- */
-  if (thread) {
-    const a = acc(thread.friend);
-    return (
-      <View style={{ position: 'absolute', inset: 0, zIndex: 120, backgroundColor: '#07100C' }}>
-        {/* header */}
-        <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => { haptic.selection(); setThread(null); }} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-            <FontAwesome5 name="chevron-left" size={14} color="#FFFFFF" />
-          </Pressable>
-          <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(212,175,55,0.5)" />
-          <View style={{ flex: 1 }}>
-            <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 13.5 }}>
-              {a.full_name}
-            </T>
-            <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10, marginTop: 1 }}>
-              @{a.username} · reels you share with each other
-            </T>
-          </View>
-          <View style={{ borderRadius: 9, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(212,175,55,0.1)', paddingHorizontal: 8, paddingVertical: 4 }}>
-            <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 9 }}>NO CHAT</T>
-          </View>
-        </View>
-
-        {/* the shared-reel history */}
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 110, gap: 14 }} showsVerticalScrollIndicator={false}>
-          {thread.items.map((it) => {
-            const r = reel(it.reelId);
-            if (!r) return null;
-            const key = `${thread.friend}-${it.reelId}-${it.ago}`;
-            const mine = it.dir === 'me';
-            const reaction = reactions[key];
-            return (
-              <View key={key} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
-                {!mine ? <AvatarImage source={acc(thread.friend).photo ?? null} name={acc(thread.friend).full_name} size={28} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" /> : null}
-                <Pressable
-                  onPress={() => onTapBubble(key)}
-                  onLongPress={() => openReel(it.reelId)}
-                  style={({ pressed }) => ({
-                    maxWidth: '72%',
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: mine ? 'rgba(74,227,143,0.45)' : 'rgba(255,255,255,0.12)',
-                    backgroundColor: mine ? 'rgba(31,143,92,0.14)' : 'rgba(255,255,255,0.05)',
-                    padding: 6,
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <View style={{ borderRadius: 10, overflow: 'hidden' }}>
-                    <Image source={r.poster as never} style={{ width: 168, height: 224 }} resizeMode="cover" />
-                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(4,12,8,0.6)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                        <FontAwesome5 name="play" size={13} color="#FFFFFF" />
-                      </View>
-                    </View>
-                    {/* reaction badge pinned to the bubble corner */}
-                    {reaction ? (
-                      <Animated.Text
-                        key={reaction}
-                        style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 17, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }] }}
-                      >
-                        {reaction}
-                      </Animated.Text>
-                    ) : null}
-                  </View>
-                  <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.8)', fontSize: 10.5, marginTop: 6, marginHorizontal: 2, width: 160 }}>
-                    {r.caption}
-                  </T>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3, marginHorizontal: 2, marginBottom: 2 }}>
-                    <FontAwesome5 name={mine ? 'share' : 'share-square'} size={8} color="rgba(242,247,243,0.4)" />
-                    <T v="caption" style={{ color: 'rgba(242,247,243,0.4)', fontSize: 9 }}>{mine ? `you shared · ${it.ago}` : `shared with you · ${it.ago}`}</T>
-                  </View>
-                </Pressable>
-                {mine ? <AvatarImage source={null} name="You" size={28} tint="rgba(212,175,55,0.22)" border="rgba(212,175,55,0.5)" /> : null}
-              </View>
-            );
-          })}
-          <T v="caption" style={{ color: 'rgba(242,247,243,0.3)', textAlign: 'center', fontSize: 9.5, fontStyle: 'italic' }}>
-            Long-press a reel to watch it · double-tap to react
-          </T>
-        </ScrollView>
-
-        {/* where a chat bar would be — emoji-only instead */}
-        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 14 + insets.bottom, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(10,20,14,0.9)', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 }}>
-          <FontAwesome5 name="video" size={12} color="rgba(242,247,243,0.5)" />
-          <T v="caption" style={{ flex: 1, color: 'rgba(242,247,243,0.5)', fontSize: 10.5 }}>
-            Chat is off — reactions only. Double-tap any reel to react.
-          </T>
-          {INBOX_EMOJIS.slice(0, 3).map((e) => (
-            <Pressable key={e} onPress={() => { haptic.selection(); setEmojiFor(lastTap.current.key || `${thread.friend}-${thread.items[0].reelId}-${thread.items[0].ago}`); }} style={{ padding: 2 }}>
-              <T v="bodyS" style={{ fontSize: 15 }}>{e}</T>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* double-tap emoji panel */}
-        {emojiFor ? (
-          <Pressable style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,8,6,0.55)', justifyContent: 'flex-end' }} onPress={() => setEmojiFor(null)}>
-            <Pressable style={{ paddingBottom: 24 + insets.bottom, paddingHorizontal: 14 }}>
-              <View style={{ borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(12,23,18,0.97)', paddingVertical: 14, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
-                {INBOX_EMOJIS.map((e, i) => (
-                  <Pressable
-                    key={e}
-                    onPress={() => react(emojiFor, e)}
-                    style={({ pressed }) => ({ transform: [{ scale: pressed ? 1.35 : 1 }] })}
-                  >
-                    <Animated.Text style={{ fontSize: 30, opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }), marginTop: i % 2 === 0 ? 0 : 10 }}>
-                      {e}
-                    </Animated.Text>
-                  </Pressable>
-                ))}
-              </View>
-              <T v="caption" style={{ color: 'rgba(242,247,243,0.45)', textAlign: 'center', fontSize: 10, marginTop: 10 }}>
-                Tap an emoji to react to this reel
-              </T>
-            </Pressable>
-          </Pressable>
-        ) : null}
-      </View>
-    );
-  }
-
-  /* ---------- level 1 — friends who shared with you ---------- */
-  return (
-    <View style={{ position: 'absolute', inset: 0, zIndex: 120, backgroundColor: '#07100C' }}>
-      <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Pressable onPress={onClose} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesome5 name="chevron-left" size={14} color="#FFFFFF" />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <T v="h2" style={{ color: '#F2F7F3', fontWeight: '800', fontSize: 18 }}>
-            Inbox
-          </T>
-          <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5, marginTop: 1 }}>
-            Shared reels · react with emojis · no chat
-          </T>
-        </View>
-        <FontAwesome5 name="video" size={16} color="rgba(242,247,243,0.4)" />
-      </View>
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {INBOX_THREADS.length === 0 ? (
-          <T v="caption" style={{ color: 'rgba(242,247,243,0.5)', fontSize: 12, textAlign: 'center', marginTop: 30 }}>
-            No shared videos yet. Tap the share icon on any video to send it to someone you follow.
-          </T>
-        ) : null}
-        {INBOX_THREADS.map((t) => {
-          const a = acc(t.friend);
-          const first = reel(t.items[0].reelId);
-          if (!first) return null;
-          const newCount = t.items.filter((x) => x.dir === 'them').length;
-          return (
-            <Pressable
-              key={t.friend}
-              onPress={() => { haptic.selection(); setThread(t); }}
-              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', padding: 12, marginBottom: 10, opacity: pressed ? 0.8 : 1 })}
-            >
-              <View>
-                <AvatarImage source={a.photo ?? null} name={a.full_name} size={46} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
-                <View style={{ position: 'absolute', right: -1, top: -1, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#1F8F5C', borderWidth: 1.5, borderColor: '#07100C', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                  <T v="caption" style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{newCount}</T>
-                </View>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T v="bodyS" numberOfLines={1} style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 13 }}>
-                  {a.full_name}
-                </T>
-                <T v="caption" numberOfLines={1} style={{ color: 'rgba(242,247,243,0.5)', fontSize: 10.5, marginTop: 2 }}>
-                  shared {t.items.length} reel{t.items.length > 1 ? 's' : ''} with you · {t.items[0].ago}
-                </T>
-              </View>
-              <Image source={first.poster as never} style={{ width: 44, height: 58, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} resizeMode="cover" />
-              <FontAwesome5 name="chevron-right" size={12} color="rgba(242,247,243,0.35)" />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
+type ShareEntry = {
+  reelId: number; /* the real video id (from the share's /videos?start= route) — 0 when unknown */
+  ago: string;
+  dir: 'them' | 'me';
+  /* pass 83-38b — real chat-share identity */
+  shareId: number;
+  conversationId: number;
+  title: string;
+  sub?: string;
+};
+/* pass 83-38b — the old demo "shared videos" inbox overlay was DEAD CODE (never
+ * rendered) and is gone. Real video shares live in DMs: the share sheet and the
+ * Send-to pickers deliver actual chat shares (chatSendShare), and recipients
+ * open them from their DM inbox. */
 
 /* pass 80 — guest mode: only Tools are available; this module asks for login. */
 export default function VideosFeed() {
