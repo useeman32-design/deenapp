@@ -4,7 +4,6 @@ import { Animated, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { BASE, isLive, notificationsList, notificationsMarkAllRead, type NotifRow } from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useTheme } from '@/context/ThemeContext';
@@ -204,7 +203,7 @@ function NotificationsInner() {
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 8 }} showsVerticalScrollIndicator={false}>
           {source.map((n) => {
             const meta = KIND_META[n.kind];
-            const a = n.user ? MOCK_ACCOUNTS.find((x) => x.username === n.user) : undefined;
+
             const unread = isUnread(n);
             const sys = n.kind === 'system';
             return (
@@ -216,8 +215,8 @@ function NotificationsInner() {
                 <View>
                   {sys ? (
                     <AvatarImage source={DEENLINK_LOGO} name="DeenLink" size={42} tint={d.bgSoft} border={d.cardBorder} />
-                  ) : (a || n.photo) ? (
-                    <AvatarImage source={a?.photo ?? n.photo ?? null} name={a?.full_name ?? n.user ?? 'DeenLink'} size={42} tint={d.bgSoft} border={d.cardBorder} />
+                  ) : n.photo ? (
+                    <AvatarImage source={n.photo} name={n.user ?? 'DeenLink'} size={42} tint={d.bgSoft} border={d.cardBorder} />
                   ) : (
                     <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: `${meta.tint}18`, borderWidth: 1, borderColor: `${meta.tint}55`, alignItems: 'center', justifyContent: 'center' }}>
                       <FontAwesome5 name="star-and-crescent" size={15} color={meta.tint} />
@@ -230,7 +229,7 @@ function NotificationsInner() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>
                     {/* pass 83-14 — owner wants BOTH: the name AND @username, then the message */}
-                    <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{n.name || a?.full_name || (n.user ? `@${n.user}` : 'DeenLink')} </T>
+                    <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{n.name || (n.user ? `@${n.user}` : 'DeenLink')} </T>
                     {n.user ? <T v="bodyS" style={{ fontSize: 11, fontWeight: '600', color: d.faint }}>@{n.user} </T> : null}
                     {n.text}
                   </T>

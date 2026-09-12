@@ -9,7 +9,8 @@ import { TopBar } from '@/components/TopBar';
 import { DeenPointsPill } from '@/components/DeenPoints';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
-import { MOCK_SCHOLARS } from '@/api/mocks';
+import * as api from '@/api/client';
+import type { Scholar } from '@/api/types';
 import { DPIcon } from '@/components/DeenPoints';
 
 /**
@@ -57,14 +58,13 @@ type Question = {
 };
 
 /* a couple of seeded public answers so the tab is never empty */
-const SEED_PUBLIC: Question[] = [
-  { id: 'seed1', asker: { name: 'Musa Idris', av: 'https://i.pravatar.cc/120?img=15' }, scholarId: 1, scholarName: 'Sheikh Abdurrahman Al-Ameen', title: 'Is my wudu valid if I wash quickly?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 3, status: 'answered', answer: 'Wudu is valid as long as each limb is washed completely once — thoroughness is sunnah, speed does not invalidate it. Allahu a\'lam.' },
-  { id: 'seed2', asker: { name: 'Fatima Sani', av: 'https://i.pravatar.cc/120?img=45' }, scholarId: 2, scholarName: 'Ustadh Usman Ahmad', title: 'Can I combine prayers while travelling?', body: '…', cat: 'Fiqh', urgency: 0, isPublic: true, at: Date.now() - 86400000 * 6, status: 'answered', answer: 'Yes — a traveller may combine Dhuhr with Asr and Maghrib with Isha according to the majority. Allahu a\'lam.' },
-];
+/* pass 83-38 — demo public Q&A removed; only real answered questions render */
 /* pass 42 — Q&A identity helpers: avatars + info for BOTH sides of every
  * answered exchange (asker row + scholar row with title · madhhab · institute) */
 const scholarAv = (id: number) => AV[(id - 1) % AV.length] ?? AV[0];
-const scholarOf = (id: number) => MOCK_SCHOLARS.find((m) => m.id === id) ?? null;
+/* pass 83-38 — the roster is server-fed (Admin → Scholars); no demo list */
+let SCHOLAR_ROSTER: Scholar[] = [];
+const scholarOf = (id: number) => SCHOLAR_ROSTER.find((m) => m.id === id) ?? null;
 
 
 const timeAgo = (t: number) => {
@@ -96,17 +96,26 @@ export default function Scholars() {
     storage.getItem('dl.deenpoints').then((r) => { if (r) setPoints(Number(r) || 1250); }).catch(() => {});
   }, []);
 
+  /* pass 83-38 — the scholar roster comes from the server */
+  const [roster, setRoster] = useState<Scholar[]>([]);
+  useEffect(() => {
+    api.scholars().then((rows) => {
+      SCHOLAR_ROSTER = rows;
+      setRoster(rows);
+    }).catch(() => {});
+  }, []);
+
   const save = (list: Question[]) => {
     setQuestions(list);
     storage.setItem('dl.scholars.questions.v1', JSON.stringify(list)).catch(() => {});
     storage.setItem('dl.deenpoints', String(points)).catch(() => {});
   };
 
-  const scholar = MOCK_SCHOLARS.find((s) => s.id === asking) ?? null;
+  const scholar = roster.find((s) => s.id === asking) ?? null;
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return MOCK_SCHOLARS.filter((s) => {
+    return roster.filter((s) => {
       const f = field ?? catScreen;
       if (f && !(s.fields_of_knowledge ?? '').includes(f)) return false;
       if (!needle) return true;
@@ -115,7 +124,7 @@ export default function Scholars() {
   }, [q, field, catScreen]);
 
   const publicQs = useMemo(
-    () => [...(questions ?? []).filter((x) => x.isPublic && x.status === 'answered'), ...SEED_PUBLIC].sort((a, b) => b.at - a.at),
+    () => (questions ?? []).filter((x) => x.isPublic && x.status === 'answered').sort((a, b) => b.at - a.at),
     [questions],
   );
 

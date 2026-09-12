@@ -10,7 +10,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { FeedCard, AvatarImage } from '@/components/FeedCard';
 import { CommentsModal } from '@/components/CommentsModal';
-import { MOCK_COMMENTS } from '@/api/mocks';
 import { FriendsPicker } from '@/components/SendToFriends';
 
 /* pass 83-17 — skeleton breathing loader (owner: "when opening group the
@@ -1493,7 +1492,7 @@ function GroupScreenInner() {
         </View>
       </Modal>
 
-      <CommentsModal post={commentPost} seed={(MOCK_COMMENTS[commentPost?.id ?? -1] ?? MOCK_COMMENTS[101] ?? []) as never} visible={commentPost != null} onClose={() => setCommentPost(null)} />
+      <CommentsModal post={commentPost} seed={[] as never} visible={commentPost != null} onClose={() => setCommentPost(null)} />
     </View>
   );
 }

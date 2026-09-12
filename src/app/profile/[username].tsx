@@ -9,14 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { symbolFor } from '@/lib/currency';
-import { publicDonationSummary } from '@/api/client';
-import {
-  MOCK_ACCOUNTS,
-  MOCK_FEED,
-  MOCK_PROFILES,
-  MOCK_REELS,
-  type MockProfile,
-} from '@/api/mocks';
+import { publicDonationSummary, videos as apiVideos } from '@/api/client';
+import type { MockProfile, MockReel } from '@/api/mocks';
 import { blockUser, deletePost as srvDeletePost, directFatwas, getUserProfile, isLive, reportAccount, toggleFollow as srvToggleFollow, userPosts as srvUserPosts, type PublicProfile } from '@/api/client';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
@@ -72,8 +66,30 @@ function PublicProfileScreenInner() {
 
   const [tab, setTab] = useState<ProfileTab>(initialTab === 'videos' || initialTab === 'questions' ? (initialTab as ProfileTab) : 'posts');
   const [photoPreview, setPhotoPreview] = useState(false);
-  // the account's reels — shown in the Videos tab
-  const userReels = useMemo(() => MOCK_REELS.filter((r) => r.username === username), [username]);
+  // the account's reels — shown in the Videos tab (server reels only, pass 83-38)
+  const [userReels, setUserReels] = useState<MockReel[]>([]);
+  useEffect(() => {
+    let dead = false;
+    apiVideos('reel').then((rows) => {
+      if (dead) return;
+      setUserReels((rows ?? []).filter((v) => String((v as { username?: string }).username ?? '') === username).map((v, i) => ({
+        id: 500000 + Number(v.id ?? i),
+        liveId: v.id != null ? Number(v.id) : undefined,
+        src: { uri: String((v as { sourceUrl?: string; source_url?: string }).sourceUrl ?? (v as { source_url?: string }).source_url ?? '') },
+        poster: { uri: String((v as { posterUrl?: string; poster_url?: string }).posterUrl ?? (v as { poster_url?: string }).poster_url ?? '') },
+        username,
+        accountName: String((v as { accountName?: string }).accountName ?? username),
+        accountPic: ((v as { accountPic?: string | null }).accountPic ?? null) as string | null,
+        caption: String((v as { title?: string }).title ?? (v as { description?: string }).description ?? ''),
+        likes: Number((v as { likes?: number }).likes ?? 0),
+        comments: Number((v as { comments?: number }).comments ?? 0),
+        saves: 0,
+        views: Number((v as { views?: number }).views ?? 0),
+        music: 'Original audio',
+      })).filter((r) => r.src.uri));
+    }).catch(() => {});
+    return () => { dead = true; };
+  }, [username]);
   const [following, setFollowing] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   /* pass 74 — was declared below the `if (!profile)` early return: the first
@@ -137,34 +153,7 @@ function PublicProfileScreenInner() {
         following: liveP.following ?? 0,
       } as MockProfile;
     }
-    const p = MOCK_PROFILES[username];
-    if (p) return p;
-    const acc = MOCK_ACCOUNTS.find((a) => a.username === username);
-    if (acc) {
-      return {
-        username: acc.username,
-        full_name: acc.full_name,
-        badge: acc.badge as MockProfile['badge'],
-        fields: acc.fields,
-        photo: acc.photo,
-        bio: 'DeenLink community member.',
-        posts_count: 0,
-        followers: 0,
-        following: 0,
-      };
-    }
-    const post = MOCK_FEED.find((p) => p.user.username === username);
-    if (post) {
-      return {
-        username: post.user.username,
-        full_name: post.user.full_name ?? post.user.username,
-        fields: (post.user as { fields?: string | null }).fields ?? null,
-        bio: 'DeenLink community member.',
-        posts_count: 0,
-        followers: 0,
-        following: 0,
-      };
-    }
+    /* pass 83-38 — no demo roster: only real server profiles resolve */
     return null;
     /* pass 74 — MUST recompute when liveP lands, else a hard-nav mount
      * freezes the memo at null and real accounts show "couldn't find". */
@@ -178,7 +167,7 @@ function PublicProfileScreenInner() {
   const isOwnProfile = liveP?.id != null && user?.id != null && Number(liveP.id) === Number(user.id);
 
   const posts = useMemo(
-    () => livePosts ?? MOCK_FEED.filter((p) => p.user.username === username),
+    () => livePosts ?? [],
     [username, livePosts],
   );
 

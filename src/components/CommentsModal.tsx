@@ -5,8 +5,8 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import type { SampleComment } from '@/api/mocks';
+import * as api from '@/api/client';
 import { NAV_LABELS, SYSTEM_PROMPT, composeLocalAnswer, detectProvider, getApiKey, getModel, navAnswer, retrieveLocal, streamLLM } from '@/lib/ai';
-import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
@@ -395,13 +395,20 @@ export function CommentsModal({
   /* pass 41 — typing "@" opens the mention picker: DeenLink AI first, then friends/search */
   const mentionMatch = /@([A-Za-z0-9_.]*)$/.exec(draft);
   const mentionQuery = (mentionMatch?.[1] ?? '').toLowerCase();
+  /* pass 83-38 — mentions come from the REAL follow graph (was demo roster) */
+  const [mentionPeople, setMentionPeople] = useState<Array<{ username: string; full_name: string }>>([]);
+  useEffect(() => {
+    if (!visible) return;
+    let dead = false;
+    api.getConnections('following', mentionQuery).then((r) => {
+      if (!dead) setMentionPeople((r?.items ?? []).filter((it) => !it.is_me).slice(0, 6).map((it) => ({ username: it.username, full_name: it.name || it.username })));
+    }).catch(() => {});
+    return () => { dead = true; };
+  }, [visible, mentionQuery]);
   const mentionCandidates = useMemo(() => {
-    const people = MOCK_ACCOUNTS
-      .filter((a) => !mentionQuery || a.username.toLowerCase().includes(mentionQuery) || a.full_name.toLowerCase().includes(mentionQuery))
-      .slice(0, 6)
-      .map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
+    const people = mentionPeople.map((a) => ({ handle: a.username, name: a.full_name, ai: false }));
     return [{ handle: 'deenlinkai', name: 'DeenLink AI', ai: true }, ...people];
-  }, [mentionQuery]);
+  }, [mentionQuery, mentionPeople]);
   const pickMention = (handle: string) => {
     /* pass 54 — tapping a suggestion never types "@user " into the comment box
      * (that was the confusing part). Picking DeenLink AI instead sets an explicit

@@ -12,7 +12,6 @@ import { goBack } from '@/lib/navigation';
 import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import type { Post } from '@/api/types';
-import { MOCK_COMMENTS, MOCK_FEED } from '@/api/mocks';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -37,13 +36,11 @@ function PostScreenInner() {
 
   useEffect(() => {
     if (!Number.isFinite(pid) || pid <= 0) { setMissed(true); return; }
-    const found = MOCK_FEED.find((p) => p.id === pid);
-    if (found) { setPost(found); setLiked(!!found.liked_by_me); }
+    /* pass 83-38 — the server is the only source; a missing post is "missed" */
     api.feed('for-you').then((r) => {
       const p = (r.posts ?? []).find((x) => x.id === pid);
-      if (p) { setPost(p); setLiked(!!p.liked_by_me); }
-      else if (!found) setMissed(true);
-    }).catch(() => { if (!found) setMissed(true); });
+      if (p) { setPost(p); setLiked(!!p.liked_by_me); } else setMissed(true);
+    }).catch(() => setMissed(true));
   }, [pid]);
 
   const toggleLike = () => {
@@ -86,7 +83,7 @@ function PostScreenInner() {
       <CommentsModal
         visible={commentsOpen}
         post={post}
-        seed={post ? MOCK_COMMENTS[post.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        seed={[]}
         postId={post?.id ?? null}
         onClose={() => setCommentsOpen(false)}
       />

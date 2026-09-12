@@ -13,7 +13,6 @@ import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import type { AccountResult } from '@/api/client';
 import type { Post, Video } from '@/api/types';
-import { MOCK_ACCOUNTS, MOCK_FEED, MOCK_VIDEOS } from '@/api/mocks';
 
 type Tab = 'top' | 'users' | 'videos' | 'hashtags';
 
@@ -170,8 +169,8 @@ export default function SearchScreen() {
 
   /* pools — loaded once, filtered per tab */
   useEffect(() => {
-    api.feed('for-you').then((r) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED)).catch(() => setPosts(MOCK_FEED));
-    api.videos('all').then((v) => setVideos(v.length ? v : MOCK_VIDEOS)).catch(() => setVideos(MOCK_VIDEOS));
+    api.feed('for-you').then((r) => setPosts(r.posts ?? [])).catch(() => {});
+    api.videos('all').then(setVideos).catch(() => {});
   }, []);
 
   const query = q.trim().toLowerCase();
@@ -229,13 +228,7 @@ export default function SearchScreen() {
     /* pass 74 — the Top tab shows up to 3 account matches, so it needs the
      * account search too, not just the dedicated People tab. */
     if (!searching || (tab !== 'users' && tab !== 'top')) return;
-    if (!api.isLive()) {
-      setUsers(
-        MOCK_ACCOUNTS.filter((a) => a.full_name.toLowerCase().includes(query) || a.username.toLowerCase().includes(query))
-          .map((a) => ({ id: 0, username: a.username, full_name: a.full_name, profile_image_url: typeof a.photo === 'string' ? a.photo : null, followers_count: 0 })),
-      );
-      return;
-    }
+    if (!api.isLive()) { setUsers([]); return; } /* pass 83-38 — real accounts only */
     setLoading((l) => ({ ...l, users: true }));
     api.searchAccounts(query).then((r) => setUsers(r ?? [])).finally(() => setLoading((l) => ({ ...l, users: false })));
   }, [tab, query, searching]);
@@ -354,7 +347,7 @@ export default function SearchScreen() {
 
   /* the mixed "Top" list: the single best of each kind, then the rest */
   const topMix = useMemo(() => {
-    const acc = users ?? (api.isLive() ? null : MOCK_ACCOUNTS.filter((a) => a.full_name.toLowerCase().includes(query) || a.username.toLowerCase().includes(query)).map((a) => ({ id: 0, username: a.username, full_name: a.full_name, profile_image_url: typeof a.photo === 'string' ? a.photo : null, followers_count: 0 })));
+    const acc = users; /* pass 83-38 — real account search only */
     const bestPost = [...matchedPosts].sort((a, b) => (b.like_count ?? 0) - (a.like_count ?? 0))[0];
     const bestVideo = matchedVideos[0];
     const bestTag = matchedTags[0];

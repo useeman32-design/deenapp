@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { BASE, feed as fetchFeed, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
+import { BASE, feed as fetchFeed, getConnections as apiGetConnections, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,7 +32,7 @@ import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { MOCK_ACCOUNTS, MOCK_FOLLOWED, MOCK_REELS, REEL_COMMENTS, type MockReel, type SampleComment } from '@/api/mocks';
+import type { MockReel } from '@/api/mocks';
 import type { Post } from '@/api/types';
 import { T } from '@/components/T';
 import { VerificationBadge } from '@/components/VerificationBadge';
@@ -45,21 +45,14 @@ import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { useBookmarks } from '@/lib/bookmarks';
-import { addUserReel, subscribeUserReels, userReels } from '@/lib/reelStore';
-import { addUserPost, listUserPosts } from '@/lib/userPosts';
+import { subscribeUserReels, userReels } from '@/lib/reelStore';
+import { listUserPosts } from '@/lib/userPosts';
 
 const { height: VH, width: VW } = Dimensions.get('window');
 
 const SAVES_KEY = 'dl.reels.saved';
 const REPOST_KEY = 'dl.reels.reposted';
 const SPEEDS = [0.5, 1, 2, 3];
-
-/** Sample clips offered in the create studio (demo picks). */
-const SAMPLE_CLIPS: Array<{ id: number; label: string; reel: MockReel }> = MOCK_REELS.slice(0, 5).map((r) => ({
-  id: r.id,
-  label: `Clip ${r.id - 200}`,
-  reel: r,
-}));
 
 const fmtTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -68,7 +61,7 @@ const fmtTime = (s: number) => {
 };
 
 /** reel → synthetic Post so the shared CommentsModal works unchanged. */
-function reelAsPost(r: MockReel, account: (typeof MOCK_ACCOUNTS)[number]): Post {
+function reelAsPost(r: MockReel, account: { full_name: string; photo?: number | string | null; badge?: string | null }): Post {
   return {
     id: r.id,
     content_text: r.caption,
@@ -143,13 +136,14 @@ function ReelItem({
   const { isDark } = useTheme();
   const account = useMemo(
     () =>
-      MOCK_ACCOUNTS.find((a) => a.username === reel.username) ?? {
+      /* pass 83-38 — the account is whatever the server row says */
+      ({
         username: reel.username,
-        full_name: reel.accountName ?? (reel.username === 'abdalrahman' ? 'Abdulrahman Al-Harbi' : reel.username),
+        full_name: reel.accountName ?? reel.username,
         photo: (reel.accountPic ?? null) as number | null,
         badge: undefined,
-        fields: null,
-      },
+        fields: null as string | null,
+      }),
     [reel.username],
   );
   const player = useVideoPlayer(reel.src, (p) => {
@@ -434,7 +428,7 @@ function ReelItem({
             })}
           >
             {(() => {
-              const rp = MOCK_ACCOUNTS.find((x) => x.username === reel.repostedBy);
+              const rp = null as { photo?: number | null; full_name?: string } | null; /* pass 83-38 */
               return (
                 <>
                   <AvatarImage source={rp?.photo ?? null} name={rp?.full_name ?? String(reel.repostedBy)} size={18} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.35)" />
@@ -646,6 +640,13 @@ function VideosFeedInner() {
   const [inboxOpen, setInboxOpen] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<{ img: number | null; name: string } | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  /* pass 83-38 — friends lists come from the REAL follow graph */
+  const [friends, setFriends] = useState<Array<{ username: string; full_name: string; photo?: string | number | null }>>([]);
+  useEffect(() => {
+    apiGetConnections('following').then((r) => {
+      setFriends((r?.items ?? []).filter((it) => !it.is_me).map((it) => ({ username: it.username, full_name: it.name || it.username, photo: it.profile_image_url ?? null })));
+    }).catch(() => {});
+  }, []);
   const [searchOpen, setSearchOpen] = useState(false);
   /* pass 83-35 — pinch-IN hides everything but the video + back button;
    * scrolling to another video (index change) or pinching out brings them back. */
@@ -719,7 +720,7 @@ function VideosFeedInner() {
             id: 1_000_000 + (u.at % 1_000_000),
             src: { uri: u.video! },
             poster: { uri: u.video! },
-            username: 'abdalrahman',
+            username: String(meUser?.username ?? 'me'), /* pass 83-38 — the signed-in user, not a demo persona */
             caption: u.text || 'Community video 🎬',
             likes: 0,
             comments: 0,
@@ -790,13 +791,14 @@ function VideosFeedInner() {
     const upBase = new Set([...liveReels, ...userReels].map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
     const postClean = postReels.filter((r) => !upBase.has(String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
     const mine: MockReel[] = [...liveReels, ...userReels, ...commReels, ...postClean];
+    /* pass 83-38 — REAL REELS ONLY: the demo clip bed is gone */
     if (feedTab === 'following') {
-      return [...liveReels, ...mine.filter((r) => r.username === 'abdalrahman'), ...MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username))];
+      return liveReels;
     }
     if (feedTab === 'friends') {
-      return MOCK_REELS.filter((r) => MOCK_FOLLOWED.includes(r.username) || r.repostedBy != null);
+      return liveReels.filter((r) => r.repostedBy != null);
     }
-    return [...mine, ...MOCK_REELS];
+    return mine;
   }, [feedTab, storeTick, commReels, liveReels, userReels, postReels]);
 
   /* pass 72 — count a view the first time a server reel fills the screen */
@@ -871,7 +873,7 @@ function VideosFeedInner() {
       storage.setItem(REPOST_KEY, JSON.stringify([...n])).catch(() => {});
       return n;
     });
-    const target = [...liveReels, ...userReels, ...commReels, ...MOCK_REELS].find((r) => r.id === id);
+    const target = [...liveReels, ...userReels, ...commReels, ...postReels].find((r) => r.id === id);
     const liveId = target?.liveId;
     /* pass 70 — server-backed reposts for real reels (the owner gets a
      * notification); mock clips keep the local behaviour */
@@ -1027,7 +1029,8 @@ function VideosFeedInner() {
   const commentPost: Post | null = commentReel
     ? reelAsPost(
         commentReel,
-        MOCK_ACCOUNTS.find((a) => a.username === commentReel.username) ?? MOCK_ACCOUNTS[0],
+        /* pass 83-38 — account comes from the reel row itself */
+        { full_name: commentReel.accountName ?? commentReel.username, photo: commentReel.accountPic ?? null, badge: null },
       )
     : null;
 
@@ -1041,7 +1044,6 @@ function VideosFeedInner() {
           r.caption,
           r.username,
           r.accountName ?? '',
-          MOCK_ACCOUNTS.find((a) => a.username === r.username)?.fields ?? '',
           r.groupName ?? '',
         ].join(' ').toLowerCase();
         return hay.includes(q);
@@ -1314,7 +1316,7 @@ function VideosFeedInner() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 8 }}>
-              {MOCK_ACCOUNTS.filter((a) => a.username !== 'abdalrahman').map((a) => (
+              {friends.map((a) => (
                 <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)' }}>
                   <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
                   <View style={{ flex: 1 }}>
@@ -1357,7 +1359,7 @@ function VideosFeedInner() {
               SEND TO
             </T>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 6 }}>
-              {MOCK_ACCOUNTS.filter((a) => a.username !== 'abdalrahman').map((a) => (
+              {friends.map((a) => (
                 <Pressable
                   key={a.username}
                   onPress={() => { haptic.light(); showToast(`Sent to @${a.username}`); setShareReel(null); }}
@@ -1728,7 +1730,7 @@ function VideosFeedInner() {
         inline={Platform.OS !== 'web'}
         post={commentPost}
         videoId={commentReel?.liveId ?? null}
-        seed={(commentPost ? (REEL_COMMENTS[commentPost.id] ?? []) as SampleComment[] : [])}
+        seed={[]}
         onClose={() => setCommentReel(null)}
       />
     </View>
@@ -1767,7 +1769,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
-  const [picked, setPicked] = useState<{ src: MockReel['src']; poster: MockReel['poster']; label: string; file?: { uri: string; name: string; type?: string } } | null>(null);
+  const [picked, setPicked] = useState<{ src: MockReel['src']; poster?: MockReel['poster']; label: string; file?: { uri: string; name: string; type?: string } } | null>(null);
   const [posting, setPosting] = useState(false);
   /* pass 83-25 — server upload progress + inline errors */
   const [upFrac, setUpFrac] = useState<number | null>(null);
@@ -1804,7 +1806,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         const err = validateReelFile(a.fileName ?? 'video.mp4', a.fileSize ?? undefined);
         if (err) { setUpError(err); return; }
         setUpError(null);
-        setPicked({ src: { uri: a.uri }, poster: SAMPLE_CLIPS[0].reel.poster, label: a.fileName ?? 'Selected video', file: { uri: a.uri, name: a.fileName ?? 'video.mp4' } });
+        setPicked({ src: { uri: a.uri }, label: a.fileName ?? 'Selected video', file: { uri: a.uri, name: a.fileName ?? 'video.mp4' } });
       }
     } catch {
       Alert.alert('Could not open the picker', 'Please try again.');
@@ -1834,25 +1836,10 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
       });
       return;
     }
-    setPosting(true);
-    setTimeout(() => {
-      const reel = addUserReel({
-        src: picked.src,
-        poster: picked.poster,
-        username: 'abdalrahman',
-        caption: caption.trim() || 'New video on DeenLink 🎬',
-        music: 'Original audio — Abdulrahman',
-      });
-      /* pass 42 — UNIVERSAL VIDEOS: a new reel ALSO lands in the community feed */
-      addUserPost(reel.caption, 'video', {
-        video: typeof reel.src === 'object' ? reel.src.uri : undefined,
-        reelId: reel.id,
-      }).catch(() => {});
-      setPosting(false);
-      setPicked(null);
-      setCaption('');
-      onPosted();
-    }, 1200);
+    /* pass 83-38 — REAL uploads only: without a live session nothing is
+     * posted (the old path minted a demo persona reel). */
+    setPosting(false);
+    setUpError('Unable to post — you appear to be offline. Please connect and try again.');
   };
 
   return (
@@ -1917,7 +1904,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
                   if (err) { setUpError(err); return; }
                   setUpError(null);
                   const url = URL.createObjectURL(file);
-                  setPicked({ src: { uri: url }, poster: SAMPLE_CLIPS[0].reel.poster, label: file.name, file: { uri: url, name: file.name, type: file.type } });
+                  setPicked({ src: { uri: url }, label: file.name, file: { uri: url, name: file.name, type: file.type } });
                 }}
               />
             ) : null}
@@ -1945,38 +1932,6 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
             {upError ? (
               <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: '#E74C3C' }}>{upError}</T>
             ) : null}
-
-            <View>
-              <T v="caption" style={{ color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', fontWeight: '800', fontSize: 10, letterSpacing: 0.7, marginBottom: 7 }}>
-                OR USE A SAMPLE CLIP
-              </T>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {SAMPLE_CLIPS.map((s) => {
-                  const on = picked?.label === s.label;
-                  return (
-                    <Pressable
-                      key={s.id}
-                      onPress={() => { haptic.selection(); setPicked({ src: s.reel.src, poster: s.reel.poster, label: s.label }); }}
-                      style={{
-                        width: 62,
-                        height: 110,
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        borderWidth: on ? 2 : 1,
-                        borderColor: on ? '#4AE38F' : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)',
-                      }}
-                    >
-                      <Image source={s.reel.poster as never} style={{ width: 62, height: 110 }} resizeMode="cover" />
-                      {on ? (
-                        <View style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: '#4AE38F', alignItems: 'center', justifyContent: 'center' }}>
-                          <FontAwesome5 name="check" size={9} color="#06230F" />
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
 
             <TextInput
               value={caption}
@@ -2092,8 +2047,10 @@ function InboxOverlay({ onClose, openReel }: { onClose: () => void; openReel: (r
     popIn();
   };
 
-  const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u) ?? MOCK_ACCOUNTS[0];
-  const reel = (id: number) => MOCK_REELS.find((x) => x.id === id);
+  /* pass 83-38 — demo thread data removed (these helpers stay for the
+   * now-unreachable thread view and render blanks safely) */
+  const acc = (u: string) => ({ username: u, full_name: u, photo: null as string | null });
+  const reel = (id: number): MockReel => ({ id, src: { uri: '' }, poster: { uri: '' }, username: '', caption: '', likes: 0, comments: 0, saves: 0, views: 0, music: '' });
 
   /* ---------- level 2 — the reel thread with one friend ---------- */
   if (thread) {

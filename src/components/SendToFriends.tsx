@@ -6,7 +6,6 @@ import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
-import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { deliverShareToFriends } from '@/components/ShareWithFriends';
 
 /**
@@ -57,17 +56,7 @@ export function FriendsPicker({
 
   /* recent conversations as suggestions (live only) */
   useEffect(() => {
-    if (!api.isLive()) {
-      setPeople(
-        MOCK_ACCOUNTS.slice(0, 20).map((a) => ({
-          id: null,
-          username: a.username,
-          full_name: a.full_name,
-          photo: a.photo ?? null,
-        })),
-      );
-      return;
-    }
+    if (!api.isLive()) { setPeople([]); return; } /* pass 83-38 — real contacts only */
     void api.chatConversations().then((convs) => {
       if (!convs) return;
       const seen = new Set<string>();

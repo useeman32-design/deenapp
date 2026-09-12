@@ -11,7 +11,6 @@ import { goBack } from '@/lib/navigation';
 import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import type { Post, Video } from '@/api/types';
-import { MOCK_FEED, MOCK_VIDEOS } from '@/api/mocks';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 import { FeedSkeleton } from '@/components/Skeletons';
@@ -35,8 +34,8 @@ function HashtagScreenInner() {
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    api.feed('for-you').then((r) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED)).catch(() => setPosts(MOCK_FEED));
-    api.videos('all').then((v) => setVideos(v.length ? v : MOCK_VIDEOS)).catch(() => setVideos(MOCK_VIDEOS));
+    api.feed('for-you').then((r) => setPosts(r.posts ?? [])).catch(() => {});
+    api.videos('all').then(setVideos).catch(() => {});
   }, []);
 
   const has = (s: string | null | undefined) => (s ?? '').toLowerCase().includes(`#${t}`);

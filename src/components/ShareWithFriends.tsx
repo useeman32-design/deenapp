@@ -4,10 +4,10 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { MOCK_ACCOUNTS, PROFILE_PHOTOS } from '@/api/mocks';
 import * as Clipboard from 'expo-clipboard';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import * as api from '@/api/client';
 
 /**
  * pass 40 — the shared "send to friends" picker. Multi-select accounts from
@@ -64,11 +64,18 @@ export function ShareWithFriends({
     if (visible) { setQ(''); setPicked(new Set()); setSent(false); setSending(false); }
   }, [visible]);
 
+  /* pass 83-38 — the real follow graph replaces the demo roster */
+  const [friends, setFriends] = useState<Array<{ username: string; full_name: string; photo?: string | number | null; fields?: string | null }>>([]);
+  useEffect(() => {
+    api.getConnections('following').then((r) => {
+      setFriends((r?.items ?? []).filter((it) => !it.is_me).map((it) => ({ username: it.username, full_name: it.name || it.username, photo: it.profile_image_url ?? null, fields: null })));
+    }).catch(() => {});
+  }, []);
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return MOCK_ACCOUNTS;
-    return MOCK_ACCOUNTS.filter((a) => a.full_name.toLowerCase().includes(needle) || a.username.toLowerCase().includes(needle));
-  }, [q]);
+    if (!needle) return friends;
+    return friends.filter((a) => a.full_name.toLowerCase().includes(needle) || a.username.toLowerCase().includes(needle));
+  }, [q, friends]);
 
   const toggle = (u: string) => {
     haptic.selection();
@@ -144,7 +151,7 @@ export function ShareWithFriends({
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 13 }}
                     >
                       <AvatarImage
-                        source={a.photo != null ? PROFILE_PHOTOS[String(a.photo)] : null}
+                        source={a.photo ?? null}
                         name={a.full_name}
                         size={38}
                         tint={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'}

@@ -15,13 +15,8 @@
 
 import { storage } from '@/lib/storage';
 import {
-  MOCK_COURSES,
-  MOCK_EVENTS,
   type EventItem,
-  MOCK_FEED,
-  MOCK_SCHOLARS,
   MOCK_USER,
-  MOCK_VIDEOS,
   MOCK_WALLPAPERS,
 } from '@/api/mocks';
 import type {
@@ -324,11 +319,9 @@ export async function feed(tab: FeedTab = 'for-you', cursor = 0): Promise<FeedRe
     normalizePostShapes(r.data.posts);
     return r.data;
   }
-  return {
-    status: 'success',
-    posts: MOCK_FEED.filter((p) => (tab === 'for-you' ? true : tab === 'scholars' ? p.user.scholar : p.user.verification_badge)),
-    next_cursor: null,
-  };
+  /* pass 83-38 — REAL DATA ONLY: the server feed (even when empty) is the
+   * truth; the demo posts are gone. */
+  return { status: 'success', posts: [], next_cursor: null };
 }
 
 /* pass 66-night — the whole comment tree is server-backed on live: threaded
@@ -1125,9 +1118,9 @@ export async function videos(type: 'daily' | 'reel' | 'all' = 'daily'): Promise<
    * the app silently fell back to mock clips forever) */
   if (r.ok) {
     const list = r.data.items ?? r.data.videos;
-    if (Array.isArray(list) && list.length) return list;
+    if (Array.isArray(list)) return list;
   }
-  return MOCK_VIDEOS;
+  return []; /* pass 83-38 — real uploads only, no sample clips */
 }
 
 /* ─────────────── pass 72 — Tier 1: video engagement, courses, donation history, qur'an extras ─────────────── */
@@ -1361,7 +1354,7 @@ export async function videosRepost(videoId: number, action: 'repost' | 'undo' | 
 export async function courses(): Promise<Course[]> {
   const r = await request<{ status?: string; courses?: Course[] }>('/api/courses/list.php');
   if (r.ok && Array.isArray(r.data.courses)) return r.data.courses;
-  return MOCK_COURSES;
+  return []; /* pass 83-38 — admin-managed courses only */
 }
 
 export async function userPosts(userId?: number): Promise<Post[]> {
@@ -1379,7 +1372,7 @@ export async function userPosts(userId?: number): Promise<Post[]> {
     }
     return [];
   }
-  return MOCK_FEED.filter((p) => p.user.username === (MOCK_USER.username ?? ''));
+  return []; /* pass 83-38 — no user id → no fabricated posts */
 }
 
 export async function profileCounts(userId?: number): Promise<{ posts: number; followers: number; following: number; donations: number; currency: string }> {
@@ -1417,9 +1410,9 @@ export async function scholars(): Promise<Scholar[]> {
   const r = await request<{ status?: string; scholars?: Scholar[]; data?: Scholar[] }>('/api/questions/scholars.php');
   if (r.ok) {
     const list = r.data.scholars ?? r.data.data;
-    if (Array.isArray(list) && list.length) return list;
+    if (Array.isArray(list)) return list;
   }
-  return MOCK_SCHOLARS;
+  return []; /* pass 83-38 — admin-registered scholars only */
 }
 
 /** A public question answered by a DeenLink scholar — a "direct fatwa". */
@@ -1567,8 +1560,8 @@ export async function registerPushToken(token: string, platform?: string): Promi
 
 export async function events(): Promise<EventItem[]> {
   const r = await request<{ status?: string; events?: EventItem[] }>('/api/events/list.php');
-  if (r.ok && Array.isArray(r.data.events) && r.data.events.length > 0) return r.data.events;
-  return MOCK_EVENTS; // Slice 3 — admin-managed events; sample list is the fallback
+  if (r.ok && Array.isArray(r.data.events)) return r.data.events;
+  return []; /* pass 83-38 — admin-managed events only */
 }
 
 export async function wallpapers() {

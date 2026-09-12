@@ -21,7 +21,7 @@ import { SunPath } from '@/components/SunPath';
 import * as api from '@/api/client';
 import { VideoModal } from '@/components/VideoModal';
 import type { Post, Scholar, Video } from '@/api/types';
-import { MOCK_COMMENTS, MOCK_FEED, MOCK_SCHOLARS, MOCK_VIDEOS } from '@/api/mocks';
+/* pass 83-38 — demo data removed: home renders only what the server returns */
 import { storage } from '@/lib/storage';
 import { DEFAULT_QUICK, QUICK_STORAGE_KEY, loadQuickDefaults, parseQuickPrefs, resolveQuick, type QuickItem } from '@/lib/quick-access';
 import { dailyAyah, dailyHadith } from '@/lib/daily';
@@ -254,13 +254,13 @@ function HomeInner() {
   }, [posts]);
 
   useEffect(() => {
-    api.scholars().then((r) => setScholars(r.length ? r : MOCK_SCHOLARS)).catch(() => setScholars(MOCK_SCHOLARS));
-    api.videos('daily').then((r) => setVideos(r.length ? r : MOCK_VIDEOS)).catch(() => setVideos(MOCK_VIDEOS));
+    api.scholars().then(setScholars).catch(() => {});
+    api.videos('daily').then(setVideos).catch(() => {});
     /* pass 83-36 — consume the login-time prefetch (instant), else fetch */
     const pre = api.consumeFeedPrefetch();
-    const apply = (r: import('@/api/types').FeedResponse) => setPosts(r.posts && r.posts.length ? r.posts : MOCK_FEED);
-    if (pre) pre.then(apply).catch(() => setPosts(MOCK_FEED));
-    else api.feed('for-you').then(apply).catch(() => setPosts(MOCK_FEED));
+    const apply = (r: import('@/api/types').FeedResponse) => setPosts(r.posts ?? []);
+    if (pre) pre.then(apply).catch(() => {});
+    else api.feed('for-you').then(apply).catch(() => {});
   }, []);
 
   const toggleFollow = (id: number) => {
@@ -1470,7 +1470,7 @@ function HomeInner() {
       <CommentsModal
         visible={!!commentPost}
         post={commentPost}
-        seed={commentPost ? MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? [] : []}
+        seed={[]}
         postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />

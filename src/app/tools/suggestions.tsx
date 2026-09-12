@@ -4,7 +4,6 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MOCK_ACCOUNTS, MOCK_FOLLOWED } from '@/api/mocks';
 import { getConnections, isLive, toggleFollow, type ConnectionRow } from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useTheme } from '@/context/ThemeContext';
@@ -31,19 +30,7 @@ export default function Suggestions() {
   const live = isLive();
 
   useEffect(() => {
-    if (!live) {
-      setRows(
-        MOCK_ACCOUNTS.map((a) => ({
-          id: 0,
-          username: a.username,
-          name: a.full_name,
-          photo: typeof a.photo === 'string' ? a.photo : null,
-          sub: a.fields ?? '',
-          following: MOCK_FOLLOWED.includes(a.username),
-        })),
-      );
-      return;
-    }
+    if (!live) { setRows([]); return; } /* pass 83-38 — real suggestions only */
     getConnections('suggestions')
       .then((r) => {
         const items: ConnectionRow[] = r?.items ?? [];

@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
-import { MOCK_ACCOUNTS } from '@/api/mocks';
 import { T } from '@/components/T';
 import { AvatarImage } from '@/components/FeedCard';
 import { findUrl, LinkPreviewCard } from '@/components/LinkPreview';
@@ -464,6 +463,13 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   /* pass 64 — forward is a full screen with multi-select, not a one-tap list. */
   const [forward, setForward] = useState<{ kind: 'msg' | 'share'; text: string; kindOf?: Kind } | null>(null);
   const [forwardPicked, setForwardPicked] = useState<Set<string>>(new Set());
+  /* pass 83-38 — forward targets come from the REAL follow graph */
+  const [forwardContacts, setForwardContacts] = useState<Array<{ username: string; full_name: string; photo?: string | number | null }>>([]);
+  useEffect(() => {
+    getConnections('following').then((r: { items?: Array<{ username: string; is_me?: boolean; name?: string; profile_image_url?: string | null }> } | null) => {
+      setForwardContacts((r?.items ?? []).filter((it) => !it.is_me).map((it) => ({ username: it.username, full_name: it.name || it.username, photo: it.profile_image_url ?? null })));
+    }).catch(() => {});
+  }, []);
   const [copied, setCopied] = useState(false);
   /* pass 64 — track the keyboard so the composer can drop its safe-area padding
    * while it is up (that leftover padding was the white bar under the field). */
@@ -578,8 +584,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
   };
   /* pass 74 — real peers resolve to their server name/photo; the old
    * MOCK_ACCOUNTS[0] fallback labelled every live DM with a mock person. */
-  const acc = (u: string) => MOCK_ACCOUNTS.find((a) => a.username === u)
-    ?? { username: u, full_name: peerMap[u]?.name || u, photo: peerMap[u]?.photo ?? null };
+  const acc = (u: string) => ({ username: u, full_name: peerMap[u]?.name || u, photo: peerMap[u]?.photo ?? null }); /* pass 83-38 — real peers only */
 
   /* pass 83-21 — the blocked viewer never sees the blocker's identity: the
    * server masks with_name/with_photo, and this covers the thread header and
@@ -2034,7 +2039,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
           </View>
           <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, paddingHorizontal: 16, paddingBottom: 6 }}>“{forward?.text}”</T>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 92 }}>
-            {MOCK_ACCOUNTS.map((a) => {
+            {forwardContacts.map((a) => {
               const on = forwardPicked.has(a.username);
               return (
                 <Pressable

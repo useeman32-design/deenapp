@@ -8,7 +8,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@/context/ThemeContext';
 import type { Post } from '@/api/types';
 import { GroupFeedInline, GroupsRail, loadGroups } from '@/components/Groups';
-import { MOCK_ACCOUNTS, MOCK_COMMENTS, MOCK_FEED, MOCK_FOLLOWED, MOCK_TRENDING, type SampleComment } from '@/api/mocks';
+
 import * as api from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { T } from '@/components/T';
@@ -46,7 +46,7 @@ function CommunityScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [posts, setPosts] = useState<Post[]>(MOCK_FEED);
+  const [posts, setPosts] = useState<Post[]>([]); /* pass 83-38 — real posts only */
   /* pass 83-36 — the admin's Videos-Management toggle. Videos stay OFF until
    * the owner flips it; the server ALSO rejects video uploads when off. */
   const [videoAllowed, setVideoAllowed] = useState(false);
@@ -219,22 +219,33 @@ function CommunityScreenInner() {
   }, [posts]);
 
   const q = query.trim().toLowerCase();
-  const accResults = useMemo(
-    () =>
-      q
-        ? MOCK_ACCOUNTS.filter((a) => a.full_name.toLowerCase().includes(q) || a.username.toLowerCase().includes(q))
-        : [],
-    [q],
-  );
+  /* pass 83-38 — account search hits the server (was a demo roster) */
+  const [accResults, setAccResults] = useState<Array<{ username: string; full_name: string; photo?: string | number | null; fields?: string | null }>>([]);
+  useEffect(() => {
+    if (!q) { setAccResults([]); return; }
+    let dead = false;
+    api.searchAccounts(query.trim()).then((rows) => {
+      if (!dead) setAccResults((rows ?? []).map((r) => ({ username: r.username, full_name: r.full_name, photo: r.profile_image_url ?? null, fields: null })));
+    }).catch(() => {});
+    return () => { dead = true; };
+  }, [q]);
   const postResults = useMemo(
     () => (q ? posts.filter((p) => (p.content_text ?? '').toLowerCase().includes(q)).slice(0, 4) : []),
     [q, posts],
   );
   const searching = q.length > 0;
 
+  /* pass 83-38 — the Following tab follows the REAL follow graph */
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    api.getConnections('following').then((r) => {
+      setFollowingSet(new Set((r?.items ?? []).map((it) => it.username)));
+    }).catch(() => {});
+  }, []);
+
   const visiblePosts = useMemo(() => {
     if (searching) return [];
-    if (tab === 'following') return posts.filter((p) => MOCK_FOLLOWED.includes(p.user.username));
+    if (tab === 'following') return posts.filter((p) => followingSet.has(p.user.username));
     if (tab === 'scholars') return posts.filter((p) => !!p.user.scholar);
     return posts;
   }, [posts, tab, searching]);
@@ -647,8 +658,8 @@ function CommunityScreenInner() {
           </View>
         ) : null}
 
-        {/* Trending */}
-        {!searching ? (
+        {/* Trending (pass 83-38 — renders only with real trending data) */}
+        {!searching && TRENDING.length > 0 ? (
           <View style={{ marginTop: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginBottom: 8 }}>
               <FontAwesome5 name="chart-line" size={11} color={d.gold} />
@@ -657,7 +668,7 @@ function CommunityScreenInner() {
               </T>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4, gap: 10 }}>
-              {MOCK_TRENDING.map((t) => (
+              {TRENDING.map((t) => (
                 <Pressable
                   key={t.tag}
                   onPress={() => {
@@ -776,7 +787,7 @@ function CommunityScreenInner() {
                   {postResults.map((p) => (
                     <View key={p.id} style={{ flexDirection: 'row', gap: 9 }}>
                       <AvatarImage
-                        source={(p.user as { profile_image_url?: string | number | null }).profile_image_url ?? (MOCK_ACCOUNTS.find((a) => a.username === p.user.username)?.photo ?? null)}
+                        source={(p.user as { profile_image_url?: string | number | null }).profile_image_url ?? null}
                         name={p.user.full_name ?? p.user.username}
                         size={32}
                         tint={d.bgSoft}
@@ -1302,7 +1313,7 @@ function CommunityScreenInner() {
       <CommentsModal
         visible={!!commentPost}
         post={commentPost}
-        seed={commentPost ? (MOCK_COMMENTS[commentPost.id] ?? MOCK_COMMENTS[101] ?? []) as SampleComment[] : []}
+        seed={[]}
         postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
@@ -1383,12 +1394,20 @@ function GroupsSuggestStrip({ dash }: { dash: any }) {
   );
 }
 
+const TRENDING: Array<{ tag: string; posts: string }> = []; /* pass 83-38 — no fabricated trends */
+
 /* Suggested accounts card — interleaved into the community feed (pass 22). */
 function SuggestStrip({ dash }: { dash: any }) {
   const { isDark } = useTheme();
   const router = useRouter();
   const [followed, setFollowed] = useState<string[]>([]);
-  const picks = useMemo(() => MOCK_ACCOUNTS.slice().sort(() => Math.random() - 0.5).slice(0, 3), []);
+  /* pass 83-38 — real suggestion list from the server (was demo accounts) */
+  const [picks, setPicks] = useState<Array<{ username: string; full_name: string; photo?: string | number | null; fields?: string | null }>>([]);
+  useEffect(() => {
+    api.getConnections('suggestions').then((r) => {
+      setPicks((r?.items ?? []).filter((it) => !it.is_me).slice(0, 3).map((it) => ({ username: it.username, full_name: it.name || it.username, photo: it.profile_image_url ?? null, fields: null })));
+    }).catch(() => {});
+  }, []);
   return (
     <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
