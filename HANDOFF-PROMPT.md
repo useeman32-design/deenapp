@@ -1,3 +1,19 @@
+# ══ 2026-09-13 — PASS 83-38d: OWNER DESIGN — Quran page cleanup (permanent this time) ══
+# deenapp master = 6f3f680 · dlapi main = 56e010d · gh-pages = c790e02.
+# OWNER pulled in cPanel, saw the removed design come back: he had hand-removed Quran Shazam +
+# the Seerah/Courses/Quiz shortcut buttons on the Qur'an & Hadith page, and had added a
+# notifications demo button — OUTSIDE the repos. Hand edits on the server are wiped by every
+# deploy (the app pages are compiled from the repos, not editable HTML). LESSON for owner:
+# any design change must be made IN THE REPO — tell the agent, never edit server files.
+# DONE (now permanent in source):
+#  • Quran & Hadith page (src/app/(tabs)/quran/index.tsx): Quran Shazam block + shazam state/
+#    modal/import removed; Seerah/Courses/Quiz shortcuts row removed (-70 lines; tsc clean).
+#  • Notifications demo button: SKIPPED — owner confirmed it was only to test push (worked),
+#    no longer needed.
+#  RECOVERY again (stale restore trimmed history mid-pass): salvage pattern — commit existed
+#  locally on wrong base; soft copy of the one changed file onto reset --hard origin/master.
+#  GATES: tsc clean · CHECK-RAW OK (222 files) · boot root 200/assets ok. gh-pages pushed (PWA
+#  already live). OWNER: one dlapi cPanel pull for the root; hard-refresh browser (cache).
 # ══ 2026-09-12 — PASS 83-38c: VIDEO SHARING IS REAL (+ "no shared videos yet" explained) ══
 # deenapp master = 828466e · dlapi main = ceb46c1 (api+admin+RAW web root merged) · gh-pages = 45a28e0.
 # OWNER ASKED what "No shared videos yet" meant. Truth found while answering:
