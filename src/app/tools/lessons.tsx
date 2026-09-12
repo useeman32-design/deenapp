@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
+import { useLessonTopics } from '@/lib/liveContent';
 import { T } from '@/components/T';
 import { BackButton } from '@/components/BackButton';
 import { haptic } from '@/lib/haptics';
@@ -15,7 +16,7 @@ import { haptic } from '@/lib/haptics';
 
 type Topic = { id: string; title: string; icon: string; tint: string; minutes: number; points: Array<{ h: string; b: string }> };
 
-const TOPICS: Array<{ id: string; title: string; icon: string; tint: string; minutes: number; points: Array<{ h: string; b: string }> }> = [
+const TOPICS_FALLBACK: Array<{ id: string; title: string; icon: string; tint: string; minutes: number; points: Array<{ h: string; b: string }> }> = [
   {
     id: 'tawhid', title: 'Tawhid — Oneness of Allah', icon: 'star-and-crescent', tint: '#E8C96A', minutes: 6,
     points: [
@@ -93,6 +94,8 @@ const TOPICS: Array<{ id: string; title: string; icon: string; tint: string; min
 ];
 
 export default function Lessons() {
+  /* pass 83-39 — admin-managed Short Lessons (server-first, bundled fallback) */
+  const TOPICS = useLessonTopics(TOPICS_FALLBACK);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();

@@ -7,6 +7,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { RIDDLES } from '@/data/learn';
+import { useRiddles } from '@/lib/liveContent';
 import { addUserPost } from '@/lib/userPosts';
 import { ScoreShareSheet, type ScoreCard } from '@/components/ScoreShareSheet';
 import { FriendsPicker } from '@/components/SendToFriends';
@@ -17,6 +18,8 @@ import { FriendsPicker } from '@/components/SendToFriends';
  * shuffle, and SHARE (as a community post or to friends).
  */
 export default function Riddles() {
+  /* pass 83-39 — admin-managed riddles (server-first, bundled fallback) */
+  const DECK = useRiddles(RIDDLES);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -31,15 +34,15 @@ export default function Riddles() {
   const pop = useRef(new Animated.Value(0.85)).current;
 
   const list = useMemo(() => {
-    const arr = [...RIDDLES];
+    const arr = [...DECK];
     let s = seed || 1;
     for (let k = arr.length - 1; k > 0; k--) {
       s = (s * 1103515245 + 12345) % 2147483648;
       const j = s % (k + 1);
       [arr[k], arr[j]] = [arr[j], arr[k]];
     }
-    return seed === 0 ? RIDDLES : arr;
-  }, [seed]);
+    return seed === 0 ? DECK : arr;
+  }, [seed, DECK]);
 
   const r = list[i % list.length];
   const reveal = () => {

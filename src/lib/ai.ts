@@ -354,10 +354,14 @@ export async function loadFatwas(): Promise<Fatwa[]> {
   if (fatwaLoading) return fatwaLoading;
   fatwaLoading = (async () => {
     const { publicBase } = await import('@/lib/gzio');
-    const r = await fetch(`${publicBase()}/islamqa.json`);
-    const j = (await r.json()) as Fatwa[];
-    fatwaCache = j;
-    return j;
+    const [j, extra] = await Promise.all([
+      fetch(`${publicBase()}/islamqa.json`).then((r) => r.json() as Promise<Fatwa[]>).catch(() => [] as Fatwa[]),
+      /* pass 83-39 — admin-added rulings PREPEND the shipped archive */
+      import('@/lib/liveContent').then((m) => m.fatwaExtras()).catch(() => [] as Array<{ t: string; a: string; src?: string }>),
+    ]);
+    const extras: Fatwa[] = (extra ?? []).map((e) => ({ t: e.t, a: e.a })) as Fatwa[];
+    fatwaCache = [...extras, ...(j as Fatwa[])];
+    return fatwaCache;
   })();
   return fatwaLoading;
 }

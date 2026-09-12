@@ -371,6 +371,11 @@ export async function groupDeletePost(postId: number): Promise<boolean> {
   const r = await request<{ status?: string }>('/api/groups/delete_post.php', { method: 'POST', body: { post_id: postId }, auth: true });
   return r.ok && r.data.status === 'success';
 }
+/* pass 83-39 — public (no-auth) GET for admin-managed content decks */
+export async function publicGet<T = Record<string, unknown>>(path: string): Promise<ApiResult<T>> {
+  return request<T>(path, { auth: false });
+}
+
 /* pass 83-39 — admin-managed Islamic articles + jokes (server content; bundled fallback) */
 export type ServerArticle = { id: number; title: string; tag: string; mins: number; icon: string; img_key: string; body: string; is_active: number };
 export type ServerJoke = { id: number; setup: string; punch: string; is_active: number };

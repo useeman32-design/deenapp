@@ -10,6 +10,7 @@ import { haptic } from '@/lib/haptics';
 import { loadSurah, type ContentAyah } from '@/lib/content';
 import { QURAN } from '@/data/quran';
 import { TAFSIR_BOOKS, fetchTafsir, tafsirBlocks, type TafsirAuthor } from '@/lib/tafsir';
+import { useTafsirEditions } from '@/lib/liveContent';
 import { storage } from '@/lib/storage';
 import { useRouter } from 'expo-router';
 
@@ -27,6 +28,11 @@ const BOOK_KEY = 'dl.tafsir.book';
 type SurahData = { surah: number; hasBasmallah: boolean; basmallah: string; verses: ContentAyah[] } | null;
 
 export default function Tafsir() {
+  /* pass 83-39 — admin controls which tafsir editions appear (server-first; bundled = all 3) */
+  const serverEd = useTafsirEditions();
+  const BOOKS = serverEd
+    ? serverEd.filter((e) => TAFSIR_BOOKS.some((b) => b.id === e.id)).map((e) => ({ ...(TAFSIR_BOOKS.find((b) => b.id === e.id) as { id: TafsirAuthor; label: string; author: string; blurb: string }), label: e.label || e.id }))
+    : TAFSIR_BOOKS;
   useEffect(() => { markGoal('tafsir').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -43,11 +49,11 @@ export default function Tafsir() {
   const [passage, setPassage] = useState<{ loading: boolean; err?: boolean; text?: string; group?: string | null }>({ loading: false });
 
   const meta = QURAN.find((s) => s.number === surahN) ?? QURAN[0];
-  const bookMeta = TAFSIR_BOOKS.find((b) => b.id === book) ?? TAFSIR_BOOKS[0];
+  const bookMeta = BOOKS.find((b) => b.id === book) ?? BOOKS[0] ?? TAFSIR_BOOKS[0];
 
   useEffect(() => {
     storage.getItem(BOOK_KEY).then((v) => {
-      if (v && TAFSIR_BOOKS.some((b) => b.id === v)) setBook(v as TafsirAuthor);
+      if (v && BOOKS.some((b) => b.id === v)) setBook(v as TafsirAuthor);
     }).catch(() => {});
   }, []);
 
@@ -109,7 +115,7 @@ export default function Tafsir() {
       <View style={{ flex: 1, backgroundColor: d.bg }}>
         <Header title="Tafsir Library" sub="Choose a book of tafsir" onBack={() => (router.canGoBack() ? goBack(router) : router.replace('/(tabs)' as never))} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
-          {TAFSIR_BOOKS.map((b) => (
+          {BOOKS.map((b) => (
             <Pressable
               key={b.id}
               accessibilityLabel={`tafsir book ${b.label}`}
