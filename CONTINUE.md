@@ -1,3 +1,30 @@
+# ══ 2026-09-12 — PASS 83-39 BATCH 2: LEARNING HUB MODULES (lessons · riddles · fatwa · tafsir — admin-editable → app) ══
+# deenapp master = 395aa55 · dlapi main = ef7549d · gh-pages = 33fc31f.
+# OWNER ACTION: ONE dlapi cPanel pull (same as batch 1) — ships api + admin + new web root. Hard refresh.
+# ── NEW ADMIN MODULES (each = its own management screen, linked from Learning Hub) ──
+#  • Short Lessons (admin/lessons-management.html + api/admin/content/lessons.php): the 8 bundled
+#    micro-lessons (tawhid, salah, wudu, ramadan, halal, dua, hijri, janazah) seeded; full CRUD —
+#    points are plain lines "Heading | Body". App fetches /api/content/lessons.php (bundled fallback).
+#  • Riddles (admin/riddles-management.html + .../riddles.php): 16 seeded; CRUD; app fetches
+#    /api/content/riddles.php.
+#  • Tafsir Library (admin/tafsir-management.html + .../tafsirs.php): enable/disable + order the 3
+#    editions (Ibn Kathir / Ma'arif / Tazkirul); the app's picker follows the admin list.
+#  • Fatwa & Rulings (admin/fatwa-management.html + .../fatwa.php): publish YOUR OWN rulings — they
+#    appear FIRST in the app's Fatwa archive (the 1,080-entry islamqa base stays as the library).
+#  • Learning Hub page = real hub now: module-grid of 14 cards, each opens ITS OWN management screen
+#    (quiz/riddles/jokes/courses/tafsir/lessons/fatwa/articles/prophets/athkar+zikr/names/quran/
+#    hadith/wallpapers); the sections CRUD stays below.
+#  • Sidebar updated with the 4 new Content entries (single shared menu).
+# ── APP (deenapp) ──
+#  • src/lib/liveContent.ts: one store for lessons/riddles/tafsir/fatwa overlays (server-first,
+#    bundled fallback, fail-open). client.ts exports publicGet() for no-auth content reads.
+#  • zikr-challenge/duas were ALREADY admin-wired in 83-37 (useAllAthkar → /api/athkar/list.php).
+# GATES: tsc clean · CHECK-RAW OK (128 files) · boot root 200 / assets 0 bad / unauth 401 ·
+# every new endpoint round-trip verified on sandbox MariaDB (create→public visible→cleanup).
+# NEXT (83-39 continues): donations app↔admin complaint polish, AI mgmt cleanup + clear-old-data,
+#   wallpapers/avatar upload wiring (avatar.zip sets), verification & premium, backups restore test,
+#   reports real-data sweep, seerah/ruqyah management screens.
+
 # ══ 2026-09-12 — PASS 83-39: ADMIN OVERHAUL BATCH 1 (videos fix · shop · articles · jokes · boost · module toggles) ══
 # deenapp master = 0ad58fd · dlapi main = 601d386 · gh-pages = e5a8229.
 # OWNER ACTION: ONE dlapi cPanel pull ships everything (api + admin + RAW web root) → hard refresh.
