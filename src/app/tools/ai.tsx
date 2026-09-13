@@ -591,7 +591,7 @@ export default function DeenLinkAI() {
             <View style={{ paddingVertical: 3 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
                 <ThinkingDots color={researching(m.text) ? '#5EA7C9' : isDark ? '#4AE38F' : '#1D6F42'} />
-                <T v="caption" style={{ fontSize: 11, color: d.faint }}>{m.reasoning ? 'Thinking…' : researching(m.text) ? 'researching the web…' : phase === 'retrieving' ? 'Searching your library…' : 'Thinking…'}</T>
+                <T v="caption" style={{ fontSize: 11, color: d.faint }}>{m.reasoning ? 'Thinking…' : researching(m.text) ? 'reasoning…' : phase === 'retrieving' ? 'Searching your library…' : 'Thinking…'}</T>
               </View>
               {m.reasoning ? <T v="caption" numberOfLines={3} style={{ fontSize: 9.5, fontStyle: 'italic', color: isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)', marginTop: 6, lineHeight: 14 }}>{m.reasoning}…</T> : null}
             </View>
@@ -721,7 +721,7 @@ export default function DeenLinkAI() {
             </View>
             <View style={{ flex: 1 }}>
               <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>Settings</T>
-              <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 1 }}>{apiKey ? `${modelList.find((m) => m.id === model)?.note ?? 'deep reasoning'} · web ${webOn ? 'on' : 'off'}` : serverAi ? 'DeenLink Cloud AI · connected' : 'Add an API key for full AI'}</T>
+              <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 1 }}>{apiKey ? `${modelList.find((m) => m.id === model)?.note ?? 'deep reasoning'} · web ${webOn ? 'on' : 'off'}` : serverAi ? 'Secure DeenLink AI' : 'Add an API key for full AI'}</T>
             </View>
             <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
           </Pressable>
@@ -848,20 +848,9 @@ export default function DeenLinkAI() {
                 </View>
               )}
             </View>
-            {serverAi ? (
-              /* pass 66-night — connected on the live app: no key field at all */
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(46,204,113,0.4)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 12, paddingVertical: 12, marginBottom: 14 }}>
-                <FontAwesome5 name="cloud" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
-                <View style={{ flex: 1 }}>
-                  <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>DeenLink Cloud AI connected</T>
-                  <T v="caption" style={{ fontSize: 9.5, color: d.subtext, marginTop: 2 }}>Answers use the provider key stored securely on the DeenLink server — nothing to paste on this device.</T>
-                </View>
-              </View>
-            ) : (
-              <>
-                <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2, marginBottom: 14 }}>Your key stays on this device only — never uploaded or committed.</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(46,204,113,0.4)', backgroundColor: isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.06)', paddingHorizontal: 12, paddingVertical: 12, marginBottom: 14 }}><FontAwesome5 name="shield-alt" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} /><View style={{ flex: 1 }}><T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: d.text }}>Secure DeenLink AI</T><T v="caption" style={{ fontSize: 9.5, color: d.subtext, marginTop: 2 }}>Provider keys and usage are managed securely by DeenLink administrators.</T></View></View>
 
-                <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>API KEY</T>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>API KEY</T>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, marginBottom: 14 }}>
                   <FontAwesome5 name="key" size={11} color={detectProvider(keyDraft) ? '#1F8F5C' : '#B8870B'} />
                   <TextInput value={keyDraft} onChangeText={setKeyDraft} placeholder="gsk_… or xai-…" placeholderTextColor={d.faint} autoCapitalize="none" autoCorrect={false} secureTextEntry style={{ flex: 1, paddingVertical: 11, fontSize: 13, color: d.text, fontFamily: 'Poppins-Regular' }} />
@@ -888,7 +877,7 @@ export default function DeenLinkAI() {
               })}
             </View>
 
-            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>DEFAULT WEB SEARCH</T>
+            <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>AI CAPABILITY</T>
             <Pressable onPress={() => { haptic.selection(); const nx = !webOn; setWebOn(nx); setWebPref(nx); setWebToggle(nx); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bgSoft, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 14 }}>
               <FontAwesome5 name="globe" size={12} color={webOn ? '#5EA7C9' : d.faint} />
               <T v="bodyS" style={{ flex: 1, fontSize: 12, color: d.text }}>Let the AI search the internet for current facts</T>

@@ -1893,9 +1893,7 @@ export async function profileAvatars(
   );
   return r.ok && Array.isArray(r.data.avatars) ? r.data.avatars : null;
 }
-export async function selectProfileAvatar(
-  avatarId: number,
-): Promise<{
+export async function selectProfileAvatar(avatarId: number): Promise<{
   ok: boolean;
   url?: string;
   balance?: number;
@@ -1944,9 +1942,7 @@ export async function wallpaperStore(): Promise<StoreWallpaper[] | null> {
   return null;
 }
 
-export async function wallpaperUnlock(
-  wallpaperId: number,
-): Promise<{
+export async function wallpaperUnlock(wallpaperId: number): Promise<{
   ok: boolean;
   spent?: number;
   new_balance?: number;
@@ -2606,6 +2602,7 @@ export type ServerReciter = {
   is_unlocked?: boolean;
   is_locked?: boolean;
   sort_order?: number;
+  photo_url?: string;
 };
 
 export async function quranReciters(): Promise<{
@@ -2737,9 +2734,7 @@ export async function userPosts(userId?: number): Promise<Post[]> {
   return []; /* pass 83-38 — no user id → no fabricated posts */
 }
 
-export async function profileCounts(
-  userId?: number,
-): Promise<{
+export async function profileCounts(userId?: number): Promise<{
   posts: number;
   followers: number;
   following: number;
@@ -2925,9 +2920,7 @@ export async function uploadProfileImage(
   return { ok: false, message: r.data?.message ?? "Upload failed" };
 }
 
-export async function getSecurityQuestion(
-  identifier: string,
-): Promise<{
+export async function getSecurityQuestion(identifier: string): Promise<{
   ok: boolean;
   found?: boolean;
   question?: string;
@@ -3073,9 +3066,7 @@ export async function announcement(): Promise<string | null> {
 }
 
 /* pass 44 — 6-digit email OTP for registration (api/auth/send_otp.php + verify_otp.php). */
-export async function sendOtp(
-  email: string,
-): Promise<{
+export async function sendOtp(email: string): Promise<{
   ok: boolean;
   message?: string;
   already?: boolean;
