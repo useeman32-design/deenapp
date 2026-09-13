@@ -29,6 +29,9 @@
 #  • Shop catalog foundation now includes SKU, short description, featured image URL, product video URL,
 #    category records, and a reusable category table. The app can render an admin-provided image URL.
 #    This is the first step toward a professional catalog; binary media upload/gallery and variants remain.
+#  • Boost actors now support search, visible photo cards, delete, and manual bulk creation (1–500)
+#    with optional name/username/gender or automatic natural-looking usernames. Legacy actor23-style
+#    handles are renamed on the next actor-pool initialization.
 # NEXT: add pagination consistently to remaining content lists, test live DB endpoints, complete
 # course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 
