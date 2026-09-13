@@ -926,7 +926,7 @@ export type ShopProduct = {
   in_stock: boolean;
   qty?: number;
 };
-export type ShopCart = { items: ShopProduct[]; count: number; total: number };
+export type ShopCart = { items: Array<ShopProduct & { variant_id?: number | null; variant_title?: string; variant_options?: Record<string, string> }>; count: number; total: number };
 export type ShopOrderItem = { product_id: number | null; title: string; price: number; qty: number; image_key: string };
 export type ShopOrder = { id: number; status: string; total: number; currency: string; created_at: string; ship_to: string; items: ShopOrderItem[] };
 function normalizeShopProduct(p: ShopProduct): ShopProduct {
@@ -950,8 +950,8 @@ export async function shopCart(): Promise<ShopCart | null> {
   if (r.ok && Array.isArray(r.data.items)) return { items: r.data.items, count: r.data.count ?? 0, total: r.data.total ?? 0 };
   return null;
 }
-export async function shopCartAction(action: 'add' | 'remove' | 'qty', productId: number, qty = 1): Promise<boolean> {
-  const r = await request<{ status?: string }>('/api/shop/cart.php', { method: 'POST', body: { action, product_id: productId, qty }, auth: true });
+export async function shopCartAction(action: 'add' | 'remove' | 'qty', productId: number, qty = 1, variantId?: number | null): Promise<boolean> {
+  const r = await request<{ status?: string }>('/api/shop/cart.php', { method: 'POST', body: { action, product_id: productId, qty, ...(variantId ? { variant_id: variantId } : {}) }, auth: true });
   return r.ok && r.data.status === 'success';
 }
 export async function shopCheckout(info: { name: string; email: string; phone: string; country: string; city: string; address: string; note: string }): Promise<{ order_id: number; total: number } | null> {

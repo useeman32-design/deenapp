@@ -85,11 +85,11 @@ function ShopScreenInner() {
     return cat === 'all' ? rows : rows.filter((p) => p.category === cat);
   }, [products, cat]);
 
-  const changeQty = async (p: ShopProduct, next: number) => {
+  const changeQty = async (p: ShopProduct & { variant_id?: number | null }, next: number) => {
     haptic.selection();
     if (!live) return; /* pass 83-39 — LIVE = real data only: server cart only */    const ok = next <= 0
-      ? await shopCartAction('remove', p.id)
-      : await shopCartAction((cart?.items ?? []).some((i) => i.id === p.id) ? 'qty' : 'add', p.id, next);
+      ? await shopCartAction('remove', p.id, 1, p.variant_id)
+      : await shopCartAction((cart?.items ?? []).some((i) => i.id === p.id && (i.variant_id ?? null) === (p.variant_id ?? null)) ? 'qty' : 'add', p.id, next, p.variant_id);
     if (ok) loadCart();
   };
 
@@ -236,10 +236,11 @@ function ShopScreenInner() {
               {cart.items.map((it) => {
                 const img = it.image_url ? { uri: it.image_url } : shopImage(it.image_key);
                 return (
-                  <View key={it.id} style={{ flexDirection: 'row', gap: 11, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, marginBottom: 10 }}>
+                  <View key={`${it.id}-${it.variant_id ?? 0}`} style={{ flexDirection: 'row', gap: 11, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, marginBottom: 10 }}>
                     {img ? <Image source={img} style={{ width: 62, height: 62, borderRadius: 12 }} resizeMode="cover" /> : null}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <T v="bodyS" numberOfLines={2} style={{ fontSize: 12.5, fontWeight: '700', color: d.text }}>{it.title}</T>
+                      {it.variant_title ? <T v="caption" numberOfLines={1} style={{ color: d.subtext, marginTop: 2 }}>{it.variant_title}</T> : null}
                       <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold, marginTop: 3 }}>{fmt(it.price)}</T>
                     </View>
                     <View style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>

@@ -31,6 +31,7 @@ function ShopProductScreenInner() {
   const [busy, setBusy] = useState(false);
   const [related, setRelated] = useState<ShopProduct[]>([]);
   const [selectedMedia, setSelectedMedia] = useState(0);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     if (!live) {
@@ -41,6 +42,7 @@ function ShopProductScreenInner() {
     }
     shopProduct(pid).then((r) => {
       setP(r ?? null);
+      setSelectedVariantId(r?.variants?.find((variant) => variant.is_active !== 0)?.id ?? null);
       if (!r) return;
       shopProducts(r.category).then((rows) => setRelated((rows ?? []).filter((x) => x.id !== r.id).slice(0, 5)));
     }).catch(() => setP(null));
@@ -52,7 +54,7 @@ function ShopProductScreenInner() {
     haptic.light();
     if (!live) { setAdded(true); setTimeout(() => setAdded(false), 1800); return; }
     setBusy(true);
-    const ok = await shopCartAction('add', p.id, qty).catch(() => false);
+    const ok = await shopCartAction('add', p.id, qty, selectedVariantId).catch(() => false);
     setBusy(false);
     if (ok) { haptic.success(); setAdded(true); setTimeout(() => setAdded(false), 1800); }
   };
@@ -121,10 +123,10 @@ function ShopProductScreenInner() {
               <T v="h3" style={{ fontWeight: '800', fontSize: 14.5, color: d.text, marginBottom: 9 }}>Available options</T>
               <View style={{ gap: 8 }}>
                 {p.variants.filter((v) => v.is_active !== 0).map((variant) => (
-                  <View key={variant.id} style={{ borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ flex: 1 }}><T v="bodyS" style={{ fontWeight: '800', color: d.text }}>{variant.title}</T><T v="caption" style={{ color: d.subtext, marginTop: 2 }}>{Object.entries(variant.options || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || variant.sku || 'Standard option'}</T></View>
+                  <Pressable key={variant.id} onPress={() => { setSelectedVariantId(variant.id); haptic.selection(); }} style={{ borderRadius: 11, borderWidth: 1.5, borderColor: selectedVariantId === variant.id ? gold : d.cardBorder, backgroundColor: selectedVariantId === variant.id ? (isDark ? 'rgba(212,175,55,.12)' : 'rgba(184,134,11,.08)') : d.card, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flex: 1 }}><T v="bodyS" style={{ fontWeight: '800', color: d.text }}>{variant.title}</T><T v="caption" style={{ color: d.subtext, marginTop: 2 }}>{Object.entries(variant.options || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || variant.sku || 'Standard option'} · {variant.stock > 0 ? `${variant.stock} available` : 'Out of stock'}</T></View>
                     <T v="bodyS" style={{ fontWeight: '900', color: gold }}>{fmt(variant.price)}</T>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -177,11 +179,11 @@ function ShopProductScreenInner() {
               <T v="bodyS" style={{ fontSize: 14, fontWeight: '800', color: d.text, minWidth: 18, textAlign: 'center' }}>{qty}</T>
               <Pressable onPress={() => { haptic.selection(); setQty((q) => Math.min(20, q + 1)); }} hitSlop={8}><FontAwesome5 name="plus" size={11} color={d.text} /></Pressable>
             </View>
-            <Pressable disabled={busy || !p.in_stock} onPress={() => void add()}
+            <Pressable disabled={busy || !p.in_stock || !!(selectedVariantId && p.variants?.find((variant) => variant.id === selectedVariantId)?.stock === 0)} onPress={() => void add()}
               style={{ flex: 1, borderRadius: 15, backgroundColor: added ? emerald : gold, paddingVertical: 15, alignItems: 'center', opacity: busy || !p.in_stock ? 0.7 : 1 }}>
               {busy ? <ActivityIndicator color={isDark ? '#14241C' : '#fff'} /> : (
                 <T v="bodyS" style={{ fontWeight: '900', fontSize: 14, color: isDark ? '#14241C' : '#fff' }}>
-                  {added ? '✓ Added to cart' : p.in_stock ? `Add to cart · ${fmt(p.price * qty)}` : 'Out of stock'}
+                  {added ? '✓ Added to cart' : p.in_stock ? `Add to cart · ${fmt((p.variants?.find((variant) => variant.id === selectedVariantId)?.price ?? p.price) * qty)}` : 'Out of stock'}
                 </T>
               )}
             </Pressable>
