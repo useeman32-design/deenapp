@@ -1,37 +1,77 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode  } from 'react';
-import { addUserPost, listUserPosts, markProfileDirty } from '@/lib/userPosts';
-import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator, Modal } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image as ExpoImage } from 'expo-image';
-import { useTheme } from '@/context/ThemeContext';
-import type { Post } from '@/api/types';
-import { GroupFeedInline, GroupsRail, loadGroups } from '@/components/Groups';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { addUserPost, listUserPosts, markProfileDirty } from "@/lib/userPosts";
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { Image as ExpoImage } from "expo-image";
+import { useTheme } from "@/context/ThemeContext";
+import type { Post } from "@/api/types";
+import { GroupFeedInline, GroupsRail, loadGroups } from "@/components/Groups";
 
-import * as api from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { T } from '@/components/T';
-import { storage } from '@/lib/storage';
-import { FeedCard, AvatarImage } from '@/components/FeedCard';
-import { CommunityInbox } from '@/components/CommunityInbox';
-import { CommentsModal } from '@/components/CommentsModal';
-import { haptic } from '@/lib/haptics';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { guestBlock, useIsGuest } from '@/lib/guest';
-import { LoginRequired } from '@/components/LoginRequired';
+import * as api from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
+import { T } from "@/components/T";
+import { storage } from "@/lib/storage";
+import { FeedCard, AvatarImage } from "@/components/FeedCard";
+import { CommunityInbox } from "@/components/CommunityInbox";
+import { CommentsModal } from "@/components/CommentsModal";
+import { haptic } from "@/lib/haptics";
+import { useFocusEffect, useRouter } from "expo-router";
+import { guestBlock, useIsGuest } from "@/lib/guest";
+import { LoginRequired } from "@/components/LoginRequired";
+import {
+  emitPostDeleted,
+  onPostChanged,
+  onPostDeleted,
+} from "@/lib/postEvents";
 
-const patternDark = require('../../../assets/img/pattern-dark.png');
-const patternLight = require('../../../assets/img/pattern-light.png');
+const patternDark = require("../../../assets/img/pattern-dark.png");
+const patternLight = require("../../../assets/img/pattern-light.png");
 
 /* pass 83-38 — no demo persona: the signed-in user's own identity only */
-const ME = { name: 'You', handle: 'me' };
+const ME = { name: "You", handle: "me" };
 /* ﷺ (sallallahu alayhi wasallam ligature U+FDFA) and Subhanahu wa ta'ala lead the picker. */
-const EMOJIS = ['ﷺ', 'سُبْحَانَهُ وَتَعَالَى', '😄', '😅', '🥹', '😍', '🤲', '🕌', '✨', '🤍', '📖', '🌙', '🔥', '🕋'];
+const EMOJIS = [
+  "ﷺ",
+  "سُبْحَانَهُ وَتَعَالَى",
+  "😄",
+  "😅",
+  "🥹",
+  "😍",
+  "🤲",
+  "🕌",
+  "✨",
+  "🤍",
+  "📖",
+  "🌙",
+  "🔥",
+  "🕋",
+];
 
-const B = ({ children }: { children: ReactNode }) => <Text style={{ fontWeight: '800' }}>{children}</Text>;
+const B = ({ children }: { children: ReactNode }) => (
+  <Text style={{ fontWeight: "800" }}>{children}</Text>
+);
 
-type FeedTab = 'foryou' | 'following' | 'scholars';
+type FeedTab = "foryou" | "following" | "scholars";
 
 /**
  * Community — the DeenLink social hub in the new dash design:
@@ -47,7 +87,21 @@ function CommunityScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [posts, setPosts] = useState<Post[]>([]); /* pass 83-38 — real posts only */
+  const [posts, setPosts] = useState<Post[]>(
+    [],
+  ); /* pass 83-38 — real posts only */
+  useEffect(() => {
+    const offD = onPostDeleted((id) =>
+      setPosts((ps) => ps.filter((p) => p.id !== id)),
+    );
+    const offC = onPostChanged(() => {
+      /* mounted surfaces remain optimistic; next poll reconciles */
+    });
+    return () => {
+      offD();
+      offC();
+    };
+  }, []);
   /* pass 83-36 — the admin's Videos-Management toggle. Videos stay OFF until
    * the owner flips it; the server ALSO rejects video uploads when off. */
   const [videoAllowed, setVideoAllowed] = useState(false);
@@ -56,13 +110,19 @@ function CommunityScreenInner() {
    * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
    * feed uses ('foryou' → for-you). */
   useEffect(() => {
-    api.feed('for-you').then((r) => {
-      if (r.posts && r.posts.length) setPosts(r.posts);
-    }).catch(() => {});
+    api
+      .feed("for-you")
+      .then((r) => {
+        if (r.posts && r.posts.length) setPosts(r.posts);
+      })
+      .catch(() => {});
   }, []);
   /* pass 83-36 — admin toggle: community video posting (default OFF) */
   useEffect(() => {
-    api.publicSettings().then((fl) => setVideoAllowed(fl['posting.community_video'] === true)).catch(() => setVideoAllowed(false));
+    api
+      .publicSettings()
+      .then((fl) => setVideoAllowed(fl["posting.community_video"] === true))
+      .catch(() => setVideoAllowed(false));
   }, []);
 
   /* pass 32: posts shared from OTHER screens (quiz scores, riddles, jokes,
@@ -75,7 +135,7 @@ function CommunityScreenInner() {
         content_text: u.text,
         /* pass 42 — video posts surface with their playable video */
         video_url: u.video ?? undefined,
-        time_ago: 'now',
+        time_ago: "now",
         like_count: 0,
         comment_count: 0,
         liked_by_me: false,
@@ -85,15 +145,15 @@ function CommunityScreenInner() {
           id: user?.id != null ? Number(user.id) : 99,
           username: (user?.username as string) || ME.handle,
           full_name: (user?.full_name as string) || ME.name,
-          user_type: 'user',
+          user_type: "user",
           profile_image_url: (user?.profile_image_url as string | null) ?? null,
           deenpoints_balance: 240,
           is_email_verified: 1,
-          account_status: 'active',
+          account_status: "active",
           verification_badge: null,
           scholar: null,
-          fields: 'Sunni',
-        } as unknown as Post['user'],
+          fields: "Sunni",
+        } as unknown as Post["user"],
         media: [],
       }));
       setPosts((ps) => [...asPosts, ...ps]);
@@ -101,13 +161,13 @@ function CommunityScreenInner() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [commentPost, setCommentPost] = useState<Post | null>(null);
-  const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<FeedTab>('foryou');
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<FeedTab>("foryou");
   const [sticky, setSticky] = useState(false);
 
   // composer modal state
   const [composerOpen, setComposerOpen] = useState(false);
-  const [cDraft, setCDraft] = useState('');
+  const [cDraft, setCDraft] = useState("");
   const [pollOn, setPollOn] = useState(false);
   const { user } = useAuth(); /* pass 83-14 — for delete-own-post */
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -121,48 +181,78 @@ function CommunityScreenInner() {
     useCallback(() => {
       /* NO cleanup here — this fires on every focus/blur, and clearing the key
        * on blur deleted it the moment we pushed the profile (pass 83-14 bug). */
-      storage.getItem('dl_inbox_reopen')
+      storage
+        .getItem("dl_inbox_reopen")
         .then((f) => {
           if (f) {
             setInboxFriend(f);
             setInboxOpen(true);
-            storage.removeItem('dl_inbox_reopen').catch(() => {});
+            storage.removeItem("dl_inbox_reopen").catch(() => {});
           }
         })
         .catch(() => {});
     }, []),
   );
   /* leaving Community for good (logout, reload…) — forget the pending reopen */
-  useEffect(() => () => { storage.removeItem('dl_inbox_reopen').catch(() => {}); }, []);
-  const [pollOpts, setPollOpts] = useState<string[]>(['', '']);
+  useEffect(
+    () => () => {
+      storage.removeItem("dl_inbox_reopen").catch(() => {});
+    },
+    [],
+  );
+  const [pollOpts, setPollOpts] = useState<string[]>(["", ""]);
   const [pollHours, setPollHours] = useState(24);
   const [ytOn, setYtOn] = useState(false);
-  const [ytUrl, setYtUrl] = useState('');
-  const [videoAttach, setVideoAttach] = useState<{ uri: string; name: string } | null>(null);
+  const [ytUrl, setYtUrl] = useState("");
+  const [videoAttach, setVideoAttach] = useState<{
+    uri: string;
+    name: string;
+  } | null>(null);
   /* pass 83-19 — up to 5 photos per post, Instagram-style */
-  const [imageAttachs, setImageAttachs] = useState<Array<{ uri: string; name: string }>>([]);
+  const [imageAttachs, setImageAttachs] = useState<
+    Array<{ uri: string; name: string }>
+  >([]);
   const imageFileRef = useRef<TextInput | null>(null);
 
   /** Pick an image for the post (native picker / web file input). */
   const pickImage = async () => {
     haptic.light();
     try {
-      if (Platform.OS === 'web') {
+      if (Platform.OS === "web") {
         (imageFileRef.current as unknown as HTMLInputElement | null)?.click?.();
         return;
       }
-      const ImagePicker = await import('expo-image-picker');
+      const ImagePicker = await import("expo-image-picker");
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo-library access to pick an image.');
+        Alert.alert(
+          "Permission needed",
+          "Allow photo-library access to pick an image.",
+        );
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsMultipleSelection: true, selectionLimit: 5 });
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+      });
       if (!res.canceled && res.assets?.length) {
-        setImageAttachs((prev) => [...prev, ...res.assets.slice(0, 5).filter((a) => a.uri).map((a) => ({ uri: a.uri, name: a.fileName ?? 'Selected photo' }))].slice(0, 5));
+        setImageAttachs((prev) =>
+          [
+            ...prev,
+            ...res.assets
+              .slice(0, 5)
+              .filter((a) => a.uri)
+              .map((a) => ({
+                uri: a.uri,
+                name: a.fileName ?? "Selected photo",
+              })),
+          ].slice(0, 5),
+        );
       }
     } catch {
-      Alert.alert('Could not open the picker', 'Please try again.');
+      Alert.alert("Could not open the picker", "Please try again.");
     }
   };
   const [posting, setPosting] = useState(false);
@@ -176,22 +266,31 @@ function CommunityScreenInner() {
   const pickVideo = async () => {
     haptic.light();
     try {
-      if (Platform.OS === 'web') {
+      if (Platform.OS === "web") {
         (videoFileRef.current as unknown as HTMLInputElement | null)?.click?.();
         return;
       }
-      const ImagePicker = await import('expo-image-picker');
+      const ImagePicker = await import("expo-image-picker");
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo-library access to pick a video.');
+        Alert.alert(
+          "Permission needed",
+          "Allow photo-library access to pick a video.",
+        );
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["videos"],
+        quality: 1,
+      });
       if (!res.canceled && res.assets?.[0]?.uri) {
-        setVideoAttach({ uri: res.assets[0].uri, name: res.assets[0].fileName ?? 'Selected video' });
+        setVideoAttach({
+          uri: res.assets[0].uri,
+          name: res.assets[0].fileName ?? "Selected video",
+        });
       }
     } catch {
-      Alert.alert('Could not open the picker', 'Please try again.');
+      Alert.alert("Could not open the picker", "Please try again.");
     }
   };
 
@@ -206,7 +305,19 @@ function CommunityScreenInner() {
     /* pass 66-night — server-backed likes on live (same contract as home feed). */
     if (api.isLive()) {
       void api.toggleLike(id, willLike).then((res) => {
-        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, like_count: Math.max(0, res.like_count - (res.liked_by_me ? 1 : 0)) } : p)));
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  like_count: Math.max(
+                    0,
+                    res.like_count - (res.liked_by_me ? 1 : 0),
+                  ),
+                }
+              : p,
+          ),
+        );
       });
     }
   };
@@ -215,23 +326,57 @@ function CommunityScreenInner() {
   useEffect(() => {
     if (!likeSeed.current && posts.length && posts.some((p) => p.liked_by_me)) {
       likeSeed.current = true;
-      setLikedPosts((prev) => new Set([...prev, ...posts.filter((p) => p.liked_by_me).map((p) => p.id)]));
+      setLikedPosts(
+        (prev) =>
+          new Set([
+            ...prev,
+            ...posts.filter((p) => p.liked_by_me).map((p) => p.id),
+          ]),
+      );
     }
   }, [posts]);
 
   const q = query.trim().toLowerCase();
   /* pass 83-38 — account search hits the server (was a demo roster) */
-  const [accResults, setAccResults] = useState<Array<{ username: string; full_name: string; photo?: string | number | null; fields?: string | null }>>([]);
+  const [accResults, setAccResults] = useState<
+    Array<{
+      username: string;
+      full_name: string;
+      photo?: string | number | null;
+      fields?: string | null;
+    }>
+  >([]);
   useEffect(() => {
-    if (!q) { setAccResults([]); return; }
+    if (!q) {
+      setAccResults([]);
+      return;
+    }
     let dead = false;
-    api.searchAccounts(query.trim()).then((rows) => {
-      if (!dead) setAccResults((rows ?? []).map((r) => ({ username: r.username, full_name: r.full_name, photo: r.profile_image_url ?? null, fields: null })));
-    }).catch(() => {});
-    return () => { dead = true; };
+    api
+      .searchAccounts(query.trim())
+      .then((rows) => {
+        if (!dead)
+          setAccResults(
+            (rows ?? []).map((r) => ({
+              username: r.username,
+              full_name: r.full_name,
+              photo: r.profile_image_url ?? null,
+              fields: null,
+            })),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
   }, [q]);
   const postResults = useMemo(
-    () => (q ? posts.filter((p) => (p.content_text ?? '').toLowerCase().includes(q)).slice(0, 4) : []),
+    () =>
+      q
+        ? posts
+            .filter((p) => (p.content_text ?? "").toLowerCase().includes(q))
+            .slice(0, 4)
+        : [],
     [q, posts],
   );
   const searching = q.length > 0;
@@ -239,15 +384,19 @@ function CommunityScreenInner() {
   /* pass 83-38 — the Following tab follows the REAL follow graph */
   const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
   useEffect(() => {
-    api.getConnections('following').then((r) => {
-      setFollowingSet(new Set((r?.items ?? []).map((it) => it.username)));
-    }).catch(() => {});
+    api
+      .getConnections("following")
+      .then((r) => {
+        setFollowingSet(new Set((r?.items ?? []).map((it) => it.username)));
+      })
+      .catch(() => {});
   }, []);
 
   const visiblePosts = useMemo(() => {
     if (searching) return [];
-    if (tab === 'following') return posts.filter((p) => followingSet.has(p.user.username));
-    if (tab === 'scholars') return posts.filter((p) => !!p.user.scholar);
+    if (tab === "following")
+      return posts.filter((p) => followingSet.has(p.user.username));
+    if (tab === "scholars") return posts.filter((p) => !!p.user.scholar);
     return posts;
   }, [posts, tab, searching]);
   /* pass 36 — feed pages in while you scroll, with a loader at the bottom
@@ -255,11 +404,16 @@ function CommunityScreenInner() {
   const [feedLimit, setFeedLimit] = useState(4);
   const [feedMore, setFeedMore] = useState(false);
   const feedShown = visiblePosts.slice(0, feedLimit);
-  useEffect(() => { setFeedLimit(4); }, [tab, searching]);
+  useEffect(() => {
+    setFeedLimit(4);
+  }, [tab, searching]);
   const loadFeedMore = () => {
     if (feedMore || feedLimit >= visiblePosts.length) return;
     setFeedMore(true);
-    setTimeout(() => { setFeedLimit((l) => l + 3); setFeedMore(false); }, 650);
+    setTimeout(() => {
+      setFeedLimit((l) => l + 3);
+      setFeedMore(false);
+    }, 650);
   };
 
   const pickTab = (t: FeedTab) => {
@@ -282,7 +436,7 @@ function CommunityScreenInner() {
          * comments and poll votes all target the right row. */
         id: Date.now(),
         content_text: t,
-        time_ago: 'now',
+        time_ago: "now",
         like_count: 0,
         comment_count: 0,
         liked_by_me: false,
@@ -292,19 +446,22 @@ function CommunityScreenInner() {
           id: user?.id != null ? Number(user.id) : 99,
           username: (user?.username as string) || ME.handle,
           full_name: (user?.full_name as string) || ME.name,
-          user_type: 'user',
+          user_type: "user",
           profile_image_url: (user?.profile_image_url as string | null) ?? null,
           deenpoints_balance: 240,
           is_email_verified: 1,
-          account_status: 'active',
+          account_status: "active",
           verification_badge: null,
           scholar: null,
-        } as Post['user'],
+        } as Post["user"],
         media: [],
       };
-      (np.user as { fields?: string }).fields = 'Sunni';
+      (np.user as { fields?: string }).fields = "Sunni";
       if (pollOn && opts.length >= 2) {
-        np.poll = { options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })), duration: pollHours };
+        np.poll = {
+          options: opts.map((text, i) => ({ id: i + 1, text, votes: 0 })),
+          duration: pollHours,
+        };
       }
       /* pass 83-35 — owner: media must NOT appear in the list until the post
        * finishes. The optimistic row stays TEXT-ONLY; the server refetch (or
@@ -312,13 +469,19 @@ function CommunityScreenInner() {
       if (videoAttach) {
         /* pass 42 — UNIVERSAL VIDEOS: a community video post is ALSO a reel
          * (videos page list — different surface than the posts list) */
-        addUserPost(t, 'video', { video: videoAttach.uri });
+        addUserPost(t, "video", { video: videoAttach.uri });
       }
       if (ytOn && ytUrl.trim()) {
         const url = ytUrl.trim();
-        const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/);
-        (np as { youtube_url?: string; youtube_embed_url?: string }).youtube_url = url;
-        if (m) (np as { youtube_embed_url?: string }).youtube_embed_url = `https://www.youtube.com/embed/${m[1]}`;
+        const m = url.match(
+          /(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/,
+        );
+        (
+          np as { youtube_url?: string; youtube_embed_url?: string }
+        ).youtube_url = url;
+        if (m)
+          (np as { youtube_embed_url?: string }).youtube_embed_url =
+            `https://www.youtube.com/embed/${m[1]}`;
       }
       setPosts((ps) => [np, ...ps]);
       /* pass 66-night — publish to the server when live: text, YouTube link,
@@ -327,35 +490,56 @@ function CommunityScreenInner() {
       if (api.isLive()) {
         const tempId = np.id;
         const heavy = imageAttachs.length > 0 || !!videoAttach;
-        if (heavy) { setPostProg(0); }
+        if (heavy) {
+          setPostProg(0);
+        }
         void api
           .createPost(
             t,
             ytOn && ytUrl.trim() ? ytUrl.trim() : undefined,
             pollOn && opts.length >= 2 ? opts : undefined,
-            imageAttachs.length ? imageAttachs.map((a) => ({ uri: a.uri, name: a.name, type: 'image/jpeg' })) : undefined,
-            videoAttach ? { uri: videoAttach.uri, name: videoAttach.name, type: 'video/mp4' } : undefined,
+            imageAttachs.length
+              ? imageAttachs.map((a) => ({
+                  uri: a.uri,
+                  name: a.name,
+                  type: "image/jpeg",
+                }))
+              : undefined,
+            videoAttach
+              ? {
+                  uri: videoAttach.uri,
+                  name: videoAttach.name,
+                  type: "video/mp4",
+                }
+              : undefined,
             heavy ? (f) => setPostProg(f) : undefined,
           )
           .then((res) => {
             setPostProg(null);
             if (res.ok && res.id) {
-              setPosts((ps) => ps.map((p) => (p.id === tempId ? { ...p, id: res.id as number } : p)));
+              setPosts((ps) =>
+                ps.map((p) =>
+                  p.id === tempId ? { ...p, id: res.id as number } : p,
+                ),
+              );
               markProfileDirty(); /* pass 83-37 — profile refetches on next focus */
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
             } else {
-              Alert.alert('Post not published', 'Your post is on this device only — please check your connection and try again.');
+              Alert.alert(
+                "Post not published",
+                "Your post is on this device only — please check your connection and try again.",
+              );
             }
           });
       }
       setPosting(false);
       setComposerOpen(false);
-      setCDraft('');
+      setCDraft("");
       setPollOn(false);
-      setPollOpts(['', '']);
+      setPollOpts(["", ""]);
       setYtOn(false);
-      setYtUrl('');
+      setYtUrl("");
       setVideoAttach(null);
       setImageAttachs([]);
       haptic.success();
@@ -363,38 +547,102 @@ function CommunityScreenInner() {
   };
 
   const TABS: Array<{ id: FeedTab; label: string }> = [
-    { id: 'foryou', label: 'For you' },
-    { id: 'following', label: 'Following' },
-    { id: 'scholars', label: 'Scholars' },
+    { id: "foryou", label: "For you" },
+    { id: "following", label: "Following" },
+    { id: "scholars", label: "Scholars" },
   ];
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       {/* pass 83-24 — upload progress + posted-success pill (auto-dismiss) */}
       {postProg != null ? (
-        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, borderRadius: 14, backgroundColor: isDark ? 'rgba(10,22,15,0.95)' : 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 14, paddingVertical: 10, minWidth: 190 }}>
-          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text, marginBottom: 6 }}>Posting… {Math.round(postProg * 100)}%</T>
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(20,36,28,0.1)' }}>
-            <View style={{ height: 6, borderRadius: 3, width: `${Math.max(4, Math.round(postProg * 100))}%`, backgroundColor: '#1F8F5C' }} />
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: insets.top + 54,
+            alignSelf: "center",
+            zIndex: 60,
+            borderRadius: 14,
+            backgroundColor: isDark
+              ? "rgba(10,22,15,0.95)"
+              : "rgba(255,255,255,0.97)",
+            borderWidth: 1,
+            borderColor: d.cardBorder,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            minWidth: 190,
+          }}
+        >
+          <T
+            v="caption"
+            style={{
+              fontSize: 10.5,
+              fontWeight: "800",
+              color: d.text,
+              marginBottom: 6,
+            }}
+          >
+            Posting… {Math.round(postProg * 100)}%
+          </T>
+          <View
+            style={{
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.12)"
+                : "rgba(20,36,28,0.1)",
+            }}
+          >
+            <View
+              style={{
+                height: 6,
+                borderRadius: 3,
+                width: `${Math.max(4, Math.round(postProg * 100))}%`,
+                backgroundColor: "#1F8F5C",
+              }}
+            />
           </View>
         </View>
       ) : null}
       {postedPill ? (
-        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 54, alignSelf: 'center', zIndex: 60, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, backgroundColor: '#1F8F5C', paddingHorizontal: 16, paddingVertical: 9 }}>
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: insets.top + 54,
+            alignSelf: "center",
+            zIndex: 60,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 7,
+            borderRadius: 20,
+            backgroundColor: "#1F8F5C",
+            paddingHorizontal: 16,
+            paddingVertical: 9,
+          }}
+        >
           <FontAwesome5 name="check-circle" size={13} color="#fff" />
-          <T v="caption" style={{ color: '#fff', fontSize: 11.5, fontWeight: '800' }}>Posted</T>
+          <T
+            v="caption"
+            style={{ color: "#fff", fontSize: 11.5, fontWeight: "800" }}
+          >
+            Posted
+          </T>
         </View>
       ) : null}
       {/* Sticky feed tabs removed (user: it duplicated the inline tabs). Kept off-screen. */}
       <View
         pointerEvents="none"
         style={{
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           zIndex: 30,
-          backgroundColor: isDark ? 'rgba(6,14,10,0.96)' : 'rgba(246,249,245,0.97)',
+          backgroundColor: isDark
+            ? "rgba(6,14,10,0.96)"
+            : "rgba(246,249,245,0.97)",
           borderBottomWidth: 1,
           borderBottomColor: d.cardBorder,
           paddingTop: Math.max(insets.top, 12),
@@ -403,7 +651,7 @@ function CommunityScreenInner() {
           transform: [{ translateY: -260 }],
         }}
       >
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
           {TABS.map((t) => {
             const on = tab === t.id;
             return (
@@ -412,16 +660,31 @@ function CommunityScreenInner() {
                 onPress={() => pickTab(t.id)}
                 style={({ pressed }) => ({
                   flex: 1,
-                  alignItems: 'center',
+                  alignItems: "center",
                   paddingVertical: 8,
                   borderRadius: 11,
-                  backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)') : 'transparent',
+                  backgroundColor: on
+                    ? isDark
+                      ? "rgba(46,204,113,0.16)"
+                      : "rgba(14,122,70,0.10)"
+                    : "transparent",
                   borderWidth: 1,
-                  borderColor: on ? (isDark ? 'rgba(46,204,113,0.5)' : 'rgba(14,122,70,0.35)') : 'transparent',
+                  borderColor: on
+                    ? isDark
+                      ? "rgba(46,204,113,0.5)"
+                      : "rgba(14,122,70,0.35)"
+                    : "transparent",
                   opacity: pressed ? 0.75 : 1,
                 })}
               >
-                <T v="bodyS" style={{ color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 16 /*12.5*/ }}>
+                <T
+                  v="bodyS"
+                  style={{
+                    color: on ? (isDark ? "#4AE38F" : "#0E7A46") : d.subtext,
+                    fontWeight: "700",
+                    fontSize: 16 /*12.5*/,
+                  }}
+                >
                   {t.label}
                 </T>
               </Pressable>
@@ -437,28 +700,47 @@ function CommunityScreenInner() {
           const y = e.nativeEvent.contentOffset.y;
           const s = y > 165;
           if (s !== sticky) setSticky(s);
-          const { contentOffset: co, contentSize: cs, layoutMeasurement: lm } = e.nativeEvent;
+          const {
+            contentOffset: co,
+            contentSize: cs,
+            layoutMeasurement: lm,
+          } = e.nativeEvent;
           if (co.y + lm.height > cs.height - 500) loadFeedMore();
         }}
         scrollEventThrottle={16}
       >
         {/* header pattern */}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 230, overflow: 'hidden' }}>
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 230,
+            overflow: "hidden",
+          }}
+        >
           <Image
             source={isDark ? patternDark : patternLight}
-            style={{ width: '100%', height: '100%', opacity: d.patternOpacity * 0.5, resizeMode: 'cover' }}
+            style={{
+              width: "100%",
+              height: "100%",
+              opacity: d.patternOpacity * 0.5,
+              resizeMode: "cover",
+            }}
           />
           <LinearGradient
-            colors={['transparent', d.bg] as [string, string, ...string[]]}
+            colors={["transparent", d.bg] as [string, string, ...string[]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
-            style={{ position: 'absolute', inset: 0 }}
+            style={{ position: "absolute", inset: 0 }}
           />
         </View>
 
         {/* Header */}
         <View style={{ padding: 16, paddingTop: insets.top + 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View
               style={{
                 width: 44,
@@ -467,47 +749,56 @@ function CommunityScreenInner() {
                 borderWidth: 1.5,
                 borderColor: d.gold,
                 backgroundColor: d.card,
-                alignItems: 'center',
-                justifyContent: 'center',
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <FontAwesome5 name="users" size={17} color={d.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 20 }}>
+              <T
+                v="h2"
+                style={{ color: d.text, fontWeight: "700", fontSize: 20 }}
+              >
                 Community
               </T>
-              <T v="caption" style={{ color: d.faint, fontSize: 11, marginTop: 1 }}>
+              <T
+                v="caption"
+                style={{ color: d.faint, fontSize: 11, marginTop: 1 }}
+              >
                 Ask, share and learn together
               </T>
             </View>
             <Pressable
               accessibilityLabel="notifications"
               accessibilityHint="Open your notification inbox"
-              onPress={() => { haptic.selection(); router.push('/tools/notifications'); }}
+              onPress={() => {
+                haptic.selection();
+                router.push("/tools/notifications");
+              }}
               style={({ pressed }) => ({
-                position: 'relative',
+                position: "relative",
                 width: 40,
                 height: 40,
                 borderRadius: 20,
                 borderWidth: 1,
                 borderColor: d.cardBorder,
                 backgroundColor: d.card,
-                alignItems: 'center',
-                justifyContent: 'center',
+                alignItems: "center",
+                justifyContent: "center",
                 opacity: pressed ? 0.8 : 1,
               })}
             >
               <FontAwesome5 name="bell" size={15} color={d.text} />
               <View
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 7,
                   right: 8,
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: '#E67E22',
+                  backgroundColor: "#E67E22",
                   borderWidth: 1.5,
                   borderColor: d.bg,
                 }}
@@ -515,30 +806,41 @@ function CommunityScreenInner() {
             </Pressable>
             {/* inbox — shared reels/posts/duas/ayahs (same inbox as videos) */}
             <Pressable
-              onPress={() => { haptic.selection(); setInboxOpen(true); }}
+              onPress={() => {
+                haptic.selection();
+                setInboxOpen(true);
+              }}
               style={({ pressed }) => ({
-                position: 'relative',
+                position: "relative",
                 width: 40,
                 height: 40,
                 borderRadius: 20,
                 borderWidth: 1,
-                borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)',
-                backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)',
-                alignItems: 'center',
-                justifyContent: 'center',
+                borderColor: isDark
+                  ? "rgba(74,227,143,0.35)"
+                  : "rgba(29,111,66,0.25)",
+                backgroundColor: isDark
+                  ? "rgba(46,204,113,0.12)"
+                  : "rgba(29,111,66,0.07)",
+                alignItems: "center",
+                justifyContent: "center",
                 opacity: pressed ? 0.8 : 1,
               })}
             >
-              <FontAwesome5 name="comment-dots" size={15} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <FontAwesome5
+                name="comment-dots"
+                size={15}
+                color={isDark ? "#4AE38F" : "#1D6F42"}
+              />
               <View
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 7,
                   right: 8,
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: '#1F8F5C',
+                  backgroundColor: "#1F8F5C",
                   borderWidth: 1.5,
                   borderColor: d.bg,
                 }}
@@ -551,8 +853,8 @@ function CommunityScreenInner() {
         <View style={{ marginHorizontal: 16, marginTop: 10 }}>
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               gap: 8,
               backgroundColor: d.card,
               borderRadius: 14,
@@ -572,14 +874,14 @@ function CommunityScreenInner() {
               style={{
                 flex: 1,
                 width: 0,
-                fontFamily: 'Poppins-Regular',
+                fontFamily: "Poppins-Regular",
                 fontSize: 16,
                 color: d.text,
                 paddingVertical: 8,
               }}
             />
             {q.length > 0 ? (
-              <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <Pressable onPress={() => setQuery("")} hitSlop={8}>
                 <FontAwesome5 name="times-circle" size={15} color={d.faint} />
               </Pressable>
             ) : null}
@@ -591,13 +893,13 @@ function CommunityScreenInner() {
           <View style={{ marginHorizontal: 16, marginTop: 12 }}>
             <Pressable
               onPress={() => {
-                if (guestBlock('Sign in to create a post.')) return;
+                if (guestBlock("Sign in to create a post.")) return;
                 haptic.light();
                 setComposerOpen(true);
               }}
               style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: "row",
+                alignItems: "center",
                 gap: 11,
                 backgroundColor: d.card,
                 borderRadius: 18,
@@ -616,11 +918,14 @@ function CommunityScreenInner() {
                   borderWidth: 1.5,
                   borderColor: d.gold,
                   backgroundColor: d.bgSoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <T v="h3" style={{ color: d.gold, fontWeight: '700', fontSize: 15 }}>
+                <T
+                  v="h3"
+                  style={{ color: d.gold, fontWeight: "700", fontSize: 15 }}
+                >
                   A
                 </T>
               </View>
@@ -628,14 +933,22 @@ function CommunityScreenInner() {
                 <T v="bodyS" style={{ color: d.faint, fontSize: 13.5 }}>
                   Share a thought, question or du’aa…
                 </T>
-                <T v="caption" style={{ color: d.faint, fontSize: 9.5, marginTop: 2, letterSpacing: 0.3 }}>
+                <T
+                  v="caption"
+                  style={{
+                    color: d.faint,
+                    fontSize: 9.5,
+                    marginTop: 2,
+                    letterSpacing: 0.3,
+                  }}
+                >
                   POLL · VIDEO · YOUTUBE
                 </T>
               </View>
               <Pressable
                 onPress={() => {
                   haptic.selection();
-                  router.push('/videos?create=1');
+                  router.push("/videos?create=1");
                 }}
                 hitSlop={6}
                 style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
@@ -645,14 +958,22 @@ function CommunityScreenInner() {
                     width: 38,
                     height: 38,
                     borderRadius: 12,
-                    backgroundColor: isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)',
+                    backgroundColor: isDark
+                      ? "rgba(46,204,113,0.16)"
+                      : "rgba(14,122,70,0.10)",
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    borderColor: isDark
+                      ? "rgba(46,204,113,0.4)"
+                      : "rgba(14,122,70,0.3)",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <FontAwesome5 name="film" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
+                  <FontAwesome5
+                    name="film"
+                    size={14}
+                    color={isDark ? "#4AE38F" : "#0E7A46"}
+                  />
                 </View>
               </Pressable>
             </Pressable>
@@ -662,13 +983,37 @@ function CommunityScreenInner() {
         {/* Trending (pass 83-38 — renders only with real trending data) */}
         {!searching && TRENDING.length > 0 ? (
           <View style={{ marginTop: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginBottom: 8 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 20,
+                marginBottom: 8,
+              }}
+            >
               <FontAwesome5 name="chart-line" size={11} color={d.gold} />
-              <T v="caption" style={{ color: d.subtext, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>
+              <T
+                v="caption"
+                style={{
+                  color: d.subtext,
+                  fontSize: 11,
+                  fontWeight: "800",
+                  letterSpacing: 0.8,
+                }}
+              >
                 TRENDING
               </T>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4, gap: 10 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingVertical: 4,
+                gap: 10,
+              }}
+            >
               {TRENDING.map((t) => (
                 <Pressable
                   key={t.tag}
@@ -677,23 +1022,37 @@ function CommunityScreenInner() {
                     setQuery(t.tag.slice(1));
                   }}
                   style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
                     gap: 6,
                     borderRadius: 20,
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(140,109,31,0.3)',
-                    backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(140,109,31,0.06)',
+                    borderColor: isDark
+                      ? "rgba(212,175,55,0.35)"
+                      : "rgba(140,109,31,0.3)",
+                    backgroundColor: isDark
+                      ? "rgba(212,175,55,0.08)"
+                      : "rgba(140,109,31,0.06)",
                     paddingHorizontal: 13,
                     paddingVertical: 8,
                     marginRight: 2,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <T v="bodyS" style={{ color: isDark ? '#E8C96A' : '#8C6D1F', fontWeight: '700', fontSize: 11.5 }}>
+                  <T
+                    v="bodyS"
+                    style={{
+                      color: isDark ? "#E8C96A" : "#8C6D1F",
+                      fontWeight: "700",
+                      fontSize: 11.5,
+                    }}
+                  >
                     {t.tag}
                   </T>
-                  <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '600' }}>
+                  <T
+                    v="caption"
+                    style={{ color: d.faint, fontSize: 9.5, fontWeight: "600" }}
+                  >
                     {t.posts}
                   </T>
                 </Pressable>
@@ -707,7 +1066,16 @@ function CommunityScreenInner() {
 
         {/* Feed tabs (inline at the top of the feed; sticky clone appears on scroll) */}
         {!searching ? (
-          <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 14, opacity: 1 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginHorizontal: 16,
+              marginTop: 16,
+              marginBottom: 14,
+              opacity: 1,
+            }}
+          >
             {TABS.map((t) => {
               const on = tab === t.id;
               return (
@@ -716,16 +1084,31 @@ function CommunityScreenInner() {
                   onPress={() => pickTab(t.id)}
                   style={({ pressed }) => ({
                     flex: 1,
-                    alignItems: 'center',
+                    alignItems: "center",
                     paddingVertical: 8,
                     borderRadius: 11,
-                    backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.16)' : 'rgba(14,122,70,0.10)') : 'transparent',
+                    backgroundColor: on
+                      ? isDark
+                        ? "rgba(46,204,113,0.16)"
+                        : "rgba(14,122,70,0.10)"
+                      : "transparent",
                     borderWidth: 1,
-                    borderColor: on ? (isDark ? 'rgba(46,204,113,0.5)' : 'rgba(14,122,70,0.35)') : 'transparent',
+                    borderColor: on
+                      ? isDark
+                        ? "rgba(46,204,113,0.5)"
+                        : "rgba(14,122,70,0.35)"
+                      : "transparent",
                     opacity: pressed ? 0.75 : 1,
                   })}
                 >
-                  <T v="bodyS" style={{ color: on ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 12.5 }}>
+                  <T
+                    v="bodyS"
+                    style={{
+                      color: on ? (isDark ? "#4AE38F" : "#0E7A46") : d.subtext,
+                      fontWeight: "700",
+                      fontSize: 12.5,
+                    }}
+                  >
                     {t.label}
                   </T>
                 </Pressable>
@@ -739,21 +1122,38 @@ function CommunityScreenInner() {
           <View style={{ marginHorizontal: 16, marginTop: 6, gap: 14 }}>
             {accResults.length > 0 ? (
               <View>
-                <T v="caption" style={{ color: d.faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 }}>
+                <T
+                  v="caption"
+                  style={{
+                    color: d.faint,
+                    fontSize: 10,
+                    fontWeight: "800",
+                    letterSpacing: 0.8,
+                    marginBottom: 8,
+                  }}
+                >
                   ACCOUNTS
                 </T>
-                <View style={{ backgroundColor: d.card, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 4 }}>
+                <View
+                  style={{
+                    backgroundColor: d.card,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    paddingVertical: 4,
+                  }}
+                >
                   {accResults.map((a, i) => (
                     <Pressable
                       key={a.username}
                       onPress={() => {
                         haptic.selection();
-                        setQuery('');
+                        setQuery("");
                         router.push(`/profile/${a.username}`);
                       }}
                       style={({ pressed }) => ({
-                        flexDirection: 'row',
-                        alignItems: 'center',
+                        flexDirection: "row",
+                        alignItems: "center",
                         gap: 10,
                         paddingHorizontal: 12,
                         paddingVertical: 9,
@@ -762,17 +1162,43 @@ function CommunityScreenInner() {
                         opacity: pressed ? 0.7 : 1,
                       })}
                     >
-                      <AvatarImage source={a.photo} name={a.full_name} size={38} tint={d.bgSoft} border={d.cardBorder} />
+                      <AvatarImage
+                        source={a.photo}
+                        name={a.full_name}
+                        size={38}
+                        tint={d.bgSoft}
+                        border={d.cardBorder}
+                      />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <T v="body" numberOfLines={1} style={{ color: d.text, fontWeight: '700', fontSize: 13 }}>
+                        <T
+                          v="body"
+                          numberOfLines={1}
+                          style={{
+                            color: d.text,
+                            fontWeight: "700",
+                            fontSize: 13,
+                          }}
+                        >
                           {a.full_name}
                         </T>
-                        <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+                        <T
+                          v="caption"
+                          numberOfLines={1}
+                          style={{
+                            color: d.faint,
+                            fontSize: 10.5,
+                            marginTop: 1,
+                          }}
+                        >
                           @{a.username}
-                          {a.fields ? ` · ${a.fields}` : ''}
+                          {a.fields ? ` · ${a.fields}` : ""}
                         </T>
                       </View>
-                      <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
+                      <FontAwesome5
+                        name="chevron-right"
+                        size={11}
+                        color={d.faint}
+                      />
                     </Pressable>
                   ))}
                 </View>
@@ -781,24 +1207,64 @@ function CommunityScreenInner() {
 
             {postResults.length > 0 ? (
               <View>
-                <T v="caption" style={{ color: d.faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 }}>
+                <T
+                  v="caption"
+                  style={{
+                    color: d.faint,
+                    fontSize: 10,
+                    fontWeight: "800",
+                    letterSpacing: 0.8,
+                    marginBottom: 8,
+                  }}
+                >
                   POSTS
                 </T>
-                <View style={{ backgroundColor: d.card, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, padding: 12, gap: 8 }}>
+                <View
+                  style={{
+                    backgroundColor: d.card,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: d.cardBorder,
+                    padding: 12,
+                    gap: 8,
+                  }}
+                >
                   {postResults.map((p) => (
-                    <View key={p.id} style={{ flexDirection: 'row', gap: 9 }}>
+                    <View key={p.id} style={{ flexDirection: "row", gap: 9 }}>
                       <AvatarImage
-                        source={(p.user as { profile_image_url?: string | number | null }).profile_image_url ?? null}
+                        source={
+                          (
+                            p.user as {
+                              profile_image_url?: string | number | null;
+                            }
+                          ).profile_image_url ?? null
+                        }
                         name={p.user.full_name ?? p.user.username}
                         size={32}
                         tint={d.bgSoft}
                         border={d.cardBorder}
                       />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <T v="body" numberOfLines={1} style={{ color: d.text, fontWeight: '700', fontSize: 12.5 }}>
+                        <T
+                          v="body"
+                          numberOfLines={1}
+                          style={{
+                            color: d.text,
+                            fontWeight: "700",
+                            fontSize: 12.5,
+                          }}
+                        >
                           {p.user.full_name ?? p.user.username}
                         </T>
-                        <T v="bodyS" numberOfLines={2} style={{ color: d.subtext, fontSize: 11.5, marginTop: 2 }}>
+                        <T
+                          v="bodyS"
+                          numberOfLines={2}
+                          style={{
+                            color: d.subtext,
+                            fontSize: 11.5,
+                            marginTop: 2,
+                          }}
+                        >
                           {p.content_text}
                         </T>
                       </View>
@@ -809,9 +1275,18 @@ function CommunityScreenInner() {
             ) : null}
 
             {accResults.length === 0 && postResults.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 40, gap: 8 }}>
+              <View
+                style={{ alignItems: "center", paddingVertical: 40, gap: 8 }}
+              >
                 <FontAwesome5 name="search" size={22} color={d.faint} />
-                <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, fontWeight: '600' }}>
+                <T
+                  v="bodyS"
+                  style={{
+                    color: d.subtext,
+                    fontSize: 12.5,
+                    fontWeight: "600",
+                  }}
+                >
                   No posts or accounts found for “{query}”
                 </T>
               </View>
@@ -821,13 +1296,43 @@ function CommunityScreenInner() {
           <>
             {/* Community posts */}
             <View style={{ marginHorizontal: 16, marginTop: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
-                  {tab === 'following' ? 'From people you follow' : tab === 'scholars' ? 'Scholar posts' : 'Community Posts'}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                }}
+              >
+                <T
+                  v="h2"
+                  style={{ color: d.text, fontWeight: "700", fontSize: 16.5 }}
+                >
+                  {tab === "following"
+                    ? "From people you follow"
+                    : tab === "scholars"
+                      ? "Scholar posts"
+                      : "Community Posts"}
                 </T>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: d.emerald }} />
-                  <T v="caption" style={{ color: d.faint, fontSize: 10.5, fontWeight: '600' }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+                >
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: d.emerald,
+                    }}
+                  />
+                  <T
+                    v="caption"
+                    style={{
+                      color: d.faint,
+                      fontSize: 10.5,
+                      fontWeight: "600",
+                    }}
+                  >
                     {visiblePosts.length} posts
                   </T>
                 </View>
@@ -841,13 +1346,28 @@ function CommunityScreenInner() {
                       borderWidth: 1,
                       borderColor: d.cardBorder,
                       padding: 22,
-                      alignItems: 'center',
+                      alignItems: "center",
                       gap: 8,
                     }}
                   >
-                    <FontAwesome5 name={tab === 'following' ? 'user-plus' : 'graduation-cap'} size={20} color={d.faint} />
-                    <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, fontWeight: '600' }}>
-                      {tab === 'following' ? 'Follow scholars and friends to see their posts here.' : 'No scholar posts yet — check back soon.'}
+                    <FontAwesome5
+                      name={
+                        tab === "following" ? "user-plus" : "graduation-cap"
+                      }
+                      size={20}
+                      color={d.faint}
+                    />
+                    <T
+                      v="bodyS"
+                      style={{
+                        color: d.subtext,
+                        fontSize: 12.5,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {tab === "following"
+                        ? "Follow scholars and friends to see their posts here."
+                        : "No scholar posts yet — check back soon."}
                     </T>
                   </View>
                 ) : (
@@ -856,39 +1376,100 @@ function CommunityScreenInner() {
                       {/* pass 41 — group posts INTERLEAVED through the whole feed
                        * (positions 2, 6, 10, …) so they never read as a separate section */}
                       {pi % 4 === 0 ? (
-                        <GroupFeedInline index={pi / 4} onComments={(pp) => setCommentPost(pp)} />
+                        <GroupFeedInline
+                          index={pi / 4}
+                          onComments={(pp) => setCommentPost(pp)}
+                        />
                       ) : null}
                       <FeedCard
-                      dash={d}
-                      post={{ ...p, liked_by_me: likedPosts.has(p.id), like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) ? 1 : 0) }}
-                      /* pass 83-25 — group posts in the mixed feed carry a chip into the group */
-                      group={p.group_id && p.group_name ? { name: p.group_name } : undefined}
-                      onOpenGroup={p.group_id ? () => router.push({ pathname: '/tools/group', params: { id: `srv${p.group_id}` } } as never) : undefined}
-                      onLike={(id) => togglePostLike(id)}
-                      onComments={(pp) => setCommentPost(pp)}
-                      onDismiss={(id) => setPosts((ps) => ps.filter((x) => x.id !== id))}
-                      /* pass 83-35 — expand → the VIDEOS page (reels view) */
-                      onOpenReels={(pp) => router.push({ pathname: '/videos', params: { start: String(pp.id) } } as never)}
-                      /* pass 83-14 — authors can delete their own community posts */
-                      onDelete={(p.user?.id != null && user?.id != null && String(p.user.id) === String(user.id)) || (p.user?.username && user?.username && p.user.username === user.username) ? () => {
-                        void api.deletePost(p.id).then((ok) => {
-                          if (ok) { setPosts((ps) => ps.filter((x) => x.id !== p.id)); }
-                          else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
-                        });
-                      } : undefined}
-                    />
+                        dash={d}
+                        post={{
+                          ...p,
+                          liked_by_me: likedPosts.has(p.id),
+                          like_count:
+                            (p.like_count ?? 0) +
+                            (likedPosts.has(p.id) ? 1 : 0),
+                        }}
+                        /* pass 83-25 — group posts in the mixed feed carry a chip into the group */
+                        group={
+                          p.group_id && p.group_name
+                            ? { name: p.group_name }
+                            : undefined
+                        }
+                        onOpenGroup={
+                          p.group_id
+                            ? () =>
+                                router.push({
+                                  pathname: "/tools/group",
+                                  params: { id: `srv${p.group_id}` },
+                                } as never)
+                            : undefined
+                        }
+                        onLike={(id) => togglePostLike(id)}
+                        onComments={(pp) => setCommentPost(pp)}
+                        onDismiss={(id) =>
+                          setPosts((ps) => ps.filter((x) => x.id !== id))
+                        }
+                        /* pass 83-35 — expand → the VIDEOS page (reels view) */
+                        onOpenReels={(pp) =>
+                          router.push({
+                            pathname: "/videos",
+                            params: { start: String(pp.id) },
+                          } as never)
+                        }
+                        /* pass 83-14 — authors can delete their own community posts */
+                        onDelete={
+                          (p.user?.id != null &&
+                            user?.id != null &&
+                            String(p.user.id) === String(user.id)) ||
+                          (p.user?.username &&
+                            user?.username &&
+                            p.user.username === user.username)
+                            ? () => {
+                                void api.deletePost(p.id).then((ok) => {
+                                  if (ok) {
+                                    emitPostDeleted(p.id);
+                                    setPosts((ps) =>
+                                      ps.filter((x) => x.id !== p.id),
+                                    );
+                                  } else {
+                                    Alert.alert(
+                                      "Could not delete",
+                                      "Please try again in a moment.",
+                                    );
+                                  }
+                                });
+                              }
+                            : undefined
+                        }
+                      />
                       {/* every 5th card — suggested accounts; every 3rd — suggested
                        * groups (pass 40), like the accounts strip */}
                       {(pi + 1) % 5 === 0 ? <SuggestStrip dash={d} /> : null}
-                      {(pi + 1) % 3 === 0 && (pi + 1) % 5 !== 0 ? <GroupsSuggestStrip dash={d} /> : null}
+                      {(pi + 1) % 3 === 0 && (pi + 1) % 5 !== 0 ? (
+                        <GroupsSuggestStrip dash={d} />
+                      ) : null}
                     </View>
                   ))
                 )}
                 {/* pass 36 — older posts loader while scrolling */}
                 {!searching && feedLimit < visiblePosts.length ? (
-                  <Pressable onPress={loadFeedMore} style={{ alignItems: 'center', gap: 8, paddingVertical: 18 }}>
-                    {feedMore ? <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
-                    <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{feedMore ? 'Loading older posts…' : 'Load older posts'}</T>
+                  <Pressable
+                    onPress={loadFeedMore}
+                    style={{
+                      alignItems: "center",
+                      gap: 8,
+                      paddingVertical: 18,
+                    }}
+                  >
+                    {feedMore ? (
+                      <ActivityIndicator
+                        color={isDark ? "#4AE38F" : "#1D6F42"}
+                      />
+                    ) : null}
+                    <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>
+                      {feedMore ? "Loading older posts…" : "Load older posts"}
+                    </T>
                   </Pressable>
                 ) : null}
               </View>
@@ -902,18 +1483,22 @@ function CommunityScreenInner() {
         visible={inboxOpen}
         initialFriend={inboxFriend}
         onNavigateAway={() => setInboxOpen(false)}
-        onClose={() => { setInboxOpen(false); setInboxFriend(null); storage.removeItem('dl_inbox_reopen').catch(() => {}); }}
+        onClose={() => {
+          setInboxOpen(false);
+          setInboxFriend(null);
+          storage.removeItem("dl_inbox_reopen").catch(() => {});
+        }}
       />
 
       {/* FAB — new post */}
       <Pressable
         onPress={() => {
-          if (guestBlock('Sign in to create a post.')) return;
+          if (guestBlock("Sign in to create a post.")) return;
           haptic.light();
           setComposerOpen(true);
         }}
         style={({ pressed }) => ({
-          position: 'absolute',
+          position: "absolute",
           right: 16,
           bottom: insets.bottom + 96,
           width: 54,
@@ -922,8 +1507,8 @@ function CommunityScreenInner() {
           backgroundColor: d.emerald,
           borderWidth: 1.5,
           borderColor: d.gold,
-          alignItems: 'center',
-          justifyContent: 'center',
+          alignItems: "center",
+          justifyContent: "center",
           shadowColor: d.emerald,
           shadowOpacity: 0.45,
           shadowRadius: 12,
@@ -933,16 +1518,34 @@ function CommunityScreenInner() {
           transform: [{ scale: pressed ? 0.94 : 1 }],
         })}
       >
-        <FontAwesome5 name="plus" size={20} color={isDark ? '#062312' : '#FFFFFF'} />
+        <FontAwesome5
+          name="plus"
+          size={20}
+          color={isDark ? "#062312" : "#FFFFFF"}
+        />
       </Pressable>
 
       {/* New post modal */}
-      <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => !posting && setComposerOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(2,6,4,0.78)', justifyContent: 'flex-end' }}>
-          <Pressable style={{ flex: 1 }} onPress={() => !posting && setComposerOpen(false)} />
+      <Modal
+        visible={composerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !posting && setComposerOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(2,6,4,0.78)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Pressable
+            style={{ flex: 1 }}
+            onPress={() => !posting && setComposerOpen(false)}
+          />
           <View
             style={{
-              backgroundColor: isDark ? '#0C1511' : '#FFFFFF',
+              backgroundColor: isDark ? "#0C1511" : "#FFFFFF",
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               borderWidth: 1,
@@ -952,20 +1555,34 @@ function CommunityScreenInner() {
             }}
           >
             {/* header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 16,
+                marginBottom: 12,
+              }}
+            >
               <View style={{ flex: 1 }} />
-              <T v="body" style={{ fontWeight: '700', fontSize: 15, color: d.text }}>
+              <T
+                v="body"
+                style={{ fontWeight: "700", fontSize: 15, color: d.text }}
+              >
                 New post
               </T>
-              <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Pressable onPress={() => !posting && setComposerOpen(false)} hitSlop={10} style={{ padding: 4 }}>
+              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                <Pressable
+                  onPress={() => !posting && setComposerOpen(false)}
+                  hitSlop={10}
+                  style={{ padding: 4 }}
+                >
                   <FontAwesome5 name="times" size={16} color={d.faint} />
                 </Pressable>
               </View>
             </View>
 
             <View style={{ paddingHorizontal: 16, gap: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
                 <View
                   style={{
                     width: 38,
@@ -974,11 +1591,14 @@ function CommunityScreenInner() {
                     borderWidth: 1.5,
                     borderColor: d.gold,
                     backgroundColor: d.bgSoft,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <T v="h3" style={{ color: d.gold, fontWeight: '700', fontSize: 14 }}>
+                  <T
+                    v="h3"
+                    style={{ color: d.gold, fontWeight: "700", fontSize: 14 }}
+                  >
                     A
                   </T>
                 </View>
@@ -991,22 +1611,52 @@ function CommunityScreenInner() {
                   editable={!posting}
                   style={{
                     flex: 1,
-                    fontFamily: 'Poppins-Regular',
+                    fontFamily: "Poppins-Regular",
                     fontSize: 16,
                     color: d.text,
                     minHeight: 74,
-                    textAlignVertical: 'top',
+                    textAlignVertical: "top",
                   }}
                 />
               </View>
 
               {/* emoji row */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={{ height: 46, flexGrow: 0, flexShrink: 0, paddingBottom: 2 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ alignItems: "center" }}
+                style={{
+                  height: 46,
+                  flexGrow: 0,
+                  flexShrink: 0,
+                  paddingBottom: 2,
+                }}
+              >
                 {EMOJIS.map((e, i) => {
-                  const ar = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(e);
+                  const ar = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(
+                    e,
+                  );
                   return (
-                    <Pressable key={`e${i}`} onPress={() => setCDraft((prev) => prev + e)} hitSlop={4} style={{ padding: 4, marginRight: 2 }}>
-                      <T v="caption" style={{ fontSize: ar ? (e.length > 4 ? 13 : 22) : e.length > 2 ? 13 : 21, fontWeight: '400', fontFamily: ar ? 'Amiri' : undefined }}>
+                    <Pressable
+                      key={`e${i}`}
+                      onPress={() => setCDraft((prev) => prev + e)}
+                      hitSlop={4}
+                      style={{ padding: 4, marginRight: 2 }}
+                    >
+                      <T
+                        v="caption"
+                        style={{
+                          fontSize: ar
+                            ? e.length > 4
+                              ? 13
+                              : 22
+                            : e.length > 2
+                              ? 13
+                              : 21,
+                          fontWeight: "400",
+                          fontFamily: ar ? "Amiri" : undefined,
+                        }}
+                      >
                         {e}
                       </T>
                     </Pressable>
@@ -1015,50 +1665,102 @@ function CommunityScreenInner() {
               </ScrollView>
 
               {/* attach: image / video / youtube */}
-              <View style={{ flexDirection: 'row', gap: 9 }}>
+              <View style={{ flexDirection: "row", gap: 9 }}>
                 <Pressable
                   onPress={pickImage}
                   style={({ pressed }) => ({
                     flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
                     gap: 7,
                     borderRadius: 12,
                     borderWidth: 1,
                     borderColor: imageAttachs.length ? d.emerald : d.cardBorder,
-                    backgroundColor: imageAttachs.length ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                    backgroundColor: imageAttachs.length
+                      ? isDark
+                        ? "rgba(46,204,113,0.12)"
+                        : "rgba(14,122,70,0.07)"
+                      : "transparent",
                     paddingVertical: 10,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <FontAwesome5 name="image" size={12} color={imageAttachs.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
-                  <T v="bodyS" style={{ color: imageAttachs.length ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
-                    {imageAttachs.length ? `${imageAttachs.length} photo${imageAttachs.length > 1 ? 's' : ''}` : 'Photo'}
+                  <FontAwesome5
+                    name="image"
+                    size={12}
+                    color={
+                      imageAttachs.length
+                        ? isDark
+                          ? "#4AE38F"
+                          : "#0E7A46"
+                        : d.emerald
+                    }
+                  />
+                  <T
+                    v="bodyS"
+                    style={{
+                      color: imageAttachs.length
+                        ? isDark
+                          ? "#4AE38F"
+                          : "#0E7A46"
+                        : d.subtext,
+                      fontWeight: "700",
+                      fontSize: 11.5,
+                    }}
+                  >
+                    {imageAttachs.length
+                      ? `${imageAttachs.length} photo${imageAttachs.length > 1 ? "s" : ""}`
+                      : "Photo"}
                   </T>
                 </Pressable>
-{videoAllowed ? (
-                <Pressable
-                  onPress={pickVideo}
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 7,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: videoAttach ? d.emerald : d.cardBorder,
-                    backgroundColor: videoAttach ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
-                    paddingVertical: 10,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <FontAwesome5 name="film" size={12} color={videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.emerald} />
-                  <T v="bodyS" style={{ color: videoAttach ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
-                    {videoAttach ? 'Video attached' : 'Video'}
-                  </T>
-                </Pressable>
+                {videoAllowed ? (
+                  <Pressable
+                    onPress={pickVideo}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: videoAttach ? d.emerald : d.cardBorder,
+                      backgroundColor: videoAttach
+                        ? isDark
+                          ? "rgba(46,204,113,0.12)"
+                          : "rgba(14,122,70,0.07)"
+                        : "transparent",
+                      paddingVertical: 10,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <FontAwesome5
+                      name="film"
+                      size={12}
+                      color={
+                        videoAttach
+                          ? isDark
+                            ? "#4AE38F"
+                            : "#0E7A46"
+                          : d.emerald
+                      }
+                    />
+                    <T
+                      v="bodyS"
+                      style={{
+                        color: videoAttach
+                          ? isDark
+                            ? "#4AE38F"
+                            : "#0E7A46"
+                          : d.subtext,
+                        fontWeight: "700",
+                        fontSize: 11.5,
+                      }}
+                    >
+                      {videoAttach ? "Video attached" : "Video"}
+                    </T>
+                  </Pressable>
                 ) : null}
                 <Pressable
                   onPress={() => {
@@ -1067,21 +1769,41 @@ function CommunityScreenInner() {
                   }}
                   style={({ pressed }) => ({
                     flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
                     gap: 7,
                     borderRadius: 12,
                     borderWidth: 1,
                     borderColor: ytOn ? d.emerald : d.cardBorder,
-                    backgroundColor: ytOn ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                    backgroundColor: ytOn
+                      ? isDark
+                        ? "rgba(46,204,113,0.12)"
+                        : "rgba(14,122,70,0.07)"
+                      : "transparent",
                     paddingVertical: 10,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <FontAwesome5 name="youtube" size={12} color={ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : '#E74C3C'} brand />
-                  <T v="bodyS" style={{ color: ytOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 11.5 }}>
-                    {ytOn ? 'Remove link' : 'YouTube'}
+                  <FontAwesome5
+                    name="youtube"
+                    size={12}
+                    color={ytOn ? (isDark ? "#4AE38F" : "#0E7A46") : "#E74C3C"}
+                    brand
+                  />
+                  <T
+                    v="bodyS"
+                    style={{
+                      color: ytOn
+                        ? isDark
+                          ? "#4AE38F"
+                          : "#0E7A46"
+                        : d.subtext,
+                      fontWeight: "700",
+                      fontSize: 11.5,
+                    }}
+                  >
+                    {ytOn ? "Remove link" : "YouTube"}
                   </T>
                 </Pressable>
               </View>
@@ -1095,7 +1817,7 @@ function CommunityScreenInner() {
                   autoCapitalize="none"
                   editable={!posting}
                   style={{
-                    fontFamily: 'Poppins-Regular',
+                    fontFamily: "Poppins-Regular",
                     fontSize: 16,
                     color: d.text,
                     backgroundColor: d.bgSoft,
@@ -1108,52 +1830,139 @@ function CommunityScreenInner() {
                 />
               ) : null}
 
-              {Platform.OS === 'web' ? (
+              {Platform.OS === "web" ? (
                 <>
-                <input
-                  ref={imageFileRef as never}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={(e: unknown) => {
-                    const files = [...((e as React.ChangeEvent<HTMLInputElement>).target.files ?? [])].slice(0, 5);
-                    if (files.length) setImageAttachs((prev) => [...prev, ...files.map((f) => ({ uri: URL.createObjectURL(f), name: f.name }))].slice(0, 5));
-                  }}
-                />
-                <input
-                  ref={videoFileRef as never}
-                  type="file"
-                  accept="video/*"
-                  style={{ display: 'none' }}
-                  onChange={(e: unknown) => {
-                    const file = (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
-                    if (file) setVideoAttach({ uri: URL.createObjectURL(file), name: file.name });
-                  }}
-                />
+                  <input
+                    ref={imageFileRef as never}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={(e: unknown) => {
+                      const files = [
+                        ...((e as React.ChangeEvent<HTMLInputElement>).target
+                          .files ?? []),
+                      ].slice(0, 5);
+                      if (files.length)
+                        setImageAttachs((prev) =>
+                          [
+                            ...prev,
+                            ...files.map((f) => ({
+                              uri: URL.createObjectURL(f),
+                              name: f.name,
+                            })),
+                          ].slice(0, 5),
+                        );
+                    }}
+                  />
+                  <input
+                    ref={videoFileRef as never}
+                    type="file"
+                    accept="video/*"
+                    style={{ display: "none" }}
+                    onChange={(e: unknown) => {
+                      const file = (e as React.ChangeEvent<HTMLInputElement>)
+                        .target.files?.[0];
+                      if (file)
+                        setVideoAttach({
+                          uri: URL.createObjectURL(file),
+                          name: file.name,
+                        });
+                    }}
+                  />
                 </>
               ) : null}
 
               {imageAttachs.length ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
-                  <FontAwesome5 name="image" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
-                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
-                    {imageAttachs.length === 1 ? imageAttachs[0].name : `${imageAttachs.length} photos attached`}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 9,
+                    backgroundColor: isDark
+                      ? "rgba(46,204,113,0.1)"
+                      : "rgba(14,122,70,0.07)",
+                    borderWidth: 1,
+                    borderColor: isDark
+                      ? "rgba(46,204,113,0.4)"
+                      : "rgba(14,122,70,0.3)",
+                    borderRadius: 12,
+                    paddingHorizontal: 11,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <FontAwesome5
+                    name="image"
+                    size={14}
+                    color={isDark ? "#4AE38F" : "#0E7A46"}
+                  />
+                  <T
+                    v="bodyS"
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      width: 0,
+                      color: d.text,
+                      fontSize: 12.5,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {imageAttachs.length === 1
+                      ? imageAttachs[0].name
+                      : `${imageAttachs.length} photos attached`}
                   </T>
                   <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
-                    <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                    <FontAwesome5
+                      name="times-circle"
+                      size={14}
+                      color={d.faint}
+                    />
                   </Pressable>
                 </View>
               ) : null}
 
               {videoAttach ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(14,122,70,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(46,204,113,0.4)' : 'rgba(14,122,70,0.3)', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9 }}>
-                  <FontAwesome5 name="video" size={14} color={isDark ? '#4AE38F' : '#0E7A46'} />
-                  <T v="bodyS" numberOfLines={1} style={{ flex: 1, width: 0, color: d.text, fontSize: 12.5, fontWeight: '600' }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 9,
+                    backgroundColor: isDark
+                      ? "rgba(46,204,113,0.1)"
+                      : "rgba(14,122,70,0.07)",
+                    borderWidth: 1,
+                    borderColor: isDark
+                      ? "rgba(46,204,113,0.4)"
+                      : "rgba(14,122,70,0.3)",
+                    borderRadius: 12,
+                    paddingHorizontal: 11,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <FontAwesome5
+                    name="video"
+                    size={14}
+                    color={isDark ? "#4AE38F" : "#0E7A46"}
+                  />
+                  <T
+                    v="bodyS"
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      width: 0,
+                      color: d.text,
+                      fontSize: 12.5,
+                      fontWeight: "600",
+                    }}
+                  >
                     {videoAttach.name}
                   </T>
                   <Pressable onPress={() => setVideoAttach(null)} hitSlop={8}>
-                    <FontAwesome5 name="times-circle" size={14} color={d.faint} />
+                    <FontAwesome5
+                      name="times-circle"
+                      size={14}
+                      color={d.faint}
+                    />
                   </Pressable>
                 </View>
               ) : null}
@@ -1165,40 +1974,78 @@ function CommunityScreenInner() {
                   setPollOn((v) => !v);
                 }}
                 style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
+                  flexDirection: "row",
+                  alignItems: "center",
                   gap: 8,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: pollOn ? d.emerald : d.cardBorder,
-                  backgroundColor: pollOn ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(14,122,70,0.07)') : 'transparent',
+                  backgroundColor: pollOn
+                    ? isDark
+                      ? "rgba(46,204,113,0.12)"
+                      : "rgba(14,122,70,0.07)"
+                    : "transparent",
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   opacity: pressed ? 0.7 : 1,
                 })}
               >
-                <FontAwesome5 name="poll-h" size={13} color={pollOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.faint} />
-                <T v="bodyS" style={{ color: pollOn ? (isDark ? '#4AE38F' : '#0E7A46') : d.subtext, fontWeight: '700', fontSize: 12 }}>
-                  {pollOn ? 'Remove poll' : 'Add a poll'}
+                <FontAwesome5
+                  name="poll-h"
+                  size={13}
+                  color={pollOn ? (isDark ? "#4AE38F" : "#0E7A46") : d.faint}
+                />
+                <T
+                  v="bodyS"
+                  style={{
+                    color: pollOn
+                      ? isDark
+                        ? "#4AE38F"
+                        : "#0E7A46"
+                      : d.subtext,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {pollOn ? "Remove poll" : "Add a poll"}
                 </T>
               </Pressable>
 
               {pollOn
                 ? pollOpts.map((opt, i) => (
-                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <T v="caption" style={{ color: d.faint, fontSize: 10, fontWeight: '800', width: 16 }}>
+                    <View
+                      key={i}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <T
+                        v="caption"
+                        style={{
+                          color: d.faint,
+                          fontSize: 10,
+                          fontWeight: "800",
+                          width: 16,
+                        }}
+                      >
                         {i + 1}
                       </T>
                       <TextInput
                         value={opt}
-                        onChangeText={(v) => setPollOpts((prev) => prev.map((o, j) => (j === i ? v : o)))}
+                        onChangeText={(v) =>
+                          setPollOpts((prev) =>
+                            prev.map((o, j) => (j === i ? v : o)),
+                          )
+                        }
                         placeholder={`Poll option ${i + 1}`}
                         placeholderTextColor={d.faint}
                         editable={!posting}
                         style={{
                           flex: 1,
                           width: 0,
-                          fontFamily: 'Poppins-Regular',
+                          fontFamily: "Poppins-Regular",
                           fontSize: 16,
                           color: d.text,
                           backgroundColor: d.bgSoft,
@@ -1209,11 +2056,19 @@ function CommunityScreenInner() {
                       />
                       {pollOpts.length > 2 ? (
                         <Pressable
-                          onPress={() => setPollOpts((prev) => prev.filter((_, j) => j !== i))}
+                          onPress={() =>
+                            setPollOpts((prev) =>
+                              prev.filter((_, j) => j !== i),
+                            )
+                          }
                           hitSlop={8}
                           style={{ padding: 4 }}
                         >
-                          <FontAwesome5 name="trash-alt" size={12} color={d.faint} />
+                          <FontAwesome5
+                            name="trash-alt"
+                            size={12}
+                            color={d.faint}
+                          />
                         </Pressable>
                       ) : null}
                     </View>
@@ -1222,11 +2077,11 @@ function CommunityScreenInner() {
 
               {pollOn && pollOpts.length < 4 ? (
                 <Pressable
-                  onPress={() => setPollOpts((prev) => [...prev, ''])}
+                  onPress={() => setPollOpts((prev) => [...prev, ""])}
                   style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
                     gap: 6,
                     borderRadius: 10,
                     borderWidth: 1,
@@ -1236,7 +2091,14 @@ function CommunityScreenInner() {
                   })}
                 >
                   <FontAwesome5 name="plus" size={11} color={d.emerald} />
-                  <T v="bodyS" style={{ color: d.subtext, fontWeight: '700', fontSize: 11.5 }}>
+                  <T
+                    v="bodyS"
+                    style={{
+                      color: d.subtext,
+                      fontWeight: "700",
+                      fontSize: 11.5,
+                    }}
+                  >
                     Add option
                   </T>
                 </Pressable>
@@ -1244,27 +2106,60 @@ function CommunityScreenInner() {
 
               {pollOn ? (
                 <View>
-                  <T v="caption" style={{ color: d.faint, fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, marginBottom: 6 }}>
+                  <T
+                    v="caption"
+                    style={{
+                      color: d.faint,
+                      fontSize: 9.5,
+                      fontWeight: "800",
+                      letterSpacing: 0.7,
+                      marginBottom: 6,
+                    }}
+                  >
                     POLL DURATION
                   </T>
-                  <View style={{ flexDirection: 'row', gap: 7 }}>
-                    {[{ h: 1, l: '1h' }, { h: 8, l: '8h' }, { h: 24, l: '1 day' }, { h: 72, l: '3 days' }, { h: 168, l: '7 days' }].map((o) => {
+                  <View style={{ flexDirection: "row", gap: 7 }}>
+                    {[
+                      { h: 1, l: "1h" },
+                      { h: 8, l: "8h" },
+                      { h: 24, l: "1 day" },
+                      { h: 72, l: "3 days" },
+                      { h: 168, l: "7 days" },
+                    ].map((o) => {
                       const on = pollHours === o.h;
                       return (
                         <Pressable
                           key={o.h}
-                          onPress={() => { haptic.selection(); setPollHours(o.h); }}
+                          onPress={() => {
+                            haptic.selection();
+                            setPollHours(o.h);
+                          }}
                           style={{
                             flex: 1,
-                            alignItems: 'center',
+                            alignItems: "center",
                             paddingVertical: 7,
                             borderRadius: 9,
                             borderWidth: 1,
                             borderColor: on ? d.gold : d.cardBorder,
-                            backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.12)' : 'rgba(140,109,31,0.07)') : 'transparent',
+                            backgroundColor: on
+                              ? isDark
+                                ? "rgba(212,175,55,0.12)"
+                                : "rgba(140,109,31,0.07)"
+                              : "transparent",
                           }}
                         >
-                          <T v="caption" style={{ color: on ? (isDark ? '#E8C96A' : '#8C6D1F') : d.subtext, fontWeight: '700', fontSize: 10.5 }}>
+                          <T
+                            v="caption"
+                            style={{
+                              color: on
+                                ? isDark
+                                  ? "#E8C96A"
+                                  : "#8C6D1F"
+                                : d.subtext,
+                              fontWeight: "700",
+                              fontSize: 10.5,
+                            }}
+                          >
                             {o.l}
                           </T>
                         </Pressable>
@@ -1279,28 +2174,51 @@ function CommunityScreenInner() {
                 onPress={submitComposer}
                 disabled={posting || !cDraft.trim()}
                 style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
                   gap: 8,
                   borderRadius: 14,
                   backgroundColor: d.emerald,
                   paddingVertical: 13,
-                  opacity: (cDraft.trim() ? 1 : 0.45) * (posting ? 0.8 : pressed ? 0.85 : 1),
+                  opacity:
+                    (cDraft.trim() ? 1 : 0.45) *
+                    (posting ? 0.8 : pressed ? 0.85 : 1),
                 })}
               >
                 {posting ? (
                   <>
-                    <ActivityIndicator size="small" color={isDark ? '#062312' : '#FFFFFF'} />
-                    <T v="body" style={{ color: isDark ? '#062312' : '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+                    <ActivityIndicator
+                      size="small"
+                      color={isDark ? "#062312" : "#FFFFFF"}
+                    />
+                    <T
+                      v="body"
+                      style={{
+                        color: isDark ? "#062312" : "#FFFFFF",
+                        fontWeight: "800",
+                        fontSize: 13,
+                      }}
+                    >
                       Posting… just a moment
                     </T>
                   </>
                 ) : (
                   <>
-                    <FontAwesome5 name="paper-plane" size={12} color={isDark ? '#062312' : '#FFFFFF'} />
-                    <T v="body" style={{ color: isDark ? '#062312' : '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
-                      {pollOn ? 'Post poll' : 'Post'}
+                    <FontAwesome5
+                      name="paper-plane"
+                      size={12}
+                      color={isDark ? "#062312" : "#FFFFFF"}
+                    />
+                    <T
+                      v="body"
+                      style={{
+                        color: isDark ? "#062312" : "#FFFFFF",
+                        fontWeight: "800",
+                        fontSize: 13,
+                      }}
+                    >
+                      {pollOn ? "Post poll" : "Post"}
                     </T>
                   </>
                 )}
@@ -1318,21 +2236,47 @@ function CommunityScreenInner() {
         postId={commentPost?.id ?? null}
         onClose={() => setCommentPost(null)}
       />
-
     </View>
   );
 }
 
-
-
-
 /* pass 40 — groups surfaced as suggestions in the feed */
 const GROUP_SEEDS = [
-  { id: 'g1', name: "Abuja Jumu'ah Circle", avatar: '🕌', members: 1284, cat: 'Mosque' },
-  { id: 'g2', name: 'DeenLink Student Halaqah', avatar: '📖', members: 342, cat: 'School' },
-  { id: 'g3', name: 'Sisters of Light', avatar: '🌙', members: 876, cat: 'Community' },
-  { id: 'g4', name: 'Quran Memorization 30', avatar: '🕋', members: 2210, cat: 'Quran' },
-  { id: 'g5', name: 'New Muslims Support', avatar: '🤝', members: 508, cat: 'Community' },
+  {
+    id: "g1",
+    name: "Abuja Jumu'ah Circle",
+    avatar: "🕌",
+    members: 1284,
+    cat: "Mosque",
+  },
+  {
+    id: "g2",
+    name: "DeenLink Student Halaqah",
+    avatar: "📖",
+    members: 342,
+    cat: "School",
+  },
+  {
+    id: "g3",
+    name: "Sisters of Light",
+    avatar: "🌙",
+    members: 876,
+    cat: "Community",
+  },
+  {
+    id: "g4",
+    name: "Quran Memorization 30",
+    avatar: "🕋",
+    members: 2210,
+    cat: "Quran",
+  },
+  {
+    id: "g5",
+    name: "New Muslims Support",
+    avatar: "🤝",
+    members: 508,
+    cat: "Community",
+  },
 ];
 
 /* pass 40 — SUGGESTED GROUPS strip, interleaved like the accounts strip. */
@@ -1342,49 +2286,181 @@ function GroupsSuggestStrip({ dash }: { dash: any }) {
   const [joined, setJoined] = useState<string[]>([]);
   /* pass 83-17 — live: suggest REAL server groups. The demo seeds have ids
    * that don't exist on the server; tapping one used to open a random group. */
-  const [picks, setPicks] = useState<Array<{ id: string; name: string; avatar: string; members: number | string; cat: string }>>(
-    api.isLive() ? [] : GROUP_SEEDS.slice().sort(() => Math.random() - 0.5).slice(0, 3),
+  const [picks, setPicks] = useState<
+    Array<{
+      id: string;
+      name: string;
+      avatar: string;
+      members: number | string;
+      cat: string;
+    }>
+  >(
+    api.isLive()
+      ? []
+      : GROUP_SEEDS.slice()
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3),
   );
   useEffect(() => {
     if (!api.isLive()) return;
     void loadGroups().then((list) => {
       const real = list
-        .filter((g) => String(g.id).startsWith('srv') && g.joined !== 'member')
+        .filter((g) => String(g.id).startsWith("srv") && g.joined !== "member")
         .slice(0, 3)
-        .map((g) => ({ id: String(g.id), name: g.name, avatar: g.avatar ?? '🕌', members: (g.memberCount ?? 0) as number | string, cat: g.cat as string }));
+        .map((g) => ({
+          id: String(g.id),
+          name: g.name,
+          avatar: g.avatar ?? "🕌",
+          members: (g.memberCount ?? 0) as number | string,
+          cat: g.cat as string,
+        }));
       setPicks(real);
     });
   }, []);
   return (
-    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: dash.faint }}>SUGGESTED GROUPS FOR YOU</T>
-        <Pressable onPress={() => { haptic.selection(); router.push('/tools/suggestions'); }} hitSlop={8}>
-          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
+    <View
+      style={{
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: dash.cardBorder,
+        backgroundColor: dash.card,
+        padding: 13,
+        marginTop: 10,
+        marginBottom: 2,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <T
+          v="caption"
+          style={{
+            fontWeight: "800",
+            fontSize: 10,
+            letterSpacing: 0.6,
+            color: dash.faint,
+          }}
+        >
+          SUGGESTED GROUPS FOR YOU
+        </T>
+        <Pressable
+          onPress={() => {
+            haptic.selection();
+            router.push("/tools/suggestions");
+          }}
+          hitSlop={8}
+        >
+          <T
+            v="caption"
+            style={{
+              fontSize: 10,
+              fontWeight: "800",
+              color: isDark ? "#4AE38F" : "#1D6F42",
+            }}
+          >
+            See all
+          </T>
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingRight: 4 }}
+      >
         {picks.map((g) => {
           const on = joined.includes(g.id);
           return (
-            <View key={g.id} style={{ width: 132, borderRadius: 18, backgroundColor: dash.bgSoft, borderWidth: 1, borderColor: dash.cardBorder, padding: 13, alignItems: 'center', gap: 6 }}>
-              <Pressable onPress={() => router.push({ pathname: '/tools/group', params: { id: g.id } } as never)}>
-                <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
-                  <T v="h3" style={{ fontSize: 20 }}>{g.avatar}</T>
+            <View
+              key={g.id}
+              style={{
+                width: 132,
+                borderRadius: 18,
+                backgroundColor: dash.bgSoft,
+                borderWidth: 1,
+                borderColor: dash.cardBorder,
+                padding: 13,
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/tools/group",
+                    params: { id: g.id },
+                  } as never)
+                }
+              >
+                <View
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: 15,
+                    backgroundColor: isDark
+                      ? "rgba(212,175,55,0.12)"
+                      : "rgba(212,175,55,0.1)",
+                    borderWidth: 1,
+                    borderColor: "rgba(212,175,55,0.4)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <T v="h3" style={{ fontSize: 20 }}>
+                    {g.avatar}
+                  </T>
                 </View>
               </Pressable>
-              <T v="caption" numberOfLines={2} style={{ fontWeight: '800', fontSize: 10.5, color: dash.text, textAlign: 'center', minHeight: 26 }}>
+              <T
+                v="caption"
+                numberOfLines={2}
+                style={{
+                  fontWeight: "800",
+                  fontSize: 10.5,
+                  color: dash.text,
+                  textAlign: "center",
+                  minHeight: 26,
+                }}
+              >
                 {g.name}
               </T>
-              <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, color: dash.faint, marginTop: -2 }}>
+              <T
+                v="caption"
+                numberOfLines={1}
+                style={{ fontSize: 8.5, color: dash.faint, marginTop: -2 }}
+              >
                 {g.members} members · {g.cat}
               </T>
               <Pressable
-                onPress={() => { haptic.light(); setJoined((f) => (on ? f.filter((x) => x !== g.id) : [...f, g.id])); }}
-                style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: on ? dash.cardBorder : 'transparent', backgroundColor: on ? 'transparent' : '#1F8F5C', marginTop: 2 }}
+                onPress={() => {
+                  haptic.light();
+                  setJoined((f) =>
+                    on ? f.filter((x) => x !== g.id) : [...f, g.id],
+                  );
+                }}
+                style={{
+                  borderRadius: 999,
+                  paddingHorizontal: 16,
+                  paddingVertical: 6,
+                  borderWidth: 1,
+                  borderColor: on ? dash.cardBorder : "transparent",
+                  backgroundColor: on ? "transparent" : "#1F8F5C",
+                  marginTop: 2,
+                }}
               >
-                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: on ? dash.subtext : '#FFFFFF' }}>
-                  {on ? 'Joined' : 'Join'}
+                <T
+                  v="caption"
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: "800",
+                    color: on ? dash.subtext : "#FFFFFF",
+                  }}
+                >
+                  {on ? "Joined" : "Join"}
                 </T>
               </Pressable>
             </View>
@@ -1395,7 +2471,8 @@ function GroupsSuggestStrip({ dash }: { dash: any }) {
   );
 }
 
-const TRENDING: Array<{ tag: string; posts: string }> = []; /* pass 83-38 — no fabricated trends */
+const TRENDING: Array<{ tag: string; posts: string }> =
+  []; /* pass 83-38 — no fabricated trends */
 
 /* Suggested accounts card — interleaved into the community feed (pass 22). */
 function SuggestStrip({ dash }: { dash: any }) {
@@ -1403,42 +2480,166 @@ function SuggestStrip({ dash }: { dash: any }) {
   const router = useRouter();
   const [followed, setFollowed] = useState<string[]>([]);
   /* pass 83-38 — real suggestion list from the server (was demo accounts) */
-  const [picks, setPicks] = useState<Array<{ username: string; full_name: string; photo?: string | number | null; fields?: string | null }>>([]);
+  const [picks, setPicks] = useState<
+    Array<{
+      username: string;
+      full_name: string;
+      photo?: string | number | null;
+      fields?: string | null;
+    }>
+  >([]);
   useEffect(() => {
-    api.getConnections('suggestions').then((r) => {
-      setPicks((r?.items ?? []).filter((it) => !it.is_me).slice(0, 3).map((it) => ({ username: it.username, full_name: it.name || it.username, photo: it.profile_image_url ?? null, fields: null })));
-    }).catch(() => {});
+    api
+      .getConnections("suggestions")
+      .then((r) => {
+        setPicks(
+          (r?.items ?? [])
+            .filter((it) => !it.is_me)
+            .slice(0, 3)
+            .map((it) => ({
+              username: it.username,
+              full_name: it.name || it.username,
+              photo: it.profile_image_url ?? null,
+              fields: null,
+            })),
+        );
+      })
+      .catch(() => {});
   }, []);
   return (
-    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: dash.cardBorder, backgroundColor: dash.card, padding: 13, marginTop: 10, marginBottom: 2 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <T v="caption" style={{ fontWeight: '800', fontSize: 10, letterSpacing: 0.6, color: dash.faint }}>SUGGESTED FOR YOU</T>
-        <Pressable onPress={() => { haptic.selection(); router.push('/tools/suggestions'); }} hitSlop={8}>
-          <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>See all</T>
+    <View
+      style={{
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: dash.cardBorder,
+        backgroundColor: dash.card,
+        padding: 13,
+        marginTop: 10,
+        marginBottom: 2,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <T
+          v="caption"
+          style={{
+            fontWeight: "800",
+            fontSize: 10,
+            letterSpacing: 0.6,
+            color: dash.faint,
+          }}
+        >
+          SUGGESTED FOR YOU
+        </T>
+        <Pressable
+          onPress={() => {
+            haptic.selection();
+            router.push("/tools/suggestions");
+          }}
+          hitSlop={8}
+        >
+          <T
+            v="caption"
+            style={{
+              fontSize: 10,
+              fontWeight: "800",
+              color: isDark ? "#4AE38F" : "#1D6F42",
+            }}
+          >
+            See all
+          </T>
         </Pressable>
       </View>
       {/* same card design as the home screen's Accounts to Follow */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingRight: 4 }}
+      >
         {picks.map((a) => (
-          <View key={a.username} style={{ width: 122, borderRadius: 18, backgroundColor: dash.card, borderWidth: 1, borderColor: dash.cardBorder, padding: 14, alignItems: 'center', gap: 7 }}>
+          <View
+            key={a.username}
+            style={{
+              width: 122,
+              borderRadius: 18,
+              backgroundColor: dash.card,
+              borderWidth: 1,
+              borderColor: dash.cardBorder,
+              padding: 14,
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
             <Pressable onPress={() => router.push(`/profile/${a.username}`)}>
-              <AvatarImage source={a.photo ?? null} name={a.full_name} size={44} tint={dash.bgSoft} border={dash.cardBorder} />
+              <AvatarImage
+                source={a.photo ?? null}
+                name={a.full_name}
+                size={44}
+                tint={dash.bgSoft}
+                border={dash.cardBorder}
+              />
             </Pressable>
-            <T v="caption" numberOfLines={1} style={{ fontWeight: '800', fontSize: 11, color: dash.text, textAlign: 'center' }}>
-              {a.full_name.split(' ').slice(0, 2).join(' ')}
+            <T
+              v="caption"
+              numberOfLines={1}
+              style={{
+                fontWeight: "800",
+                fontSize: 11,
+                color: dash.text,
+                textAlign: "center",
+              }}
+            >
+              {a.full_name.split(" ").slice(0, 2).join(" ")}
             </T>
             {a.fields ? (
-              <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, color: dash.faint, marginTop: -3 }}>{a.fields}</T>
+              <T
+                v="caption"
+                numberOfLines={1}
+                style={{ fontSize: 8.5, color: dash.faint, marginTop: -3 }}
+              >
+                {a.fields}
+              </T>
             ) : null}
             <Pressable
               onPress={() => {
                 haptic.light();
-                setFollowed((f) => (f.includes(a.username) ? f.filter((x) => x !== a.username) : [...f, a.username]));
+                setFollowed((f) =>
+                  f.includes(a.username)
+                    ? f.filter((x) => x !== a.username)
+                    : [...f, a.username],
+                );
               }}
-              style={{ borderRadius: 999, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: followed.includes(a.username) ? dash.cardBorder : 'transparent', backgroundColor: followed.includes(a.username) ? 'transparent' : '#1F8F5C', marginTop: 2 }}
+              style={{
+                borderRadius: 999,
+                paddingHorizontal: 16,
+                paddingVertical: 6,
+                borderWidth: 1,
+                borderColor: followed.includes(a.username)
+                  ? dash.cardBorder
+                  : "transparent",
+                backgroundColor: followed.includes(a.username)
+                  ? "transparent"
+                  : "#1F8F5C",
+                marginTop: 2,
+              }}
             >
-              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: followed.includes(a.username) ? dash.subtext : '#FFFFFF' }}>
-                {followed.includes(a.username) ? 'Following' : 'Follow'}
+              <T
+                v="caption"
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: "800",
+                  color: followed.includes(a.username)
+                    ? dash.subtext
+                    : "#FFFFFF",
+                }}
+              >
+                {followed.includes(a.username) ? "Following" : "Follow"}
               </T>
             </Pressable>
           </View>

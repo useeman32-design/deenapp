@@ -30,6 +30,7 @@ import { QURAN } from '@/data/quran';
 import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
 import { guestBlock, useIsGuest } from '@/lib/guest';
+import { emitPostDeleted, onPostChanged, onPostDeleted } from '@/lib/postEvents';
 import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
@@ -218,6 +219,7 @@ function HomeInner() {
     });
   };
   const [posts, setPosts] = useState<Post[]>([]);
+  useEffect(() => { const offD = onPostDeleted((id) => setPosts((ps) => ps.filter((p) => p.id !== id))); const offC = onPostChanged(() => {}); return () => { offD(); offC(); }; }, []);
   const [followed, setFollowed] = useState<number[]>([]);
   const [dhOpen, setDhOpen] = useState<'ayah' | 'hadith' | null>(null);
   /* dailyAyah / dailyHadith are universal constants for the day (lib/daily) */
@@ -324,7 +326,7 @@ function HomeInner() {
     return `${p(Math.floor(s / 3600))}h ${p(Math.floor((s % 3600) / 60))}m ${p(s % 60)}s remaining`;
   }, [now, np]);
 
-  const firstName = (user?.full_name as string | undefined)?.split(/\s+/)[0] ?? 'Abdulrahman';
+  const firstName = (user?.full_name as string | undefined)?.split(/\s+/)[0] ?? 'Guest';
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -948,7 +950,7 @@ function HomeInner() {
                 /* pass 83-35 — owner: own posts must be deletable on HOME too */
                 onDelete={(p.user?.id != null && user?.id != null && String(p.user.id) === String(user.id)) || (p.user?.username && user?.username && p.user.username === user.username) ? () => {
                   void api.deletePost(p.id).then((ok) => {
-                    if (ok) { setPosts((ps: typeof posts) => ps.filter((x) => x.id !== p.id)); }
+                    if (ok) { emitPostDeleted(p.id); setPosts((ps: typeof posts) => ps.filter((x) => x.id !== p.id)); }
                     else { Alert.alert('Could not delete', 'Please try again in a moment.'); }
                   });
                 } : undefined}

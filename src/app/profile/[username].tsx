@@ -35,7 +35,9 @@ type ProfileTab = 'posts' | 'questions' | 'videos';
  * and Posts / Questions (scholars) / About tabs.
  */
 function PublicProfileScreenInner() {
-  const { username = '', tab: initialTab } = useLocalSearchParams<{ username: string; tab?: string }>();
+  const params = useLocalSearchParams<{ username?: string | string[]; tab?: string | string[] }>();
+  const username = (Array.isArray(params.username) ? params.username[0] : params.username ?? '').replace(/^@/, '').trim();
+  const initialTab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const d = theme.dash;

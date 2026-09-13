@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { FeedSkeleton, LoadError } from '@/components/Skeletons';
-import { useTheme } from '@/context/ThemeContext';
-import { T } from '@/components/T';
-import { FeedCard } from '@/components/FeedCard';
-import { CommentsModal } from '@/components/CommentsModal';
-import { goBack } from '@/lib/navigation';
-import { haptic } from '@/lib/haptics';
-import * as api from '@/api/client';
-import type { Post } from '@/api/types';
-import { useIsGuest } from '@/lib/guest';
-import { LoginRequired } from '@/components/LoginRequired';
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { FeedSkeleton, LoadError } from "@/components/Skeletons";
+import { useTheme } from "@/context/ThemeContext";
+import { T } from "@/components/T";
+import { FeedCard } from "@/components/FeedCard";
+import { CommentsModal } from "@/components/CommentsModal";
+import { goBack } from "@/lib/navigation";
+import { haptic } from "@/lib/haptics";
+import * as api from "@/api/client";
+import type { Post } from "@/api/types";
+import { useIsGuest } from "@/lib/guest";
+import { LoginRequired } from "@/components/LoginRequired";
 
 /**
  * pass 67 — single-post viewer (Search → tap a post, hashtag screen → tap).
@@ -25,7 +25,11 @@ function PostScreenInner() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, comment } = useLocalSearchParams<{
+    id?: string;
+    comment?: string;
+  }>();
+  const commentId = Number(comment);
   const pid = Number(id);
 
   const [post, setPost] = useState<Post | null>(null);
@@ -35,13 +39,23 @@ function PostScreenInner() {
   const [commentsOpen, setCommentsOpen] = useState(false);
 
   useEffect(() => {
-    if (!Number.isFinite(pid) || pid <= 0) { setMissed(true); return; }
+    if (!Number.isFinite(pid) || pid <= 0) {
+      setMissed(true);
+      return;
+    }
     /* pass 83-38 — the server is the only source; a missing post is "missed" */
-    api.feed('for-you').then((r) => {
-      const p = (r.posts ?? []).find((x) => x.id === pid);
-      if (p) { setPost(p); setLiked(!!p.liked_by_me); } else setMissed(true);
-    }).catch(() => setMissed(true));
-  }, [pid]);
+    api
+      .feed("for-you")
+      .then((r) => {
+        const p = (r.posts ?? []).find((x) => x.id === pid);
+        if (p) {
+          setPost(p);
+          setLiked(!!p.liked_by_me);
+          if (commentId > 0) setCommentsOpen(true);
+        } else setMissed(true);
+      })
+      .catch(() => setMissed(true));
+  }, [pid, commentId]);
 
   const toggleLike = () => {
     if (!post) return;
@@ -53,28 +67,78 @@ function PostScreenInner() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Pressable onPress={() => goBack(router)} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesome5 name="chevron-left" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+      <View
+        style={{
+          paddingTop: insets.top + 10,
+          paddingHorizontal: 16,
+          paddingBottom: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <Pressable
+          onPress={() => goBack(router)}
+          hitSlop={10}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: d.card,
+            borderWidth: 1,
+            borderColor: d.cardBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <FontAwesome5
+            name="chevron-left"
+            size={13}
+            color={isDark ? "#4AE38F" : "#1D6F42"}
+          />
         </Pressable>
-        <T v="h2" style={{ fontWeight: '800', fontSize: 17, color: d.text }}>Post</T>
+        <T v="h2" style={{ fontWeight: "800", fontSize: 17, color: d.text }}>
+          Post
+        </T>
       </View>
 
       {!post && !missed ? (
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* pass 83-26 — the post shape breathes while it loads (owner: "be like instagram") */}
           <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={1} />
         </ScrollView>
       ) : null}
       {missed ? (
-        <LoadError message="Couldn't load this post — it may have been deleted." onBack={() => goBack(router)} faint={d.faint} subtext={d.subtext} text={d.text} cardBorder={d.cardBorder} emerald={d.emerald} darkText={isDark ? '#062312' : '#fff'} />
+        <LoadError
+          message="Couldn't load this post — it may have been deleted."
+          onBack={() => goBack(router)}
+          faint={d.faint}
+          subtext={d.subtext}
+          text={d.text}
+          cardBorder={d.cardBorder}
+          emerald={d.emerald}
+          darkText={isDark ? "#062312" : "#fff"}
+        />
       ) : null}
 
       {post ? (
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
           <FeedCard
-            post={{ ...post, liked_by_me: liked, like_count: Math.max(0, (post.like_count ?? 0) + likeAdj) }}
-            onLike={() => { haptic.light(); toggleLike(); }}
+            post={{
+              ...post,
+              liked_by_me: liked,
+              like_count: Math.max(0, (post.like_count ?? 0) + likeAdj),
+            }}
+            onLike={() => {
+              haptic.light();
+              toggleLike();
+            }}
             onComments={() => setCommentsOpen(true)}
           />
         </ScrollView>
@@ -86,6 +150,7 @@ function PostScreenInner() {
         seed={[]}
         postId={post?.id ?? null}
         onClose={() => setCommentsOpen(false)}
+        highlightCommentId={commentId > 0 ? commentId : null}
       />
     </View>
   );

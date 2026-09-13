@@ -6,20 +6,25 @@
  * - Dynamic height: long arabic / moderate meaning extend the card so text
  *   never clips; the bottom (QR) block stays anchored at the footer.
  */
-import { Platform } from 'react-native';
-import { create as createQR } from 'qrcode';
+import { Platform } from "react-native";
+import { create as createQR } from "qrcode";
 
-const appIcon = require('../../assets/images/icon.png');
-const bgEmerald = require('../../assets/img/share-emerald.jpg');
-const bgMidnight = require('../../assets/img/share-midnight.jpg');
-const bgCream = require('../../assets/img/share-cream.jpg');
+const appIcon = require("../../assets/images/icon.png");
+const bgEmerald = require("../../assets/img/share-emerald.jpg");
+const bgMidnight = require("../../assets/img/share-midnight.jpg");
+const bgCream = require("../../assets/img/share-cream.jpg");
 
 export interface ShareCardInput {
-  kind: 'ayah' | 'hadith' | 'dua' | 'athkar' | 'post';
+  kind: "ayah" | "hadith" | "dua" | "athkar" | "post";
   /** optional — posts have no arabic line */
   arabic?: string;
   meaning: string;
   ref: string;
+  authorName?: string;
+  username?: string;
+  time?: string;
+  likes?: number;
+  comments?: number;
 }
 
 export interface ShareDesign {
@@ -30,24 +35,24 @@ export interface ShareDesign {
 }
 
 export const SHARE_DESIGNS: ShareDesign[] = [
-  { id: 'classic', name: 'Classic', src: null, dark: true },
-  { id: 'emerald', name: 'Emerald', src: bgEmerald, dark: true },
-  { id: 'midnight', name: 'Midnight', src: bgMidnight, dark: true },
-  { id: 'cream', name: 'Cream', src: bgCream, dark: false },
+  { id: "classic", name: "Classic", src: null, dark: true },
+  { id: "emerald", name: "Emerald", src: bgEmerald, dark: true },
+  { id: "midnight", name: "Midnight", src: bgMidnight, dark: true },
+  { id: "cream", name: "Cream", src: bgCream, dark: false },
 ];
 
 const W = 1080;
 const H_MIN = 1350;
-const GOLD = '#D4AF37';
-const GOLD_SOFT = 'rgba(212,175,55,0.4)';
-const BG = '#0B0F0D';
-const WHITE = '#F5F8F5';
-const DARK_TEXT = '#15251C';
-const DARK_SUB = 'rgba(21,37,28,0.72)';
-const DARK_GOLD = '#8C6D1F';
+const GOLD = "#D4AF37";
+const GOLD_SOFT = "rgba(212,175,55,0.4)";
+const BG = "#0B0F0D";
+const WHITE = "#F5F8F5";
+const DARK_TEXT = "#15251C";
+const DARK_SUB = "rgba(21,37,28,0.72)";
+const DARK_GOLD = "#8C6D1F";
 
 function isWeb() {
-  return Platform.OS === 'web' && typeof document !== 'undefined';
+  return Platform.OS === "web" && typeof document !== "undefined";
 }
 
 function rr(ctx: any, x: number, y: number, w: number, h: number, r: number) {
@@ -63,7 +68,7 @@ function rr(ctx: any, x: number, y: number, w: number, h: number, r: number) {
 function wrapText(ctx: any, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
-  let line = '';
+  let line = "";
   for (const w of words) {
     const t = line ? `${line} ${w}` : w;
     if (ctx.measureText(t).width > maxWidth && line) {
@@ -90,10 +95,13 @@ function eightStar(ctx: any, cx: number, cy: number, r: number) {
   ctx.closePath();
 }
 
-function loadImage(doc: any, src: number | string): Promise<HTMLImageElement | null> {
+function loadImage(
+  doc: any,
+  src: number | string,
+): Promise<HTMLImageElement | null> {
   return new Promise((res) => {
     try {
-      const url = typeof src === 'number' ? (src as any)?.uri : src;
+      const url = typeof src === "number" ? (src as any)?.uri : src;
       if (!url) return res(null);
       const img = new doc.defaultView.Image();
       img.src = url;
@@ -108,26 +116,30 @@ function loadImage(doc: any, src: number | string): Promise<HTMLImageElement | n
 }
 
 /** Draws the whole card and returns a PNG data URL. Web only. */
-export async function generateShareCard(input: ShareCardInput, designId = 'classic'): Promise<string> {
-  if (!isWeb()) throw new Error('share card is web-only');
+export async function generateShareCard(
+  input: ShareCardInput,
+  designId = "classic",
+): Promise<string> {
+  if (!isWeb()) throw new Error("share card is web-only");
   const doc = document as any;
-  const design = SHARE_DESIGNS.find((dd) => dd.id === designId) ?? SHARE_DESIGNS[0];
+  const design =
+    SHARE_DESIGNS.find((dd) => dd.id === designId) ?? SHARE_DESIGNS[0];
 
   // make sure the app fonts are ready for canvas
   try {
-    await doc.fonts.load('700 60px "Poppins-ExtraBold"', 'A');
-    await doc.fonts.load('700 60px "Poppins-Bold"', 'A');
-    await doc.fonts.load('500 40px "Poppins-Medium"', 'A');
-    await doc.fonts.load('400 40px "Poppins-Regular"', 'A');
-    await doc.fonts.load('700 90px "Amiri-Bold"', 'A');
-    await doc.fonts.load('400 90px "Amiri-Regular"', 'A');
+    await doc.fonts.load('700 60px "Poppins-ExtraBold"', "A");
+    await doc.fonts.load('700 60px "Poppins-Bold"', "A");
+    await doc.fonts.load('500 40px "Poppins-Medium"', "A");
+    await doc.fonts.load('400 40px "Poppins-Regular"', "A");
+    await doc.fonts.load('700 90px "Amiri-Bold"', "A");
+    await doc.fonts.load('400 90px "Amiri-Regular"', "A");
     await doc.fonts.ready;
   } catch {}
 
-  const canvas = doc.createElement('canvas');
+  const canvas = doc.createElement("canvas");
   canvas.width = W;
   canvas.height = H_MIN;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
 
   /* measure text first → dynamic height for long content.
    * pass 22: LONG texts auto-shrink (in steps) so they always fit nicely —
@@ -141,8 +153,8 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   if (hasArabic) {
     for (const size of [92, 82, 72, 64, 56]) {
       ctx.font = `700 ${size}px "Amiri-Bold"`;
-      ctx.direction = 'rtl';
-      arLines = wrapText(ctx, input.arabic ?? '', W - 320);
+      ctx.direction = "rtl";
+      arLines = wrapText(ctx, input.arabic ?? "", W - 320);
       if (arLines.length <= MAX_A_LINES) {
         arFs = size;
         arLineH = Math.round(size * 1.42);
@@ -152,10 +164,10 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
         arFs = size;
         arLineH = Math.round(size * 1.42);
         arLines = arLines.slice(0, MAX_A_LINES);
-        arLines[MAX_A_LINES - 1] = arLines[MAX_A_LINES - 1].trim() + '…';
+        arLines[MAX_A_LINES - 1] = arLines[MAX_A_LINES - 1].trim() + "…";
       }
     }
-    ctx.direction = 'ltr';
+    ctx.direction = "ltr";
   }
   let mFs = 44;
   let mLineH = 62;
@@ -172,21 +184,23 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
       mFs = size;
       mLineH = Math.round(size * 1.42);
       mLines = mLines.slice(0, MAX_M_LINES);
-      mLines[MAX_M_LINES - 1] = mLines[MAX_M_LINES - 1].trim() + '…';
+      mLines[MAX_M_LINES - 1] = mLines[MAX_M_LINES - 1].trim() + "…";
     }
   }
 
   const aStart = 620;
-  const afterArabic = hasArabic ? aStart + (arLines.length - 1) * arLineH + 60 : aStart - 90;
+  const afterArabic = hasArabic
+    ? aStart + (arLines.length - 1) * arLineH + 60
+    : aStart - 90;
   const afterMeaning = afterArabic + 90 + (mLines.length - 1) * mLineH + 70;
   const footerTop = afterMeaning + 90;
   const H = Math.max(H_MIN, footerTop + 216 + 120);
   canvas.height = H;
 
   const ink = design.dark ? WHITE : DARK_TEXT;
-  const inkSub = design.dark ? 'rgba(245,248,245,0.82)' : DARK_SUB;
+  const inkSub = design.dark ? "rgba(245,248,245,0.82)" : DARK_SUB;
   const inkGold = design.dark ? GOLD : DARK_GOLD;
-  const frameGold = design.dark ? GOLD : 'rgba(140,109,31,0.8)';
+  const frameGold = design.dark ? GOLD : "rgba(140,109,31,0.8)";
 
   /* background: design image (cover) or classic vector gradient */
   if (design.src != null) {
@@ -203,13 +217,13 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
     // readability scrim (darker for dark designs, lighter for cream)
     const scrim = ctx.createLinearGradient(0, 0, 0, H);
     if (design.dark) {
-      scrim.addColorStop(0, 'rgba(0,0,0,0.34)');
-      scrim.addColorStop(0.4, 'rgba(0,0,0,0.12)');
-      scrim.addColorStop(1, 'rgba(0,0,0,0.30)');
+      scrim.addColorStop(0, "rgba(0,0,0,0.34)");
+      scrim.addColorStop(0.4, "rgba(0,0,0,0.12)");
+      scrim.addColorStop(1, "rgba(0,0,0,0.30)");
     } else {
-      scrim.addColorStop(0, 'rgba(255,255,255,0.24)');
-      scrim.addColorStop(0.45, 'rgba(255,255,255,0.05)');
-      scrim.addColorStop(1, 'rgba(255,255,255,0.22)');
+      scrim.addColorStop(0, "rgba(255,255,255,0.24)");
+      scrim.addColorStop(0.45, "rgba(255,255,255,0.05)");
+      scrim.addColorStop(1, "rgba(255,255,255,0.22)");
     }
     ctx.fillStyle = scrim;
     ctx.fillRect(0, 0, W, H);
@@ -217,9 +231,9 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
     const glow = ctx.createRadialGradient(W / 2, 220, 60, W / 2, 220, 720);
-    glow.addColorStop(0, 'rgba(212,175,55,0.16)');
-    glow.addColorStop(0.45, 'rgba(20,60,40,0.18)');
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    glow.addColorStop(0, "rgba(212,175,55,0.16)");
+    glow.addColorStop(0.45, "rgba(20,60,40,0.18)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
   }
@@ -229,13 +243,13 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   ctx.lineWidth = 3;
   rr(ctx, 30, 30, W - 60, H - 60, 26);
   ctx.stroke();
-  ctx.strokeStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.35)';
+  ctx.strokeStyle = design.dark ? GOLD_SOFT : "rgba(140,109,31,0.35)";
   ctx.lineWidth = 1;
   rr(ctx, 46, 46, W - 92, H - 92, 18);
   ctx.stroke();
 
   /* corner stars */
-  ctx.fillStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.4)';
+  ctx.fillStyle = design.dark ? GOLD_SOFT : "rgba(140,109,31,0.4)";
   for (const [cx, cy] of [
     [46, 46],
     [W - 46, 46],
@@ -260,28 +274,34 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   }
 
   /* wordmark */
-  ctx.textAlign = 'center';
+  ctx.textAlign = "center";
   ctx.fillStyle = ink;
   ctx.font = '700 58px "Poppins-ExtraBold"';
-  (ctx as any).letterSpacing = '10px';
-  ctx.fillText('DEENLINK', W / 2, wordmarkY);
-  (ctx as any).letterSpacing = '4px';
+  (ctx as any).letterSpacing = "10px";
+  ctx.fillText("DEENLINK", W / 2, wordmarkY);
+  (ctx as any).letterSpacing = "4px";
   ctx.fillStyle = inkGold;
   ctx.font = '500 26px "Poppins-Medium"';
-  ctx.fillText('deenlink.org', W / 2, wordmarkY + 42);
-  (ctx as any).letterSpacing = '0px';
+  ctx.fillText("deenlink.org", W / 2, wordmarkY + 42);
+  (ctx as any).letterSpacing = "0px";
 
   /* eyebrow */
   const eyY = wordmarkY + 140;
   ctx.fillStyle = inkGold;
   ctx.font = '700 30px "Poppins-Bold"';
-  (ctx as any).letterSpacing = '9px';
-  const LABELS: Record<ShareCardInput['kind'], string> = { ayah: 'QUR’AN', hadith: 'HADITH', dua: 'DUA', athkar: 'DHIKR', post: 'COMMUNITY' };
+  (ctx as any).letterSpacing = "9px";
+  const LABELS: Record<ShareCardInput["kind"], string> = {
+    ayah: "QUR’AN",
+    hadith: "HADITH",
+    dua: "DUA",
+    athkar: "DHIKR",
+    post: "COMMUNITY",
+  };
   const label = LABELS[input.kind];
   ctx.fillText(label, W / 2, eyY);
-  (ctx as any).letterSpacing = '0px';
+  (ctx as any).letterSpacing = "0px";
   const lw = ctx.measureText(label).width / 2;
-  ctx.strokeStyle = design.dark ? GOLD_SOFT : 'rgba(140,109,31,0.45)';
+  ctx.strokeStyle = design.dark ? GOLD_SOFT : "rgba(140,109,31,0.45)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(W / 2 - lw - 90, eyY - 10);
@@ -294,9 +314,9 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   if (hasArabic) {
     ctx.fillStyle = ink;
     ctx.font = `700 ${arFs}px "Amiri-Bold"`;
-    ctx.direction = 'rtl';
+    ctx.direction = "rtl";
     arLines.forEach((ln, i) => ctx.fillText(ln, W / 2, aStart + i * arLineH));
-    ctx.direction = 'ltr';
+    ctx.direction = "ltr";
   }
 
   /* divider */
@@ -314,7 +334,9 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   /* meaning */
   ctx.fillStyle = inkSub;
   ctx.font = `400 ${mFs}px "Poppins-Regular"`;
-  mLines.forEach((ln, i) => ctx.fillText(ln, W / 2, afterArabic + 90 + i * mLineH));
+  mLines.forEach((ln, i) =>
+    ctx.fillText(ln, W / 2, afterArabic + 90 + i * mLineH),
+  );
 
   /* ref */
   ctx.fillStyle = inkGold;
@@ -325,44 +347,54 @@ export async function generateShareCard(input: ShareCardInput, designId = 'class
   const boxS = 216;
   const bx = W - 120 - boxS;
   const by = H - 120 - boxS;
-  ctx.fillStyle = design.dark ? '#FFFFFF' : '#FFFFFF';
+  ctx.fillStyle = design.dark ? "#FFFFFF" : "#FFFFFF";
   rr(ctx, bx, by, boxS, boxS, 22);
   ctx.fill();
   try {
-    const qr = createQR('https://deenlink.org', { errorCorrectionLevel: 'M', margin: 1 });
+    const qr = createQR("https://deenlink.org", {
+      errorCorrectionLevel: "M",
+      margin: 1,
+    });
     const size = qr.modules.size;
     const cell = Math.floor((boxS - 36) / size);
     const off = (boxS - cell * size) / 2;
-    ctx.fillStyle = design.dark ? BG : '#FFFFFF';
+    ctx.fillStyle = design.dark ? BG : "#FFFFFF";
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         if (qr.modules.get(x, y)) {
-          ctx.fillRect(bx + off + x * cell, by + off + y * cell, cell - 0.5, cell - 0.5);
+          ctx.fillRect(
+            bx + off + x * cell,
+            by + off + y * cell,
+            cell - 0.5,
+            cell - 0.5,
+          );
         }
       }
     }
   } catch {}
 
-  ctx.textAlign = 'right';
+  ctx.textAlign = "right";
   ctx.fillStyle = ink;
   ctx.font = '700 34px "Poppins-Bold"';
-  ctx.fillText('Scan to explore', bx - 40, by + boxS / 2 - 14);
+  ctx.fillText("Scan to explore", bx - 40, by + boxS / 2 - 14);
   ctx.fillStyle = inkSub;
   ctx.font = '400 30px "Poppins-Regular"';
-  ctx.fillText('the DeenLink app', bx - 40, by + boxS / 2 + 34);
-  ctx.textAlign = 'center';
+  ctx.fillText("the DeenLink app", bx - 40, by + boxS / 2 + 34);
+  ctx.textAlign = "center";
 
   /* pass 21: return a BLOB url — multi-MB data: URLs fail to render on
    * mobile Safari/Chrome; blob: previews everywhere and shares as a File */
-  const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b: Blob | null) => res(b), 'image/png'));
+  const blob = await new Promise<Blob | null>((res) =>
+    canvas.toBlob((b: Blob | null) => res(b), "image/png"),
+  );
   if (blob) return URL.createObjectURL(blob);
-  return canvas.toDataURL('image/png');
+  return canvas.toDataURL("image/png");
 }
 
 export function downloadDataUrl(dataUrl: string, filename: string) {
   if (!isWeb()) return;
   const doc = document as any;
-  const a = doc.createElement('a');
+  const a = doc.createElement("a");
   a.href = dataUrl;
   a.download = filename;
   doc.body.appendChild(a);
@@ -371,19 +403,23 @@ export function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 /** Tries Web Share (with the image file on mobile), falls back to download. */
-export async function shareOrSaveCard(dataUrl: string, filename: string, textMessage: string): Promise<'shared' | 'saved'> {
-  if (!isWeb()) return 'saved';
+export async function shareOrSaveCard(
+  dataUrl: string,
+  filename: string,
+  textMessage: string,
+): Promise<"shared" | "saved"> {
+  if (!isWeb()) return "saved";
   const nav = (globalThis as any).navigator;
   try {
     if (nav?.canShare) {
       const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], filename, { type: 'image/png' });
+      const file = new File([blob], filename, { type: "image/png" });
       if (nav.canShare({ files: [file] })) {
         await nav.share({ files: [file], text: textMessage });
-        return 'shared';
+        return "shared";
       }
     }
   } catch {}
   downloadDataUrl(dataUrl, filename);
-  return 'saved';
+  return "saved";
 }

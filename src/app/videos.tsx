@@ -1213,7 +1213,7 @@ function VideosFeedInner() {
             onOpenProfile={(u) => {
               /* pass 83-36 — your own reel/profile: no navigation */
               if (meUser && (u === meUser.username || (meUser.username && `@${meUser.username}` === u))) return;
-              router.push(`/profile/${u}?tab=videos` as never);
+              router.push({ pathname: '/profile/[username]', params: { username: String(u), tab: 'videos' } } as never);
             }}
             onMore={(r) => setMoreReel(r)}
           />

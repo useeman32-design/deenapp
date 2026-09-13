@@ -67,6 +67,7 @@ import {
 } from '@/components/Groups';
 import type { Post } from '@/api/types';
 import { useIsGuest } from '@/lib/guest';
+import { emitPostDeleted } from '@/lib/postEvents';
 import { LoginRequired } from '@/components/LoginRequired';
 
 /**
@@ -1157,6 +1158,7 @@ function GroupScreenInner() {
                       onDelete={((sp.user?.id != null && user?.id != null && String(sp.user.id) === String(user.id)) || (sp.user?.username && user?.username && sp.user.username === user.username)) || canManage ? () => {
                         void groupDeletePost(sp.id).then((ok) => {
                           if (ok) {
+                            emitPostDeleted(sp.id);
                             setServerPosts((rows) => (rows ?? []).filter((x) => x.id !== sp.id));
                             setGroup((cur) => (cur ? { ...cur, posts: cur.posts.filter((x) => x.id !== `sp${sp.id}`) } : cur));
                           } else {
