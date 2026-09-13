@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -11,6 +11,8 @@ import { ChevronRightIcon, GraduationCapIcon, StarIcon } from '@/components/Icon
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { useDeenPoints } from '@/components/DeenPoints';
+import * as QRCode from 'qrcode';
+import { SvgXml } from 'react-native-svg';
 import type { ServerCourse } from '@/api/client';
 
 /**
@@ -331,6 +333,8 @@ function CoursePlayer({ course, progress, onToggle, onClose, server, onUnlock, u
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [best, setBest] = useState(0);
+  const [certificate, setCertificate] = useState<Record<string, unknown> | null>(null);
+  const [certificateQr, setCertificateQr] = useState('');
   const quiz = quizFor(course);
   useEffect(() => {
     (async () => {
@@ -350,7 +354,7 @@ function CoursePlayer({ course, progress, onToggle, onClose, server, onUnlock, u
       await storage.setItem('dl.courses.quiz.v1', JSON.stringify(all));
     } catch {}
   };
-  const startQuiz = () => { haptic.selection(); setQuizOn(true); setQi(0); setPick(null); setScore(0); setFinished(false); };
+  const startQuiz = () => { haptic.selection(); setQuizOn(true); setQi(0); setPick(null); setScore(0); setFinished(false); setCertificate(null); setCertificateQr(''); };
   const done = progress.length;
   const pct = Math.round((done / lessons.length) * 100);
   const nextIdx = lessons.findIndex((_, i) => !progress.includes(i));
@@ -385,6 +389,18 @@ function CoursePlayer({ course, progress, onToggle, onClose, server, onUnlock, u
                 </View>
                 <T v="h2" style={{ marginTop: 16, fontWeight: '900' }}>{score === quiz.length ? 'Perfect score!' : score >= quiz.length - 1 ? 'Well done!' : 'Keep studying'}</T>
                 <T v="body" style={{ marginTop: 5, color: theme.subtext, textAlign: 'center' }}>You scored {score} of {quiz.length}{best > score ? ` · your best is ${best}` : score > best ? ' · a new best!' : ''}</T>
+                {certificate ? (
+                  <View style={{ width: '100%', marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', padding: 15, alignItems: 'center' }}>
+                    <Image source={require('../../../assets/img/logo-badge.png')} style={{ width: 48, height: 48, marginBottom: 6 }} resizeMode="contain" />
+                    <T v="caption" style={{ fontWeight: '900', letterSpacing: 1, color: '#B8870B' }}>DEENLINK CERTIFICATE</T>
+                    <T v="bodyS" style={{ fontWeight: '900', fontSize: 15, marginTop: 6 }}>{String(certificate.learner_name ?? 'Learner')}</T>
+                    <T v="caption" style={{ color: theme.subtext, textAlign: 'center', marginTop: 3 }}>completed {String(certificate.course_title ?? course.title)} with {String(certificate.quiz_percent ?? Math.round((score / quiz.length) * 100))}%</T>
+                    {certificateQr ? <SvgXml xml={certificateQr} width={104} height={104} style={{ marginTop: 10 }} /> : null}
+                    <T v="caption" style={{ color: theme.subtext, textAlign: 'center', marginTop: 6 }}>Issued {String(certificate.issued_at ?? new Date().toISOString()).slice(0, 10)}</T>
+                    {certificate.signature_image_url ? <Image source={{ uri: String(certificate.signature_image_url) }} style={{ width: 120, height: 42, marginTop: 8 }} resizeMode="contain" /> : null}
+                    <T v="caption" style={{ color: theme.subtext, textAlign: 'center' }}>{String(certificate.signature_name ?? 'DeenLink')} · {String(certificate.signature_title ?? 'Learning & Development')}</T>
+                  </View>
+                ) : null}
                 <Pressable onPress={startQuiz} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, width: '100%', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: isDark ? '#4AE38F' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>
                   <FontAwesome5 name="redo" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} />
                   <T v="button" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>RETRY QUIZ</T>
@@ -426,7 +442,7 @@ function CoursePlayer({ course, progress, onToggle, onClose, server, onUnlock, u
                     <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 0.5, color: pick === quiz[qi].correct ? (isDark ? '#4AE38F' : '#1D6F42') : '#EF4444' }}>{pick === quiz[qi].correct ? 'CORRECT' : 'NOT QUITE'}</T>
                     <T v="bodyS" style={{ fontSize: 12.5, marginTop: 4, color: theme.text }}>{quiz[qi].why}</T>
                     <Pressable
-                      onPress={() => { haptic.selection(); if (qi + 1 < quiz.length) { setQi(qi + 1); setPick(null); } else { setFinished(true); saveQuiz(score); } }}
+                      onPress={() => { haptic.selection(); if (qi + 1 < quiz.length) { setQi(qi + 1); setPick(null); } else { const finalScore = score + (pick === quiz[qi].correct ? 1 : 0); setScore(finalScore); setFinished(true); saveQuiz(finalScore); if (api.isLive()) { void api.courseQuizComplete(course.id, finalScore, quiz.length).then((res) => { if (res.certificate) { setCertificate(res.certificate); const url = String(res.certificate.verification_url ?? ''); if (url) void QRCode.toString(url, { type: 'svg', margin: 1 }).then(setCertificateQr).catch(() => {}); } else if (!res.passed) Alert.alert('Keep learning', `You scored ${res.percent ?? Math.round((finalScore / quiz.length) * 100)}%. Certificates require at least 80% and completion of every lesson.`); }); } } }}
                       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}
                     >
                       <FontAwesome5 name={qi + 1 < quiz.length ? 'arrow-right' : 'flag-checkered'} size={12} color="#fff" />

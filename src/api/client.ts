@@ -1322,6 +1322,12 @@ export async function courseUnlockPoints(courseId: number): Promise<{ ok: boolea
   return { ok: false, message: r.data.message ?? 'Could not unlock this course' };
 }
 
+export async function courseQuizComplete(courseId: number, score: number, total: number): Promise<{ ok: boolean; passed?: boolean; percent?: number; certificate?: Record<string, unknown> | null; message?: string }> {
+  const r = await request<{ status?: string; passed?: boolean; percent?: number; certificate?: Record<string, unknown> | null; message?: string }>('/api/courses/quiz_complete.php', { method: 'POST', body: { course_id: courseId, score, total }, auth: true });
+  if (r.ok && r.data.status === 'success') return { ok: true, passed: !!r.data.passed, percent: Number(r.data.percent ?? 0), certificate: r.data.certificate ?? null };
+  return { ok: false, message: r.data.message ?? 'Could not save quiz result' };
+}
+
 export async function courseCompleteLesson(courseId: number, lessonId: number): Promise<{ ok: boolean; certificate?: Record<string, unknown> | null; message?: string }> {
   const r = await request<{ status?: string; message?: string; certificate?: Record<string, unknown> | null }>('/api/courses/complete_lesson.php', { method: 'POST', body: { course_id: courseId, lesson_id: lessonId }, auth: true });
   if (r.ok && r.data.status === 'success') return { ok: true, certificate: r.data.certificate ?? null, message: r.data.message };

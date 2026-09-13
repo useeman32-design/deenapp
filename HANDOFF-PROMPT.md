@@ -681,3 +681,5 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 - Native speech recognition is already implemented through `expo-speech-recognition` for dev builds/standalone builds, with browser Web Speech on web and typed fallback in Expo Go; this requires a native build/OTA to verify.
 
 - CommunityInbox always applies the safe-area top inset for both standalone Inbox and modal DM presentations.
+
+- Course certificate implementation: `/api/courses/quiz_complete.php` records attempts; a certificate is issued only after all required lessons and at least 80% on the quiz. Certificate payload now includes quiz score/total/percentage and an absolute QR verification URL. Native `courses.tsx` renders the DeenLink certificate card and QR using the `qrcode` package and configured signature metadata. Admin Course Builder has an `Add 20 starter courses` action that creates/refreshes 20 curated course records with three editable lessons each; admin can then expand or replace content and upload signature/template assets. Group join-request management was already live in `group.tsx` with Accept/Decline and server endpoints.
