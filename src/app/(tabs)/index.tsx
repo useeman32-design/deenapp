@@ -208,13 +208,15 @@ function HomeInner() {
    * no longer use it (they open the videos page via onOpenReels). */
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
   const [videoLiked, setVideoLiked] = useState<Set<number>>(new Set());
-  const toggleVideoLike = (id: number) =>
-    setVideoLiked((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
+  const toggleVideoLike = (id: number) => {
+    const willLike = !videoLiked.has(id);
+    setVideoLiked((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    if (api.isLive()) void api.videosLike(id, willLike).then((result) => {
+      if (!result) return;
+      setVideos((prev) => prev.map((video) => video.id === id ? { ...video, like_count: result.like_count, liked_by_me: result.liked } : video));
+      setVideoOpen((current) => current && current.id === id ? { ...current, like_count: result.like_count, liked_by_me: result.liked } : current);
     });
+  };
   const [posts, setPosts] = useState<Post[]>([]);
   const [followed, setFollowed] = useState<number[]>([]);
   const [dhOpen, setDhOpen] = useState<'ayah' | 'hadith' | null>(null);
@@ -258,13 +260,18 @@ function HomeInner() {
 
   useEffect(() => {
     api.scholars().then(setScholars).catch(() => {});
-    api.videos('daily').then(setVideos).catch(() => {});
     /* pass 83-36 — consume the login-time prefetch (instant), else fetch */
     const pre = api.consumeFeedPrefetch();
     const apply = (r: import('@/api/types').FeedResponse) => setPosts(r.posts ?? []);
     if (pre) pre.then(apply).catch(() => {});
     else api.feed('for-you').then(apply).catch(() => {});
   }, []);
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    api.videos('daily').then((rows) => { if (alive) setVideos(rows); }).catch(() => {});
+    return () => { alive = false; };
+  }, []));
+  useEffect(() => { if (videoOpen && api.isLive()) void api.videosView(videoOpen.id); }, [videoOpen]);
 
   const toggleFollow = (id: number) => {
     if (guestBlock('Sign in to follow people.')) return;
