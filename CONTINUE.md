@@ -1,3 +1,30 @@
+# ══ 2026-09-13 — PASS 83-40 START: SHOP/ADMIN CONTROL AUDIT + FIRST FIXES ══
+# OWNER SCOPE: shop server error, affiliate product control, NGN order display, Quran reciter
+# locking/offline feasibility, fully editable learning/admin modules, cleanup reliability, uniform
+# menus, campaigns/reports/defaults/boost wiring, actor pool, and pagination.
+#
+# AUDIT FINDINGS / FIXES STARTED:
+#  • Shop Management was calling the nonexistent ../api/admin/content/shop.php endpoint. It now
+#    calls the real ../api/admin/shop/products.php endpoint.
+#  • Shop editor now exposes affiliate network (AliExpress/eBay/Jumia/Amazon/other), affiliate URL,
+#    and preserves active state. Decimal prices use parseFloat instead of truncating cents.
+#  • Shop Orders now requests the existing FX quote endpoint for USD→NGN and renders both values.
+#  • Launch Cleanup moved from the dashboard into System Settings → Maintenance Tools. The retry
+#    bug was also fixed: the dashboard read the CSRF response as token/csrf instead of the actual
+#    csrf_token key. The moved purge controls now use the correct token.
+#  • App Defaults now seed editable goal sets and quick defaults only when each key is absent;
+#    existing owner edits are never overwritten.
+#  • User Management now excludes boost actor accounts when the is_actor column exists.
+#
+# VERIFIED STATICALLY: shop/admin order inline JavaScript parses with node --check; target shop
+# endpoint exists; old broken shop endpoint reference is gone. PHP CLI is unavailable in this
+# workspace, so PHP lint remains a deployment/test gate.
+#  • Launch Cleanup is now physically under System Settings → Maintenance Tools, not the dashboard.
+#  • Active Boost orders now have server pagination (20/page) with previous/next controls.
+# NEXT: add pagination consistently to shop/orders/content lists, expand actor seeding, test live
+# DB endpoints, complete course/quiz heading/body editor audit, and wire remaining Quran
+# offline/download and moderation/report gaps before commit/push.
+
 # ══ 2026-09-12 — PASS 83-39 DESIGN-UNIFORMITY: EVERY ADMIN PAGE NOW WEARS THE OWNER'S CANONICAL DESIGN ══
 # deenapp master = 02e3a2e (UNCHANGED — this pass is admin-only) · dlapi main = c00270e.
 # OWNER ACTION: ONE dlapi cPanel pull → hard refresh. Fixes "pages look half done, menu not styled".
