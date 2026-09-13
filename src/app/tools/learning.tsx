@@ -1,11 +1,11 @@
 import { markGoal } from '@/lib/routine';
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useGoalFocus, focusRing, focusKeyFromHref } from '@/lib/useGoalFocus';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { BackButton } from '@/components/BackButton';
@@ -188,20 +188,18 @@ export default function Learning() {
   const [topic, setTopic] = useState<Topic | null>(null);
   /* pass 44 — Learning Hub sections from the admin API; bundled list is the fallback */
   const [liveSections, setLiveSections] = useState<LearningSection[] | null>(null);
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let mounted = true;
     learningSections().then((s) => { if (mounted && s) setLiveSections(s); }).catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, []));
   const quickList = useMemo<Section[]>(() => {
     if (!liveSections) return QUICK;
-    const q = liveSections.filter((s) => s.kind === 'quick').map(toSection);
-    return q.length ? q : QUICK;
+    return liveSections.filter((s) => s.kind === 'quick').map(toSection);
   }, [liveSections]);
   const libraryList = useMemo<Section[]>(() => {
     if (!liveSections) return LIBRARY;
-    const l = liveSections.filter((s) => s.kind === 'library').map(toSection);
-    return l.length ? l : LIBRARY;
+    return liveSections.filter((s) => s.kind === 'library').map(toSection);
   }, [liveSections]);
   /* pass 42 — auto-shuffling discovery banner under QUICK PLAY.
    * pass 44 — three fixes:

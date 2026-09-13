@@ -1686,7 +1686,7 @@ export async function campaigns(): Promise<Campaign[] | null> {
 /** Admin-managed Learning Hub sections; null when offline/empty so the bundled list stays. */
 export async function learningSections(): Promise<LearningSection[] | null> {
   const r = await request<{ status?: string; sections?: LearningSection[] }>('/api/learning/list.php');
-  if (r.ok && Array.isArray(r.data.sections) && r.data.sections.length > 0) return r.data.sections;
+  if (r.ok && Array.isArray(r.data.sections)) return r.data.sections;
   return null;
 }
 
