@@ -188,9 +188,11 @@ function HomeInner() {
   const { add: addPoints } = useDeenPoints();
   /* pass 44 — admin-managed home campaigns (falls back to bundled CAMPAIGNS) */
   const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
-  useEffect(() => {
-    api.campaigns().then((c) => { if (c) setLiveCampaigns(c); }).catch(() => {});
-  }, []);
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    api.campaigns().then((c) => { if (alive && c) setLiveCampaigns(c); }).catch(() => {});
+    return () => { alive = false; };
+  }, []));
   const campaignList = liveCampaigns
     ? liveCampaigns.map((c) => ({
         key: c.key,

@@ -1679,7 +1679,7 @@ export type LearningSection = {
 };
 export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>('/api/campaigns/list.php');
-  if (r.ok && Array.isArray(r.data.campaigns)) return r.data.campaigns;
+  if (r.ok && Array.isArray(r.data.campaigns)) return r.data.campaigns.map((campaign) => ({ ...campaign, imageUrl: campaign.imageUrl ? absMedia(campaign.imageUrl) : campaign.imageUrl }));
   return null;
 }
 

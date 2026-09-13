@@ -664,3 +664,4 @@ wired, settings/blocked-accounts screen, unblock reopens DMs as message requests
 Next per the user: admin dashboard audit → iOS/Android store builds.
 
 #  • First endpoint audit: the native announcement modal is now mounted on Home, and admin push broadcasts are consumed by the notifications inbox.
+#  • Campaign endpoint audit: Home refreshes campaigns on focus, normalizes image URLs, and respects admin empty results.
