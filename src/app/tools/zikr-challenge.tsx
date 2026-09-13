@@ -52,10 +52,13 @@ const KEY = () => `dl.zikr.${DAY()}`;
 
 const GROUPS = ['Morning', 'Evening', 'After Prayer', 'General'] as const;
 const GROUP_LABEL: Record<(typeof GROUPS)[number], string> = {
-  Morning: '🌅 Morning',
-  Evening: '🌇 Evening',
-  'After Prayer': '🕌 After Prayer',
-  General: '📿 General',
+  Morning: 'Morning',
+  Evening: 'Evening',
+  'After Prayer': 'After Prayer',
+  General: 'General',
+};
+const GROUP_ICON: Record<(typeof GROUPS)[number], string> = {
+  Morning: 'sun', Evening: 'moon', 'After Prayer': 'mosque', General: 'book-open',
 };
 const isChallenge = (a: Athar) => a.group === 'Morning' || a.group === 'Evening';
 const isDone = (a: Athar, count: number) => (a.count > 0 ? count >= a.count : count > 0);
@@ -434,7 +437,7 @@ export default function ZikrChallenge() {
             return (
               <View key={g} style={{ marginBottom: 18 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 2 }}>
-                  <T v="bodyS" style={{ fontSize: 14, fontWeight: '800', color: d.text }}>{GROUP_LABEL[g]}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><FontAwesome5 name={GROUP_ICON[g]} size={12} color={theme.primary} /><T v="bodyS" style={{ fontSize: 14, fontWeight: '800', color: d.text }}>{GROUP_LABEL[g]}</T></View>
                   <View style={{ backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
                     <T v="caption" style={{ fontSize: 11, fontWeight: '700', color: d.faint }}>{doneCount}/{items.length}</T>
                   </View>
@@ -510,7 +513,7 @@ export default function ZikrChallenge() {
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: d.cardBorder }} />
             </View>
             {selectedAthkar ? (
-              <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: '100%' }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, alignItems: 'center' }} showsVerticalScrollIndicator={true} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                 <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                   <FontAwesome5 name="book-reader" size={20} color={theme.primary} />
                 </View>
@@ -518,9 +521,9 @@ export default function ZikrChallenge() {
                 <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 4, textAlign: 'center' }}>{selectedAthkar.group} · {selectedAthkar.count === 0 ? 'unlimited' : `${selectedAthkar.count}×`}</T>
 
                 <View style={{ marginTop: 18, borderRadius: 16, backgroundColor: d.bg, borderWidth: 1, borderColor: d.cardBorder, padding: 16, width: '100%', alignItems: 'center' }}>
-                  <T v="arabic" style={{ fontSize: 22, color: d.text, textAlign: 'center', lineHeight: 36 }}>{selectedAthkar.arabic}</T>
+                  <T v="arabic" style={{ width: '100%', flexShrink: 1, fontSize: 22, color: d.text, textAlign: 'center', lineHeight: 36 }}>{selectedAthkar.arabic}</T>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext, marginTop: 10, textAlign: 'center', lineHeight: 18 }}>{selectedAthkar.transliteration}</T>
-                  {selectedAthkar.note ? <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 12, textAlign: 'center', lineHeight: 16 }}>{selectedAthkar.note}</T> : null}
+                  {selectedAthkar.note ? <T v="caption" style={{ width: '100%', flexShrink: 1, fontSize: 11, color: d.faint, marginTop: 12, textAlign: 'center', lineHeight: 16 }}>{selectedAthkar.note}</T> : null}
                 </View>
 
                 {/* centered counter */}

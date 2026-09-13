@@ -21,7 +21,6 @@ import { useBookmarks } from '@/lib/bookmarks';
  * fatwas (see note at the bottom of the screen for how to add one). */
 const SOURCES = [
   { id: 'direct', name: 'Direct Fatwa', bundled: true, note: 'DeenLink Scholars & fatwas from well-known scholars' },
-  { id: 'ask', name: 'Ask a Scholar', bundled: false, note: 'Send your own question to a verified scholar' },
   { id: 'islamqa', name: 'IslamQA.info', bundled: true, note: '1,080+ rulings in-app' },
 ] as const;
 

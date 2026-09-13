@@ -676,3 +676,6 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 - The shared DeenPoints modal accepts `onBalanceChange`; profile and charity pass their live balance sync callback after verified checkout.
 
 - Admin moderation reports now load live on first page open; seeded demo report records were removed. Backend report list/status endpoints remain the source of truth.
+
+- Lost-pass fixes recovered in native: inbox last-message previews, Isha moon hold, 66-bead Tasbeeh with connected head, icon-based Zikr sections, scroll-safe athkar modal, completed fallback adhkar text, removed Ask a Scholar source card, removed charity DeenPoints balance chip, and connected Allow group adding to the existing server privacy endpoint.
+- Native speech recognition is already implemented through `expo-speech-recognition` for dev builds/standalone builds, with browser Web Speech on web and typed fallback in Expo Go; this requires a native build/OTA to verify.

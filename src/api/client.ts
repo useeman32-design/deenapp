@@ -499,6 +499,18 @@ export async function activeAnnouncement(): Promise<{ item: AnnouncementItem | n
   return { item: r.data.announcement ?? null, dismissKey: r.data.dismiss_key ?? '' };
 }
 
+export async function groupPrivacy(): Promise<boolean | null> {
+  const r = await request<{ status?: string; allow_group_add?: number }>('/api/users/group_privacy.php', { auth: true });
+  if (r.ok && typeof r.data.allow_group_add !== 'undefined') return Number(r.data.allow_group_add) !== 0;
+  return null;
+}
+
+export async function setGroupPrivacy(allow: boolean): Promise<boolean | null> {
+  const r = await request<{ status?: string; allow_group_add?: number }>('/api/users/group_privacy.php', { method: 'POST', body: { allow: allow ? 1 : 0 }, auth: true });
+  if (r.ok && typeof r.data.allow_group_add !== 'undefined') return Number(r.data.allow_group_add) !== 0;
+  return null;
+}
+
 export async function groupMembers(groupId: number, action: 'add' | 'remove' | 'set_role', userId: number, role?: 'admin' | 'member'): Promise<{ ok: boolean; message?: string; denial?: { username: string; full_name: string } | null }> {
   const r = await request<{ status?: string; message?: string; role?: string; code?: string; username?: string; full_name?: string }>('/api/groups/members.php', {
     method: 'POST', body: { group_id: groupId, action, user_id: userId, ...(action === 'set_role' && role ? { role } : {}) }, auth: true,

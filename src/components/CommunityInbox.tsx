@@ -769,6 +769,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     const ids: Record<string, number> = {};
     const reqs: Record<string, { convId: number; photo?: string | null; name?: string }> = {};
     const peers: Record<string, { id?: number; name?: string; photo?: string | null }> = {};
+    const previews: Record<string, string> = {};
     const mine = new Set<string>();
     const gone = new Set<string>();
     /* pass 83-21 — who blocked whom, per peer */
@@ -778,6 +779,7 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
       if (!u) { return; }
       if (c.peer_seen) { m[u] = String(c.peer_seen); }
       peers[u] = { id: c.peer?.id, name: c.with_name || undefined, photo: c.with_photo ?? null };
+      if (c.last_body) previews[u] = String(c.last_body);
       flags[u] = { b: !!c.blocked, by: !!c.blocked_by };
       const st = c.conv_status ?? 'active';
       if (st === 'declined') { gone.add(u); return; }
@@ -810,7 +812,12 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
     if (live) {
       setThreads((prev) => {
         const have = new Set(prev.map((t) => t.friend));
-        const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({ friend: u, items: [], chat: [], reactions: {} }));
+        const add: Thread[] = Object.keys(ids).filter((u) => !have.has(u)).map((u) => ({
+          friend: u,
+          items: [],
+          chat: previews[u] ? [{ id: `preview-${u}`, text: previews[u], ago: '', dir: 'them' as const }] : [],
+          reactions: {},
+        }));
         /* pass 83-21 — keep each thread's block flags in sync */
         const next = [...add, ...prev].map((t) => (flags[t.friend] && (t.blocked !== flags[t.friend].b || t.blocked_by !== flags[t.friend].by)
           ? { ...t, blocked: flags[t.friend].b, blocked_by: flags[t.friend].by }
@@ -1641,7 +1648,11 @@ export function CommunityInbox({ visible, onClose, onNavigateAway, standalone = 
                     ) : null}
                   </View>
                   <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>
-                    {t.chat.length ? t.chat[t.chat.length - 1].text : `shared ${t.items.length} item${t.items.length > 1 ? 's' : ''} with you`}
+                    {(() => {
+                      const lastChat = t.chat[t.chat.length - 1];
+                      const lastShare = t.items[t.items.length - 1];
+                      return lastChat?.text || lastShare?.title || 'No messages yet';
+                    })()}
                   </T>
                 </View>
                 {/* pass 83-11 — unread count moved OFF the avatar to the right edge */}

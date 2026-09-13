@@ -25,7 +25,7 @@ import { BackButton } from '@/components/BackButton';
 
 const BG = '#050D09';
 const NEON = '#4AE38F';
-const BEADS = 33;
+const BEADS = 66;
 const NEON_DEEP = '#1F8F5C';
 const GOLD = '#E8C96A';
 const GLASS = 'rgba(255,255,255,0.045)';
@@ -55,7 +55,7 @@ const beadCenter = (i: number, w: number, h: number) => {
   const cy = h * 0.55;
   const r = Math.min(w, h) * 0.335;
   const a = -Math.PI / 2 + (i / BEADS) * Math.PI * 2;
-  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: Math.min(w, h) * 0.0315 };
+  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: Math.min(w, h) * 0.022 };
 };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -320,7 +320,7 @@ export default function Tasbeeh() {
               </SvgDefs>
               {/* silk thread ring the beads sit on */}
               <SvgCircle cx={imgW / 2} cy={imgH * 0.55} r={Math.min(imgW, imgH) * 0.335} fill="none" stroke="rgba(232,201,106,0.22)" strokeWidth={1.6} />
-              {/* the 33 beads — passed ones green, the active one glowing */}
+              {/* the 66 beads — a fuller misbaha ring; passed ones green, the active one glowing */}
               {Array.from({ length: BEADS }).map((_, i) => {
                 const b = beadCenter(i, imgW, imgH);
                 const active = i === activeBead;
@@ -333,9 +333,11 @@ export default function Tasbeeh() {
                   </SvgG>
                 );
               })}
-              {/* gold tassel above the ring: collar + silk threads */}
+              {/* gold head above the ring, with a short connector so it is visibly attached */}
               <SvgG>
-                <SvgRect x={imgW / 2 - 7} y={imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 36} width={14} height={17} rx={4} fill="url(#silk)" />
+                <SvgCircle cx={imgW / 2} cy={imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 3} r={5} fill="url(#silk)" stroke="#E8C96A" strokeWidth={1} />
+                <SvgPath d={`M ${imgW / 2} ${imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 1} L ${imgW / 2} ${imgH * 0.55 - Math.min(imgW, imgH) * 0.335 + 7}`} stroke="#E8C96A" strokeWidth={3} fill="none" />
+                <SvgRect x={imgW / 2 - 8} y={imgH * 0.55 - Math.min(imgW, imgH) * 0.335 - 30} width={16} height={18} rx={5} fill="url(#silk)" />
                 {[0, 1, 2, 3, 4].map((k) => (
                   <SvgPath
                     key={k}

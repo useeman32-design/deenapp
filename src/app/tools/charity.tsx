@@ -1,4 +1,3 @@
-import { formatDP } from '@/components/DeenPoints';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
@@ -14,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { Image } from 'react-native';
 import { fetchNisab } from '@/lib/islamicApi';
-import { DPIcon, DeenPointsBuyModal, useDeenPoints } from '@/components/DeenPoints';
 import { markGoal } from '@/lib/routine';
 import { donate } from '@/lib/flutterwave';
 import { donationHistory, isLive } from '@/api/client';
@@ -181,8 +179,6 @@ export default function Donations() {
   const insets = useSafeAreaInsets();
 
   const [view, setView] = useState<'menu' | 'form' | 'paying' | 'done' | 'history'>('menu');
-  const [buyPoints, setBuyPoints] = useState(false);
-  const dp = useDeenPoints();
   const router = useRouter();
   /* pass 35 — zakat calculator sheet */
   const [calc, setCalc] = useState(false);
@@ -339,17 +335,6 @@ export default function Donations() {
                 </View>
               </View>
             </View>
-
-            {/* DeenPoints balance chip → purchase modal */}
-            <Pressable
-              accessibilityLabel="deenpoints balance"
-              onPress={() => { haptic.selection(); router.push('/tools/deenpoints'); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.06)', paddingHorizontal: 13, paddingVertical: 10, marginBottom: 14 }}
-            >
-              <DPIcon size={15} />
-              <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 13, color: d.text }}>{formatDP(dp.points)} DeenPoints</T>
-              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: '#E8C96A' }}>GET MORE · ₦1.5/PT</T>
-            </Pressable>
 
             {CATS.map((c) => (
               <Pressable
@@ -737,7 +722,6 @@ export default function Donations() {
         </View>
       </Modal>
 
-      <DeenPointsBuyModal visible={buyPoints} onClose={() => setBuyPoints(false)} onBalanceChange={dp.sync} />
     </View>
   );
 }

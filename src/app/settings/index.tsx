@@ -11,7 +11,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
 import { buyPremium } from '@/lib/flutterwave';
-import { isLive, quotePremium, type PremiumQuote } from '@/api/client';
+import { groupPrivacy, isLive, quotePremium, setGroupPrivacy, type PremiumQuote } from '@/api/client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
@@ -89,10 +89,11 @@ function SettingsScreenInner() {
   };
   const [dpOpen, setDpOpen] = useState(false);
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
-  const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true });
+  const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true, allowGroupAdd: true });
   const [signOutOpen, setSignOutOpen] = useState(false);
 
   const persist = (key: string, val: unknown) => { storage.setItem(key, JSON.stringify(val)).catch(() => {}); };
+  useEffect(() => { if (sheet === 'privacy' && isLive()) { groupPrivacy().then((v) => { if (v != null) setPriv((p) => ({ ...p, allowGroupAdd: v })); }).catch(() => {}); } }, [sheet]);
 
   const shareApp = async () => {
     haptic.selection();
@@ -270,6 +271,8 @@ function SettingsScreenInner() {
             <SettingToggleRow label="Show online status" desc="Others can see when you're active" on={priv.showOnline} onChange={(v) => { const nx = { ...priv, showOnline: v }; setPriv(nx); persist('dl.priv', nx); }} />
             <Divider />
             <SettingToggleRow label="Personalized content" desc="Tailor feed & suggestions" on={priv.personalized} onChange={(v) => { const nx = { ...priv, personalized: v }; setPriv(nx); persist('dl.priv', nx); }} />
+            <Divider />
+            <SettingToggleRow label="Allow group adding" desc="Let group admins add you to groups" on={priv.allowGroupAdd} onChange={(v) => { const nx = { ...priv, allowGroupAdd: v }; setPriv(nx); persist('dl.priv', nx); if (isLive()) void setGroupPrivacy(v); }} />
             <Pressable onPress={() => { haptic.selection(); setSheet(null); router.push('/settings/blocked-accounts'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
               <FontAwesome5 name="ban" size={13} color="#FF7B7B" />
               <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Blocked accounts</T>
