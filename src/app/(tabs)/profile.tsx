@@ -436,7 +436,7 @@ function ProfileInner() {
         )}
       </ScrollView>
       <RewardModal visible={!!reward} onClose={() => setReward(null)} amount={reward?.amount ?? 5} title={reward?.streak ? 'Streak bonus! \ud83d\udd25' : 'Daily check-in complete!'} />
-      <DeenPointsBuyModal visible={buyOpen} onClose={() => setBuyOpen(false)} />
+      <DeenPointsBuyModal visible={buyOpen} onClose={() => setBuyOpen(false)} onBalanceChange={dp.sync} />
       <ConfirmDialog
         visible={signOutOpen}
         title="Log out?"

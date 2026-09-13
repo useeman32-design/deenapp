@@ -673,3 +673,4 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 #  • Video audit: Home video likes/views now use the server APIs and daily video content refreshes on focus; the full Videos screen uses server reels and engagement endpoints.
 
 - DeenPoints purchase modal now uses `buyDeenPoints()` and server verification in live mode instead of simulating a local balance increase; native hosted checkout and web inline checkout remain handled by `src/lib/flutterwave.ts`.
+- The shared DeenPoints modal accepts `onBalanceChange`; profile and charity pass their live balance sync callback after verified checkout.

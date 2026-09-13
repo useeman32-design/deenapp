@@ -101,7 +101,7 @@ const PACKS = [
   { pts: 10000, bonus: 2000 },
 ];
 
-export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function DeenPointsBuyModal({ visible, onClose, onBalanceChange }: { visible: boolean; onClose: () => void; onBalanceChange?: (balance: number) => void }) {
   const { theme, isDark } = useTheme();
   const { points, add, sync } = useDeenPoints();
   const [pack, setPack] = useState(PACKS[1]);
@@ -129,7 +129,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
         Alert.alert('Payment unavailable', result?.message ?? 'Could not start the payment.');
         return;
       }
-      if (result.verified && result.balance != null) sync(result.balance);
+      if (result.verified && result.balance != null) { sync(result.balance); onBalanceChange?.(result.balance); }
       haptic.success();
       setPhase('done');
       return;

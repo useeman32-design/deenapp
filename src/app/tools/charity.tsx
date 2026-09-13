@@ -737,7 +737,7 @@ export default function Donations() {
         </View>
       </Modal>
 
-      <DeenPointsBuyModal visible={buyPoints} onClose={() => setBuyPoints(false)} />
+      <DeenPointsBuyModal visible={buyPoints} onClose={() => setBuyPoints(false)} onBalanceChange={dp.sync} />
     </View>
   );
 }
