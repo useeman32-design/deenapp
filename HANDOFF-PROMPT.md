@@ -23,9 +23,10 @@
 #  • Active Boost orders now have server pagination (20/page) with previous/next controls.
 #  • Course lessons now have a separate editable heading field from the lesson title/body;
 #    existing databases receive the column through a guarded ALTER and the app type exposes it.
-# NEXT: add pagination consistently to shop/orders/content lists, expand actor seeding, test live
-# DB endpoints, complete course/quiz heading/body editor audit, and wire remaining Quran
-# offline/download and moderation/report gaps before commit/push.
+#  • Boost actor seeding now expands to 100 distinct actor accounts with rotating curated profile
+#    images, varied genders/names, and follow-graph links. Existing actors are preserved.
+# NEXT: add pagination consistently to shop/orders/content lists, test live DB endpoints, complete
+# course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 
 # ══ 2026-09-12 — PASS 83-39 DESIGN-UNIFORMITY: EVERY ADMIN PAGE NOW WEARS THE OWNER'S CANONICAL DESIGN ══
 # deenapp master = 02e3a2e (UNCHANGED — this pass is admin-only) · dlapi main = c00270e.
