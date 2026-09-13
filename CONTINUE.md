@@ -2137,3 +2137,5 @@ NEXT: admin dashboard audit → iOS/Android store builds.
 
 - DeenPoints pass: replaced the shared profile/settings/charity purchase modal's simulated top-up with the live Flutterwave flow when `isLive()` is enabled. Offline/demo mode retains the local fallback; successful live payments sync the server-authoritative balance.
 - DeenPoints live-payment success now propagates the verified balance back to profile and charity parent hooks so visible chips do not remain stale after checkout.
+
+- Reports/moderation pass: admin `reports.html` no longer renders seeded mock reports. It starts with an empty state and loads the authoritative `/api/admin/reports/list.php` queue on first open, with live status updates and refresh preserved.

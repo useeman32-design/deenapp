@@ -674,3 +674,5 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 
 - DeenPoints purchase modal now uses `buyDeenPoints()` and server verification in live mode instead of simulating a local balance increase; native hosted checkout and web inline checkout remain handled by `src/lib/flutterwave.ts`.
 - The shared DeenPoints modal accepts `onBalanceChange`; profile and charity pass their live balance sync callback after verified checkout.
+
+- Admin moderation reports now load live on first page open; seeded demo report records were removed. Backend report list/status endpoints remain the source of truth.
