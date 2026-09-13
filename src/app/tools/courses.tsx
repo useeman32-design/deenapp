@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,10 +24,13 @@ import { haptic } from "@/lib/haptics";
 import { storage } from "@/lib/storage";
 import { useDeenPoints } from "@/components/DeenPoints";
 import * as QRCode from "qrcode";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
-import * as MediaLibrary from "expo-media-library";
 import { SvgXml } from "react-native-svg";
+const ExportableSvgXml = SvgXml as any;
+import {
+  saveSvgRefAsJpg,
+  shareSvgRef,
+  type SvgRefHandle,
+} from "@/lib/svgExport";
 import type { ServerCourse } from "@/api/client";
 
 /**
@@ -1043,34 +1046,19 @@ function CoursePlayer({
   const [certificateQr, setCertificateQr] = useState("");
   const [certificateOpen, setCertificateOpen] = useState(false);
   const [certificateBusy, setCertificateBusy] = useState(false);
-  const certificateFile = async () => {
-    const cert = certificate;
-    const qr = certificateQr;
-    if (!cert || !qr) return null;
-    const base = FileSystem.documentDirectory;
-    if (!base) return null;
-    const uri = `${base}deenlink-certificate-${String(cert.certificate_no ?? cert.verification_code ?? Date.now())}.svg`;
-    await FileSystem.writeAsStringAsync(
-      uri,
-      makeCertificateSvg(cert, qr, String(course.title)),
-      { encoding: FileSystem.EncodingType.UTF8 },
-    );
-    return uri;
-  };
+  const certificateExportRef = useRef<SvgRefHandle>(null);
+  const certificateXml =
+    certificate && certificateQr
+      ? makeCertificateSvg(certificate, certificateQr, String(course.title))
+      : "";
   const shareCertificate = async () => {
     try {
       setCertificateBusy(true);
-      const uri = await certificateFile();
-      if (uri && (await Sharing.isAvailableAsync()))
-        await Sharing.shareAsync(uri, {
-          mimeType: "image/svg+xml",
-          dialogTitle: "Share your DeenLink certificate",
-        });
-      else
-        Alert.alert(
-          "Certificate ready",
-          "Your certificate was saved in app documents.",
-        );
+      await shareSvgRef(
+        certificateExportRef,
+        `deenlink-certificate-${String(certificate?.certificate_no ?? certificate?.verification_code ?? "course")}`,
+        "DeenLink certificate",
+      );
     } catch {
       Alert.alert("Could not share certificate", "Please try again.");
     } finally {
@@ -1080,25 +1068,25 @@ function CoursePlayer({
   const saveCertificate = async () => {
     try {
       setCertificateBusy(true);
-      const uri = await certificateFile();
-      if (!uri) return;
-      const permission = await MediaLibrary.requestPermissionsAsync();
-      if (!permission.granted) {
+      const saved = await saveSvgRefAsJpg(
+        certificateExportRef,
+        `deenlink-certificate-${String(certificate?.certificate_no ?? certificate?.verification_code ?? "course")}`,
+        { width: 1200, height: 850 },
+      );
+      if (saved)
+        Alert.alert(
+          "Certificate saved",
+          "Your certificate was saved to your gallery.",
+        );
+      else
         Alert.alert(
           "Gallery permission needed",
-          "Allow DeenLink to save your certificate to the gallery.",
+          "Allow DeenLink access to save your certificate to the gallery.",
         );
-        return;
-      }
-      await MediaLibrary.createAssetAsync(uri);
-      Alert.alert(
-        "Certificate saved",
-        "Your certificate was saved to your gallery.",
-      );
     } catch {
       Alert.alert(
         "Could not save certificate",
-        "This device may not support SVG gallery items. Use Share / Export instead.",
+        "Please allow photo access and try again.",
       );
     } finally {
       setCertificateBusy(false);
@@ -1369,7 +1357,7 @@ function CoursePlayer({
                       %
                     </T>
                     {certificateQr ? (
-                      <SvgXml
+                      <ExportableSvgXml
                         xml={certificateQr}
                         width={104}
                         height={104}
@@ -2024,108 +2012,23 @@ function CoursePlayer({
             >
               <View
                 style={{
+                  width: "100%",
+                  aspectRatio: 1200 / 850,
                   borderRadius: 16,
-                  padding: 18,
+                  overflow: "hidden",
                   borderWidth: 2,
                   borderColor: "#c69b2d",
                   backgroundColor: "#fffdf7",
                 }}
               >
-                <T
-                  v="caption"
-                  style={{
-                    textAlign: "center",
-                    letterSpacing: 2,
-                    color: "#9b7417",
-                    fontWeight: "900",
-                  }}
-                >
-                  DEENLINK
-                </T>
-                <T
-                  v="h2"
-                  style={{
-                    textAlign: "center",
-                    color: "#173d2b",
-                    marginTop: 15,
-                    fontWeight: "900",
-                  }}
-                >
-                  CERTIFICATE OF COMPLETION
-                </T>
-                <T
-                  v="caption"
-                  style={{
-                    textAlign: "center",
-                    color: "#65746b",
-                    marginTop: 18,
-                  }}
-                >
-                  This certifies that
-                </T>
-                <T
-                  v="h2"
-                  style={{
-                    textAlign: "center",
-                    color: "#173d2b",
-                    marginTop: 6,
-                  }}
-                >
-                  {String(certificate?.learner_name ?? "Learner")}
-                </T>
-                <T
-                  v="body"
-                  style={{
-                    textAlign: "center",
-                    color: "#65746b",
-                    marginTop: 12,
-                  }}
-                >
-                  successfully completed
-                </T>
-                <T
-                  v="h3"
-                  style={{
-                    textAlign: "center",
-                    color: "#173d2b",
-                    marginTop: 8,
-                    fontWeight: "900",
-                  }}
-                >
-                  {String(certificate?.course_title ?? course.title)}
-                </T>
-                <T
-                  v="bodyS"
-                  style={{
-                    textAlign: "center",
-                    color: "#65746b",
-                    marginTop: 14,
-                  }}
-                >
-                  Final assessment: {String(certificate?.quiz_percent ?? 0)}% ·
-                  Issued {String(certificate?.issued_at ?? "").slice(0, 10)}
-                </T>
-                {certificateQr ? (
-                  <SvgXml
-                    xml={certificateQr}
-                    width={150}
-                    height={150}
-                    style={{ alignSelf: "center", marginTop: 18 }}
+                {certificateXml ? (
+                  <ExportableSvgXml
+                    ref={certificateExportRef}
+                    xml={certificateXml}
+                    width="100%"
+                    height="100%"
                   />
                 ) : null}
-                <T
-                  v="caption"
-                  style={{
-                    textAlign: "center",
-                    color: "#65746b",
-                    marginTop: 12,
-                  }}
-                >
-                  {String(certificate?.signature_name ?? "DeenLink")} ·{" "}
-                  {String(
-                    certificate?.signature_title ?? "Learning & Development",
-                  )}
-                </T>
               </View>
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
                 <Pressable
