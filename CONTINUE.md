@@ -31,6 +31,8 @@
 #    Media upload/gallery support is now added for admin product images and video; variants and drag/reorder remain.
 #  • Admin-to-native sync audit confirmed announcements, campaigns, products, and account status are
 #    server-first. Login and /me now reject disabled/suspended accounts as well as banned accounts.
+#  • Live shop and campaigns no longer repopulate bundled demo content when the live API returns an
+#    empty result; admin changes and removals now remain authoritative in the native app.
 #  • Boost actor pool now renders as a compact four-column grid, including profile photos, names,
 #    usernames, follower counts, search, and delete controls.
 #  • Boost actors now support search, visible photo cards, delete, and manual bulk creation (1–500)

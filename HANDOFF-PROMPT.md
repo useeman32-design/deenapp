@@ -29,6 +29,7 @@
 #  • Shop catalog foundation now includes SKU, short description, featured image URL, product video URL,
 #    category records, and a reusable category table. The app can render an admin-provided image URL.
 #    Media upload/gallery support is now added for admin product images and video; variants and drag/reorder remain.
+#  • Admin-to-native sync audit: announcements, campaigns, products, and account status are server-first. Login and /me reject disabled/suspended/banned accounts. Live shop/campaign empty results no longer restore bundled demo content.
 #  • Boost actor pool now renders as a compact four-column grid, including profile photos, names,
 #    usernames, follower counts, search, and delete controls.
 #  • Boost actors now support search, visible photo cards, delete, and manual bulk creation (1–500)

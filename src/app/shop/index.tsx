@@ -64,7 +64,7 @@ function ShopScreenInner() {
 
   const loadProducts = useCallback(() => {
     if (!live) { setProducts(DEMO_PRODUCTS); return; }
-    shopProducts().then((r) => setProducts(r ?? DEMO_PRODUCTS)).catch(() => setProducts(DEMO_PRODUCTS));
+    shopProducts().then((r) => setProducts(r ?? (live ? [] : DEMO_PRODUCTS))).catch(() => setProducts(live ? [] : DEMO_PRODUCTS));
   }, [live]);
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
