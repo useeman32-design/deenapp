@@ -40,6 +40,7 @@ type Notif = {
   actorId?: number;
   entityType?: string | null;
   entityId?: number | null;
+  postId?: number | null;
 };
 
 /* pass 68 — live rows become the same shape the screen already renders. */
@@ -91,6 +92,7 @@ function mapLive(rows: NotifRow[]): Notif[] {
       actorId,
       entityType: r.entity_type ?? null,
       entityId: r.entity_id ?? null,
+      postId: r.metadata?.post_id ?? null,
     };
   });
 }
