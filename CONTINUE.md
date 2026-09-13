@@ -46,6 +46,7 @@
 #  • User-status audit: check_session now invalidates web/native sessions for banned, suspended, and disabled accounts; moderation notifications remain available in the native inbox. AuthContext also rechecks /me every 45 seconds so an already-open native app exits after moderation.
 #  • Learning endpoint audit: native Learning Hub refreshes sections on focus and respects admin empty results; public courses already load server-managed courses and server-backed lesson progress.
 #  • Quiz endpoint audit: native quiz now treats a successful empty admin bank as authoritative, shows a real empty state, and only uses bundled questions when the API is unreachable.
+#  • Quran reciters audited: admin price/is-free settings already flow through reciters.php and native Read has a DeenPoints unlock UI. Wallpapers already use list/unlock endpoints. Profile avatars were disconnected; native AvatarPicker now loads DB-managed avatars and uses the new select_avatar.php unlock/select flow.
 # NEXT: audit the next admin module endpoint-by-endpoint to remaining content lists, test live DB endpoints, complete
 # course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 

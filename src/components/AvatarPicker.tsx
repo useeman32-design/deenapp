@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -7,6 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { MALE_AVATARS, FEMALE_AVATARS } from '@/data/avatars';
+import { profileAvatars, selectProfileAvatar, type ProfileAvatar } from '@/api/client';
 
 /** Gendered default avatars — male silhouette / female hijab (inline SVG, no network).
  * pass 83-27 — react-native-svg primitives (raw lowercase svg DOM tags crash Expo Go
@@ -46,7 +47,7 @@ type Props = {
   selected?: string | number | null;
   onClose: () => void;
   /** source = a require()d avatar, or null to use the gendered default */
-  onSelect: (source: number | null) => void;
+  onSelect: (source: number | string | null) => void;
 };
 
 export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: Props) {
@@ -60,6 +61,9 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
   const locked = isFemale || isMale;
   const startTab = isFemale ? 'female' : 'male';
   const [tab, setTab] = useState<'male' | 'female'>(startTab);
+  const [remote, setRemote] = useState<ProfileAvatar[] | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState<number | null>(null);
+  useEffect(() => { if (!visible) return; profileAvatars(gender || undefined).then(setRemote).catch(() => setRemote(null)); }, [visible, gender]);
   const list = useMemo(
     () => (locked ? (isFemale ? FEMALE_AVATARS : MALE_AVATARS) : (tab === 'male' ? MALE_AVATARS : FEMALE_AVATARS)),
     [locked, isFemale, tab],
@@ -103,17 +107,12 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {list.map((src, i) => {
+              {remote && remote.length ? remote.map((avatar) => {
+                const on = selected === avatar.url;
+                return <Pressable key={avatar.id} disabled={remoteBusy === avatar.id} onPress={async () => { haptic.selection(); setRemoteBusy(avatar.id); const result = await selectProfileAvatar(avatar.id); setRemoteBusy(null); if (!result.ok) { Alert.alert('Could not select avatar', result.message ?? 'You may need more DeenPoints.'); return; } onSelect(result.url || avatar.url); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}><ExpoImage source={{ uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" /><View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}><FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" /></View></Pressable>;
+              }) : list.map((src, i) => {
                 const on = selected === src;
-                return (
-                  <Pressable
-                    key={i}
-                    onPress={() => { haptic.selection(); onSelect(src); onClose(); }}
-                    style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : 'transparent', backgroundColor: d.card }}
-                  >
-                    <ExpoImage source={src} style={{ width: '100%', height: '100%', backgroundColor: d.card }} contentFit="cover" transition={200} />
-                  </Pressable>
-                );
+                return <Pressable key={i} onPress={() => { haptic.selection(); onSelect(src); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : 'transparent', backgroundColor: d.card }}><ExpoImage source={src} style={{ width: '100%', height: '100%', backgroundColor: d.card }} contentFit="cover" transition={200} /></Pressable>;
               })}
             </View>
           </ScrollView>

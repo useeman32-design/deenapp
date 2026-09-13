@@ -55,9 +55,10 @@ export default function EditProfile() {
 
   const gender = (user?.gender as string) ?? null;
 
-  const pickAvatar = async (src: number | null) => {
+  const pickAvatar = async (src: number | string | null) => {
     if (src == null) { setUseDefault(true); setPhotoUrl(''); updateUser({ profile_image_url: '' }); return; }
     setUseDefault(false);
+    if (typeof src === 'string') { setPhotoUrl(src); updateUser({ profile_image_url: src }); haptic.success(); return; }
     setUploading(true);
     try {
       const resolved = Image.resolveAssetSource(src as never);

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient as SvgLg, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -117,10 +118,11 @@ export default function Wallpapers() {
   const [store, setStore] = useState<StoreWallpaper[] | null>(null);
   const [storeSel, setStoreSel] = useState<StoreWallpaper | null>(null);
   const [unlocking, setUnlocking] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isLive()) { return; }
+  useFocusEffect(useCallback(() => {
+    if (!isLive()) return undefined;
     wallpaperStore().then(setStore).catch(() => {});
-  }, []);
+    return undefined;
+  }, []));
   const doUnlock = async (w: StoreWallpaper) => {
     haptic.light();
     setUnlocking(w.id);

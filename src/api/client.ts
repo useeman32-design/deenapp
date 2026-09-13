@@ -1003,6 +1003,18 @@ export async function reportAccount(userId: number, reason: string): Promise<boo
   return r.ok && r.data.status === 'success';
 }
 
+export type ProfileAvatar = { id: number; gender?: string; url: string; locked: boolean; price: number };
+export async function profileAvatars(gender?: string): Promise<ProfileAvatar[] | null> {
+  const qs = gender ? `?gender=${encodeURIComponent(gender)}` : '';
+  const r = await request<{ status?: string; avatars?: ProfileAvatar[] }>(`/api/users/list_profile_avatars.php${qs}`, { auth: true });
+  return r.ok && Array.isArray(r.data.avatars) ? r.data.avatars : null;
+}
+export async function selectProfileAvatar(avatarId: number): Promise<{ ok: boolean; url?: string; balance?: number; spent?: number; message?: string }> {
+  const r = await request<{ status?: string; profile_image?: string; new_balance?: number; spent?: number; message?: string }>('/api/users/select_avatar.php', { method: 'POST', body: { avatar_id: avatarId }, auth: true });
+  if (r.ok && r.data.status === 'success') return { ok: true, url: r.data.profile_image, balance: r.data.new_balance, spent: r.data.spent };
+  return { ok: false, message: r.data.message ?? 'Could not select avatar' };
+}
+
 /* ─────────────── pass 75 (Tier 2) — wallpaper store ─────────────── */
 export type StoreWallpaper = {
   id: number;

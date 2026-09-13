@@ -669,3 +669,4 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 #  • Native AuthContext rechecks /me every 45 seconds, so account bans/suspensions/disable actions reach open sessions without requiring a cold launch.
 #  • Learning audit: Learning Hub now refreshes admin sections on focus and does not restore bundled sections after a successful empty API result. Courses use the public courses API and server-backed enrollment/completion.
 #  • Quiz audit: admin-managed quiz bank now distinguishes an empty published bank from an offline failure; native UI shows an empty state instead of restoring stale bundled questions.
+#  • Media/monetization audit: reciter lock prices and unlocks are connected; wallpapers use the store/unlock API; profile avatars now load from the DB and can unlock/select with DeenPoints through select_avatar.php.

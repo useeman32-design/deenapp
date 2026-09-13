@@ -60,6 +60,7 @@ function ReaderInner() {
     (globalThis as unknown as { __dlReadMode?: Mode }).__dlReadMode = mode;
   }, [mode]);
   const [reciterOpen, setReciterOpen] = useState(false);
+  useEffect(() => { if (reciterOpen) audio.refreshReciters(); }, [reciterOpen]);
   /* pass 72 — reading streak + premium reciter unlocks */
   const dp = useDeenPoints();
   const [streak, setStreak] = useState<number | null>(null);
