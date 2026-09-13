@@ -25,7 +25,8 @@
 #    existing databases receive the column through a guarded ALTER and the app type exposes it.
 #  • Boost actor seeding now expands to 100 distinct actor accounts with rotating curated profile
 #    images, varied genders/names, and follow-graph links. Existing actors are preserved.
-# NEXT: add pagination consistently to shop/orders/content lists, test live DB endpoints, complete
+#  • Shop products and Shop Orders now have server-backed search plus 20-item pagination controls.
+# NEXT: add pagination consistently to remaining content lists, test live DB endpoints, complete
 # course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 
 # ══ 2026-09-12 — PASS 83-39 DESIGN-UNIFORMITY: EVERY ADMIN PAGE NOW WEARS THE OWNER'S CANONICAL DESIGN ══
