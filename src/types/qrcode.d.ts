@@ -10,4 +10,5 @@ declare module 'qrcode' {
     maskPattern: number;
   }
   export function create(text: string, opts?: { errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H'; margin?: number }): QRCodeObject;
+  export function toString(text: string, opts?: { type?: 'svg'; margin?: number }): Promise<string>;
 }
