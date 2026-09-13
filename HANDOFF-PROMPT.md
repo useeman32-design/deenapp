@@ -21,6 +21,8 @@
 # workspace, so PHP lint remains a deployment/test gate.
 #  • Launch Cleanup is now physically under System Settings → Maintenance Tools, not the dashboard.
 #  • Active Boost orders now have server pagination (20/page) with previous/next controls.
+#  • Course lessons now have a separate editable heading field from the lesson title/body;
+#    existing databases receive the column through a guarded ALTER and the app type exposes it.
 # NEXT: add pagination consistently to shop/orders/content lists, expand actor seeding, test live
 # DB endpoints, complete course/quiz heading/body editor audit, and wire remaining Quran
 # offline/download and moderation/report gaps before commit/push.

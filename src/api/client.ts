@@ -1234,7 +1234,7 @@ export async function videosSearch(q: string, limit = 12): Promise<Video[] | nul
 }
 
 /* ---- courses ---- */
-export type ServerLesson = { id: number; title: string; slug?: string; lesson_type?: string; duration_label?: string; content_html?: string; video_url?: string; is_preview?: boolean | number; [k: string]: unknown };
+export type ServerLesson = { id: number; title: string; heading?: string; slug?: string; lesson_type?: string; duration_label?: string; content_html?: string; video_url?: string; is_preview?: boolean | number; [k: string]: unknown };
 export type ServerCourse = {
   id: number;
   title: string;
