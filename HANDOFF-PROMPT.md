@@ -26,6 +26,9 @@
 #  • Boost actor seeding now expands to 100 distinct actor accounts with rotating curated profile
 #    images, varied genders/names, and follow-graph links. Existing actors are preserved.
 #  • Shop products and Shop Orders now have server-backed search plus 20-item pagination controls.
+#  • Shop catalog foundation now includes SKU, short description, featured image URL, product video URL,
+#    category records, and a reusable category table. The app can render an admin-provided image URL.
+#    This is the first step toward a professional catalog; binary media upload/gallery and variants remain.
 # NEXT: add pagination consistently to remaining content lists, test live DB endpoints, complete
 # course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 

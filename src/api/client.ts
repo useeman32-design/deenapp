@@ -908,12 +908,16 @@ export type ShopProduct = {
   id: number;
   slug: string;
   title: string;
+  short_description?: string;
   description: string;
+  sku?: string;
   price: number;
   compare_at: number | null;
   currency: string;
   category: string;
   image_key: string;
+  image_url?: string;
+  video_url?: string;
   source: 'own' | 'affiliate';
   network: string | null;
   affiliate_url: string | null;

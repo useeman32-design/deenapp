@@ -124,7 +124,7 @@ function ShopScreenInner() {
 
   /* ── product card (grid) ── */
   const Card = ({ p }: { p: ShopProduct }) => {
-    const img = shopImage(p.image_key);
+    const img = p.image_url ? { uri: p.image_url } : shopImage(p.image_key);
     const net = p.network ? SHOP_NETWORKS[p.network] : null;
     const off = p.compare_at && p.compare_at > p.price ? Math.round((1 - p.price / p.compare_at) * 100) : 0;
     return (
@@ -234,7 +234,7 @@ function ShopScreenInner() {
           ) : (
             <>
               {cart.items.map((it) => {
-                const img = shopImage(it.image_key);
+                const img = it.image_url ? { uri: it.image_url } : shopImage(it.image_key);
                 return (
                   <View key={it.id} style={{ flexDirection: 'row', gap: 11, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 11, marginBottom: 10 }}>
                     {img ? <Image source={img} style={{ width: 62, height: 62, borderRadius: 12 }} resizeMode="cover" /> : null}
@@ -298,7 +298,7 @@ function ShopScreenInner() {
                 </View>
               </View>
               {o.items.map((it, i) => {
-                const img = shopImage(it.image_key);
+                const img = it.image_url ? { uri: it.image_url } : shopImage(it.image_key);
                 return (
                   <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 7 }}>
                     {img ? <Image source={img} style={{ width: 38, height: 38, borderRadius: 9 }} resizeMode="cover" /> : null}
