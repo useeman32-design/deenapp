@@ -2134,3 +2134,5 @@ NEXT: admin dashboard audit → iOS/Android store builds.
 - Sandbox: port-80 replica now runs PHP_CLI_SERVER_WORKERS=8 (single worker
   dropped connections under E2E load).
 - Gates: tsc 0 · repro80 14/14 · repro81 10/10.
+
+- DeenPoints pass: replaced the shared profile/settings/charity purchase modal's simulated top-up with the live Flutterwave flow when `isLive()` is enabled. Offline/demo mode retains the local fallback; successful live payments sync the server-authoritative balance.

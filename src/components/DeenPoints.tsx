@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, TextInput, ActivityIndicator, Animated, Easing, Modal, Pressable, Text, View } from 'react-native';
+import { Image, TextInput, ActivityIndicator, Alert, Animated, Easing, Modal, Pressable, Text, View} from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive } from '@/api/client';
+import { buyDeenPoints } from '@/lib/flutterwave';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -102,7 +103,7 @@ const PACKS = [
 
 export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { theme, isDark } = useTheme();
-  const { points, add } = useDeenPoints();
+  const { points, add, sync } = useDeenPoints();
   const [pack, setPack] = useState(PACKS[1]);
   /* pass 38 — custom amount entry */
   const [custom, setCustom] = useState('');
@@ -116,13 +117,25 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
     else pop.setValue(0);
   }, [visible, pop]);
 
-  const pay = () => {
+  const pay = async () => {
     if (phase !== 'pick') return;
     haptic.medium();
-    const total = customOn ? customPts : pack.pts + pack.bonus;
+    const basePts = customOn ? customPts : pack.pts;
     setPhase('paying');
+    if (isLive()) {
+      const result = await buyDeenPoints(basePts).catch(() => null);
+      if (!result?.ok) {
+        setPhase('pick');
+        Alert.alert('Payment unavailable', result?.message ?? 'Could not start the payment.');
+        return;
+      }
+      if (result.verified && result.balance != null) sync(result.balance);
+      haptic.success();
+      setPhase('done');
+      return;
+    }
     setTimeout(() => {
-      add(total);
+      add(customOn ? customPts : pack.pts + pack.bonus);
       haptic.success();
       setPhase('done');
     }, 1600);
@@ -232,7 +245,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                     DeenPoints reward your activity — daily check-ins, quizzes and lessons earn points. Use them to highlight your questions to scholars (urgency priority only). DeenPoints do not buy fatwas or Islamic opinions — rulings are free and based on the Qur'an and Sunnah.
                   </T>
                 </View>
-                <T v="caption" style={{ textAlign: 'center', fontSize: 9.5, color: theme.subtext, marginTop: 6 }}>Simulated payment — no real charge.</T>
+                <T v="caption" style={{ textAlign: 'center', fontSize: 9.5, color: theme.subtext, marginTop: 6 }}>{isLive() ? 'Secure payment via Flutterwave.' : 'Demo mode — no real charge.'}</T>
               </View>
             ) : phase === 'paying' ? (
               <View style={{ alignItems: 'center', paddingVertical: 38, gap: 12 }}>
@@ -244,7 +257,7 @@ export function DeenPointsBuyModal({ visible, onClose }: { visible: boolean; onC
                 <View style={{ width: 66, height: 66, borderRadius: 33, backgroundColor: 'rgba(74,227,143,0.14)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(74,227,143,0.5)' }}>
                   <DPIcon size={34} />
                 </View>
-                <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>{(pack.pts + pack.bonus).toLocaleString()} points added</T>
+                <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>{(customOn ? customPts : pack.pts + (isLive() ? 0 : pack.bonus)).toLocaleString()} points added</T>
                 <T v="caption" style={{ fontSize: 11, color: theme.subtext }}>New balance {formatDP(points)}</T>
                 <Pressable onPress={onClose} style={{ marginTop: 8, borderRadius: 14, paddingHorizontal: 26, height: 44, backgroundColor: '#1F8F5C', alignItems: 'center', justifyContent: 'center' }}>
                   <T v="button" style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Done</T>
