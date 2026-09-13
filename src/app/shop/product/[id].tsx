@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, View } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -29,6 +30,7 @@ function ShopProductScreenInner() {
   const [added, setAdded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [related, setRelated] = useState<ShopProduct[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState(0);
 
   const load = useCallback(() => {
     if (!live) {
@@ -38,12 +40,12 @@ function ShopProductScreenInner() {
       return;
     }
     shopProduct(pid).then((r) => {
-      setP(r ?? DEMO_PRODUCTS.find((x) => x.id === pid) ?? null);
+      setP(r ?? null);
       if (!r) return;
       shopProducts(r.category).then((rows) => setRelated((rows ?? []).filter((x) => x.id !== r.id).slice(0, 5)));
     }).catch(() => setP(null));
   }, [pid, live]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); setSelectedMedia(0); }, [load]);
 
   const add = async () => {
     if (!p || busy) return;
@@ -55,6 +57,15 @@ function ShopProductScreenInner() {
     if (ok) { haptic.success(); setAdded(true); setTimeout(() => setAdded(false), 1800); }
   };
 
+  const gallery = (p?.media ?? []).slice().sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  const mediaItems = [
+    ...(p?.image_url ? [{ media_type: 'image' as const, media_url: p.image_url, id: -1 }] : []),
+    ...gallery,
+  ].filter((item, index, all) => all.findIndex((other) => other.media_url === item.media_url) === index);
+  const activeMedia = mediaItems[selectedMedia] ?? mediaItems[0];
+  const activeVideo = activeMedia?.media_type === 'video' ? activeMedia.media_url : '';
+  const player = useVideoPlayer(activeVideo || null, (instance) => { instance.loop = false; });
+
   if (!p) {
     return (
       <View style={{ flex: 1, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -63,8 +74,7 @@ function ShopProductScreenInner() {
     );
   }
 
-  const firstMedia = p.media?.find((m) => m.media_type === 'image');
-  const img = p.image_url ? { uri: p.image_url } : firstMedia?.media_url ? { uri: firstMedia.media_url } : shopImage(p.image_key);
+  const img = activeMedia?.media_type === 'image' && activeMedia.media_url ? { uri: activeMedia.media_url } : shopImage(p.image_key);
   const net = p.network ? SHOP_NETWORKS[p.network] : null;
   const off = p.compare_at && p.compare_at > p.price ? Math.round((1 - p.price / p.compare_at) * 100) : 0;
 
@@ -72,7 +82,7 @@ function ShopProductScreenInner() {
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={{ position: 'relative' }}>
-          {img ? <Image source={img} style={{ width: '100%', height: 340 }} resizeMode="cover" /> : <View style={{ width: '100%', height: 340, backgroundColor: d.bgSoft }} />}
+          {activeVideo ? <VideoView player={player} style={{ width: '100%', height: 340, backgroundColor: '#000' }} contentFit="contain" nativeControls /> : img ? <Image source={img} style={{ width: '100%', height: 340 }} resizeMode="cover" /> : <View style={{ width: '100%', height: 340, backgroundColor: d.bgSoft }} />}
           <Pressable onPress={() => router.back()} hitSlop={10}
             style={{ position: 'absolute', top: 54, left: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
             <FontAwesome5 name="arrow-left" size={14} color="#fff" />
@@ -83,6 +93,15 @@ function ShopProductScreenInner() {
             </View>
           ) : null}
         </View>
+        {mediaItems.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
+            {mediaItems.map((media, index) => (
+              <Pressable key={`${media.media_url}-${index}`} onPress={() => { haptic.light(); setSelectedMedia(index); }} style={{ width: 64, height: 64, borderRadius: 9, overflow: 'hidden', borderWidth: 2, borderColor: selectedMedia === index ? gold : d.cardBorder, backgroundColor: '#000' }}>
+                {media.media_type === 'video' ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><FontAwesome5 name="play" size={16} color="#fff" /></View> : <Image source={{ uri: media.media_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
 
         <View style={{ padding: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -97,6 +116,19 @@ function ShopProductScreenInner() {
             {p.compare_at ? <T v="bodyS" style={{ fontSize: 14, color: d.faint, textDecorationLine: 'line-through' }}>{fmt(p.compare_at)}</T> : null}
           </View>
           <T v="bodyS" style={{ fontSize: 13, color: d.subtext, lineHeight: 21, marginTop: 14 }}>{p.description}</T>
+          {p.variants && p.variants.length > 0 ? (
+            <View style={{ marginTop: 18 }}>
+              <T v="h3" style={{ fontWeight: '800', fontSize: 14.5, color: d.text, marginBottom: 9 }}>Available options</T>
+              <View style={{ gap: 8 }}>
+                {p.variants.filter((v) => v.is_active !== 0).map((variant) => (
+                  <View key={variant.id} style={{ borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flex: 1 }}><T v="bodyS" style={{ fontWeight: '800', color: d.text }}>{variant.title}</T><T v="caption" style={{ color: d.subtext, marginTop: 2 }}>{Object.entries(variant.options || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || variant.sku || 'Standard option'}</T></View>
+                    <T v="bodyS" style={{ fontWeight: '900', color: gold }}>{fmt(variant.price)}</T>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           {net ? (
             <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginTop: 16, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
