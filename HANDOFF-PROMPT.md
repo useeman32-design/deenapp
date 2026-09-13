@@ -32,7 +32,8 @@
 #  • Admin-to-native sync audit: announcements, campaigns, products, and account status are server-first. Login and /me reject disabled/suspended/banned accounts. Live shop/campaign empty results no longer restore bundled demo content.
 #  • Shop product management now has gallery thumbnail/delete/reorder controls and variant storage with per-variant title/options/SKU/price/stock/media_id.
 #  • Native product detail now displays managed gallery media, uploaded video playback, and selectable variant options/prices. Variant IDs flow through cart quantity/removal and checkout stock deduction; live failures do not restore demo products.
-#  • Shop admin now includes variant rows, category management, publish validation, and variant details in order cards. Own products require SKU and featured image to publish; affiliate products require an affiliate URL.
+#  • Shop admin now includes variant rows, category management, publish validation, and variant details in order cards. Own products require SKU and featured image to publish; affiliate products require an affiliate URL. Variant options use real name/value controls, not JSON.
+#  • App Defaults admin now uses routine-set action selectors, add/remove controls, and Quick Access checkboxes; the JSON editor UI has been removed.
 #  • Boost actor pool now renders as a compact four-column grid, including profile photos, names,
 #    usernames, follower counts, search, and delete controls.
 #  • Boost actors now support search, visible photo cards, delete, and manual bulk creation (1–500)
