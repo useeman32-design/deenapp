@@ -34,6 +34,7 @@ import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
 import { CommentsModal } from '@/components/CommentsModal';
+import { AnnouncementModal } from '@/components/AnnouncementModal';
 import { GoalCompleteModal } from '@/components/GoalCompleteModal';
 import { useDeenPoints } from '@/components/DeenPoints';
 import { downloadDataUrl, generateShareCard, shareOrSaveCard, SHARE_DESIGNS } from '@/lib/shareCard';
@@ -1476,6 +1477,8 @@ function HomeInner() {
       />
 
       {/* pass 44 — "Barakallah" goal-completion celebration */}
+      <AnnouncementModal />
+
       <GoalCompleteModal
         visible={goalCelebrate.open}
         allComplete={goalCelebrate.all}

@@ -41,7 +41,8 @@
 #  • Native shop product detail now consumes the managed gallery, supports thumbnail selection, renders uploaded videos with expo-video, and displays/selects returned variant options/prices. Variant IDs now flow through cart quantity/removal and checkout inventory handling. Live product-detail failures no longer fall back to bundled demo products.
 #  • Shop administration now has a professional variant-row editor, category manager, publish validation, and variant details in admin order cards. Product publishing requires an own-product SKU and featured image; affiliate publishing requires an affiliate URL. Variant options are entered with real name/value rows, not JSON.
 #  • App Defaults administration now uses real routine-set action selectors, add/remove controls, and Quick Access checkboxes instead of JSON textareas.
-# NEXT: add pagination consistently to remaining content lists, test live DB endpoints, complete
+#  • Admin announcement modal was audited and mounted on the native Home screen; active targeted announcements now have an actual render path, while push broadcasts appear in the native notifications inbox.
+# NEXT: audit the next admin module endpoint-by-endpoint to remaining content lists, test live DB endpoints, complete
 # course/quiz heading/body editor audit, and wire remaining Quran offline/download and moderation/report gaps.
 
 # ══ 2026-09-12 — PASS 83-39 DESIGN-UNIFORMITY: EVERY ADMIN PAGE NOW WEARS THE OWNER'S CANONICAL DESIGN ══

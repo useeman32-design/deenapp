@@ -662,3 +662,5 @@ Tier 2 shipped (pass 75). Tier 3 shipped (pass 76): server-enforced blocking —
 on DM send/share/start + follow, search hides both directions, inbox block/report
 wired, settings/blocked-accounts screen, unblock reopens DMs as message requests.
 Next per the user: admin dashboard audit → iOS/Android store builds.
+
+#  • First endpoint audit: the native announcement modal is now mounted on Home, and admin push broadcasts are consumed by the notifications inbox.
