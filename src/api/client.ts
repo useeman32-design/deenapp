@@ -919,6 +919,7 @@ export type ShopProduct = {
   image_url?: string;
   video_url?: string;
   media?: Array<{ id: number; media_type: 'image' | 'video'; media_url: string; alt_text?: string | null; sort_order?: number; is_featured?: number }>;
+  variants?: Array<{ id: number; title: string; options: Record<string, string>; sku?: string; price: number; compare_at: number | null; stock: number; media_id?: number | null; is_active?: number; sort_order?: number }>;
   source: 'own' | 'affiliate';
   network: string | null;
   affiliate_url: string | null;

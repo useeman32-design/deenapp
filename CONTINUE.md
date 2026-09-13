@@ -28,7 +28,7 @@
 #  • Shop products and Shop Orders now have server-backed search plus 20-item pagination controls.
 #  • Shop catalog foundation now includes SKU, short description, featured image URL, product video URL,
 #    category records, and a reusable category table. The app can render an admin-provided image URL.
-#    Media upload/gallery support is now added for admin product images and video; variants and drag/reorder remain.
+#    Media upload/gallery support now includes admin thumbnails, delete controls, drag/reorder, and featured-first ordering. Product variants now have per-variant title/options/SKU/price/stock/media_id storage and admin JSON editing; native variant selector/display remains next.
 #  • Admin-to-native sync audit confirmed announcements, campaigns, products, and account status are
 #    server-first. Login and /me now reject disabled/suspended accounts as well as banned accounts.
 #  • Live shop and campaigns no longer repopulate bundled demo content when the live API returns an
