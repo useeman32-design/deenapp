@@ -66,6 +66,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setReady(true));
   }, []);
 
+  /* Admin moderation must reach an already-open native app, not only the next
+   * cold launch. Recheck the server session periodically; /me clears the
+   * session for banned, suspended, or disabled accounts. */
+  useEffect(() => {
+    if (!user || isDemo) return;
+    const check = async () => {
+      const result = await restoreSession();
+      if (result.user) setUser(result.user);
+      else setUser(null);
+    };
+    const timer = setInterval(() => { void check(); }, 45_000);
+    return () => clearInterval(timer);
+  }, [user, isDemo]);
+
   const value = useMemo<AuthValue>(() => {
     const login = async (identifier: string, password: string, rememberMe = true) => {
       const res = await apiLogin(identifier, password, rememberMe);

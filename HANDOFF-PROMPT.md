@@ -665,3 +665,5 @@ Next per the user: admin dashboard audit → iOS/Android store builds.
 
 #  • First endpoint audit: the native announcement modal is now mounted on Home, and admin push broadcasts are consumed by the notifications inbox.
 #  • Campaign endpoint audit: Home refreshes campaigns on focus, normalizes image URLs, and respects admin empty results.
+#  • User moderation audit: check_session now handles banned, suspended, and disabled account states consistently with login and /me.
+#  • Native AuthContext rechecks /me every 45 seconds, so account bans/suspensions/disable actions reach open sessions without requiring a cold launch.
