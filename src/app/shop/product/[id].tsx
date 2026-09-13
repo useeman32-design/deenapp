@@ -63,7 +63,8 @@ function ShopProductScreenInner() {
     );
   }
 
-  const img = shopImage(p.image_key);
+  const firstMedia = p.media?.find((m) => m.media_type === 'image');
+  const img = p.image_url ? { uri: p.image_url } : firstMedia?.media_url ? { uri: firstMedia.media_url } : shopImage(p.image_key);
   const net = p.network ? SHOP_NETWORKS[p.network] : null;
   const off = p.compare_at && p.compare_at > p.price ? Math.round((1 - p.price / p.compare_at) * 100) : 0;
 

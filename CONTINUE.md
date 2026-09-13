@@ -28,7 +28,7 @@
 #  • Shop products and Shop Orders now have server-backed search plus 20-item pagination controls.
 #  • Shop catalog foundation now includes SKU, short description, featured image URL, product video URL,
 #    category records, and a reusable category table. The app can render an admin-provided image URL.
-#    This is the first step toward a professional catalog; binary media upload/gallery and variants remain.
+#    Media upload/gallery support is now added for admin product images and video; variants and drag/reorder remain.
 #  • Boost actors now support search, visible photo cards, delete, and manual bulk creation (1–500)
 #    with optional name/username/gender or automatic natural-looking usernames. Legacy actor23-style
 #    handles are renamed on the next actor-pool initialization.

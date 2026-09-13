@@ -918,6 +918,7 @@ export type ShopProduct = {
   image_key: string;
   image_url?: string;
   video_url?: string;
+  media?: Array<{ id: number; media_type: 'image' | 'video'; media_url: string; alt_text?: string | null; sort_order?: number; is_featured?: number }>;
   source: 'own' | 'affiliate';
   network: string | null;
   affiliate_url: string | null;
@@ -927,14 +928,17 @@ export type ShopProduct = {
 export type ShopCart = { items: ShopProduct[]; count: number; total: number };
 export type ShopOrderItem = { product_id: number | null; title: string; price: number; qty: number; image_key: string };
 export type ShopOrder = { id: number; status: string; total: number; currency: string; created_at: string; ship_to: string; items: ShopOrderItem[] };
+function normalizeShopProduct(p: ShopProduct): ShopProduct {
+  return { ...p, image_url: p.image_url ? absMedia(p.image_url) : p.image_url, media: (p.media ?? []).map((m) => ({ ...m, media_url: absMedia(m.media_url) })) };
+}
 
 export async function shopProducts(category?: string): Promise<ShopProduct[] | null> {
   const r = await request<{ status?: string; products?: ShopProduct[] }>(`/api/shop/products.php${category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : ''}`);
-  return r.ok && Array.isArray(r.data.products) ? r.data.products : null;
+  return r.ok && Array.isArray(r.data.products) ? r.data.products.map(normalizeShopProduct) : null;
 }
 export async function shopProduct(id: number): Promise<ShopProduct | null> {
   const r = await request<{ status?: string; product?: ShopProduct }>(`/api/shop/product.php?id=${id}`);
-  return r.ok && r.data.product ? r.data.product : null;
+  return r.ok && r.data.product ? normalizeShopProduct(r.data.product) : null;
 }
 export async function shopSearch(q: string): Promise<ShopProduct[] | null> {
   const r = await request<{ status?: string; products?: ShopProduct[] }>(`/api/shop/search.php?q=${encodeURIComponent(q)}`);
