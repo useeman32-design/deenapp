@@ -1902,12 +1902,12 @@ export type QuizBankItem = {
   category?: string;
   multiCorrect?: number[];
 };
-export async function quizBank(): Promise<QuizBankItem[]> {
+export async function quizBank(): Promise<QuizBankItem[] | null> {
   try {
     const r = await request<{ status?: string; questions?: QuizBankItem[] }>('/api/quiz/bank.php', { method: 'GET' });
-    return Array.isArray(r.data.questions) ? r.data.questions : [];
+    return r.ok && Array.isArray(r.data.questions) ? r.data.questions : null;
   } catch {
-    return [];
+    return null;
   }
 }
 

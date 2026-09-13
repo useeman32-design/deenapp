@@ -72,7 +72,7 @@ export default function Quiz() {
   useEffect(() => {
     let alive = true;
     quizBank().then((rows) => {
-      if (!alive || !rows.length) return;
+      if (!alive || !rows) return;
       const mapped = rows.map((r, i) => {
         const cat = (['Quran', 'Hadith', 'Fiqh', 'Seerah', 'Aqidah'] as const).find((c) => c === r.category) || 'Quran';
         const q: QuizQ = {
@@ -92,6 +92,7 @@ export default function Quiz() {
   }, []);
   const FULL = useMemo<QuizQ[]>(() => (serverQs && serverQs.length ? serverQs : [...QUIZ_POOL, ...QUIZ_POOL_EXTRA]), [serverQs]);
   const pool = useMemo<QuizQ[]>(() => (cat === 'All' ? FULL : FULL.filter((q) => q.category === cat)), [cat, FULL]);
+  const noQuestions = FULL.length === 0;
 
   const clearTimer = () => {
     if (timer.current) clearInterval(timer.current);
@@ -101,6 +102,7 @@ export default function Quiz() {
   useEffect(() => clearTimer, []);
 
   const start = (c: (typeof CATS)[number] = cat, n = count) => {
+    if (!FULL.length) return;
     const p = c === 'All' ? FULL : FULL.filter((q) => q.category === c);
     const shuffled = [...p].sort(() => Math.random() - 0.5).slice(0, n === 0 ? p.length : Math.min(n, p.length));
     clearTimer();
@@ -217,12 +219,14 @@ export default function Quiz() {
             })}
           </View>
 
+          {noQuestions ? <T v="bodyS" style={{ color: d.subtext, textAlign: 'center', marginBottom: 12 }}>No quiz questions are published right now.</T> : null}
           <Pressable
+            disabled={noQuestions}
             onPress={() => start()}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 16, paddingVertical: 15, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1, shadowColor: '#1D6F42', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 8 })}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 16, paddingVertical: 15, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: noQuestions ? 0.45 : pressed ? 0.85 : 1, shadowColor: '#1D6F42', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 8 })}
           >
             <FontAwesome5 name="bolt" size={14} color="#FFFFFF" />
-            <T v="button" style={{ fontWeight: '800', fontSize: 14 }}>Start quiz</T>
+            <T v="button" style={{ fontWeight: '800', fontSize: 14 }}>{noQuestions ? 'No questions available' : 'Start quiz'}</T>
           </Pressable>
 
           {/* pass 32: quiz history — every finished attempt, newest first */}
