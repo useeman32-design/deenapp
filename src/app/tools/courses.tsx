@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,8 +24,7 @@ import { haptic } from "@/lib/haptics";
 import { storage } from "@/lib/storage";
 import { useDeenPoints } from "@/components/DeenPoints";
 import * as QRCode from "qrcode";
-import { SvgXml } from "react-native-svg";
-const ExportableSvgXml = SvgXml as any;
+import Svg, { G, Line, Rect, Text as SvgText, SvgXml } from "react-native-svg";
 import {
   saveSvgRefAsJpg,
   shareSvgRef,
@@ -923,6 +922,164 @@ const makeCertificateSvg = (
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850"><rect width="1200" height="850" fill="#fffdf7"/><rect x="28" y="28" width="1144" height="794" rx="18" fill="none" stroke="#c69b2d" stroke-width="5"/><text x="600" y="145" text-anchor="middle" font-family="serif" font-size="28" letter-spacing="7" fill="#9b7417">DEENLINK</text><text x="600" y="220" text-anchor="middle" font-family="serif" font-size="52" font-weight="bold" fill="#173d2b">CERTIFICATE OF COMPLETION</text><text x="600" y="285" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#65746b">This certifies that</text><text x="600" y="360" text-anchor="middle" font-family="serif" font-size="44" font-weight="bold" fill="#173d2b">${learner}</text><text x="600" y="420" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#65746b">successfully completed</text><text x="600" y="475" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#173d2b">${title}</text><text x="600" y="535" text-anchor="middle" font-family="sans-serif" font-size="23" fill="#65746b">Final assessment: ${percent}% · Issued ${date}</text><text x="850" y="690" text-anchor="middle" font-family="cursive" font-size="25" fill="#173d2b">${signature}</text><line x1="730" y1="700" x2="970" y2="700" stroke="#173d2b"/><text x="850" y="730" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#65746b">${role}</text><g transform="translate(130 625) scale(.72)">${qrInner}</g></svg>`;
 };
 
+const CertificateSvg = forwardRef<
+  any,
+  { certificate: Record<string, unknown>; courseTitle: string }
+>(function CertificateSvg({ certificate, courseTitle }, ref) {
+  const learner = String(certificate.learner_name ?? "Learner");
+  const title = String(certificate.course_title ?? courseTitle);
+  const percent = String(certificate.quiz_percent ?? "0");
+  const date = String(certificate.issued_at ?? "").slice(0, 10);
+  const signature = String(certificate.signature_name ?? "DeenLink");
+  const role = String(certificate.signature_title ?? "Learning & Development");
+  let qr: { size: number; get: (x: number, y: number) => boolean } | null =
+    null;
+  try {
+    const made = QRCode.create(
+      String(certificate.verification_url ?? "https://deenlink.org"),
+      { margin: 0 },
+    );
+    qr = { size: made.modules.size, get: (x, y) => made.modules.get(x, y) };
+  } catch {}
+  return (
+    <Svg ref={ref} width="1200" height="850" viewBox="0 0 1200 850">
+      <Rect width="1200" height="850" fill="#fffdf7" />
+      <Rect
+        x="28"
+        y="28"
+        width="1144"
+        height="794"
+        rx="18"
+        fill="none"
+        stroke="#c69b2d"
+        strokeWidth="5"
+      />
+      <Rect
+        x="44"
+        y="44"
+        width="1112"
+        height="762"
+        rx="12"
+        fill="none"
+        stroke="#ead9a6"
+        strokeWidth="2"
+      />
+      <SvgText
+        x="600"
+        y="145"
+        textAnchor="middle"
+        fontFamily="serif"
+        fontSize="28"
+        letterSpacing="7"
+        fill="#9b7417"
+      >
+        DEENLINK
+      </SvgText>
+      <SvgText
+        x="600"
+        y="220"
+        textAnchor="middle"
+        fontFamily="serif"
+        fontSize="52"
+        fontWeight="bold"
+        fill="#173d2b"
+      >
+        CERTIFICATE OF COMPLETION
+      </SvgText>
+      <SvgText
+        x="600"
+        y="285"
+        textAnchor="middle"
+        fontFamily="sans-serif"
+        fontSize="22"
+        fill="#65746b"
+      >
+        This certifies that
+      </SvgText>
+      <SvgText
+        x="600"
+        y="360"
+        textAnchor="middle"
+        fontFamily="serif"
+        fontSize="44"
+        fontWeight="bold"
+        fill="#173d2b"
+      >
+        {learner}
+      </SvgText>
+      <SvgText
+        x="600"
+        y="420"
+        textAnchor="middle"
+        fontFamily="sans-serif"
+        fontSize="22"
+        fill="#65746b"
+      >
+        successfully completed
+      </SvgText>
+      <SvgText
+        x="600"
+        y="475"
+        textAnchor="middle"
+        fontFamily="sans-serif"
+        fontSize="30"
+        fontWeight="bold"
+        fill="#173d2b"
+      >
+        {title}
+      </SvgText>
+      <SvgText
+        x="600"
+        y="535"
+        textAnchor="middle"
+        fontFamily="sans-serif"
+        fontSize="23"
+        fill="#65746b"
+      >{`Final assessment: ${percent}% · Issued ${date}`}</SvgText>
+      <SvgText
+        x="850"
+        y="690"
+        textAnchor="middle"
+        fontFamily="cursive"
+        fontSize="25"
+        fill="#173d2b"
+      >
+        {signature}
+      </SvgText>
+      <Line x1="730" y1="700" x2="970" y2="700" stroke="#173d2b" />
+      <SvgText
+        x="850"
+        y="730"
+        textAnchor="middle"
+        fontFamily="sans-serif"
+        fontSize="17"
+        fill="#65746b"
+      >
+        {role}
+      </SvgText>
+      {qr ? (
+        <G translate="130,625" scale="0.72">
+          <Rect width="196" height="196" rx="20" fill="#fff" />
+          {Array.from({ length: qr.size * qr.size }, (_, i) => {
+            const x = i % qr!.size;
+            const y = Math.floor(i / qr!.size);
+            return qr!.get(x, y) ? (
+              <Rect
+                key={i}
+                x={16 + (x * 164) / qr!.size}
+                y={16 + (y * 164) / qr!.size}
+                width={164 / qr!.size + 0.5}
+                height={164 / qr!.size + 0.5}
+                fill="#0B0F0D"
+              />
+            ) : null;
+          })}
+        </G>
+      ) : null}
+    </Svg>
+  );
+});
+
 function CoursePlayer({
   course,
   progress,
@@ -1357,7 +1514,7 @@ function CoursePlayer({
                       %
                     </T>
                     {certificateQr ? (
-                      <ExportableSvgXml
+                      <SvgXml
                         xml={certificateQr}
                         width={104}
                         height={104}
@@ -2021,12 +2178,11 @@ function CoursePlayer({
                   backgroundColor: "#fffdf7",
                 }}
               >
-                {certificateXml ? (
-                  <ExportableSvgXml
+                {certificate ? (
+                  <CertificateSvg
                     ref={certificateExportRef}
-                    xml={certificateXml}
-                    width="100%"
-                    height="100%"
+                    certificate={certificate}
+                    courseTitle={String(course.title)}
                   />
                 ) : null}
               </View>
