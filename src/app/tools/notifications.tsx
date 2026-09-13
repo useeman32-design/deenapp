@@ -82,10 +82,16 @@ function mapLive(rows: NotifRow[]): Notif[] {
     return {
       id: `L${r.id}`,
       kind: sysActor ? "system" : kind,
-      user: username,
-      /* pass 83-26 — the server field is actor.name (was: full_name, always blank) */
-      name: sysActor ? "DeenLink" : r.actor?.name || undefined,
-      text: (r.body || r.title || "").trim(),
+      user: type.includes("follow") ? undefined : username,
+      /* follower notifications use a title and the server's aggregated body once; do not duplicate actor + username. */
+      name: sysActor
+        ? "DeenLink"
+        : type.includes("follow")
+          ? undefined
+          : r.actor?.name || undefined,
+      text: type.includes("follow")
+        ? `New followers: ${(r.body || r.title || "").trim()}`
+        : (r.body || r.title || "").trim(),
       ago: agoOf(r.created_at),
       read: !!r.is_read,
       photo: sysActor ? null : absPhoto(r.actor?.profile_image_url),
