@@ -1,0 +1,1625 @@
+[
+  {
+    "question": "How many other sons did Prophet Ya'qub have in addition to Prophet Yusuf?",
+    "options": [
+      "5",
+      "7",
+      "11"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Ya'qub (Jacob) had 12 sons in total, including Yusuf. So he had 11 other sons."
+  },
+  {
+    "question": "How many Asma-Al-husna are mentioned in the last two verses of Sura Al-Hashr?",
+    "options": [
+      "17",
+      "15",
+      "10"
+    ],
+    "correct": 1,
+    "explanation": "15 beautiful names of Allah are mentioned in the last two verses of Surah Al-Hashr."
+  },
+  {
+    "question": "After they disobeyed Prophet Hud, they were destroyed by a fierce wind which Allah caused to blow against them for seven nights and eight days. Who were those people?",
+    "options": [
+      "People of Aad",
+      "People of Thamud",
+      "People of Makkah"
+    ],
+    "correct": 0,
+    "explanation": "The people of 'Ã„â‚¬d were destroyed by a violent windstorm for seven nights and eight days after rejecting Prophet Hud."
+  },
+  {
+    "question": "Which important event, mentioned in the Quran occurred one year before Hijrah in Makkah?",
+    "options": [
+      "Hunain",
+      "Miraj",
+      "Abu Lahab's death"
+    ],
+    "correct": 1,
+    "explanation": "The Isra and Miraj (Night Journey and Ascension) occurred one year before the Hijrah."
+  },
+  {
+    "question": "Prophet Saleh was sent to?",
+    "options": [
+      "People of Kahaf",
+      "People of Madyan",
+      "People of Thamud"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Saleh was sent to the people of Thamud."
+  },
+  {
+    "question": "The Muslims were the first to explore...",
+    "options": [
+      "New York",
+      "The Canary Islands",
+      "Central Africa"
+    ],
+    "correct": 1,
+    "explanation": "Muslims were the first to explore the Canary Islands."
+  },
+  {
+    "question": "How old was the Prophet when his Mother died?",
+    "options": [
+      "1 year",
+      "5 years",
+      "6 years"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Muhammad (Ã¯-Âº) was 6 years old when his mother Amina died."
+  },
+  {
+    "question": "The Holy Quran was revealed over how many years?",
+    "options": [
+      "25",
+      "23",
+      "21"
+    ],
+    "correct": 1,
+    "explanation": "The Quran was revealed over 23 years: 13 years in Makkah and 10 years in Madinah."
+  },
+  {
+    "question": "What completes the fast of Ramadan?",
+    "options": [
+      "Payment of Sadaqa-al-fitr",
+      "Paying the Masjid",
+      "Payment of Zakat"
+    ],
+    "correct": 0,
+    "explanation": "Sadaqat al-Fitr (Zakat al-Fitr) is obligatory charity that completes the fast of Ramadan."
+  },
+  {
+    "question": "Which ayat of the Quran confirms the Islamic Religion as the complete religion?",
+    "options": [
+      "al-Maidah, Ayat 3",
+      "an-nas, Ayat 5",
+      "an-Nahl, Ayat 89"
+    ],
+    "correct": 0,
+    "explanation": "Surah Al-Ma'idah (5:3): 'This day I have perfected for you your religion...'"
+  },
+  {
+    "question": "Who was The daughter of Prophet Muhammad (SAW) who married Ali ibn Abi Talib?",
+    "options": [
+      "Umm Kulthum",
+      "Fatimah",
+      "Zainab"
+    ],
+    "correct": 1,
+    "explanation": "Fatimah (RA), the youngest daughter of Prophet Muhammad (Ã¯-Âº), married Ali ibn Abi Talib (RA)."
+  },
+  {
+    "question": "Which surah contains the longest ayah in The Holy Quran?",
+    "options": [
+      "Ibrahim",
+      "Al Hijr",
+      "Al Baqarah"
+    ],
+    "correct": 2,
+    "explanation": "Surah Al-Baqarah (2:282) contains the longest verse in the Quran."
+  },
+  {
+    "question": "Which kaafir king was killed by a lame mosquito?",
+    "options": [
+      "Ferawoon",
+      "Karoon",
+      "Namrud"
+    ],
+    "correct": 2,
+    "explanation": "King Nimrod (Namrud) was killed by a mosquito that entered his brain."
+  },
+  {
+    "question": "The rate of Zakaah for money is (in percent)",
+    "options": [
+      "2.5",
+      "25",
+      "1.5"
+    ],
+    "correct": 0,
+    "explanation": "The rate of Zakat on money/savings is 2.5% annually."
+  },
+  {
+    "question": "Who was known as Khalilullah?",
+    "options": [
+      "Isa (as)",
+      "Ismail (as)",
+      "Ibrahim (as)"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Ibrahim (Abraham) is known as Khalilullah (Friend of Allah)."
+  },
+  {
+    "question": "Who was first woman?",
+    "options": [
+      "Asiya",
+      "Khadija",
+      "Hawa"
+    ],
+    "correct": 2,
+    "explanation": "Hawwa (Eve) was the first woman created by Allah."
+  },
+  {
+    "question": "Fatima (r.a.) and her husband had five children Hassan, Hussain, Zainab, Umm Kulthum and",
+    "options": [
+      "Ibrahim",
+      "Muhassin",
+      "Abdullah"
+    ],
+    "correct": 1,
+    "explanation": "Fatimah (RA) and Ali (RA) had five children: Hasan, Husayn, Zaynab, Umm Kulthum, and Muhassin."
+  },
+  {
+    "question": "That the human being is created in the best of moulds is a verse from",
+    "options": [
+      "Sura al Takathur",
+      "Sura al Tin",
+      "Sura Al Maun"
+    ],
+    "correct": 1,
+    "explanation": "Surah At-Tin (95:4): 'We have certainly created man in the best of stature.'"
+  },
+  {
+    "question": "Which Prophet was raised up by Allah (swt) and he will return before the end of this world?",
+    "options": [
+      "Prophet Musa (as)",
+      "Prophet Isa (as)",
+      "Prophet Yunus (as)"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Isa (Jesus) was raised up by Allah and will return before the Day of Judgment."
+  },
+  {
+    "question": "How long did Abu Bakr (r.a.) rule as a Khalifah?",
+    "options": [
+      "12 years",
+      "10 years 6 months 4 days",
+      "2 years 3 months"
+    ],
+    "correct": 2,
+    "explanation": "Abu Bakr (RA) ruled as Caliph for 2 years, 3 months, and 10 days."
+  },
+  {
+    "question": "The first woman martyr of Islam was",
+    "options": [
+      "Fatima (RA)",
+      "Khadija (RA)",
+      "Sumayya (RA)"
+    ],
+    "correct": 2,
+    "explanation": "Sumayya bint Khayyat (RA) was the first martyr of Islam."
+  },
+  {
+    "question": "When will the Day of Judgement occur?",
+    "options": [
+      "2012",
+      "Only Allah knows",
+      "Year 7000"
+    ],
+    "correct": 1,
+    "explanation": "Only Allah knows when the Day of Judgment will occur."
+  },
+  {
+    "question": "Who was the last Prophet?",
+    "options": [
+      "Isa (AS)",
+      "Musa (AS)",
+      "Muhammad (SAW)"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Muhammad (Ã¯-Âº) is the final prophet."
+  },
+  {
+    "question": "How many chapters are in the Quran?",
+    "options": [
+      "114",
+      "30",
+      "6666"
+    ],
+    "correct": 0,
+    "explanation": "There are 114 surahs (chapters) in the Quran."
+  },
+  {
+    "question": "How tall will we be in Jannah?",
+    "options": [
+      "10 feet",
+      "Same as now",
+      "60 cubits"
+    ],
+    "correct": 2,
+    "explanation": "In Paradise, believers will be 60 cubits tall (approximately 90 feet)."
+  },
+  {
+    "question": "The Sun will rise from the west",
+    "options": [
+      "Never",
+      "Near the Day of Judgement",
+      "After the Day of Judgement"
+    ],
+    "correct": 1,
+    "explanation": "The sun will rise from the west near the Day of Judgment as a major sign."
+  },
+  {
+    "question": "Whose dead body from the time of Musa (AS) is still with us today?",
+    "options": [
+      "Namrud",
+      "Karoon",
+      "Firawoon"
+    ],
+    "correct": 2,
+    "explanation": "The body of Pharaoh (Firaun) from the time of Musa is preserved as a sign."
+  },
+  {
+    "question": "Satan is a",
+    "options": [
+      "Angel",
+      "Jinn",
+      "Human"
+    ],
+    "correct": 1,
+    "explanation": "Satan (Iblis) is from the jinn, not an angel."
+  },
+  {
+    "question": "Allah is",
+    "options": [
+      "All Knowing, All Seeing",
+      "All Hearing, Most Merciful",
+      "All of the above"
+    ],
+    "correct": 2,
+    "explanation": "Allah possesses all perfect attributes including All-Knowing, All-Seeing, All-Hearing, Most Merciful, etc."
+  },
+  {
+    "question": "To enter Jannah we must",
+    "options": [
+      "Be Rich",
+      "Be Strong",
+      "Follow Islam Totally"
+    ],
+    "correct": 2,
+    "explanation": "To enter Paradise, one must follow Islam completely with sincere faith and good deeds."
+  },
+  {
+    "question": "How many times is Allahu Akbar mentioned in one Adhan?",
+    "options": [
+      "4",
+      "6",
+      "7"
+    ],
+    "correct": 0,
+    "explanation": "Allahu Akbar is said 4 times at the beginning of the Adhan."
+  },
+  {
+    "question": "Can Allah see the things under the deep oceans?",
+    "options": [
+      "Yes",
+      "No",
+      "Maybe"
+    ],
+    "correct": 0,
+    "explanation": "Yes, Allah sees everything, even under the deepest oceans."
+  },
+  {
+    "question": "When time for prayer comes we should",
+    "options": [
+      "Play Video Games",
+      "Watch TV",
+      "Pray right away"
+    ],
+    "correct": 2,
+    "explanation": "We should pray as soon as the prayer time begins."
+  },
+  {
+    "question": "Can Muslims eat Pork (Pig)?",
+    "options": [
+      "Yes, Pork is Halal",
+      "No, Pork is Haram",
+      "Yes, if you say Bismillah"
+    ],
+    "correct": 1,
+    "explanation": "No, pork is strictly forbidden (haram) in Islam."
+  },
+  {
+    "question": "How should we behave with our parents?",
+    "options": [
+      "Be nice to them sometimes only",
+      "Always be rude to them",
+      "Always be nice to them"
+    ],
+    "correct": 2,
+    "explanation": "We should always be kind, respectful, and obedient to our parents (within Islamic limits)."
+  },
+  {
+    "question": "Who can see you all the time?",
+    "options": [
+      "Ghosts",
+      "Angels",
+      "Allah"
+    ],
+    "correct": 2,
+    "explanation": "Allah sees us all the time, everywhere."
+  },
+  {
+    "question": "At what age did Prophet Muhammad (peace be upon him) die?",
+    "options": [
+      "53",
+      "63",
+      "73"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad (Ã¯-Âº) passed away at the age of 63."
+  },
+  {
+    "question": "When do we pray Fajr?",
+    "options": [
+      "After Sun rises",
+      "Before going to sleep",
+      "Before Sun rises"
+    ],
+    "correct": 2,
+    "explanation": "Fajr prayer is prayed before sunrise."
+  },
+  {
+    "question": "How many ants are in the world?",
+    "options": [
+      "5 billion",
+      "7 zillion",
+      "Only Allah knows"
+    ],
+    "correct": 2,
+    "explanation": "Only Allah knows the exact number of all creations."
+  },
+  {
+    "question": "Which Prophet invited for 950 years?",
+    "options": [
+      "Nuh (AS)",
+      "Adam (AS)",
+      "Ibrahim (AS)"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Nuh (Noah) called his people to Islam for 950 years."
+  },
+  {
+    "question": "Who accompanied Prophet Muhammad (pbuh) during his Hijrah (migration)?",
+    "options": [
+      "Ali (ra)",
+      "Hamza (ra)",
+      "Abu Bakr (ra)"
+    ],
+    "correct": 2,
+    "explanation": "Abu Bakr (RA) accompanied Prophet Muhammad (Ã¯-Âº) during the Hijrah to Madinah."
+  },
+  {
+    "question": "Where did they (The Prophet and Abu Bakr) take shelter before proceeding to Al-Madinah?",
+    "options": [
+      "Mount Uhud",
+      "Syria",
+      "Cave of Thawr"
+    ],
+    "correct": 2,
+    "explanation": "They took shelter in the Cave of Thawr for three days."
+  },
+  {
+    "question": "Where were the first Ayats (Verses) revealed to Prophet Muhammad (phub)?",
+    "options": [
+      "Cave of Safa",
+      "Cave of Hira",
+      "Kabah"
+    ],
+    "correct": 1,
+    "explanation": "The first revelation came to Prophet Muhammad (Ã¯-Âº) in the Cave of Hira."
+  },
+  {
+    "question": "What is dry ablution called?",
+    "options": [
+      "Ghusl",
+      "Wudhu",
+      "Tayammum"
+    ],
+    "correct": 2,
+    "explanation": "Tayammum is dry ablution using clean earth when water is unavailable or harmful to use."
+  },
+  {
+    "question": "In whose room did the Messenger of Allah (pbuh) die and was then buried there?",
+    "options": [
+      "Fatimah",
+      "Aishah",
+      "Hafsah"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad (Ã¯-Âº) passed away in the room of Aishah (RA) and was buried there."
+  },
+  {
+    "question": "In which battle was the Prophet's (phub) uncle Hamzah (ra) killed?",
+    "options": [
+      "Badr",
+      "Khandaq",
+      "Uhud"
+    ],
+    "correct": 2,
+    "explanation": "Hamzah (RA) was martyred in the Battle of Uhud."
+  },
+  {
+    "question": "What major event took place in the 2nd Hijrah year in the month of Ramadan?",
+    "options": [
+      "Miraj",
+      "Conquest of Makkah",
+      "Battle of Badr"
+    ],
+    "correct": 2,
+    "explanation": "The Battle of Badr took place in Ramadan of the 2nd year after Hijrah."
+  },
+  {
+    "question": "Who was called the 'Sword of Allah'?",
+    "options": [
+      "Khalid ibn Al-Walid (ra)",
+      "Abu Dujana (ra)",
+      "Ali (ra)"
+    ],
+    "correct": 0,
+    "explanation": "Khalid ibn Al-Walid (RA) was known as 'Sayfullah' (Sword of Allah)."
+  },
+  {
+    "question": "Who amongst the Mothers of the Believers was nicknamed 'Umm ul-Masakeen' (Mother of the Poor)?",
+    "options": [
+      "Hafsah (ra)",
+      "Zainab bint Khuzaimah (ra)",
+      "Aishah (ra)"
+    ],
+    "correct": 1,
+    "explanation": "Zainab bint Khuzaimah (RA) was known for her generosity to the poor."
+  },
+  {
+    "question": "Who was called 'Tahirah' (Pure) among the Mothers of the Believers (ra)?",
+    "options": [
+      "Khadijah (ra)",
+      "Umm Salamah (ra)",
+      "Hafsah (ra)"
+    ],
+    "correct": 0,
+    "explanation": "Khadijah (RA) was called 'At-Tahirah' (The Pure One)."
+  },
+  {
+    "question": "Which sahaba did Prophet Muhammad (Ã¯-Âº) help to become free from being a slave by planting 300+ date palm trees?",
+    "options": [
+      "Bilal ibn Rabah (ra)",
+      "Thawban ibn Bujdud (ra)",
+      "Zayd ibn Harisa (ra)",
+      "Salman al Farisi (ra)"
+    ],
+    "correct": 3,
+    "explanation": "Salman al-Farisi (RA) was a slave who was promised freedom if he planted 300+ date palm trees. The Prophet (Ã¯-Âº) helped him complete this task."
+  },
+  {
+    "question": "What is the virtue of reciting Ayatul Kursi before going to bed at night to sleep?",
+    "options": [
+      "Takes away hunger",
+      "Gives you strength",
+      "You are protected from harm till sunrise",
+      "House in Jannah"
+    ],
+    "correct": 2,
+    "explanation": "Abu Hurairah (r) said: The Messenger of Allah (Ã¯-Âº) appointed me to guard the zakaah of Ramadaan, then someone came and started rummaging in the foodstuff; and at the end of the hadeeth he said: 'When you go to your bed, recite Aayat al-Kursiy, for there will remain with you a guardian from Allah, and no devil will approach you, until morning comes.' The Prophet (Ã¯-Âº) said: 'He told you the truth although he is a liar. That was a devil.' (Sahih al-Bukhaari 2311)"
+  },
+  {
+    "question": "Which Prophet (as) had control of the Jinn and was able to talk to animals?",
+    "options": [
+      "Sulaiman (as)",
+      "Dawud (as)",
+      "Yunus (as)",
+      "Musa (as)"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Sulaiman (as) was known for his wisdom and knowledge, and was bestowed with many special gifts and powers, such as the ability to command wind and the mystical jinn, and could understand and speak the language of animals, birds and insects."
+  },
+  {
+    "question": "What does Zam Zam mean?",
+    "options": [
+      "Holy water",
+      "Water well",
+      "Stop",
+      "Drink"
+    ],
+    "correct": 2,
+    "explanation": "Ibn 'Abbaas said: The Prophet (Ã¯-Âº) added, 'May Allah bestow Mercy on Ismaa'eel's mother! Had she left the Zamzam alone (flowing without trying to control it) (or had she not scooped from that water) (to fill her water-skin), Zamzam would have been a stream flowing on the surface of the earth.'"
+  },
+  {
+    "question": "What 2 things does a person lose if he/she misses Asr salah intentionally?",
+    "options": [
+      "Friends",
+      "Family",
+      "Property",
+      "Time"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Whoever misses the `Asr prayer (intentionally) then it is as if he lost his family and property.' (Sahih Bukhari 552)",
+    "multiCorrect": [
+      1,
+      2
+    ]
+  },
+  {
+    "question": "What is Az-Zaqqum?",
+    "options": [
+      "Food for the people of hellfire",
+      "Drink for the people of hellfire",
+      "Home for the people of hellfire",
+      "Clothes for the people of hellfire"
+    ],
+    "correct": 0,
+    "explanation": "'Then indeed you, O those astray [who are] deniers, Will be eating from trees of zaqqum' (Quran 56:51-52)"
+  },
+  {
+    "question": "What is Sidrat al-Muntaha?",
+    "options": [
+      "Food for the people of Jannah",
+      "An olive tree of the farthest boundary",
+      "A lote tree of the farthest boundary",
+      "Drink for the people of Jannah"
+    ],
+    "correct": 2,
+    "explanation": "'And indeed he (Muhammad (Ã¯-Âº) saw him (Jibreel) at a second descent (i.e., another time), near Sidrat al-Muntaha (the lote tree of the utmost boundary, beyond which none can pass), near it is the Paradise of Abode, when that covered the lote-tree which did cover it!' (Quran 53:13-16)"
+  },
+  {
+    "question": "What was the relation between Prophet Musa (alayhi as-salaam) & Prophet Haroon (alayhi as-salaam)?",
+    "options": [
+      "Cousins",
+      "Brothers",
+      "Father & son",
+      "Friends"
+    ],
+    "correct": 1,
+    "explanation": "'And Allah sent Haroon, the brother of Musa as a support to Musa when He wanted to send him to Pharaoh, to call him to worship Allah. This was in response to the request of Musa: 'And We granted him his brother Haroon (Aaron), (also) a Prophet, out of Our Mercy' [Quran 19:53]"
+  },
+  {
+    "question": "Which 2 surahs are for seeking protection in Allah from evil-eye & witchcraft?",
+    "options": [
+      "Surah Yaseen",
+      "Surah Falaq",
+      "Surah Ikhlas",
+      "Surah Naas"
+    ],
+    "correct": 1,
+    "explanation": "It was narrated that Abu Sa'id al-Khudri (r) said: 'The Messenger of Allah (Ã¯-Âº) used to seek refuge with Allah from the jinn and from the evil eye until the Mu'awwidhatayn (the last two chapters of the Quran, al-Falaq and al-Nas) were revealed, and when they were revealed he started to recite them and not anything else.' (Tirmidhi, Nasaa'i, Ibn Maajah)",
+    "multiCorrect": [
+      1,
+      3
+    ]
+  },
+  {
+    "question": "Which of the following is not an example of Major Shirk?",
+    "options": [
+      "Asking help from a Prophet",
+      "Going to a pious person's grave for blessings",
+      "Denying Allah & His religion",
+      "Showing off"
+    ],
+    "correct": 3,
+    "explanation": "The Prophet Ã¯-Âº said: 'What I fear for you the most is the minor shirk, that is ar-riya. Allah will say on the Day of Judgement when He is rewarding the people for their actions: Go to those for whom you did riya for in the world then see if you find the reward with them.' [Ahmad (5/428, 429)]"
+  },
+  {
+    "question": "What does Allah's name Al-Mu'izz mean?",
+    "options": [
+      "The One who dishonours",
+      "The One who will judge",
+      "The One who honours",
+      "The One who sees it all"
+    ],
+    "correct": 2,
+    "explanation": "Say (O Muhammad Ã¯-Âº): 'O Allah! Possessor of the kingdom, You give the kingdom to whom You will, and You take the kingdom from whom You will, and You endue with honour whom You will, and You humiliate whom You will. In Your Hand is the good. Verily, You are Able to do all things.' (Quran 3:26)"
+  },
+  {
+    "question": "Whose dua Allah will not accept? 2 answers.",
+    "options": [
+      "A person who asks Allah many times",
+      "A person who asks Allah using a dead person as an intermediary",
+      "A person who asks Allah with tears",
+      "A person who asks Allah with no focus"
+    ],
+    "correct": 1,
+    "explanation": "Anas ibn Malik reported: If a drought became threatening, Umar ibn al-Khattab, may Allah be pleased with him, would ask Al-Abbas ibn Abdul Muttalib to supplicate for Allah to send rain. Umar would say, 'O Allah, we used to ask our Prophet, peace and blessings be upon him, to supplicate for rain and you would bless us with rain. Now we ask the uncle of our Prophet to supplicate for rain, so bless us with rain.' And so it would rain. (Sahih al Bukhari 964) The Prophet (Ã¯-Âº) said: 'Know that Allah does not answer a du'aa from a distracted heart.' (Tirmidhi, 3479; classed as hasan by al-Albaani in Saheeh al-Jaami', 245)",
+    "multiCorrect": [
+      1,
+      3
+    ]
+  },
+  {
+    "question": "Who was a first cousin of Prophet Muhammad (peace be upon him)?",
+    "options": [
+      "Abdullah ibn al-Abbas (ra)",
+      "Abdullah ibn Umar (ra)",
+      "Khalid ibn Waleed (ra)",
+      "Abu Hurairah (ra)"
+    ],
+    "correct": 0,
+    "explanation": "Abdullah was the son of Abbas, an uncle of the Prophet Ã¯-Âº. He was born just three years before the Hijrah."
+  },
+  {
+    "question": "Who will get their book of deeds in the right hand on the Day of Judgment?",
+    "options": [
+      "The disbelievers",
+      "The believers",
+      "The hypocrites",
+      "The leaders"
+    ],
+    "correct": 1,
+    "explanation": "'Then as for him who will be given his Record in his right hand will say: 'Here! read my Record 'Surely, I did believe that I shall meet my Account! So he shall be in a life, wellÃ¢â‚¬â€˜pleasing. In a lofty Paradise,' (Quran 69:19-22)"
+  },
+  {
+    "question": "What issue was Imam al-Bukhari (rh) born with and how as it fixed?",
+    "options": [
+      "Deaf & fixed with medicine",
+      "Blind & fixed with medicine",
+      "Deaf & fixed with mother's dua",
+      "Blind & fixed with mother's dua"
+    ],
+    "correct": 3,
+    "explanation": "Imam al-Bukhari was born blind and his mother's sincere dua restored his sight."
+  },
+  {
+    "question": "Who was Umar bin Abdul Aziz (r)? 2 answers.",
+    "options": [
+      "A companion of the Prophet (Ã¯-Âº)",
+      "A caliph of Islamic empire",
+      "Grandson of Umar ibn al-Khattab",
+      "Great grandson of Umar ibn al-Khattab"
+    ],
+    "correct": 1,
+    "explanation": "Umar bin Abdul Aziz was the 8th Umayyad caliph, known for his justice and piety. He was the great grandson of Umar ibn al-Khattab.",
+    "multiCorrect": [
+      1,
+      3
+    ]
+  },
+  {
+    "question": "In Jannah, what is Tuba?",
+    "options": [
+      "A fruit",
+      "A tree",
+      "A river",
+      "A door"
+    ],
+    "correct": 1,
+    "explanation": "'Those who believe, and work righteousness, Tuba is for them and a beautiful place of (final) return.' (Quran 13:29) Imam Ahmad recorded that Abu Sa'id Al-Khudri said that a man asked, 'O Allah's Messenger! Tuba for those who saw you and believed in you!' The Prophet Ã¯-Âº said, 'Tuba is for he who saw me and believed in me. Tuba, and another Tuba, and another Tuba for he who believed in me, but did not see me.' A man asked, 'What is Tuba?' The Prophet Ã¯-Âº said, 'A tree in Paradise whose width is a hundred years, and the clothes of the people of Paradise are taken from its bark.'"
+  },
+  {
+    "question": "What does Allah's name Al-Ghani mean?",
+    "options": [
+      "The Giver",
+      "The Protector",
+      "The Independent",
+      "The Wise"
+    ],
+    "correct": 2,
+    "explanation": "'O mankind! You are the poor ones in need of Allah, where as Allah is the Rich Beyond Need , the Praiseworthy.' (Quran 35:15)"
+  },
+  {
+    "question": "Which Surah was favoured over the rest of the Quran with two prostrations?",
+    "options": [
+      "Surah Hajj",
+      "Surah Tawbah",
+      "Surah Muhammad",
+      "Surah Yaseen"
+    ],
+    "correct": 0,
+    "explanation": "Amr bin Al-Ass (r) narrated that 'The Prophet (Ã¯-Âº) taught him (to read) 15 Sajda, 3 of which are in the Mufassal and 2 of which are in Surah Al-Hajj (22)'. [Abu Dawud, Al-Hakim, Ibn Majah, Daruqutni and Al-Mundiri said that 'it is a sound Hadith']"
+  },
+  {
+    "question": "Which is not one of the rights of a Muslim upon another Muslim?",
+    "options": [
+      "If one invites, you accept it",
+      "If one dies, you attend the funeral",
+      "If one asks for advice, you give sincerely",
+      "If one asks for money, you give"
+    ],
+    "correct": 3,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'The rights of one Muslim over another are five: returning the greeting of salaam, visiting the sick, attending funerals, accepting invitations, and saying yarhamuk Allah (may Allah have mercy on you) to one who sneezes.' (Al-Bukhari (1240) and Muslim (2162))"
+  },
+  {
+    "question": "Which Surah is referred as the oft-repeating verses Surah?",
+    "options": [
+      "Surah Ikhlas",
+      "Surah Fatihah",
+      "Surah Naas",
+      "Surah Rahman"
+    ],
+    "correct": 1,
+    "explanation": "Abu Sa'eed al-Mu'alla (r) that the Messenger of Allah (Ã¯-Âº) said to him: 'I will surely teach you a soorah that is the greatest soorah in the Qur'an...' Then he said: 'Al-hamdu Lillahi Rabb al-'Aalameen... It is the seven oft-repeated verses and the Glorious Qur'an that I have been given (cf. al-Hijr 15:87).' (Bukhari 4474)"
+  },
+  {
+    "question": "Which Angel will blow the horn to signal the Day of Judgement?",
+    "options": [
+      "Jibraeel (as)",
+      "Mikaeel (as)",
+      "Malik Ul Moat (as)",
+      "Israfeel (as)"
+    ],
+    "correct": 3,
+    "explanation": "Messenger of Allah (Ã¯-Âº) said, 'How can I feel at ease when the Angel of the Trumpet, (Israfil) has put his lips to the Trumpet and is waiting for the order to blow it'. (Tirmidhi, Hasan)"
+  },
+  {
+    "question": "Which Prophet (as) addressed the ruler King Nimrod?",
+    "options": [
+      "Prophet Ibrahim (as)",
+      "Prophet Isa (as)",
+      "Prophet Yusuf (as)",
+      "Prophet Lut (as)"
+    ],
+    "correct": 0,
+    "explanation": "The Tafseer of Muhammad al-Kittaani Al-Idreesi reads, 'Nimrood, the dictator and tyrant who considered himself to be god, the disbeliever, tried to inflict harm upon Ibrahim (Abraham), but Allah gave a sweeping victory to Ibrahim as Allah hit Nimrood and his people with the smallest and most despicable creation. He sent mosquitoes upon them; a mosquito would enter their ears, and then their nostrils, and it would keep moving until it reached their brain; as a result, they died.'"
+  },
+  {
+    "question": "Which uncle of Prophet Muhammad (peace be upon him) didn't accept Islam?",
+    "options": [
+      "Abdul Muttalib",
+      "Hamza",
+      "Abu Lahab",
+      "Al-Abbas"
+    ],
+    "correct": 2,
+    "explanation": "'Perished be the hands of Abu Lahab and ruined he be, Neither his wealth nor what he has earned shall avail him. He shall shortly roast in a flaming fire. And his wife Ã¢â‚¬â€ laden with faggots, Shall have a rope of palm fiber round her neck.' (Qur'an 111:1-5)"
+  },
+  {
+    "question": "What are you not allowed to do in Sujood?",
+    "options": [
+      "Make dua in Arabic",
+      "Recite Quran",
+      "Make dua in another language",
+      "Recite adhkar"
+    ],
+    "correct": 1,
+    "explanation": "The Prophet Ã¯-Âº said: 'I have been forbidden to recite the Quran in the state of bowing and prostration. So whilst bowing, extol the Lord in it, and while you are in prostration strive your hardest supplicating, as it is most likely that you will be responded to.' [Muslim]"
+  },
+  {
+    "question": "Which Surah doesn't begin with the basmallah?",
+    "options": [
+      "Surah Rahman",
+      "Surah Yasin",
+      "Surah Fatihah",
+      "Surah Tawbah"
+    ],
+    "correct": 3,
+    "explanation": "Imam an-Nawawi (r) said: 'He should always recite Bismillah ir-Rahmaan ir-Raheem at the beginning of every Surah except Surah Baraa'ah (at-Tawbah), because the majority of scholars said that it is a verse wherever it is written in the Mushaf, and it was written at the beginning of all the soorahs except Surah at-Tawbah. If he recites it at the beginning of every soorah (other than at-Tawbah), then there is certainty that he had recited the entire Qur'an or Surah, and if he fails to recite the Basmalah, he has omitted part of the Qur'an according to the majority.' (at-Tibyaan fi Adaab Hamalat al-Qur'aan, 100)"
+  },
+  {
+    "question": "How did Abu Hurairah (ra) stop forgetting and had an amazing memory?",
+    "options": [
+      "The Prophet Ã¯-Âº made dua for him (r)",
+      "The Prophet Ã¯-Âº blessed his (r) clothing sheet",
+      "He (r) ate lots of nuts",
+      "He (r) drank a lot of milk"
+    ],
+    "correct": 1,
+    "explanation": "Abu Hurairah (r) reported: I said, 'O Messenger of Allah, I hear many traditions from you and I forget them.'; The Prophet (s) said: 'Spread open your garment.'; I spread it and then he placed something from his hand into it, saying, 'Wrap it.'. I wrapped it around me and I never forgot a tradition ever again. (Sahih Bukhari 3448)"
+  },
+  {
+    "question": "What is Abu Bakr (r)'s full name?",
+    "options": [
+      "Abdur Rahman ibn Uthman",
+      "Uthman ibn Abdullah",
+      "Abdullah ibn Uthman",
+      "Abdullah ibn Abdur Rahman"
+    ],
+    "correct": 2,
+    "explanation": "His full name is Abdullah bin Abu Quhafah Uthman bin Aamer Al Qurashi Al Taymi. His lineage joins with that of the Prophet Ã¯-Âº six generations before himself, in Murrah Ben Kaab."
+  },
+  {
+    "question": "For whom is this dua for? Ã¢â‚¬â€œ Rabbir Humhumma Kama Rabba Yaani Sahgeera",
+    "options": [
+      "Children",
+      "Parents",
+      "Whole Ummah",
+      "The Deceased"
+    ],
+    "correct": 1,
+    "explanation": "'My Lord! Be merciful to them as they raised me when I was young.' (Quran 17:24)"
+  },
+  {
+    "question": "Why does Allah allow suffering to happen? 2 answers.",
+    "options": [
+      "Because life is a test",
+      "Because we were born to suffer",
+      "Because Allah likes us to suffer",
+      "Because we appreciate the good even more"
+    ],
+    "correct": 0,
+    "explanation": "'We will certainly test you with a touch of fear and famine and loss of property, life, and crops. Give good news to those who patiently endure.' (Quran 2:155)",
+    "multiCorrect": [
+      0,
+      3
+    ]
+  },
+  {
+    "question": "How many gates of Jannah are there?",
+    "options": [
+      "5",
+      "6",
+      "7",
+      "8"
+    ],
+    "correct": 3,
+    "explanation": "The Messenger of Allah (Ã¯-Âº) said: 'Whoever performs Wudu' and does it well, then says: 'Ashhadu an la ilaha ill-Allah was ashhadu anna Muhammadan 'abduhu wa rasuluh (I bear witness that there is none worthy of worship except Allah, and I bear witness that Muhammad is his slave and Messenger),' eight gates of Paradise will be opened for him, and he may enter through whichever one he wishes.'' (Sunan Nisaai, Sahih)"
+  },
+  {
+    "question": "What is not one of the conditions of the Shahada?",
+    "options": [
+      "Knowledge (Ilm)",
+      "Submission (Inqiyad)",
+      "Memorisation (Hifz)",
+      "Sincerity (Ikhlas)"
+    ],
+    "correct": 2,
+    "explanation": "The conditions of Shahada are: Knowledge, Certainty, Acceptance, Submission, Truthfulness, Sincerity, and Love. Memorization is not a condition."
+  },
+  {
+    "question": "Who was the only person did the Prophet Ã¯-Âº pray a full rakat behind?",
+    "options": [
+      "Abu Bakr (r)",
+      "Umar ibn al Khattab (r)",
+      "Abdur Rahman ibn Awf (r)",
+      "Bilal ibn Rabah (r)"
+    ],
+    "correct": 2,
+    "explanation": "In the wording of Ahmad: 'Al-Mugheerah Ibn Shu'bah said: '...I saw the Prophet Ã¯-Âº praying behind Abdur-Rahmaan Ibn 'Awf one Rak'ah of Fajr [as he had missed one Rak'ah] and I saw the Prophet Ã¯-Âº, wiping over his socks.'"
+  },
+  {
+    "question": "Which fruit is mentioned in the Quran?",
+    "options": [
+      "Grapes",
+      "Apples",
+      "Mangoes",
+      "Oranges"
+    ],
+    "correct": 0,
+    "explanation": "'By means of it We produce gardens of dates and grapes for you, in which there are many fruits for you and from which you eat. (23:19)'"
+  },
+  {
+    "question": "Where is it not allowed to pray Salah? (2 answers)",
+    "options": [
+      "Inside the Kaaba",
+      "On top of the Kaaba",
+      "Graveyard",
+      "Market"
+    ],
+    "correct": 1,
+    "explanation": "Ibn 'Umar relates that the Prophet Ã¯-Âº in seven places: 'dunghills, slaughterhouses, graveyards, middle of the road, bathhouses, watering places where the camels drink and rest, and on the roof of the house of Allah [the Ka'bah in Makkah].' [Ibn Majah, 'Abd ibn Humaid, and Tirmidhi]",
+    "multiCorrect": [
+      1,
+      2
+    ]
+  },
+  {
+    "question": "What is another name given to the Quran?",
+    "options": [
+      "Ar-Rahmaan",
+      "Al-Baqarah",
+      "Al-Furqan",
+      "Al-Sahih"
+    ],
+    "correct": 2,
+    "explanation": "'The month of Ramadan in which was revealed the Quran, a guidance for mankind and clear proofs for the guidance and the criterion (between right and wrong)...' (Quran 2:185)"
+  },
+  {
+    "question": "Which Khalifah took control of Al-Aqsa in Jerusalem?",
+    "options": [
+      "Abu Bakr (Radhi'Allah Annhu)",
+      "Umar ibn al-Khattab (Radhi'Allah Annhu)",
+      "Uthman ibn Affan (Radhi'Allah Annhu)",
+      "Ali ibn Abi Talib (Radhi'Allah Annhu)"
+    ],
+    "correct": 1,
+    "explanation": "The Bishop of Jerusalem handed over the keys of the city of Jerusalem to Umar ibn Al-Khattab. No killing or destruction was carried out by Muslims. It was a peaceful transition and all the holy sites of Christians were left untouched. Caliph Umar signed a treaty with Sophronius and as a result, Christians were allowed to live in the city, but must pay jizya, or tax."
+  },
+  {
+    "question": "What is the consultation between the Muslim leader and the followers called?",
+    "options": [
+      "Ijma",
+      "Shura",
+      "Shariah",
+      "Daleel"
+    ],
+    "correct": 1,
+    "explanation": "Shura is an Arabic word that literally means consultation and, in its simplest form, as an Islamic principle. Chapter 42 of the Quran is called Ash-Shurra (The Consultation)."
+  },
+  {
+    "question": "How many Prophets did Prophet Muhammad Ã¯-Âº meet on the different heavens during Isra wal Miraaj?",
+    "options": [
+      "5",
+      "6",
+      "7",
+      "8"
+    ],
+    "correct": 3,
+    "explanation": "Muhammad Ã¯-Âº met the Prophets Adam, Yahya (John), Isa (Jesus), Yusuf (Joseph), Idris, Harun (Aaron), Musa (Moses), and Ibrahim (Abraham) and visit hell and paradise."
+  },
+  {
+    "question": "In which battle did some Muslim archers disobey the order of Prophet Muhammad Ã¯-Âº?",
+    "options": [
+      "Battle of Badr",
+      "Battle of Uhud",
+      "Battle of Khaybar",
+      "Battle of Khandaq"
+    ],
+    "correct": 1,
+    "explanation": "This is the mountain that the Prophet Ã¯-Âº ordered the archers to remain on during the Battle of Uhud. The number of archers was fifty men who were in charge of protecting the backs of the Muslim fighters. They disobeyed the orders of the Prophet Ã¯-Âº as they thought that the battle was over."
+  },
+  {
+    "question": "At what age does a person become an adult in Islam?",
+    "options": [
+      "18 years old",
+      "10 years old",
+      "Puberty",
+      "15 years old"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'The pen is lifted from three people: a sleeping person until he awakens, a child until he becomes an adult, and an insane person until he regains his sanity.' In another narration, the Prophet said, 'A young boy until he reaches puberty.' (Sunan al-TirmidhÃ„Â« 1423)"
+  },
+  {
+    "question": "Who is one of the 4 best women of Jannah?",
+    "options": [
+      "Aasiya (wife of Firawn)",
+      "Hajar (wife of Ibrahim (as))",
+      "Aisha (wife of Muhammad Ã¯-Âº)",
+      "Ruqayyah (wife of Uthman)"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'The best of women among the people of Paradise are Khadija bint Khuwaylid, Fatimah bint Muhammad, Maryam bint 'Imran, and 'Asiyah bint Muzahim, the wife of Pharaoh.' (Musnad AÃ¡Â¸Â¥mad 2896)"
+  },
+  {
+    "question": "Which Prophet (as) is mentioned the most in the Quran by name?",
+    "options": [
+      "Prophet Muhammad Ã¯-Âº",
+      "Prophet Isa (as)",
+      "Prophet Musa (as)",
+      "Prophet Adam (as)"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Musa (Moses) was mentioned 136 times. He was mentioned the most in the Quran, as his story and the morals within them transcends time and has great value in Islamic history."
+  },
+  {
+    "question": "What is the linguistic meaning of Taraweeh?",
+    "options": [
+      "To rest",
+      "To pray",
+      "To stay up",
+      "To sleep"
+    ],
+    "correct": 0,
+    "explanation": "The Word Taraweeh ( Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Ë†Ã™Å Ã˜Â­ ) comes from an Arabic word. The root word of Tarabih (Taraweeh) is rauh or raha. In the Arabic language, Rauh or Raha means taking rest."
+  },
+  {
+    "question": "What is the linguistic meaning of Ramadan?",
+    "options": [
+      "To fast",
+      "To suffer",
+      "To burn the sins",
+      "To race"
+    ],
+    "correct": 2,
+    "explanation": "Imam Qurtubi said: 'It (this month) was named RamaÃ¡Â¸ÂÃ„Ân because it burns the sins of people with righteous deeds.'"
+  },
+  {
+    "question": "The scholars have divided shirk into how many types?",
+    "options": [
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "correct": 0,
+    "explanation": "Two types Ã¢â‚¬â€œ Major and Minor Shirk."
+  },
+  {
+    "question": "Which pillar was commanded in the journey of al Isra wal Miraaj?",
+    "options": [
+      "Fasting Ramadan",
+      "Performing Hajj",
+      "Praying 5 Times Salah",
+      "Paying Zakat"
+    ],
+    "correct": 2,
+    "explanation": "Al-Bukhaari (349) and Muslim (162) narrated from Anas ibn Maalik (r) the famous hadeeth of the Isra' (Prophet's Night Journey) in which it is reported that the Messenger of Allah Ã¯-Âº said: 'Then Allah revealed what He revealed to me, and enjoined fifty prayers on me every day and night. I came back down to Moosa (as) and he said: What did your Lord enjoin upon your ummah? I said: Fifty prayers. He said: Go back to your Lord and ask Him to reduce it... I kept going back and forth between my Lord, may He be blessed and exalted, and Moosa (peace be upon him), until He said: 'O Muhammad, they are five prayers each day and night, for every prayer there will be a tenfold (reward), and that is fifty prayers.''"
+  },
+  {
+    "question": "For whom bad deeds are not written?",
+    "options": [
+      "Before puberty age",
+      "After puberty age",
+      "Sick people",
+      "Non-Muslims"
+    ],
+    "correct": 0,
+    "explanation": "The Messenger of Allah, Ã¯-Âº said, 'The pen is lifted from three people: a sleeping person until he awakens, a child until he becomes an adult, and an insane person until he regains his sanity.' In another narration, the Prophet Ã¯-Âº said, 'A young boy until he reaches puberty.' [Sunan al-TirmidhÃ„Â« 1423 | Sahih]"
+  },
+  {
+    "question": "Which Angel is Hellfire's gatekeeper?",
+    "options": [
+      "Jibraeel (as)",
+      "Mikaeel (as)",
+      "Maalik (as)",
+      "Israfeel (as)"
+    ],
+    "correct": 2,
+    "explanation": "'Surely, the disbelievers will be in the torment of Hell to abide therein forever. (The torment) will not be lightened for them, and they will be plunged into destruction with deep regrets, sorrows and in despair therein. We wronged them not, but they were the wrongdoers. And they will cry: 'O Malik! Let your Lord make an end of us' He will say: 'Surely, you shall abide forever.' Indeed We have brought the truth to you, but most of you have a hatred for the truth' (Quran 43:74-78)"
+  },
+  {
+    "question": "What is the hidden Shirk?",
+    "options": [
+      "Drinking alcohol & gambling",
+      "Gossiping & lying",
+      "Showing off your good deeds",
+      "Keeping your good deeds secret"
+    ],
+    "correct": 2,
+    "explanation": "Abu Sa'eed (r) narrated that the Prophet Ã¯-Âº said: 'Shall I not tell you about that which I fear more for you than the Dajjaal?' We said: 'Yes.' He said: 'Hidden Shirk; which is when a man stands to pray and makes it look good because he sees a man looking at him.' [Ahmad and Ibn Maajah. Al-Haakim classified it as authentic]"
+  },
+  {
+    "question": "How many times was Prophet Muhammad (peace be upon him)'s heart physically washed by Angel Jibraeel?",
+    "options": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "correct": 2,
+    "explanation": "The first occurred when he was small and living among Banu Sa'd. The second occurred on the night of the Isra'."
+  },
+  {
+    "question": "Which is the correct order of Prophet Muhammad Ã¯-Âº marriages to these 4 wives?",
+    "options": [
+      "Aisha, Khadija, Zaynab & Hafsa",
+      "Khadija, Aisha, Hafsa & Zaynab",
+      "Khadija, Hafsa, Aisha & Zaynab",
+      "Aisha, Hafsa, Khadija & Zaynab"
+    ],
+    "correct": 1,
+    "explanation": "Khadijah was his first wife, then Aisha, then Hafsa bint Umar, then Zaynab bint Khuzaymah."
+  },
+  {
+    "question": "Which of the following is not part of Tawheed Ar-Rububiyyah?",
+    "options": [
+      "Allah alone created everything",
+      "Allah alone do we worship",
+      "Allah alone owns everything",
+      "Allah alone controls everything"
+    ],
+    "correct": 1,
+    "explanation": "The oneness of Allah's Lordship (Tawheed Ar Rububiyyah) is the belief that Allah alone has created the universe, that He alone is its Provider and Sustainer, and that He has complete ownership and power over His creation. In other words, Allah is one and unique in regard to His actions, such that no creature shares His power in creating and managing the universe."
+  },
+  {
+    "question": "What should you do if you forget to say Bismillah before eating?",
+    "options": [
+      "Say Astaghfirullah",
+      "Say Bismillah",
+      "Say Bismillah Awwalahu wa Aakhiruhu",
+      "It's ok, keep eating"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'When one of you eats, let him mention the name of Allah. If he forgets to mention the name of Allah at the beginning, let him say: In the name of Allah at the beginning and at the end (Bismillahi awwalahu wa aakhiruhu).' (Abu Dawud 3767, Tirmidhi 1858 & Ibn Majah 3264)"
+  },
+  {
+    "question": "Why did the Muslims change their qibla (prayer direction) from Jerusalem to Makkah?",
+    "options": [
+      "They hated the Jews",
+      "Prophet Muhammad Ã¯-Âº wanted to do so",
+      "Allah commanded it",
+      "The sahaba wanted to do so"
+    ],
+    "correct": 2,
+    "explanation": "'So turn your face [i.e., yourself] toward al-Masjid al-Haram. And wherever you [believers] are, turn your faces [i.e., yourselves] toward it [in prayer]...' (Quran 2:144)"
+  },
+  {
+    "question": "Reciting Surah Fatiha in each rakat of the salah is...",
+    "options": [
+      "Optional",
+      "Encouraged",
+      "Not necessary",
+      "A must"
+    ],
+    "correct": 3,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'There is no prayer for the one who does not recite the Opening of the Book [i.e., al-Fatiha].' (Bukhari 714)"
+  },
+  {
+    "question": "What was the first masjid Prophet Muhammad (peace be upon him) built?",
+    "options": [
+      "Masjid Quba",
+      "Masjid an Nabawi",
+      "Masjid al Haram",
+      "Masjid al Aqsa"
+    ],
+    "correct": 0,
+    "explanation": "Ibn al-Qayyim (r) said in Zaad al-Ma'aad (3/58), when describing the arrival of the Messenger Ã¯-Âº in Madeenah: The Muslims said takbeer, rejoicing at his arrival, and they went out to meet him... He continued until he stopped in Quba', among Banu 'Amr ibn 'Awf, and he stayed among them for fourteen days, and founded the mosque of Quba', which is the first mosque to be established after the beginning of his Prophethood."
+  },
+  {
+    "question": "What was the name of the flying animal on which Prophet Muhammad (peace be upon him) travelled to the heavens?",
+    "options": [
+      "Mikaeel",
+      "Buraaq",
+      "Miraaj",
+      "Suraaq"
+    ],
+    "correct": 1,
+    "explanation": "It was during the night journey to the heavens."
+  },
+  {
+    "question": "What is the reward for reciting Surah Ikhlas 10 times?",
+    "options": [
+      "A palace in Paradise",
+      "A huge tree in Paradise",
+      "A special fountain in Paradise",
+      "A delicious meal in Paradise"
+    ],
+    "correct": 0,
+    "explanation": "The Prophet Ã¯-Âº said, 'Whoever recites the chapter ten times completely, 'He is Allah, the One' (112:1), Allah will build a palace for him in Paradise.' (Musnad Ahmad 15183 | Sahih (authentic) Al-Albani)"
+  },
+  {
+    "question": "Who is the only Sahaba whose name is mentioned in the Quran?",
+    "options": [
+      "Abu Bakr as Siddiq (r)",
+      "Zayd ibn Haarith (r)",
+      "Umar ibn al Khattab (r)",
+      "Khalid ibn Waleed (r)"
+    ],
+    "correct": 1,
+    "explanation": "'...So when Zayd had no longer any need for her, We married her to you...' (Quran 33:37)"
+  },
+  {
+    "question": "Which act will not break Wudu?",
+    "options": [
+      "Saying bad words",
+      "Fainting",
+      "Touching private part without barrier",
+      "Eating camel meat"
+    ],
+    "correct": 0,
+    "explanation": "Saying bad words does not break wudu, though it is sinful. Things that break wudu include: using the toilet, passing gas, deep sleep, loss of consciousness, direct touching of private parts without barrier, etc."
+  },
+  {
+    "question": "Which pillar was commanded in the journey of al Isra wal Miraaj?",
+    "options": [
+      "Fasting Ramadan",
+      "Performing Hajj",
+      "Praying 5 times a day",
+      "Paying Zakat"
+    ],
+    "correct": 2,
+    "explanation": "Al-Bukhari (349) and Muslim (162) narrated from Anas ibn Maalik (r) the famous hadeeth of the Isra' (Prophet's Night Journey) in which it is reported that the Messenger of Allah Ã¯-Âº said: 'Then Allah revealed what He revealed to me, and enjoined fifty prayers on me every day and night. I came back down to Musa (as) and he said: What did your Lord enjoin upon your ummah? I said: Fifty prayers. He said: Go back to your Lord and ask Him to reduce it... I kept going back and forth between my Lord, may He be blessed and exalted, and Musa (peace be upon him), until He said: 'O Muhammad, they are five prayers each day and night, for every prayer there will be a tenfold (reward), and that is fifty prayers.''"
+  },
+  {
+    "question": "How old was Prophet Muhammad (peace be upon him) when he got the first revelation?",
+    "options": [
+      "25 years old",
+      "35 years old",
+      "40 years old",
+      "63 years old"
+    ],
+    "correct": 2,
+    "explanation": "It was in the year 610 CE when Prophet Muhammad (Ã¯-Âº) was 40 years old."
+  },
+  {
+    "question": "What does Tawheed mean?",
+    "options": [
+      "Belief in Prophet Muhammad Ã¯-Âº",
+      "Belief in the Angels (as)",
+      "Belief the Oneness of Allah",
+      "Belief in the Day of Judgement"
+    ],
+    "correct": 2,
+    "explanation": "Tawheed means the Oneness of Allah - believing that Allah is One without partners in His Lordship, Worship, and Names & Attributes."
+  },
+  {
+    "question": "Who narrated the most number of ahadeeth?",
+    "options": [
+      "Abu Hurayrah (r)",
+      "Abdullah ibn Umar (r)",
+      "Anas ibn Maalik (r)",
+      "Aisha bint Abu Bakr (r)"
+    ],
+    "correct": 0,
+    "explanation": "Abu Hurayrah (Abdur-Rahman) d.59 AH at the age of 78; he narrated 5,374 Ahadith. The number of his students reaches 800."
+  },
+  {
+    "question": "What does Shirk mean?",
+    "options": [
+      "Putting partners to Allah",
+      "Lying to others",
+      "Killing others",
+      "Disobeying parents"
+    ],
+    "correct": 0,
+    "explanation": "Shirk means associating partners with Allah in worship, lordship, or His names and attributes."
+  },
+  {
+    "question": "Which is not one of the 5 pillars of Islam?",
+    "options": [
+      "Ramadan",
+      "Praying the 5 Salah",
+      "Zakat",
+      "Paradise"
+    ],
+    "correct": 3,
+    "explanation": "Islam is based on five pillars which the Messenger Ã¯-Âº has explained for us, when he said: 'Islam is built upon five [pillars]: the testimony that there is no god but Allah and that Muhammad is the Messenger of Allah; establishing regular prayer (salah); paying the zakaah; Hajj (pilgrimage) and fasting Ramadan.' (Bukhari, 8)"
+  },
+  {
+    "question": "How many Prophets (as) are mentioned by name in the Quran?",
+    "options": [
+      "25",
+      "313",
+      "110,000",
+      "124,000"
+    ],
+    "correct": 0,
+    "explanation": "25 prophets are mentioned by name in the Quran."
+  },
+  {
+    "question": "When will the Prophet Ã¯-Âº intercede for us?",
+    "options": [
+      "In his Ã¯-Âº grave",
+      "On the Day of Resurrection",
+      "In our graves",
+      "On the Sirat"
+    ],
+    "correct": 1,
+    "explanation": "Allah says: 'It may be that your Lord will raise you to Maqaam Mahmood (a station of praise and glory, i.e., the honour of intercession on the Day of Resurrection)' [Quran 17:79]."
+  },
+  {
+    "question": "Which 3 types of people Jibraeel (as) & the Prophet (Ã¯-Âº) cursed? (Select 3)?",
+    "options": [
+      "The one who doesn't serve his elderly parents",
+      "The one who doesn't gain forgiveness in Ramadan",
+      "The one who doesn't send salawat upon the Prophet (Ã¯-Âº) when hearing his (Ã¯-Âº) name",
+      "The one who doesn't reply to salaam"
+    ],
+    "correct": 0,
+    "explanation": "Kaab Ibn Ujrah (radiallahu anhu) relates that the Messenger of Allah (Ã¯-Âº) said: 'Come near to the minbar', and we came near the minbar. When he climbed the first step of the minbar, he said 'Amin', When he ascended the second step, he said 'Amin', When he climbed the third step, he said 'Amin'. When he came down, We said: 'O Messenger of Allah (Ã¯-Âº), we have heard from you today something which we never heard before.' He said: 'When I climbed the first step, the angel Jibreel (alayhi salam) appeared before me and said: 'Destruction to him who found the blessed month of Ramadhan and let it pass by without gaining forgiveness', upon that I said 'Amin'. When I climbed the second step, he said: 'Destruction to him before whom your name is taken and then he does not make Du'a for Allah's blessing on me (by saying, for example sallallahu alayhi wasalam).', I replied 'Amin'. When I climbed the third step, he said: 'Destruction unto him in whose lifetime his parents or either one of them reaches old age, and (through failure to serve them) he is not allowed to enter Jannah'., I said 'Amin'.' [Ibn Hibbaan, 3/188; also narrated by Al-Baihaqi and Al-Haakim; classed as saheeh by Shaykh Al-Albani in Saheeh al-Targheeb, 1679]",
+    "multiCorrect": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "question": "The angels at the Battle of Badr copied which sahabi's yellow turban?",
+    "options": [
+      "Sa'ad ibn Abi Waqqas (r)",
+      "Bilal ibn Rabbah (r)",
+      "Zubayr ibn Awwam (r)",
+      "Ali ibn Abi Taalib (r)"
+    ],
+    "correct": 2,
+    "explanation": "Ibn Hajar (rahimahullah) has written that Imam Ibn Sa'd (rahimahullah) has recorded a narration with an authentic chain stating that Zubayr (radiyallahu'anhu) wore a yellow turban on the day of Badr. Rasulullah (sallallahu'alayhi wasallam) then said:'Indeed the Angels descended [to assist the Muslim army] in the same sign [clothing] as Zubayr.' (Tabaqat Ibn Sa'd, vol.3 pg.103 & Al-Isabah, number: 2796)"
+  },
+  {
+    "question": "Why we should not curse time?",
+    "options": [
+      "Because it will bring bad luck",
+      "Because Allah says He is Time",
+      "Because Allah says He will cut our time",
+      "Because it will bring good luck"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad (Ã¯-Âº) said: 'Allah says, 'The sons of Adam offend Me and say, Woe to time, but they should not say Woe to time. I am time, I alternate the night and the day, and if I willed, I could seize them both.'' (Muslim 5827)"
+  },
+  {
+    "question": "In Islam, the one who doesn't acknowledge the rights of the elders is..",
+    "options": [
+      "Acceptable at times",
+      "Not from the Muslims",
+      "Punished in Hellfire forever",
+      "Same as being a murderer"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Whoever does not show mercy to our young ones, or acknowledge the rights of our elders, is not one of us.' (Musnad AÃ¡Â¸Â¥mad 7033 | Sahih (authentic) according to Ahmad Shakir)"
+  },
+  {
+    "question": "What is the name of Madinah in the Quran?",
+    "options": [
+      "Bakkah",
+      "Quds",
+      "Marwah",
+      "Yathrib"
+    ],
+    "correct": 3,
+    "explanation": "'And when a faction of them said, 'O people of Yathrib, there is no stability for you [here], so return [home].' And a party of them asked permission of the Prophet, saying, 'Indeed, our houses are unprotected,' while they were not exposed. They did not intend except to flee.' (Quran 33:13)"
+  },
+  {
+    "question": "According to the Prophet Ã¯-Âº, honesty leads to what? (2 answers)?",
+    "options": [
+      "Life span increase",
+      "Righteousness",
+      "Paradise",
+      "Children increase"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'You must be truthful. Verily, truthfulness leads to righteousness and righteousness leads to Paradise. A man continues to be truthful and encourages honesty until he is recorded with Allah as truthful. And beware of falsehood. Verily, falsehood leads to wickedness and wickedness leads to the Hellfire. A man continues tell lies and encourages falsehood until he is recorded with Allah as a liar.' (Sahih Bukhari 6094 & Sahih Muslim 2607)",
+    "multiCorrect": [
+      1,
+      2
+    ]
+  },
+  {
+    "question": "In sujood, which body part shouldn't be touching the ground?",
+    "options": [
+      "Forearms",
+      "Nose",
+      "Feet",
+      "Hands"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Be straight in prostration and let none of you put his forearms on the ground like a dog.' (Sahih al-Bukhari 788, Sahih Muslim 493)"
+  },
+  {
+    "question": "Which wife of the Prophet Ã¯-Âº had children and was a widow when he Ã¯-Âº married her?",
+    "options": [
+      "Hafsa (r)",
+      "Khadija (r)",
+      "Zaynab bint Jahsh (r)",
+      "Umm Salamah (r)"
+    ],
+    "correct": 3,
+    "explanation": "Umm Salamah (RA) was a widow with children when Prophet Muhammad (Ã¯-Âº) married her."
+  },
+  {
+    "question": "Which of the following is the name of Allah with the meaning Ã¢â‚¬â€œ The Most Loving One?",
+    "options": [
+      "Al-Majeed",
+      "Al-Wadud",
+      "Al-Muqtadir",
+      "Al-Waarith"
+    ],
+    "correct": 1,
+    "explanation": "'Wahuwa l-GhafÃ…Â«ru l-WadÃ…Â«d' - 'And He is the Most-Forgiving, the Most-Loving,' (Qur'an 85:14)"
+  },
+  {
+    "question": "Which battle happened in Ramadan?",
+    "options": [
+      "Battle of Badr",
+      "Battle of Khandaq",
+      "Battle of Uhud",
+      "Battle of Hunayn"
+    ],
+    "correct": 0,
+    "explanation": "The Battle of Badr took place in Ramadan of the 2nd year after Hijrah."
+  },
+  {
+    "question": "How many times more reward does one gets for praying salah inside Masjid al Aqsa?",
+    "options": [
+      "250 times more",
+      "500 times more",
+      "1,000 times more",
+      "50,000 times more"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'A prayer in Makkah (Ka'bah) is worth 100,000 times (reward), a prayer in my Masjid (Madinah) is worth 1,000 times and a prayer in Al-Aqsa Sanctuary is worth 500 times more reward than anywhere else.' [Tabarani, Bayhaqi, Suyuti]"
+  },
+  {
+    "question": "Allah says, with His knowledge, He is more closer to us than our ________?",
+    "options": [
+      "Thoughts",
+      "Heart",
+      "Jugular Vein",
+      "Blood"
+    ],
+    "correct": 2,
+    "explanation": "'And indeed We have created man, and We know whatever thoughts his inner self develops, and We are closer to him than (his) jugular vein.' (Quran 50:16)"
+  },
+  {
+    "question": "Which Prophet (as) was tested with a severe illness by Allah?",
+    "options": [
+      "Prophet Yusuf (as)",
+      "Prophet Ayub (as)",
+      "Prophet Idris (as)",
+      "Prophet Musa (as)"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Ayub (Job) was tested with severe illness and loss of family and wealth, but remained patient and faithful to Allah."
+  },
+  {
+    "question": "What is the virtue for praying the 4 voluntary salah before and after Dhuhr fardh salah?",
+    "options": [
+      "Protection from Hellfire",
+      "Palace in Jannah",
+      "1000 sins forgiven",
+      "1000 good deeds written"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Whoever prays four (rak'ahs) before Dhuhr and four after it, the Fire will not touch him.' (Al-Nasaa'i 1817 and al-Tirmidhi 428)"
+  },
+  {
+    "question": "When does Allah say we should say InnÃ„Â lillÃ„Âhi wa innÃ„Â ilayhi rÃ„Âji'Ã…Â«n?",
+    "options": [
+      "Only at someone's death",
+      "When any calamity happens",
+      "Wishing someone dies",
+      "When you read it in the Quran"
+    ],
+    "correct": 1,
+    "explanation": "Allah says: 'We will certainly test you with a touch of fear and famine and loss of property, life, and crops. Give good news to those who patiently endureÃ¢â‚¬â€ who, when faced with a disaster, say, 'Surely to Allah we belong and to Him we will Ã‹Â¹allÃ‹Âº return.' (Quran 2:155-156)"
+  },
+  {
+    "question": "What is the encouraged Sunnah way to show appreciation to a fellow Muslim for his/her kind act?",
+    "options": [
+      "Saying Jazak'Allahu Khayr",
+      "Saying Jazak'Allahu",
+      "Saying Thank You",
+      "Saying Well Done"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Whoever has a favour done for him and says to the one who did it, 'Jazak Allaahu khayran,' has done enough to thank him.' (Tirmidhi 1958 & Nasaa'i in al-Sunan al-Kubra (6/53) | Hasan by Al-Albani)"
+  },
+  {
+    "question": "What is the Arabic word for Allah's inspiration or revelation to a Prophet (as) called?",
+    "options": [
+      "Seerah",
+      "Wahyi",
+      "Iqra",
+      "Daleel"
+    ],
+    "correct": 1,
+    "explanation": "Wahyi is the Arabic term for divine revelation or inspiration from Allah to His prophets."
+  },
+  {
+    "question": "Which side did Prophet Muhammad Ã¯-Âº encourage us not to sleep on?",
+    "options": [
+      "Back side",
+      "Left side",
+      "Right side",
+      "Stomach side"
+    ],
+    "correct": 3,
+    "explanation": "Ya'eesh ibn Tihfah al-Ghifaari reported that his father said: 'I stayed as a guest with the Messenger of Allah (Ã¯-Âº) with those of the poor whom he hosted. The Messenger of Allah (Ã¯-Âº) came out in the night to check up on his guests, and saw me lying on my stomach. He prodded me with his foot and said, 'Do not lie in this manner, for it is a way of lying that Allah hates.' According to another report, the Prophet (Ã¯-Âº) prodded him with his foot and woke him up, and said, 'Do not lie like this, for this is how the people of Hell lie.' (Reported by Ahmad, al-Fath al-Rabbaani, 14/244-245; by al-Tirmidhi, no. 2798, Shaakir edn.; and by Abu Dawood, al-Sunan, Kitaab al-Adab, no. 5040, al-Da'aas edn. Also reported in Saheeh al-Jaami', 2270-2271)"
+  },
+  {
+    "question": "One type of minor shirk is the hidden shirk, what is it?",
+    "options": [
+      "Showing off",
+      "Saying bad words",
+      "Being selfish",
+      "Not praying salah"
+    ],
+    "correct": 0,
+    "explanation": "Abu Sa'id al-Khudri reported: The Messenger of Allah, peace and blessings be upon him, came to us while we were discussing the False Messiah. The Prophet Ã¯-Âº said, 'Shall I not tell you about my greater fear for you than the False Messiah?' We said, 'Of course!' The Prophet Ã¯-Âº said, 'It is hidden idolatry, that a man stands for prayer and beautifies his prayer when he sees another man looking at him.' (Sunan Ibn MaÃŒâ€žjah 4204)"
+  },
+  {
+    "question": "What are the two benefits of maintaining family ties?",
+    "options": [
+      "Increase in provision",
+      "Status of a martyr",
+      "Status of a Quran hafidh",
+      "Increase in life"
+    ],
+    "correct": 0,
+    "explanation": "The Prophet Ã¯-Âº said: 'Whoever would like his rizq (provision) to be increased and his life to be extended, should uphold the ties of kinship.' (Bukhari 5986 and Muslim 2557)",
+    "multiCorrect": [
+      0,
+      3
+    ]
+  },
+  {
+    "question": "Which body part(s) shouldn't be touching the floor during sujood?",
+    "options": [
+      "Toes",
+      "Nose",
+      "Fingers",
+      "Elbows"
+    ],
+    "correct": 3,
+    "explanation": "The Prophet Ã¯-Âº said: 'Be straight in the prostrations and none of you should put his forearms on the ground (in the prostration) like a dog.' (Al-Bukhari)"
+  },
+  {
+    "question": "Prophet Muhammad Ã¯-Âº said he Ã¯-Âº and Prophet Isa (as) are like what?",
+    "options": [
+      "Father and son",
+      "Brothers",
+      "Cousins",
+      "Friends"
+    ],
+    "correct": 1,
+    "explanation": "The Prophet Ã¯-Âº said: 'I am the closest of the people to Jesus the son of Mary in this life and in the Hereafter.' It was said, 'How is that, O Messenger of Allah?' The Prophet Ã¯-Âº said,'The prophets are brothers from one father with different mothers. They have one religion and there was no other prophet between us.' (Sahih Muslim 2365)"
+  },
+  {
+    "question": "Who was the only human to whom Allah blew the soul into him by Himself?",
+    "options": [
+      "Prophet Muhammad (Ã¯-Âº)",
+      "Prophet Isa (as)",
+      "Prophet Musa (as)",
+      "Prophet Adam (as)"
+    ],
+    "correct": 3,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'When Allah created Adam, He breathed the soul into him, then he sneezed and said: 'All praise is due to Allah.' So he praised Allah by His permission. Then His Lord said to him: 'May Allah have mercy upon you O Adam...' (Tirmidhi 3367, Hasan)"
+  },
+  {
+    "question": "What does Allah's name Al-Musawwir mean?",
+    "options": [
+      "The Fashioner",
+      "The Provider",
+      "The Judge",
+      "The Most High"
+    ],
+    "correct": 0,
+    "explanation": "Allah says: 'He is Allah: the Creator, the Inventor, the Shaper...' (Quran 59:24)"
+  },
+  {
+    "question": "For which 2 reasons can a Muslim keep a dog?",
+    "options": [
+      "Protection",
+      "As a pet",
+      "For racing",
+      "For hunting"
+    ],
+    "correct": 0,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Whoever keeps a dog, his good deeds will decrease every day by one qeeraat (a unit of measurement), unless it is a dog for farming or herding.' According to another report: '. . . unless it is a dog for herding sheep, farming or hunting.' (Sahih Bukhari 2322)",
+    "multiCorrect": [
+      0,
+      3
+    ]
+  },
+  {
+    "question": "During which battle did Prophet Muhammad (s) strike a massive rock once and it got smashed into pieces?",
+    "options": [
+      "Battle of Badr",
+      "Battle of Uhud",
+      "Battle of Khandaq",
+      "Battle of Tabuk"
+    ],
+    "correct": 2,
+    "explanation": "During the Battle of Khandaq (the Trench), the Muslims encountered a massive rock while digging the trench. Prophet Muhammad (Ã¯-Âº) struck it and it broke into pieces."
+  },
+  {
+    "question": "When is our Dua more readily accepted? 2 answers",
+    "options": [
+      "During sunshine",
+      "During rain",
+      "If being oppressed",
+      "If going through ease"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'Two (du'as) are not rejected: du'a at the time of the call to prayer and du'a at the time of rain.' (al-Hakim in al-Mustadrak (2534); at-Tabarani in al-Mu'jam al-Kabir (5756); classed as sahih by al-Albani in Sahih al-Jami' (3078).) Prophet Muhammad Ã¯-Âº said: 'The supplications of three are never turned back: a fasting person until he breaks his fast, a just leader, and the supplication of the oppressed is raised above the clouds by Allah, the gates of heaven open for it and the Lord says: By My might, I will surely help you in due time.' (Sunan al-TirmidhiÃŒâ€ž 3598, Hasan)",
+    "multiCorrect": [
+      1,
+      2
+    ]
+  },
+  {
+    "question": "Prophet Muhammad Ã¯-Âº said he's the answer of which Prophet (as)'s Dua?",
+    "options": [
+      "Prophet Isa (as)",
+      "Prophet Musa (as)",
+      "Prophet Ibraheem (as)",
+      "Prophet Adam (as)"
+    ],
+    "correct": 2,
+    "explanation": "Prophet Muhammad Ã¯-Âº said: 'I am the supplication of my forefather Ibraheem (as).' (Ibn Hisham, Sira: 1/175; Tabari, Tarikh: 2/128.)"
+  },
+  {
+    "question": "Prophet Muhammad Ã¯-Âº encouraged rinsing the mouth with water after having which item?",
+    "options": [
+      "Dates",
+      "Milk",
+      "Lamb",
+      "Bread"
+    ],
+    "correct": 1,
+    "explanation": "Prophet Muhammad Ã¯-Âº drank some milk and rinsed his mouth. The Prophet Ã¯-Âº said: 'It contains fatty grease.' (Sahih Bukhari 208, Sahih Muslim 358)"
+  }
+]
