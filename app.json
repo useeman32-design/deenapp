@@ -75,11 +75,6 @@
       "reactCompiler": true,
       "baseUrl": "."
     },
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "backgroundColor": "#06140D",
-      "resizeMode": "contain"
-    },
     "backgroundColor": "#06140D",
     "extra": {
       "router": {},
