@@ -1249,7 +1249,27 @@ function CoursePlayer({
       setCertificateBusy(false);
     }
   };
-  const quiz = quizFor(course);
+  /* pass 85 — server-authored bank wins: admin Course Quizzes replaces the
+   * bundled set the moment a non-empty bank exists for this course. */
+  const [quizBank, setQuizBank] = useState<QuizQ[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const cid = Number(server?.id ?? 0);
+    if (!api.isLive() || !cid) {
+      setQuizBank(null);
+      return;
+    }
+    api
+      .courseQuiz(cid)
+      .then((q) => {
+        if (alive) setQuizBank(q);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [server]);
+  const quiz = quizBank ?? quizFor(course);
   useEffect(() => {
     (async () => {
       try {

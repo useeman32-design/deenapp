@@ -4,6 +4,7 @@ import type { ServerReciter } from '@/api/client';
 import { netBus } from '@/lib/net';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { QURAN } from '@/data/quran';
+import { localAyahUri } from '@/lib/quranOffline';
 import { probeAdvancing } from '@/lib/mediaProbe';
 
 /**
@@ -54,7 +55,14 @@ const dynUrl = (reciter: string, globalAyah: number, surah?: number, ayah?: numb
   return `${base}/${globalAyah}.${fmt}`;
 };
 
-const ayahAudio = (reciter: string, globalAyah: number, surah?: number, ayah?: number) => {
+/* pass 85 — offline-first: local mp3 (admin-free, user-downloaded) beats CDN.
+ * Exported as ayahRemoteUrl for the reader's "save offline" flow. */
+const localUri = (reciter: string, surah: number | undefined, ayah: number | undefined) =>
+  surah != null && ayah != null ? localAyahUri(reciter, surah, ayah) : null;
+
+export const ayahAudio = (reciter: string, globalAyah: number, surah?: number, ayah?: number) => {
+  const local = localUri(reciter, surah, ayah);
+  if (local) return local;
   const dyn = dynUrl(reciter, globalAyah, surah, ayah);
   if (dyn) return dyn;
   const cfg = RECITER_CFG(reciter) as { src?: string; folder?: string } | undefined;

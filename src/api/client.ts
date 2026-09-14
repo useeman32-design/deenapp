@@ -540,6 +540,18 @@ export async function publicGet<T = Record<string, unknown>>(
   return request<T>(path, { auth: false });
 }
 
+/* ── pass 85 — server-authored course quiz banks (Admin → Course Quizzes).
+ * Non-empty bank REPLACES the app's bundled fallback set for that course. */
+export type CourseQuizQ = { q: string; a: string[]; correct: number; why: string };
+export async function courseQuiz(courseId: number): Promise<CourseQuizQ[] | null> {
+  if (!(courseId > 0)) return null;
+  const r = await publicGet<{ status?: string; questions?: CourseQuizQ[] }>(
+    `/api/courses/quiz.php?course_id=${courseId}`,
+  );
+  if (!r.ok || !Array.isArray(r.data.questions) || !r.data.questions.length) return null;
+  return r.data.questions;
+}
+
 /* pass 83-39 — admin-managed Islamic articles + jokes (server content; bundled fallback) */
 export type ServerArticle = {
   id: number;

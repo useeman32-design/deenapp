@@ -26,6 +26,16 @@ import { storage } from "@/lib/storage";
 import { useBookmarks } from "@/lib/bookmarks";
 import { useTheme } from "@/context/ThemeContext";
 import { useQuranAudio, RECITERS } from "@/context/QuranAudioContext";
+import {
+  ayahAudio,
+  globalAyahOf,
+} from "@/context/QuranAudioContext";
+import {
+  isOfflineCapable,
+  isSurahSaved,
+  saveSurah,
+  removeSurah,
+} from "@/lib/quranOffline";
 import { T } from "@/components/T";
 import { haptic } from "@/lib/haptics";
 import { stopBubble } from "@/lib/press";
@@ -101,6 +111,11 @@ function ReaderInner() {
     });
   }, []);
   const [barOpen, setBarOpen] = useState(true);
+  /* pass 85 — offline recitation: per-surah mp3 cache (native only) */
+  const [offBusy, setOffBusy] = useState(false);
+  const [offPct, setOffPct] = useState(0);
+  const [offTick, setOffTick] = useState(0);
+  const [offHave, setOffHave] = useState(0);
   const [barW, setBarW] = useState(300);
   const [lang, setLang] = useState<TrLang>("en");
   /* pass 33: extra translations (yo/fr/bn/ur) load lazily from gz packs */
@@ -261,6 +276,54 @@ function ReaderInner() {
 
   const reciterName =
     RECITERS.find((r) => r.id === audio.reciter)?.name ?? RECITERS[0].name;
+
+  useEffect(() => {
+    setOffHave(isSurahSaved(audio.reciter, n));
+  }, [n, audio.reciter, offTick]);
+
+  const onOfflineTap = async () => {
+    const total = meta?.ayahs ?? 0;
+    if (!total || offBusy) return;
+    const have = isSurahSaved(audio.reciter, n);
+    if (have >= total && total > 0) {
+      Alert.alert(
+        "Available offline",
+        `This surah now plays from device storage for ${reciterName} — works with no network.`,
+        [
+          {
+            text: "Remove download",
+            style: "destructive",
+            onPress: () => {
+              void removeSurah(audio.reciter, n).then(() =>
+                setOffTick((t) => t + 1),
+              );
+            },
+          },
+          { text: "Keep", style: "cancel" },
+        ],
+      );
+      return;
+    }
+    try {
+      setOffBusy(true);
+      setOffPct(0);
+      await saveSurah(
+        audio.reciter,
+        n,
+        total,
+        (a) => ayahAudio(audio.reciter, globalAyahOf(n, a), n, a),
+        (d, t) => setOffPct(Math.round((d / t) * 100)),
+      );
+      setOffTick((t) => t + 1);
+    } catch (e) {
+      Alert.alert(
+        "Could not save offline",
+        (e as Error)?.message ?? "Please try again.",
+      );
+    } finally {
+      setOffBusy(false);
+    }
+  };
   const VH = Dimensions.get("window").height;
 
   if (!meta) return null;
@@ -1296,6 +1359,60 @@ function ReaderInner() {
                     {audio.rate}x
                   </T>
                 </Pressable>
+                {isOfflineCapable() ? (
+                  <Pressable
+                    onPress={() => {
+                      haptic.selection();
+                      void onOfflineTap();
+                    }}
+                    disabled={offBusy}
+                    hitSlop={6}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingHorizontal: 7,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: isDark
+                        ? "rgba(74,227,143,0.4)"
+                        : "rgba(29,111,66,0.35)",
+                      backgroundColor: isDark
+                        ? "rgba(74,227,143,0.1)"
+                        : "rgba(29,111,66,0.06)",
+                      opacity: offBusy ? 0.7 : 1,
+                    }}
+                  >
+                    <FontAwesome5
+                      name={
+                        offBusy
+                          ? "sync-alt"
+                          : offHave >= (meta?.ayahs ?? 1)
+                            ? "cloud"
+                            : "download"
+                      }
+                      size={9}
+                      color={isDark ? "#4AE38F" : "#1D6F42"}
+                    />
+                    <T
+                      v="caption"
+                      style={{
+                        color: isDark ? "#4AE38F" : "#1D6F42",
+                        fontWeight: "800",
+                        fontSize: 10.5,
+                      }}
+                    >
+                      {offBusy
+                        ? `${offPct}%`
+                        : offHave > 0 && offHave < (meta?.ayahs ?? 0)
+                          ? `Offline ${offHave}/${meta?.ayahs}`
+                          : offHave > 0
+                            ? "Offline"
+                            : "Save offline"}
+                    </T>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => {
                     haptic.selection();
