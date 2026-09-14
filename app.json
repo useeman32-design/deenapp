@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
+      "bundleIdentifier": "org.deenlink.app",
       "supportsTablet": false,
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "DeenLink recognizes your recitation to find verses and score your practice.",
