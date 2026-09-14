@@ -222,7 +222,7 @@ export default function FatwaBrowser() {
                 style={{ flex: 1, borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 11, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.07)') : d.card }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <FontAwesome5 name={s.id === 'direct' ? 'user-graduate' : s.id === 'ask' ? 'question-circle' : 'database'} size={10} color={on ? green : d.faint} />
+                  <FontAwesome5 name={s.id === 'direct' ? 'user-graduate' : 'database'} size={10} color={on ? green : d.faint} />
                   <T v="bodyS" style={{ fontSize: 12, fontWeight: '800', color: on ? green : d.text }}>{s.name}</T>
                 </View>
                 <T v="caption" style={{ fontSize: 9, color: d.faint, marginTop: 3 }}>{s.note}</T>

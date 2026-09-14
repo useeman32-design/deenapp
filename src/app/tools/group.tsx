@@ -175,7 +175,7 @@ import { LoginRequired } from "@/components/LoginRequired";
  *  · posts are GROUP-FIRST FeedCards (group leads, member follows, rank badge)
  */
 
-type Tab = "posts" | "members" | "about";
+type Tab = "posts" | "requests" | "members" | "about";
 
 /* suggested people the owner can add (from the wider DeenLink community) */
 const ADDABLE = [
@@ -1696,6 +1696,16 @@ function GroupScreenInner() {
               icon: "th-large",
               n: group.posts.length,
             },
+            ...(canManage
+              ? [
+                  {
+                    id: "requests" as Tab,
+                    label: "Requests",
+                    icon: "user-clock",
+                    n: joinReqs?.length ?? 0,
+                  },
+                ]
+              : []),
             {
               id: "members" as Tab,
               label: "Members",
@@ -1757,183 +1767,34 @@ function GroupScreenInner() {
         {/* ── POSTS — group-first cards ── */}
         {tab === "posts" ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 12 }}>
-            {/* pass 83-28 — admin join-request queue (accept / reject) */}
-            {canManage &&
-            tab === "requests" &&
-            joinReqs &&
-            joinReqs.length > 0 ? (
-              <View
+            {/* join-request strip — tap reviews in the Requests tab */}
+            {canManage && joinReqs && joinReqs.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  setTab("requests");
+                }}
                 style={{
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: isDark
-                    ? "rgba(212,175,55,0.4)"
-                    : "rgba(140,109,31,0.35)",
-                  backgroundColor: isDark
-                    ? "rgba(212,175,55,0.08)"
-                    : "rgba(212,175,55,0.07)",
-                  padding: 12,
-                  gap: 10,
+                  borderColor: isDark ? "rgba(212,175,55,0.4)" : "rgba(140,109,31,0.35)",
+                  backgroundColor: isDark ? "rgba(212,175,55,0.08)" : "rgba(212,175,55,0.07)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                <FontAwesome5 name="user-clock" size={13} color={isDark ? "#E8C96A" : "#8C6D1F"} />
+                <T
+                  v="bodyS"
+                  style={{ flex: 1, fontSize: 12.5, fontWeight: "800", color: isDark ? "#E8C96A" : "#8C6D1F" }}
                 >
-                  <FontAwesome5
-                    name="user-clock"
-                    size={13}
-                    color={isDark ? "#E8C96A" : "#8C6D1F"}
-                  />
-                  <T
-                    v="bodyS"
-                    style={{
-                      flex: 1,
-                      fontSize: 12.5,
-                      fontWeight: "800",
-                      color: isDark ? "#E8C96A" : "#8C6D1F",
-                    }}
-                  >
-                    Join requests · {joinReqs.length}
-                  </T>
-                </View>
-                {joinReqs.map((rq) => (
-                  <View
-                    key={rq.id}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    <AvatarImage
-                      source={rq.profile_image_url ?? null}
-                      name={rq.full_name}
-                      size={38}
-                      tint={d.bgSoft}
-                      border={d.cardBorder}
-                    />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <T
-                        v="bodyS"
-                        numberOfLines={1}
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "700",
-                          color: d.text,
-                        }}
-                      >
-                        {rq.full_name}
-                      </T>
-                      <T
-                        v="caption"
-                        numberOfLines={1}
-                        style={{ fontSize: 10.5, color: d.faint }}
-                      >
-                        @{rq.username}
-                      </T>
-                    </View>
-                    <Pressable
-                      onPress={() => {
-                        if (reqBusy != null) return;
-                        const sid = group ? srvGroupId(group) : null;
-                        if (sid == null) return;
-                        setReqBusy(rq.id);
-                        void groupJoinDecide(sid, rq.id, true).then((r) => {
-                          setReqBusy(null);
-                          if (r.ok) {
-                            setJoinReqs((cur) =>
-                              (cur ?? []).filter((x) => x.id !== rq.id),
-                            );
-                            setRoster(null);
-                            void groupGet(sid).then((row) => {
-                              if (row) {
-                                setGroup((cur) =>
-                                  cur
-                                    ? { ...cur, memberCount: row.member_count }
-                                    : cur,
-                                );
-                                if (Array.isArray(row.members))
-                                  setRoster(row.members);
-                              }
-                            });
-                          } else {
-                            setMemberError(r.message ?? "Could not approve.");
-                          }
-                        });
-                      }}
-                      disabled={reqBusy != null}
-                      style={{
-                        borderRadius: 10,
-                        backgroundColor: isDark ? "#2ECC71" : "#1D6F42",
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        opacity: reqBusy === rq.id ? 0.6 : 1,
-                      }}
-                    >
-                      <T
-                        v="caption"
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "800",
-                          color: "#fff",
-                        }}
-                      >
-                        {reqBusy === rq.id ? "…" : "Accept"}
-                      </T>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        if (reqBusy != null) return;
-                        const sid = group ? srvGroupId(group) : null;
-                        if (sid == null) return;
-                        setReqBusy(rq.id);
-                        void groupJoinDecide(sid, rq.id, false).then((r) => {
-                          setReqBusy(null);
-                          if (r.ok)
-                            setJoinReqs((cur) =>
-                              (cur ?? []).filter((x) => x.id !== rq.id),
-                            );
-                          else
-                            setMemberError(r.message ?? "Could not decline.");
-                        });
-                      }}
-                      disabled={reqBusy != null}
-                      style={{
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: isDark
-                          ? "rgba(255,123,123,0.5)"
-                          : "rgba(207,58,58,0.45)",
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        opacity: reqBusy === rq.id ? 0.6 : 1,
-                      }}
-                    >
-                      <T
-                        v="caption"
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "800",
-                          color: "#FF7B7B",
-                        }}
-                      >
-                        Decline
-                      </T>
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {canManage &&
-            tab === "requests" &&
-            (!joinReqs || joinReqs.length === 0) ? (
-              <View style={{ padding: 24, alignItems: "center" }}>
-                <FontAwesome5 name="check-circle" size={22} color={d.faint} />
-                <T v="bodyS" style={{ color: d.subtext, marginTop: 8 }}>
-                  No pending join requests.
+                  {`Join requests · ${joinReqs.length}`}
                 </T>
-              </View>
+                <FontAwesome5 name="chevron-right" size={11} color={isDark ? "#E8C96A" : "#8C6D1F"} />
+              </Pressable>
             ) : null}
 
             {/* pass 83-28 — posts fetch failed: say so, offer a retry (the
@@ -2731,6 +2592,189 @@ function GroupScreenInner() {
             )}
           </View>
         ) : null}
+
+        {/* ── REQUESTS — group-admin join-request queue (83-28 feature, 84: real tab) ── */}
+        {tab === "requests" ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 12 }}>
+                {/* pass 83-28 — admin join-request queue (accept / reject) — 84: real Requests tab */}
+                {canManage &&
+                joinReqs &&
+                joinReqs.length > 0 ? (
+                  <View
+                    style={{
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: isDark
+                        ? "rgba(212,175,55,0.4)"
+                        : "rgba(140,109,31,0.35)",
+                      backgroundColor: isDark
+                        ? "rgba(212,175,55,0.08)"
+                        : "rgba(212,175,55,0.07)",
+                      padding: 12,
+                      gap: 10,
+                    }}
+                  >
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                    >
+                      <FontAwesome5
+                        name="user-clock"
+                        size={13}
+                        color={isDark ? "#E8C96A" : "#8C6D1F"}
+                      />
+                      <T
+                        v="bodyS"
+                        style={{
+                          flex: 1,
+                          fontSize: 12.5,
+                          fontWeight: "800",
+                          color: isDark ? "#E8C96A" : "#8C6D1F",
+                        }}
+                      >
+                        Join requests · {joinReqs.length}
+                      </T>
+                    </View>
+                    {joinReqs.map((rq) => (
+                      <View
+                        key={rq.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <AvatarImage
+                          source={rq.profile_image_url ?? null}
+                          name={rq.full_name}
+                          size={38}
+                          tint={d.bgSoft}
+                          border={d.cardBorder}
+                        />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <T
+                            v="bodyS"
+                            numberOfLines={1}
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "700",
+                              color: d.text,
+                            }}
+                          >
+                            {rq.full_name}
+                          </T>
+                          <T
+                            v="caption"
+                            numberOfLines={1}
+                            style={{ fontSize: 10.5, color: d.faint }}
+                          >
+                            @{rq.username}
+                          </T>
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            if (reqBusy != null) return;
+                            const sid = group ? srvGroupId(group) : null;
+                            if (sid == null) return;
+                            setReqBusy(rq.id);
+                            void groupJoinDecide(sid, rq.id, true).then((r) => {
+                              setReqBusy(null);
+                              if (r.ok) {
+                                setJoinReqs((cur) =>
+                                  (cur ?? []).filter((x) => x.id !== rq.id),
+                                );
+                                setRoster(null);
+                                void groupGet(sid).then((row) => {
+                                  if (row) {
+                                    setGroup((cur) =>
+                                      cur
+                                        ? { ...cur, memberCount: row.member_count }
+                                        : cur,
+                                    );
+                                    if (Array.isArray(row.members))
+                                      setRoster(row.members);
+                                  }
+                                });
+                              } else {
+                                setMemberError(r.message ?? "Could not approve.");
+                              }
+                            });
+                          }}
+                          disabled={reqBusy != null}
+                          style={{
+                            borderRadius: 10,
+                            backgroundColor: isDark ? "#2ECC71" : "#1D6F42",
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            opacity: reqBusy === rq.id ? 0.6 : 1,
+                          }}
+                        >
+                          <T
+                            v="caption"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "800",
+                              color: "#fff",
+                            }}
+                          >
+                            {reqBusy === rq.id ? "…" : "Accept"}
+                          </T>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            if (reqBusy != null) return;
+                            const sid = group ? srvGroupId(group) : null;
+                            if (sid == null) return;
+                            setReqBusy(rq.id);
+                            void groupJoinDecide(sid, rq.id, false).then((r) => {
+                              setReqBusy(null);
+                              if (r.ok)
+                                setJoinReqs((cur) =>
+                                  (cur ?? []).filter((x) => x.id !== rq.id),
+                                );
+                              else
+                                setMemberError(r.message ?? "Could not decline.");
+                            });
+                          }}
+                          disabled={reqBusy != null}
+                          style={{
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: isDark
+                              ? "rgba(255,123,123,0.5)"
+                              : "rgba(207,58,58,0.45)",
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            opacity: reqBusy === rq.id ? 0.6 : 1,
+                          }}
+                        >
+                          <T
+                            v="caption"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "800",
+                              color: "#FF7B7B",
+                            }}
+                          >
+                            Decline
+                          </T>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+    
+                {canManage &&
+                (!joinReqs || joinReqs.length === 0) ? (
+                  <View style={{ padding: 24, alignItems: "center" }}>
+                    <FontAwesome5 name="check-circle" size={22} color={d.faint} />
+                    <T v="bodyS" style={{ color: d.subtext, marginTop: 8 }}>
+                      No pending join requests.
+                    </T>
+                  </View>
+                ) : null}
+          </View>
+        ) : null}
+
 
         {/* ── MEMBERS — ranks, follow, view profile, manage ── */}
         {tab === "members" ? (

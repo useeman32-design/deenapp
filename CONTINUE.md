@@ -2159,3 +2159,53 @@ NEXT: admin dashboard audit → iOS/Android store builds.
 - Admin/app testing pass: boosted admin search/action toolbar and actor grid spacing; improved Learning Hub module cards; added `pageshow` loader cleanup across admin HTML pages so browser Back cannot leave the page blocked; follower notifications now use a single “New followers: …” line without duplicate actor/username; message-request Block now also calls the canonical account block endpoint so it appears in Blocked Accounts. Existing AI backend already supports Groq→Gemini→OpenRouter→HuggingFace fallback and provider key management; it still needs a separate UI cleanup pass to remove the requested client-side controls. Full Shop management, Quran reciter-photo research, Mushaf/Compass paid theme controls, and server-authored course quiz CRUD remain larger follow-up work and are not claimed complete.
 
 - Remaining-pass update: app AI settings no longer expose device API-key entry, DeenLink Cloud AI wording, or web-search controls; it presents secure server-managed AI and capability/reasoning controls. Existing server AI provider router already supports Groq → Gemini fallback and admin provider-key management. Quran server reciters now return a portrait URL fallback and the reader renders it instead of initials. The remaining Mushaf/Compass paid-theme catalog, full Shop CRUD/order badges, and server-authored 20-question course-test authoring still require dedicated database/UI work and are not claimed complete.
+
+## Pass 84 (2026-09-14) — audit of the interim agent + shop/group fixes (THIS PASS)
+Owner switched back to this chat after an interim agent ("solves fast, accuracy low").
+Its 9-13/9-14 commits (deenapp 4d49b53..4372619, dlapi c942d32..7aced5d = the unnumbered
+CONTINUE.md bullets + HANDOFF "83-40") were audited claim-by-claim against code + live.
+
+LIVE TRUTH: app.deenlink.org = dlapi main tip, root bundle entry-ced5af89 — the broken
+group-tab code (4372619) was NEVER deployed; live still carries the working 83-28 card.
+gh-pages currently serves entry-745647 (pre-83-40 code). Pass 84 rebuild is committed but
+NOT deployed (owner's call — one cPanel pull + gh-pages push ships it; see GATES).
+
+FIXED (tsc had 5 errors, all from the interim agent):
+1. group.tsx "feat: add group admin join requests tab" was DEAD CODE: queue guarded by
+   `tab === "requests"` but Tab = posts|members|about — no such tab, nothing could ever
+   select it; the working inline card (83-28) was removed in the same commit (which also
+   reformatted the whole 4.1k-line file — quote churn that hides functional diffs).
+   → REAL fix: Tab += "requests"; admin-only "Requests · N" chip in the tab bar; queue +
+   empty state moved to their own tab branch; Posts tab keeps a gold strip → tap switches
+   to the tab. (Owner's 83-28 ask: "a place where admin can accept or reject joining
+   requests" — finally true.)
+2. fatwa.tsx:225 dead `'ask'` icon ternary branch → removed (ask chip stays removed per
+   83-29 owner decision).
+3. Shop order thumbnails: client read item.image_url but ShopOrderItem didn't declare it
+   and api/shop/orders.php never returned it. → type += image_url?; shopOrders() hydrates
+   via absMedia(); orders.php joins shop_products.image_url per order item.
+
+PHP SYNTAX ERRORS FOUND & FIXED (dlapi, both shipped by "83-40 shop admin" work — these
+would 500 the admin the moment it was used; the interim agent had NO php binary and only
+ran node --check on inline JS):
+4. api/admin/shop/products.php — nested single-quotes: '... AND media_type='image'' →
+   double-quoted string. "publish validation" could never run.
+5. api/admin/shop/categories.php — unclosed paren: ternary (:null, not :null),) inside the
+   INSERT execute() array → category save fatal.
+GATE NOW: /tmp/php = static PHP 8.1.23 CLI from
+https://dl.static-php.dev/static-php-cli/common/php-8.1.23-cli-linux-x86_64.tar.gz
+(unzip, chmod +x) — `php -l` full sweep: 447 files CLEAN. Re-download after sandbox wipes.
+
+VERIFIED-TRUE of the interim agent (no action): DeenPoints live Flutterwave top-up · AI
+device key-entry removed (saveKey left dead, harmless) · 20-course seed_catalog.php +
+quiz_complete 80% + certificate/verify endpoints · lesson heading guarded ALTER · launch
+cleanup csrf_token fallback chain · boost 100-actor seed + legacy rename + order pagination
+· follower-notif single line ("New followers:") · guest greeting · quiz mojibake clean ·
+tasbeeh BEADS=99. Claims still open as "not claimed complete": Mushaf/Compass paid themes,
+full Shop CRUD order badges, server 20-question course-quiz authoring, 83-40 NEXT
+(pagination on remaining content lists, Quran offline/download, moderation gaps).
+
+GATES: tsc 0 errors · export-web OK (gh flavor entry-7db6495e…, node --check pass, strings
+verified: "Requests", "No pending join requests", "user-clock") · php -l 447 clean.
+DEPLOY PENDING (owner decision): push gh-pages (export dist) + dlapi web root rebuild
+(scripts/export-raw.sh → merge into root → CHECK-RAW) + one cPanel pull.

@@ -1700,6 +1700,8 @@ export type ShopOrderItem = {
   price: number;
   qty: number;
   image_key: string;
+  /** pass 84 — admin-managed product image for order rows (server-hydrated). */
+  image_url?: string | null;
 };
 export type ShopOrder = {
   id: number;
@@ -1820,7 +1822,16 @@ export async function shopOrders(): Promise<ShopOrder[] | null> {
     "/api/shop/orders.php",
     { auth: true },
   );
-  return r.ok && Array.isArray(r.data.orders) ? r.data.orders : null;
+  if (!(r.ok && Array.isArray(r.data.orders))) return null;
+  /* pass 84 — resolve bare uploaded filenames against the API origin (same
+   * rule normalizeShopProduct applies), so order rows show managed images. */
+  return r.data.orders.map((o) => ({
+    ...o,
+    items: (o.items ?? []).map((it) => ({
+      ...it,
+      image_url: it.image_url ? absMedia(it.image_url) : it.image_url,
+    })),
+  }));
 }
 
 /* ─────────────── pass 76 (Tier 3) — real, server-enforced blocking ─────────────── */
