@@ -2259,3 +2259,22 @@ design+price decisions), full admin-content pagination beyond shop/boost (lists 
 small; revisit at scale), EAS store builds (needs owner device policy/screenshots —
 token ready), group join-requests live verification after the pull (curl the new
 bundle strings first).
+
+## Pass 85b (2026-09-14) — EAS BUILD SHIPPED (production AAB) + config blockers fixed
+Fixed BEFORE any build could pass expo-doctor (both were hard EAS blockers nobody had hit
+because no store build had EVER run from this setup):
+ · app.json: removed legacy top-level "splash" key (invalid schema SDK 57 — plugin config
+   already covers it); icon assets/images/icon.png 1000x1020 → padded/scaled 1024x1024
+   (non-square = asset pipeline crash). Commits 47580ff + 655a2d2 on master.
+ · expo-doctor now: only non-blocking advisory = 30 package patch-bumps available
+   (deliberately NOT upgraded mid-release).
+EXPO: account pixel605s-team, project deenlink (id 6d5827da), keystore x-qVLH9-f0 on
+Expo servers. PRODUCTION AAB built & signed: version 0.1.0 / versionCode 1 / commit 655a2d2
+→ expo.dev/accounts/pixel605s-team/projects/deenlink/builds/80e33911 (store upload file).
+A second build (profile preview → APK 1d523916) for device sideload testing.
+KNOWN for the next iOS build: bundleIdentifier added (org.deenlink.app) but Apple signing
+needs owner credentials: `eas credentials -p ios` (Apple ID auth is interactive — run on
+owner's machine, or paste an ASC API key in Expo dashboard). Play submission: complete
+Play Console (data-safety + privacy policy URL first), then `eas submit -p android` OR
+upload the .aab manually. expo-updates NOT installed → channel warning in builds is
+cosmetic; OTA is a future decision.
