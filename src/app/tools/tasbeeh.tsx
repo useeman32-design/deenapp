@@ -647,7 +647,7 @@ export default function Tasbeeh() {
                   </SvgG>
                 );
               })}
-              {/* gold head above the ring, with a short connector so it is visibly attached */}
+              {/* fixed top head with an upward tassel; connector remains attached to the ring */}
               <SvgG>
                 <SvgCircle
                   cx={imgW / 2}
@@ -674,7 +674,7 @@ export default function Tasbeeh() {
                 {[0, 1, 2, 3, 4].map((k) => (
                   <SvgPath
                     key={k}
-                    d={`M ${imgW / 2 - 6 + k * 3} ${imgH * 0.58 - Math.min(imgW, imgH) * 0.31 - 19} q ${(k - 2) * 5} 26 ${(k - 2) * 7} 46`}
+                    d={`M ${imgW / 2 - 6 + k * 3} ${imgH * 0.58 - Math.min(imgW, imgH) * 0.31 - 19} q ${(k - 2) * 5} -24 ${(k - 2) * 7} -42`}
                     stroke={k % 2 ? "rgba(232,201,106,0.6)" : "#E8C96A"}
                     strokeWidth={k === 2 ? 2.2 : 1.4}
                     fill="none"
@@ -921,151 +921,162 @@ export default function Tasbeeh() {
                 marginBottom: 14,
               }}
             />
-            <T
-              v="h3"
-              style={{
-                fontSize: 15,
-                fontWeight: "800",
-                color: INK,
-                marginHorizontal: 18,
-                marginBottom: 4,
-              }}
+            <ScrollView
+              style={{ maxHeight: 360 }}
+              contentContainerStyle={{ paddingBottom: 4 }}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
             >
-              Settings
-            </T>
-            <T
-              v="caption"
-              style={{
-                fontSize: 10.5,
-                color: INK_FAINT,
-                marginHorizontal: 18,
-                marginBottom: 12,
-              }}
-            >
-              Choose your dhikr — counts are kept per dhikr, every day.
-            </T>
-            {PRESETS.map((p) => {
-              const on = p.id === presetId;
-              const c = counts[p.id] ?? 0;
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => {
-                    pickPreset(p.id);
-                    setSettingsOpen(false);
-                  }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 11,
-                    marginHorizontal: 14,
-                    marginTop: 6,
-                    borderRadius: 15,
-                    borderWidth: 1,
-                    borderColor: on
-                      ? "rgba(74,227,143,0.5)"
-                      : "rgba(255,255,255,0.07)",
-                    backgroundColor: on
-                      ? "rgba(74,227,143,0.08)"
-                      : "rgba(255,255,255,0.03)",
-                    padding: 12,
-                  }}
-                >
-                  <T v="arabic" style={{ fontSize: 15, color: INK, flex: 1 }}>
-                    {p.arabic}
-                  </T>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <T
-                      v="caption"
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: "700",
-                        color: on ? NEON : INK_FAINT,
-                      }}
-                    >
-                      {p.label}
-                    </T>
-                    <T
-                      v="caption"
-                      style={{ fontSize: 9, color: "rgba(242,247,243,0.35)" }}
-                    >
-                      {c} today
-                    </T>
-                  </View>
-                  <FontAwesome5
-                    name={on ? "check-circle" : "circle"}
-                    size={15}
-                    color={on ? NEON : "rgba(255,255,255,0.2)"}
-                  />
-                </Pressable>
-              );
-            })}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginHorizontal: 18,
-                marginTop: 16,
-              }}
-            >
-              <FontAwesome5 name="vibrate" size={13} color={NEON} />
               <T
-                v="bodyS"
-                style={{ flex: 1, fontSize: 12.5, color: INK, marginLeft: 9 }}
+                v="h3"
+                style={{
+                  fontSize: 15,
+                  fontWeight: "800",
+                  color: INK,
+                  marginHorizontal: 18,
+                  marginBottom: 4,
+                }}
               >
-                Vibration on each bead
+                Settings
               </T>
-              <Switch
-                value={vibrate}
-                onValueChange={(v) => {
-                  setVibrate(v);
-                  savePrefs({ vibrate: v });
-                  if (v) haptic.selection();
-                }}
-                trackColor={{
-                  false: "rgba(255,255,255,0.14)",
-                  true: NEON_DEEP,
-                }}
-                thumbColor={vibrate ? NEON : "#9AA79E"}
-              />
-            </View>
-            <Pressable
-              onPress={resetToday}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                marginHorizontal: 18,
-                marginTop: 14,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: "rgba(255,123,123,0.3)",
-                padding: 12,
-              }}
-            >
-              <FontAwesome5 name="undo" size={11} color="#FF7B7B" />
               <T
                 v="caption"
-                style={{ fontSize: 11.5, fontWeight: "800", color: "#FF7B7B" }}
+                style={{
+                  fontSize: 10.5,
+                  color: INK_FAINT,
+                  marginHorizontal: 18,
+                  marginBottom: 12,
+                }}
               >
-                Reset today’s counts
+                Choose your dhikr — counts are kept per dhikr, every day.
               </T>
-            </Pressable>
-            <T
-              v="caption"
-              style={{
-                fontSize: 9.5,
-                color: "rgba(242,247,243,0.3)",
-                textAlign: "center",
-                marginTop: 16,
-                marginHorizontal: 34,
-                lineHeight: 15,
-              }}
-            >
-              “Whoever says SubhanAllah 33 times, Alhamdulillah 33 times, Allahu
-              Akbar 33 times after every prayer — that is 99…” (Muslim)
-            </T>
+              {PRESETS.map((p) => {
+                const on = p.id === presetId;
+                const c = counts[p.id] ?? 0;
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => {
+                      pickPreset(p.id);
+                      setSettingsOpen(false);
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 11,
+                      marginHorizontal: 14,
+                      marginTop: 6,
+                      borderRadius: 15,
+                      borderWidth: 1,
+                      borderColor: on
+                        ? "rgba(74,227,143,0.5)"
+                        : "rgba(255,255,255,0.07)",
+                      backgroundColor: on
+                        ? "rgba(74,227,143,0.08)"
+                        : "rgba(255,255,255,0.03)",
+                      padding: 12,
+                    }}
+                  >
+                    <T v="arabic" style={{ fontSize: 15, color: INK, flex: 1 }}>
+                      {p.arabic}
+                    </T>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <T
+                        v="caption"
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: "700",
+                          color: on ? NEON : INK_FAINT,
+                        }}
+                      >
+                        {p.label}
+                      </T>
+                      <T
+                        v="caption"
+                        style={{ fontSize: 9, color: "rgba(242,247,243,0.35)" }}
+                      >
+                        {c} today
+                      </T>
+                    </View>
+                    <FontAwesome5
+                      name={on ? "check-circle" : "circle"}
+                      size={15}
+                      color={on ? NEON : "rgba(255,255,255,0.2)"}
+                    />
+                  </Pressable>
+                );
+              })}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginHorizontal: 18,
+                  marginTop: 16,
+                }}
+              >
+                <FontAwesome5 name="vibrate" size={13} color={NEON} />
+                <T
+                  v="bodyS"
+                  style={{ flex: 1, fontSize: 12.5, color: INK, marginLeft: 9 }}
+                >
+                  Vibration on each bead
+                </T>
+                <Switch
+                  value={vibrate}
+                  onValueChange={(v) => {
+                    setVibrate(v);
+                    savePrefs({ vibrate: v });
+                    if (v) haptic.selection();
+                  }}
+                  trackColor={{
+                    false: "rgba(255,255,255,0.14)",
+                    true: NEON_DEEP,
+                  }}
+                  thumbColor={vibrate ? NEON : "#9AA79E"}
+                />
+              </View>
+              <Pressable
+                onPress={resetToday}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  marginHorizontal: 18,
+                  marginTop: 14,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,123,123,0.3)",
+                  padding: 12,
+                }}
+              >
+                <FontAwesome5 name="undo" size={11} color="#FF7B7B" />
+                <T
+                  v="caption"
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: "800",
+                    color: "#FF7B7B",
+                  }}
+                >
+                  Reset today’s counts
+                </T>
+              </Pressable>
+              <T
+                v="caption"
+                style={{
+                  fontSize: 9.5,
+                  color: "rgba(242,247,243,0.3)",
+                  textAlign: "center",
+                  marginTop: 16,
+                  marginHorizontal: 34,
+                  lineHeight: 15,
+                }}
+              >
+                “Whoever says SubhanAllah 33 times, Alhamdulillah 33 times,
+                Allahu Akbar 33 times after every prayer — that is 99…” (Muslim)
+              </T>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
