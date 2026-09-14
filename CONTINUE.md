@@ -2209,3 +2209,53 @@ GATES: tsc 0 errors · export-web OK (gh flavor entry-7db6495e…, node --check 
 verified: "Requests", "No pending join requests", "user-clock") · php -l 447 clean.
 DEPLOY PENDING (owner decision): push gh-pages (export dist) + dlapi web root rebuild
 (scripts/export-raw.sh → merge into root → CHECK-RAW) + one cPanel pull.
+
+## Pass 85 (2026-09-14) — audit fixes SHIPPED + course-quiz authoring + offline recitation (THIS PASS)
+deenapp master 502c21e (+notes) · gh-pages 07af4f9 · dlapi main 4cbd436 (API + admin +
+ROOT web merge + deenapp/ compat). DEPLOYED: raw export entry-68e61b9087d374a0c796b0d8202953e2
+(CHECK-RAW OK 128 files; MERGE, nothing pruned; 0 D in commit stat). OWNER: one cPanel
+`git fetch origin && git reset --hard origin/main` in the deenlink-api docroot, then
+Ctrl+Shift+R; verify page source contains entry-68e61b90 + open /admin/course-quizzes.html.
+
+SHIPPED (all gates: tsc 0 errors · php -l 447/447 clean via /tmp/php static CLI ·
+export-web + export-raw both pass node --check + CHECK-RAW):
+1. FIXES from the pass-84 audit: group Requests tab made REAL (admin-only chip +
+   gold strip on Posts + queue branch), fatwa dead ternary removed, shop order
+   thumbnails wired (orders.php join + client absMedia + type).
+2. Lint-caught bugs from 83-40's own new files: admin/shop/products.php nested-quote
+   parse error, admin/shop/categories.php unbalanced parens — both endpoints were
+   FATAL (never lintable by the prior agent: no PHP). Download static php 8.1.23:
+   https://dl.static-php.dev/static-php-cli/common/php-8.1.23-cli-linux-x86_64.tar.gz
+   → /tmp/php, chmod +x (workspace-wipes lose it — re-fetch, it's the gate).
+3. COURSE QUIZ AUTHORING (server-authored banks — the "20-question" gap):
+   · api/courses/common.php += courses_quiz_ensure/sanitize/load (course_quizzes table,
+     JSON array of {q,a[2-6],correct,why≤600}); api/courses/quiz.php public GET
+     ?course_id (published courses only; empty 200 keeps bundled fallback);
+     api/admin/courses/quiz.php GET (?course_id bank | no id → banks count map) +
+     POST upsert via require_post_with_csrf + parse_json_input (X-CSRF-Token header),
+     empty questions = clear, admin_log audit.
+   · NEW admin/course-quizzes.html — canonical chrome (perms.css + sidebar.js +
+     dl-identity + report-bell), course picker w/ ✓custom-bank marks, add/remove
+     question rows, A-D options + correct radio, why field, JSON import/export
+     (handles {question,options,answer_index} shapes too), save/clear with toasts.
+   · sidebar.js += Course Quizzes menu item; live attention badges (Shop Orders
+     pending+processing via shop/stats.php, Reports total via reports/count.php —
+     silent-fail by design).
+   · App: client.ts courseQuiz() (publicGet) · CoursePlayer: server bank wins over
+     quizFor() when non-empty (deps [server]), best-score storage + quiz_complete 80%
+     flow untouched.
+4. OFFLINE QURAN RECITATION (native only, fails safe): src/lib/quranOffline.ts —
+   per-ayah mp3s to <doc>/quran-audio/<reciter>/<surah>/NNN.mp3 + index.json; sync
+   registry (rebuilt at boot from disk); QuranAudioContext ayahAudio() checks LOCAL
+   FIRST (exported for the save flow too); reader audio bar gained a Save-offline
+   pill (progress %, "Offline" state, Alert→Remove download). Verified API surface by
+   compiling a probe file against tsc — create({intermediates}), .exists, .textSync,
+   .uri, .list(), File.downloadFileAsync all exist on expo-file-system 57. Web =
+   silent no-op (isOfflineCapable gate). Untested on a real device from here — needs
+   one Expo Go / dev-build pass by the owner (Android first).
+
+NOT SHIPPED (declared, not silent): Mushaf/Compass paid theme catalog (needs owner
+design+price decisions), full admin-content pagination beyond shop/boost (lists are
+small; revisit at scale), EAS store builds (needs owner device policy/screenshots —
+token ready), group join-requests live verification after the pull (curl the new
+bundle strings first).
