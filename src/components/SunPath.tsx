@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
-import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGradient as SvgLinear, Stop } from 'react-native-svg';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { T } from '@/components/T';
-import { formatTime } from '@/lib/prayer';
+import React, { useState } from "react";
+import { View } from "react-native";
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  Path,
+  RadialGradient as SvgRadial,
+  LinearGradient as SvgLinear,
+  Stop,
+} from "react-native-svg";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { T } from "@/components/T";
+import { formatTime } from "@/lib/prayer";
 
 /** Shared prayer-day visual — used by the HOME hero and the PRAYER page hero
  *  (pass 29: extracted verbatim from the home screen). */
@@ -16,7 +25,15 @@ import { formatTime } from '@/lib/prayer';
  * "adjust-and-snap-back" glitch on the arc. */
 let cachedW = 0;
 
-export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: Date; nextIndex: number | null }) {
+export function SunPath({
+  times,
+  now,
+  nextIndex,
+}: {
+  times: Date[] | null;
+  now: Date;
+  nextIndex: number | null;
+}) {
   const [w, setW] = useState(cachedW || 338);
   const H = 120;
   const pad = 18;
@@ -24,34 +41,38 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
   const peak = 20;
   // fixed palette — SunPath always renders on the dark hero card
   const c = {
-    horizon: 'rgba(255,255,255,0.16)',
-    nowLine: 'rgba(255,255,255,0.22)',
-    curve: '#D4AF37',
-    elapsed: '#F1C40F',
-    area: '#D4AF37',
-    dotFill: '#0E241A',
-    dotStroke: 'rgba(255,255,255,0.5)',
-    active: '#2ECC71',
-    label: 'rgba(255,255,255,0.62)',
-    labelActive: '#4AE38F',
-    time: 'rgba(255,255,255,0.4)',
-    halo: '#F1C40F',
-    sunDay: '#F1C40F',
-    sunNight: '#B9C7E4',
-    sunRingDay: '#D4AF37',
-    sunRingNight: 'rgba(255,255,255,0.45)',
-    card: '#0E241A',
+    horizon: "rgba(255,255,255,0.16)",
+    nowLine: "rgba(255,255,255,0.22)",
+    curve: "#D4AF37",
+    elapsed: "#F1C40F",
+    area: "#D4AF37",
+    dotFill: "#0E241A",
+    dotStroke: "rgba(255,255,255,0.5)",
+    active: "#2ECC71",
+    label: "rgba(255,255,255,0.62)",
+    labelActive: "#4AE38F",
+    time: "rgba(255,255,255,0.4)",
+    halo: "#F1C40F",
+    sunDay: "#F1C40F",
+    sunNight: "#B9C7E4",
+    sunRingDay: "#D4AF37",
+    sunRingNight: "rgba(255,255,255,0.45)",
+    card: "#0E241A",
   };
 
   if (!times) {
     return (
       <View
-        onLayout={(e) => { const mw = Math.max(e.nativeEvent.layout.width, 200); cachedW = mw; setW(mw); }}
-        style={{ height: H, justifyContent: 'center' }}
+        onLayout={(e) => {
+          const mw = Math.max(e.nativeEvent.layout.width, 200);
+          cachedW = mw;
+          setW(mw);
+        }}
+        style={{ height: H, justifyContent: "center" }}
       >
         <View
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: pad - 6,
             right: pad - 6,
             top: baseline,
@@ -60,7 +81,10 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
             opacity: 0.6,
           }}
         />
-        <T v="caption" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10.5 }}>
+        <T
+          v="caption"
+          style={{ color: "rgba(255,255,255,0.5)", fontSize: 10.5 }}
+        >
           Calculating prayer times…
         </T>
       </View>
@@ -87,7 +111,7 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
     const t = fajr + (span * i) / N;
     pts.push(`${X(t).toFixed(1)},${Y(t).toFixed(1)}`);
   }
-  const curve = `M ${pts.join(' L ')}`;
+  const curve = `M ${pts.join(" L ")}`;
   const area = `${curve} L ${X(end).toFixed(1)},${baseline} L ${X(fajr).toFixed(1)},${baseline} Z`;
 
   const nowMs = now.getTime();
@@ -95,30 +119,43 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
    * stays there. It must never retrace the arc or jump from the back toward
    * Fajr; the next movement begins only when the next day's prayer schedule
    * rolls over. */
-  const isNight = nowMs > end;
+  /* Hold at Isha through the entire overnight gap. When the prayer-day
+   * values roll to the next date, do not reset the marker to Fajr at 11pm-
+   * midnight; that was the visible backward jump. The next movement starts
+   * only when the new Fajr actually arrives. */
+  const beforeFajr = nowMs < fajr;
+  const isNight = nowMs >= isha || beforeFajr;
   const sunT = isNight ? isha : Math.max(nowMs, fajr);
   // bright "day so far" segment: Fajr → now
-  const elapsedIdx = isNight ? 0 : Math.min(Math.round(((sunT - fajr) / span) * N), N);
+  const elapsedIdx = isNight
+    ? N
+    : Math.min(Math.round(((sunT - fajr) / span) * N), N);
   const elapsed =
     elapsedIdx > 0
-      ? `M ${pts.slice(0, elapsedIdx + 1).join(' L ')} ${X(sunT).toFixed(1)},${Y(sunT).toFixed(1)}`
-      : '';
+      ? `M ${pts.slice(0, elapsedIdx + 1).join(" L ")} ${X(sunT).toFixed(1)},${Y(sunT).toFixed(1)}`
+      : "";
   const sx = X(sunT);
   const sy = Y(sunT);
   const isDay = nowMs >= fajr && nowMs < maghrib;
   const npIndex = nextIndex;
 
   const markers = [
-    { label: 'Fajr', t: fajr, idx: 0, icon: 'moon' as const },
-    { label: 'Dhuhr', t: dhuhr, idx: 2, icon: 'sun' as const },
-    { label: 'Asr', t: asr, idx: 3, icon: 'sun' as const },
-    { label: 'Maghrib', t: maghrib, idx: 4, icon: 'sunset' as const },
-    { label: 'Isha', t: isha, idx: 5, icon: 'moon' as const },
+    { label: "Fajr", t: fajr, idx: 0, icon: "moon" as const },
+    { label: "Dhuhr", t: dhuhr, idx: 2, icon: "sun" as const },
+    { label: "Asr", t: asr, idx: 3, icon: "sun" as const },
+    { label: "Maghrib", t: maghrib, idx: 4, icon: "sunset" as const },
+    { label: "Isha", t: isha, idx: 5, icon: "moon" as const },
   ];
 
-
   return (
-    <View onLayout={(e) => { const mw = Math.max(e.nativeEvent.layout.width, 200); cachedW = mw; setW(mw); }} style={{ height: H }}>
+    <View
+      onLayout={(e) => {
+        const mw = Math.max(e.nativeEvent.layout.width, 200);
+        cachedW = mw;
+        setW(mw);
+      }}
+      style={{ height: H }}
+    >
       <Svg width={w} height={H}>
         <Defs>
           <SvgLinear id="sun-area" x1="0" y1="0" x2="0" y2="1">
@@ -135,21 +172,60 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
           </SvgRadial>
         </Defs>
         {/* horizon */}
-        <Line x1={pad - 8} y1={baseline} x2={w - pad + 8} y2={baseline} stroke={c.horizon} strokeWidth={1} strokeDasharray="1 4" strokeLinecap="round" />
+        <Line
+          x1={pad - 8}
+          y1={baseline}
+          x2={w - pad + 8}
+          y2={baseline}
+          stroke={c.horizon}
+          strokeWidth={1}
+          strokeDasharray="1 4"
+          strokeLinecap="round"
+        />
         {/* soft fill under the arc */}
         <Path d={area} fill="url(#sun-area)" />
         {/* the day arc (remaining) */}
-        <Path d={curve} stroke={c.curve} strokeOpacity={0.3} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+        <Path
+          d={curve}
+          stroke={c.curve}
+          strokeOpacity={0.3}
+          strokeWidth={1.5}
+          fill="none"
+          strokeLinecap="round"
+        />
         {/* the elapsed portion, brighter */}
-        {elapsed ? <Path d={elapsed} stroke={c.elapsed} strokeOpacity={0.95} strokeWidth={2} fill="none" strokeLinecap="round" /> : null}
+        {elapsed ? (
+          <Path
+            d={elapsed}
+            stroke={c.elapsed}
+            strokeOpacity={0.95}
+            strokeWidth={2}
+            fill="none"
+            strokeLinecap="round"
+          />
+        ) : null}
         {/* now line */}
-        <Line x1={sx} y1={sy + 13} x2={sx} y2={baseline} stroke={c.nowLine} strokeWidth={1} />
+        <Line
+          x1={sx}
+          y1={sy + 13}
+          x2={sx}
+          y2={baseline}
+          stroke={c.nowLine}
+          strokeWidth={1}
+        />
         {/* prayer markers at their real positions */}
         {markers.map((m) => {
           const active = npIndex === m.idx;
           return (
             <React.Fragment key={m.label}>
-              {active ? <Circle cx={X(m.t)} cy={Y(m.t)} r={13} fill="url(#active-glow)" /> : null}
+              {active ? (
+                <Circle
+                  cx={X(m.t)}
+                  cy={Y(m.t)}
+                  r={13}
+                  fill="url(#active-glow)"
+                />
+              ) : null}
               <Circle
                 cx={X(m.t)}
                 cy={Y(m.t)}
@@ -163,7 +239,14 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
         })}
         {/* sun / moon at the current time */}
         <Circle cx={sx} cy={sy} r={16} fill="url(#sun-halo)" />
-        <Circle cx={sx} cy={sy} r={11} fill={c.card} stroke={isDay ? c.sunRingDay : c.sunRingNight} strokeWidth={1.2} />
+        <Circle
+          cx={sx}
+          cy={sy}
+          r={11}
+          fill={c.card}
+          stroke={isDay ? c.sunRingDay : c.sunRingNight}
+          strokeWidth={1.2}
+        />
         {isDay ? (
           <G>
             <Circle cx={sx} cy={sy} r={4} fill={c.sunDay} />
@@ -192,39 +275,42 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
         )}
       </Svg>
 
-
       {/* prayer icons inside the dots */}
       {markers.map((m) => (
         <View
           key={`gi-${m.label}`}
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: X(m.t) - 8,
             top: Y(m.t) - 8,
             width: 16,
             height: 16,
-            alignItems: 'center',
-            justifyContent: 'center',
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          {m.icon === 'sunset' ? (
+          {m.icon === "sunset" ? (
             <Svg width={11} height={9}>
               <Path
                 d="M 1.8 4.6 A 3.7 3.7 0 0 1 9.2 4.6 Z"
-                fill={npIndex === m.idx ? c.active : 'rgba(255,255,255,0.82)'}
+                fill={npIndex === m.idx ? c.active : "rgba(255,255,255,0.82)"}
               />
               <Line
                 x1={0.7}
                 y1={6.6}
                 x2={10.3}
                 y2={6.6}
-                stroke={npIndex === m.idx ? c.active : 'rgba(255,255,255,0.82)'}
+                stroke={npIndex === m.idx ? c.active : "rgba(255,255,255,0.82)"}
                 strokeWidth={1.1}
                 strokeLinecap="round"
               />
             </Svg>
           ) : (
-            <FontAwesome5 name={m.icon} size={7.5} color={npIndex === m.idx ? c.active : 'rgba(255,255,255,0.82)'} />
+            <FontAwesome5
+              name={m.icon}
+              size={7.5}
+              color={npIndex === m.idx ? c.active : "rgba(255,255,255,0.82)"}
+            />
           )}
         </View>
       ))}
@@ -233,7 +319,9 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
       {(() => {
         const W = [40, 40, 38, 48, 40]; // per-label box widths (fit name + time)
         const GAP = 3;
-        const lefts = markers.map((m, i) => Math.min(Math.max(X(m.t) - W[i] / 2, 2), w - W[i] - 2));
+        const lefts = markers.map((m, i) =>
+          Math.min(Math.max(X(m.t) - W[i] / 2, 2), w - W[i] - 2),
+        );
         // Right-to-left pass: the rightmost labels (Maghrib/Isha) are close in time,
         // so keep the last at the edge and pull earlier boxes left of their neighbours.
         for (let i = markers.length - 2; i >= 0; i--) {
@@ -243,11 +331,30 @@ export function SunPath({ times, now, nextIndex }: { times: Date[] | null; now: 
         return markers.map((m, i) => {
           const active = npIndex === m.idx;
           return (
-            <View key={`l-${m.label}`} style={{ position: 'absolute', left: lefts[i], top: baseline + 10, width: W[i], alignItems: 'center' }}>
-              <T v="caption" style={{ color: active ? c.labelActive : c.label, fontSize: 9, fontWeight: active ? '700' : '500' }}>
+            <View
+              key={`l-${m.label}`}
+              style={{
+                position: "absolute",
+                left: lefts[i],
+                top: baseline + 10,
+                width: W[i],
+                alignItems: "center",
+              }}
+            >
+              <T
+                v="caption"
+                style={{
+                  color: active ? c.labelActive : c.label,
+                  fontSize: 9,
+                  fontWeight: active ? "700" : "500",
+                }}
+              >
                 {m.label}
               </T>
-              <T v="caption" style={{ color: c.time, fontSize: 8.5, marginTop: 1 }}>
+              <T
+                v="caption"
+                style={{ color: c.time, fontSize: 8.5, marginTop: 1 }}
+              >
                 {formatTime(new Date(m.t))}
               </T>
             </View>

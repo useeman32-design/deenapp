@@ -1547,17 +1547,33 @@ export function CommunityInbox({
                 reactions: {},
               }));
             /* pass 83-21 — keep each thread's block flags in sync */
-            const next = [...add, ...prev].map((t) =>
-              flags[t.friend] &&
-              (t.blocked !== flags[t.friend].b ||
-                t.blocked_by !== flags[t.friend].by)
+            const next = [...add, ...prev].map((t) => {
+              const preview = previews[t.friend];
+              const withLatest =
+                preview && t.chat[t.chat.length - 1]?.text !== preview
+                  ? {
+                      ...t,
+                      chat: [
+                        ...t.chat,
+                        {
+                          id: `preview-${t.friend}-${Date.now()}`,
+                          text: preview,
+                          ago: "",
+                          dir: "them" as const,
+                        },
+                      ],
+                    }
+                  : t;
+              return flags[t.friend] &&
+                (withLatest.blocked !== flags[t.friend].b ||
+                  withLatest.blocked_by !== flags[t.friend].by)
                 ? {
-                    ...t,
+                    ...withLatest,
                     blocked: flags[t.friend].b,
                     blocked_by: flags[t.friend].by,
                   }
-                : t,
-            );
+                : withLatest;
+            });
             return next.length !== prev.length ||
               next.some((t, i) => t !== [...add, ...prev][i])
               ? next
