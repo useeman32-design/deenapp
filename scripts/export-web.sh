@@ -19,7 +19,15 @@ npx expo export --platform web --clear
 # into e.g. /deenapponboarding).
 SLASHGUARD='t=String(t);if(!t.startsWith("/"))t="/"+t;'
 for f in dist/_expo/static/js/web/entry-*.js; do
-  perl -pi -e "s#e\\.getUrlWithReactNavigationConcessions=function\\(t,n=\"\"\\)\\{#e.getUrlWithReactNavigationConcessions=function(t,n=\"${BASE}\"){${SLASHGUARD}#g; s#e\\.appendBaseUrl=function\\(t,n=\"\"\\)\\{#e.appendBaseUrl=function(t,n=\"${BASE}\"){${SLASHGUARD}#g" "$f"
+  node -e '
+    const fs = require("fs");
+    const [f, base, guard] = process.argv.slice(1);
+    let s = fs.readFileSync(f, "utf8");
+    const rep = (m, r) => r + "URLFN" + "=function(t,n=\"" + base + "\"){" + guard;
+    s = s.replace(/([A-Za-z_$][\w$]*)\.getUrlWithReactNavigationConcessions=function\(t,n="[^"]*"\)\{/g, (m, r) => r + ".getUrlWithReactNavigationConcessions=function(t,n=\"" + base + "\"){" + guard);
+    s = s.replace(/([A-Za-z_$][\w$]*)\.appendBaseUrl=function\(t,n="[^"]*"\)\{/g, (m, r) => r + ".appendBaseUrl=function(t,n=\"" + base + "\"){" + guard);
+    fs.writeFileSync(f, s);
+  ' "$f" "$BASE" "$SLASHGUARD"
   grep -q 'startsWith("/"))t="/"+t' "$f" || { echo "ERROR: router patch failed on $f" >&2; exit 1; }
 done
 
