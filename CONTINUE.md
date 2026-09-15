@@ -2278,3 +2278,21 @@ owner's machine, or paste an ASC API key in Expo dashboard). Play submission: co
 Play Console (data-safety + privacy policy URL first), then `eas submit -p android` OR
 upload the .aab manually. expo-updates NOT installed → channel warning in builds is
 cosmetic; OTA is a future decision.
+
+## pass 86 (2026-09-15) — owner field-test repairs
+Live pull of pass-85 landed; owner returned 8 bug reports + second paste. Root causes found by live forensics (never trust, verify):
+1. **Learn-hub crash**: `/api/learning/list.php` live returns `sections:[]`; client `learningSections()` passed [] through → banner pool empty → `banner.title` on undefined. Fixed BOTH ends (empty→null fallback; `{banner ? … : null}` guard).
+2. **Admin Course Quizzes “raw page / couldn’t load bank”**: page included sidebar.js but NOT the per-page framework CSS every admin page embeds → looked unstyled; init crashed when batch `SELECT FROM course_quizzes` ran before table existed. Fixed ensure-order in `api/admin/courses/quiz.php` + REBUILT page (chrome transplanted from quiz-management.html via /tmp/genpages.py pattern). Import/Export/Clear/reorder now standard-styled.
+3. **Group YouTube**: `api/groups/create_post.php` INSERT lacked the youtube_url column (83-31 restore was half-done). Now persisted; render side was already wired (FeedCard/YouTubeFrame + posts.php maps it).
+4. **“Open to join” decorative**: NO endpoint wrote community_groups.open_join. NEW `api/groups/update.php` (owner/admin-only, csrf) + client `groupUpdate` + settings onSave persists + loader mirrors server open_join; join now ALWAYS goes through `groupJoinRich` (server decides direct-vs-request from truth).
+5. **Shop product save**: slug collisions died as generic “Server error” (now auto-suffixed), SKU requirement replaced by auto-generation, price entered in **NGN or USD** → NGN normalized to USD cents at save via pay_convert (fx_note in response; toast shows conversion), admin form gets USD/NGN select + **XHR upload progress bar** (`upProg`) in shop.html.
+6. **Admin notifications**: bell click → new **notifications.html** (own page: filters+search), rows → **notification-view.html** (detail via new api/admin/reports/detail.php + Resolve/Reviewed/Reopen + deep-link to content). Guest reporters: INNER→**LEFT JOIN** users (guest rows were VANISHING) + 'Guest' fallback in all 4 type blocks.
+7. **Notifications for video posts**: notify_followers_new_content strips URLs; youtube-only post → “shared a video”.
+8. **Video stop rule (strict)**: YouTubeFrame now unmounts the iframe when out-of-view OR screen unfocused OR tab hidden (visibilitychange). Native video already had measureInWindow+focus pause.
+9. **Realtime delete**: extended the existing postEvents bus — group screen subscribes (serverPosts filter), public profile subscribes + deletes flow everywhere; /tools/post auto-closes deleted posts.
+10. **Profile 10s-empty**: (tabs)/profile + [username] now paint last-known cache instantly (dl.myprofile.v1 / dl.uprof.<name>) then refresh.
+11. **Shop badges**: cart+orders counts load at mount (badge was lazy), Orders badge = pending/processing/awaiting_payment.
+12. **Share sheet**: “Share as post” REMOVED (it wrote to local-only store — invisible ghost posts); busy overlay now absolute (sheet never grows mid-generation); body wrapped in ScrollView maxHeight 560; card already chat-style (avatar/name/@handle/time/content/♥ comments) w/ fixed H=1350.
+13. scripts/export-web.sh + export-root.sh router patch: hardcoded `e.` receiver & `n=""` literal → node-based receiver-agnostic `n="[^"]*"` regex (this Expo bakes n=".").
+DEPLOYED: dlapi root merged (entry-9149cdaa, 77 files, 0 deletes) 1876666+b08ec08 pushed; deenapp 3a4385b+script-fix pushed; gh-pages entry-bf6dee64 (485 files, 0 deletes). Gates: tsc 0 errors, php -l ALL clean (sweep), CHECK-RAW OK.
+STILL FOR OWNER: pull dlapi again on cPanel (expect entry-9149cdaa), device test APK rebuild (kicked off pass86 EAS build), iOS creds, Play listing.
