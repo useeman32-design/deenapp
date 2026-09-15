@@ -72,13 +72,16 @@ function ShopScreenInner() {
     /* pass 83-39 — LIVE = real data only: the cart is the server cart. */
     if (live) shopCart().then(setCart).catch(() => setCart({ items: [], count: 0, total: 0 }));
   }, [live]);
-  useEffect(() => { if (tab === 'cart') loadCart(); }, [tab, loadCart]);
+  /* pass 86 — cart/orders badges must be REAL on first paint: load both
+   * counts every mount/tab-change (was lazy: badges only existed once the
+   * tab had been opened at least once this session). */
+  useEffect(() => { loadCart(); }, [tab, loadCart]);
 
   const loadOrders = useCallback(() => {
     /* pass 83-39 — LIVE = real data only: server orders or a real empty state */
     shopOrders().then((r) => setOrders(r ?? [])).catch(() => setOrders([]));
   }, []);
-  useEffect(() => { if (tab === 'orders') loadOrders(); }, [tab, loadOrders]);
+  useEffect(() => { loadOrders(); }, [tab, loadOrders]);
 
   const list = useMemo(() => {
     const rows = products ?? [];
@@ -327,7 +330,11 @@ function ShopScreenInner() {
         ]).map((t, i) => {
           const on = tab === t.k;
           const isCenter = i === 1;
-          const badge = t.k === 'cart' ? (cart?.count ?? 0) : 0;
+          const activeOrders = (orders ?? []).filter((o) => {
+            const st = String((o as { status?: string }).status ?? '');
+            return st === 'pending' || st === 'processing' || st === 'awaiting_payment';
+          }).length;
+          const badge = t.k === 'cart' ? (cart?.count ?? 0) : t.k === 'orders' ? activeOrders : 0;
           return (
             <Pressable key={t.k} onPress={() => { haptic.selection(); setTab(t.k); }} style={{ alignItems: 'center', gap: 3, paddingHorizontal: 18 }}>
               <View style={isCenter ? { width: 46, height: 46, borderRadius: 23, backgroundColor: on ? gold : d.bgSoft, borderWidth: 1, borderColor: on ? gold : d.cardBorder, alignItems: 'center', justifyContent: 'center', marginTop: -20 } : undefined}>

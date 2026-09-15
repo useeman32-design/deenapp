@@ -134,6 +134,7 @@ import {
   groupJoinDecide,
   groupJoinRequests,
   groupJoinRich,
+  groupUpdate,
   groupMembers,
   groupPosts as groupPostsApi,
   searchAccounts,
@@ -163,7 +164,7 @@ import {
 } from "@/components/Groups";
 import type { Post } from "@/api/types";
 import { useIsGuest } from "@/lib/guest";
-import { emitPostDeleted } from "@/lib/postEvents";
+import { emitPostDeleted, onPostDeleted } from "@/lib/postEvents";
 import { LoginRequired } from "@/components/LoginRequired";
 
 /**
@@ -241,6 +242,16 @@ function GroupScreenInner() {
   /* pass 83-10 — keep the server's posts INTACT (media, polls, real counts);
    * the old path flattened them into local demo rows and dropped everything. */
   const [serverPosts, setServerPosts] = useState<Post[] | null>(null);
+  /* pass 86 — a post deleted anywhere (feed/profile) vanishes from the open
+   * group feed immediately, no app-exit-and-return. */
+  useEffect(() => {
+    const offD = onPostDeleted((pid) =>
+      setServerPosts((rows) => (rows ? rows.filter((r) => r.id !== pid) : rows)),
+    );
+    return () => {
+      offD();
+    };
+  }, []);
   const imageFileRef = useRef<TextInput | null>(null);
   const pickImage = async () => {
     haptic.light();
@@ -504,6 +515,12 @@ function GroupScreenInner() {
                   ...cur,
                   my_role: row.my_role ?? cur.my_role ?? null,
                   mine: row.is_owner,
+                  /* pass 86 — the settings UI + join label must mirror the
+                   * server's real open_join, not the local flag. */
+                  open:
+                    typeof row.open_join === "boolean"
+                      ? row.open_join
+                      : cur.open,
                 }
               : cur,
           );
@@ -542,9 +559,13 @@ function GroupScreenInner() {
     if (!group || joinBusy) return;
     haptic.success();
     const sid = srvGroupId(group);
-    if (sid != null && group.open) {
+    if (sid != null) {
       setJoinBusy(true);
       setMemberError(null);
+      /* pass 86 — every live join goes through the RICH path: the server
+       * decides direct-join vs request from open_join (the local flag used to
+       * pick the transport, so a closed group answered "requested" to a
+       * flow expecting instant membership and vice versa). */
       upd((x) => ({
         ...x,
         joined: "member",
@@ -552,7 +573,14 @@ function GroupScreenInner() {
         memberCount: x.memberCount + 1,
         my_role: "member" as Role,
       }));
-      groupJoin(sid, true).then((ok) => {
+      void groupJoinRich(sid, true).then((res) => {
+        const ok = res === "joined";
+        if (res === "requested") {
+          setJoinBusy(false);
+          upd((x) => ({ ...x, joined: "requested", memberCount: Math.max(0, x.memberCount - 1), my_role: null }));
+          Alert.alert("Request sent", "The group admin will review your join request.");
+          return;
+        }
         setJoinBusy(false);
         if (ok) {
           void groupGet(sid).then((row) => {
@@ -3543,6 +3571,26 @@ function GroupScreenInner() {
         group={group}
         onSave={(patch) => {
           upd((x) => ({ ...x, ...patch }));
+          /* pass 86 — persist through the new endpoint; previously the
+           * "Open to join" switch (and name/bio edits) were local-only and
+           * the server never learned them. */
+          const sid = srvGroupId(group);
+          if (sid != null) {
+            void groupUpdate(sid, {
+              ...(typeof patch.open === "boolean" ? { open_join: patch.open } : {}),
+              ...(patch.name ? { name: patch.name } : {}),
+              ...(typeof patch.bio === "string" ? { bio: patch.bio } : {}),
+              ...(typeof patch.desc === "string" ? { descr: patch.desc } : {}),
+            }).then((r) => {
+              if (typeof r.open_join === "boolean")
+                upd((x) => ({ ...x, open: r.open_join === true }));
+              if (!r.ok)
+                Alert.alert(
+                  "Saved on this device only",
+                  r.message || "The server rejected the change — check your connection and try again.",
+                );
+            });
+          }
         }}
         isOwner={isOwner}
       />

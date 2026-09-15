@@ -18,6 +18,7 @@ import { ContentShareSheet } from "@/components/ContentShareSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { storage } from "@/lib/storage";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { videos as apiVideos } from "@/api/client";
@@ -39,6 +40,7 @@ import { FeedCard, AvatarImage } from "@/components/FeedCard";
 import { haptic } from "@/lib/haptics";
 import { useIsGuest } from "@/lib/guest";
 import { LoginRequired } from "@/components/LoginRequired";
+import { onPostDeleted } from "@/lib/postEvents";
 
 const patternDark = require("../../../assets/img/pattern-dark.png");
 const patternLight = require("../../../assets/img/pattern-light.png");
@@ -144,6 +146,39 @@ function PublicProfileScreenInner() {
   const [shareOpen, setShareOpen] = useState(false);
   /* pass 66-night — live profile: real stats, bio, photo and follow edge. */
   const [liveP, setLiveP] = useState<PublicProfile | null>(null);
+  /* pass 86 — instant paint from the last-known payload + live removal of
+   * posts deleted anywhere (this screen never filtered them before). */
+  useEffect(() => {
+    void storage
+      .getItem("dl.uprof." + String(username))
+      .then((x) => {
+        if (!x) return;
+        try {
+          const v = JSON.parse(x) as PublicProfile;
+          if (v) setLiveP((cur) => cur ?? v);
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {});
+  }, [username]);
+  useEffect(() => {
+    if (liveP)
+      void storage
+        .setItem("dl.uprof." + String(username), JSON.stringify(liveP))
+        .catch(() => {});
+  }, [liveP]);
+  useEffect(() => {
+    return onPostDeleted((pid) =>
+      setLiveP((cur) => {
+        const rows = (cur as { posts?: { id: number }[] } | null)?.posts;
+        if (!cur || !Array.isArray(rows)) return cur;
+        const next = rows.filter((r) => r.id !== pid);
+        if (next.length === rows.length) return cur;
+        return { ...(cur as object), posts: next } as unknown as PublicProfile;
+      }),
+    );
+  }, []);
   /* pass 83-16 — the account's REAL posts (was demo-set only, so live users
    * saw "No public posts yet." on every profile, own included). */
   const [livePosts, setLivePosts] = useState<

@@ -28,7 +28,6 @@ import {
   type SvgRefHandle,
 } from "@/lib/svgExport";
 import { buildShareUrl } from "@/lib/share";
-import { addUserPost } from "@/lib/userPosts";
 
 /**
  * ContentShareSheet (pass 20) — the "share like the videos" sheet, reused by
@@ -70,7 +69,6 @@ export function ContentShareSheet({
   const { theme, isDark } = useTheme();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [posting, setPosting] = useState(false);
   /* pass 35 — native share-as-image: the same card rendered as SVG (web keeps the canvas path) */
   const [svgMode, setSvgMode] = useState(false);
   const exportRef = useRef<SvgRefHandle>(null);
@@ -123,22 +121,7 @@ export function ContentShareSheet({
       }
     : null;
 
-  const shareAsPost = async () => {
-    if (!card || posting) return;
-    haptic.success();
-    setPosting(true);
-    try {
-      // hold the "Posting…" state briefly so the action feels deliberate
-      await Promise.all([
-        addUserPost(card.meaning, card.kind),
-        new Promise((r) => setTimeout(r, 700)),
-      ]);
-      onClose();
-    } catch {
-    } finally {
-      setPosting(false);
-    }
-  };
+
 
   const makeImage = async () => {
     if (busy || !card) return;
@@ -243,6 +226,7 @@ export function ContentShareSheet({
               }}
             />
           </View>
+          <ScrollView style={{ maxHeight: 560 }} showsVerticalScrollIndicator={false}>
           <T
             v="caption"
             style={{
@@ -292,12 +276,6 @@ export function ContentShareSheet({
               }}
             />
             <Row
-              icon={posting ? "circle-notch" : "edit"}
-              label={posting ? "Posting…" : "Share as post"}
-              tint={isDark ? "#4AE38F" : "#1D6F42"}
-              onPress={shareAsPost}
-            />
-            <Row
               icon="share-alt"
               label="More options…"
               tint="#5BC8F5"
@@ -318,7 +296,19 @@ export function ContentShareSheet({
           </View>
 
           {busy ? (
-            <View style={{ padding: 18, alignItems: "center" }}>
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                left: 0, right: 0, top: 0, bottom: 0,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                zIndex: 9,
+                borderTopLeftRadius: 22,
+                borderTopRightRadius: 22,
+                backgroundColor: isDark ? "rgba(12,23,18,0.72)" : "rgba(255,255,255,0.78)",
+              }}>
               <ActivityIndicator color={theme.primary} />
               <T v="caption" style={{ marginTop: 8 }}>
                 Creating your card…
@@ -462,6 +452,7 @@ export function ContentShareSheet({
               </View>
             </View>
           ) : null}
+          </ScrollView>
         </View>
       </View>
     </Modal>

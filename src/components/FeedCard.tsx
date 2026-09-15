@@ -72,6 +72,17 @@ const YouTubeFrame = ({
 }) => {
   const host = useRef<any>(null);
   const [inView, setInView] = useState(true);
+  /* pass 86 — strict stop rule (owner): an embed keeps playing if it merely
+   * loses screen focus or the browser tab hides, even while "in view". Track
+   * both here; the iframe is UNMOUNTED when inactive, which hard-stops audio. */
+  const [focused, setFocused] = useState(true);
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const v = () => setFocused(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", v);
+    return () => document.removeEventListener("visibilitychange", v);
+  }, []);
+  const active = inView && focused;
   useEffect(() => {
     if (
       Platform.OS !== "web" ||
@@ -92,7 +103,7 @@ const YouTubeFrame = ({
   }, []);
   return (
     <View ref={host} style={{ height, width: "100%" }}>
-      {inView ? (
+      {active ? (
         <iframe
           src={src}
           title={title ?? "DeenLink video"}

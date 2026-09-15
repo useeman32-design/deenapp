@@ -656,6 +656,25 @@ export async function groupGet(id: number): Promise<GroupRow | null> {
   );
   return r.ok && r.data.group ? r.data.group : null;
 }
+/* pass 86 — group settings persistence (the "Open to join" switch finally
+ * writes something). Returns the server's view of open_join so the UI mirrors
+ * truth, never the local optimistic flag. */
+export async function groupUpdate(
+  id: number,
+  p: { open_join?: boolean; name?: string; bio?: string; descr?: string },
+): Promise<{ ok: boolean; open_join?: boolean; message?: string }> {
+  const r = await request<{
+    status?: string;
+    open_join?: boolean;
+    message?: string;
+  }>("/api/groups/update.php", { method: "POST", body: { group_id: id, ...p }, auth: true });
+  return {
+    ok: r.ok && (r.data as { status?: string })?.status !== "error",
+    open_join: (r.data as { open_join?: boolean })?.open_join,
+    message: (r.data as { message?: string })?.message,
+  };
+}
+
 export async function groupJoin(id: number, join: boolean): Promise<boolean> {
   const r = await request<{ status?: string }>("/api/groups/join.php", {
     method: "POST",
@@ -3239,7 +3258,11 @@ export async function learningSections(): Promise<LearningSection[] | null> {
   const r = await request<{ status?: string; sections?: LearningSection[] }>(
     "/api/learning/list.php",
   );
-  if (r.ok && Array.isArray(r.data.sections)) return r.data.sections;
+  /* pass 86 — an EMPTY admin list must also fall back to the bundled hub:
+   * an empty array used to flow through as "real data", zeroing QUICK/LIBRARY
+   * and crashing the Learn screen on banner.title. */
+  if (r.ok && Array.isArray(r.data.sections) && r.data.sections.length)
+    return r.data.sections;
   return null;
 }
 

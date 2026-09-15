@@ -194,11 +194,13 @@ export default function Learning() {
     return () => { mounted = false; };
   }, []));
   const quickList = useMemo<Section[]>(() => {
-    if (!liveSections) return QUICK;
+    if (!liveSections || !liveSections.length) return QUICK;
     return liveSections.filter((s) => s.kind === 'quick').map(toSection);
   }, [liveSections]);
   const libraryList = useMemo<Section[]>(() => {
-    if (!liveSections) return LIBRARY;
+    /* pass 86 — an empty server payload must fall back to the bundled set
+     * (empty-but-truthy [] used to zero the pool and crash the banner). */
+    if (!liveSections || !liveSections.length) return LIBRARY;
     return liveSections.filter((s) => s.kind === 'library').map(toSection);
   }, [liveSections]);
   /* pass 42 — auto-shuffling discovery banner under QUICK PLAY.
@@ -212,7 +214,7 @@ export default function Learning() {
    * transition now runs on the UI thread instead of dropping JS frames. */
   const [slide, setSlide] = useState(0);
   const BANNER_POOL = useMemo(() => [...quickList, ...libraryList], [quickList, libraryList]);
-  const banner = BANNER_POOL[slide % BANNER_POOL.length];
+  const banner = BANNER_POOL.length ? BANNER_POOL[slide % BANNER_POOL.length] : null;
   const BANNER_DOTS = Math.min(BANNER_POOL.length, 6);
   const bannerAnim = useRef(new Animated.Value(1)).current; // 1 = fully visible
   /* pass 52 — deep-linked goal: scroll to the card and flash it */
@@ -299,6 +301,7 @@ export default function Learning() {
         </ScrollView>
 
         {/* ── pass 42 — auto-shuffling discovery banner (5 items cycling through library sections) ── */}
+        {banner ? (
         <Pressable
           accessibilityLabel={`discover ${banner.title}`}
           onPress={() => open(banner.href)}
@@ -326,6 +329,7 @@ export default function Learning() {
             ))}
           </View>
         </Pressable>
+        ) : null}
 
         {/* pass 42 — short lessons moved to their OWN screen (see LIBRARY) */}
         <Pressable

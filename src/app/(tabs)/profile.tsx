@@ -57,6 +57,30 @@ function ProfileInner() {
   const [tab, setTab] = useState<Tab>("posts");
   const saved = useSaved().saved;
   const [posts, setPosts] = useState<Post[]>([]);
+  /* pass 86 — cold start used to sit EMPTY for ~10s until the network list
+   * landed (owner: "my profile will be empty… then it will reflect"). The
+   * last successful page is mirrored to storage and painted first. */
+  useEffect(() => {
+    void storage
+      .getItem("dl.myprofile.v1")
+      .then((s) => {
+        if (!s) return;
+        try {
+          const rows = JSON.parse(s) as Post[];
+          if (Array.isArray(rows) && rows.length)
+            setPosts((cur) => (cur.length ? cur : rows));
+        } catch {
+          /* junk cache — network will replace */
+        }
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (posts.length)
+      void storage
+        .setItem("dl.myprofile.v1", JSON.stringify(posts.slice(0, 60)))
+        .catch(() => {});
+  }, [posts]);
   useEffect(() => {
     const offD = onPostDeleted((id) =>
       setPosts((ps) => ps.filter((p) => p.id !== id)),

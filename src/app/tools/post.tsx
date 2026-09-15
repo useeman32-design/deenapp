@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ import * as api from "@/api/client";
 import type { Post } from "@/api/types";
 import { useIsGuest } from "@/lib/guest";
 import { LoginRequired } from "@/components/LoginRequired";
+import { onPostDeleted } from "@/lib/postEvents";
 
 /**
  * pass 67 — single-post viewer (Search → tap a post, hashtag screen → tap).
@@ -30,6 +31,17 @@ function PostScreenInner() {
     comment?: string;
   }>();
   const commentId = Number(comment);
+  /* pass 86 — if this post is deleted elsewhere while we stare at it,
+   * don't hold a corpse: close with a clear word. */
+  useEffect(() => {
+    const pid = Number(id);
+    return onPostDeleted((x) => {
+      if (x === pid) {
+        Alert.alert("Post deleted", "This post is no longer available.");
+        goBack(router);
+      }
+    });
+  }, [id]);
   const pid = Number(id);
 
   const [post, setPost] = useState<Post | null>(null);
