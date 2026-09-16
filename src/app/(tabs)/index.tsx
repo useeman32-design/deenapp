@@ -191,7 +191,7 @@ function HomeInner() {
   const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
   useFocusEffect(useCallback(() => {
     let alive = true;
-    api.campaigns().then((c) => { if (alive && c) setLiveCampaigns(c); }).catch(() => {});
+    api.campaigns().then((c) => { if (alive && Array.isArray(c)) setLiveCampaigns(c); }).catch(() => {});
     return () => { alive = false; };
   }, []));
   const campaignList = liveCampaigns
@@ -665,50 +665,56 @@ function HomeInner() {
         </View>
 
         {/* pass 42 — TODAY'S GOAL modal: full goals list with live progress */}
-        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
-              Campaigns
-            </T>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
-            {campaignList.map((c) => (
-              <Pressable
-                key={c.key}
-                onPress={() => router.push(c.href as never)}
-                style={({ pressed }) => ({
-                  width: 358,
-                  borderRadius: 20,
-                  overflow: 'hidden',
-                  borderWidth: 1,
-                  borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
-                  opacity: pressed ? 0.92 : 1,
-                })}
-              >
-                <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
-                <LinearGradient
-                  colors={['rgba(4,9,7,0.88)', 'rgba(4,9,7,0.55)', 'rgba(4,9,7,0)']}
-                  locations={[0, 0.5, 0.92]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{ position: 'absolute', inset: 0 }}
-                />
-                <View style={{ position: 'absolute', left: 15, right: 130, top: 0, bottom: 0, justifyContent: 'center' }}>
-                  <T numberOfLines={1} ellipsizeMode="tail" v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
-                    {c.title}
-                  </T>
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.78)', fontSize: 10.5, marginTop: 4, lineHeight: 14 }}>
-                    {c.sub}
-                  </T>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
-                    <View style={{ width: 14, height: 2, backgroundColor: 'rgba(212,175,55,0.9)', borderRadius: 1 }} />
-                    <FontAwesome5 name="chevron-right" size={9} color="rgba(212,175,55,0.9)" />
+        {/* pass 88 — the admin campaigns list is the source of truth. When it
+             * answers and is EMPTY the rail is hidden entirely instead of
+             * repainting the bundled demo banners (owner: “those were just
+             * demos”). A failed request (null) still keeps the offline set. */}
+        {campaignList.length === 0 ? null : (
+          <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
+                Campaigns
+              </T>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
+              {campaignList.map((c) => (
+                <Pressable
+                  key={c.key}
+                  onPress={() => router.push(c.href as never)}
+                  style={({ pressed }) => ({
+                    width: 358,
+                    borderRadius: 20,
+                    overflow: 'hidden',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+                    opacity: pressed ? 0.92 : 1,
+                  })}
+                >
+                  <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
+                  <LinearGradient
+                    colors={['rgba(4,9,7,0.88)', 'rgba(4,9,7,0.55)', 'rgba(4,9,7,0)']}
+                    locations={[0, 0.5, 0.92]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ position: 'absolute', inset: 0 }}
+                  />
+                  <View style={{ position: 'absolute', left: 15, right: 130, top: 0, bottom: 0, justifyContent: 'center' }}>
+                    <T numberOfLines={1} ellipsizeMode="tail" v="h3" style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 }}>
+                      {c.title}
+                    </T>
+                    <T v="caption" style={{ color: 'rgba(255,255,255,0.78)', fontSize: 10.5, marginTop: 4, lineHeight: 14 }}>
+                      {c.sub}
+                    </T>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                      <View style={{ width: 14, height: 2, backgroundColor: 'rgba(212,175,55,0.9)', borderRadius: 1 }} />
+                      <FontAwesome5 name="chevron-right" size={9} color="rgba(212,175,55,0.9)" />
+                    </View>
                   </View>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
                 {/* 6 ─ Continue Learning */}
         <View style={{ marginHorizontal: 16, marginTop: 26 }}>

@@ -3408,12 +3408,14 @@ export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>(
     "/api/campaigns/list.php",
   );
-  /* pass 88 — owner: “campaigns banners disappear on the home screen — they
-   * show, then vanish.” The home strip renders the BUNDLED campaigns first and
-   * swaps in the admin list when it arrives; an admin list that is EMPTY was
-   * treated as real data, so the swap wiped every banner. Empty means “nothing
-   * configured yet” → keep the bundled rail (same rule as learningSections). */
-  if (r.ok && Array.isArray(r.data.campaigns) && r.data.campaigns.length)
+  /* pass 88 — two separate bugs met here. (1) The home strip paints the bundled
+   * campaigns first and swaps in the admin list; a request that FAILED was
+   * reported as an empty list, so every banner vanished a second after load.
+   * (2) The server list really IS empty when the owner has configured none — and
+   * then the demos must NOT come back (owner: “those were just demos”).
+   * So: array (even empty) = what the admin says · null = unreachable, keep the
+   * bundled rail for offline. */
+  if (r.ok && r.data.status === "success" && Array.isArray(r.data.campaigns))
     return r.data.campaigns.map((campaign) => ({
       ...campaign,
       imageUrl: campaign.imageUrl
