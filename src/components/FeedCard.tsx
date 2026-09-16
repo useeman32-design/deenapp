@@ -1088,6 +1088,42 @@ export function FeedCard({
               {user.verification_badge ? (
                 <VerificationBadge type={user.verification_badge} size={13} />
               ) : null}
+              {/* pass 87 — scholar identity chip on every post: "Mufti · Sunni"
+               * style, like the profile's aqeedah tag but server-fed so it
+               * shows on HOME too (post.scholar_level / scholar_aqeedah). */}
+              {(() => {
+                const lvl = String((post as any).scholar_level || "").trim();
+                const aq = String((post as any).scholar_aqeedah || "").trim();
+                if (!lvl && !aq) return null;
+                const label = [lvl || "Scholar", aq].filter(Boolean).join(" · ");
+                return (
+                  <View
+                    style={{
+                      borderRadius: 7,
+                      borderWidth: 1,
+                      borderColor: "rgba(201,162,39,0.55)",
+                      backgroundColor: "rgba(212,175,55,0.13)",
+                      paddingHorizontal: 7,
+                      paddingVertical: 1.5,
+                      flexShrink: 0,
+                      marginLeft: 2,
+                    }}
+                  >
+                    <T
+                      v="caption"
+                      style={{
+                        fontSize: 9,
+                        fontWeight: "900",
+                        color: "#C9A227",
+                        letterSpacing: 0.3,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      🎓 {label}
+                    </T>
+                  </View>
+                );
+              })()}
               <T
                 v="caption"
                 style={{ color: faint, fontSize: 11, flexShrink: 0 }}
