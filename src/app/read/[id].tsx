@@ -49,6 +49,13 @@ import { useDeenPoints } from "@/components/DeenPoints";
 import { useIsGuest } from "@/lib/guest";
 import { LoginRequired } from "@/components/LoginRequired";
 
+/* pass 87 — real portraits for admin-managed server reciters without local
+ * entries. Anything still falling back to ui-avatars renders as initials. */
+const EXTRA_RECITER_PHOTOS: Record<string, number> = {
+  yasser_aldosari: require("../../../assets/img/reciters/yasser.jpg"),
+};
+
+
 type Mode = "reading" | "mushaf";
 
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -1808,6 +1815,18 @@ function ReaderInner() {
             {/* pass 72 — admin-managed extra reciters (some unlock with DeenPoints) */}
             {audio.serverReciters.map((sr) => {
               if (RECITERS.some((b) => b.id === sr.reciter_key)) return null;
+              /* pass 87 — a server row whose name matches a local reciter is a
+               * DUPLICATE (different key ids). Hiding it removes the entries
+               * that showed only generated-initials art instead of a photo. */
+              const nrm = (x: string) => String(x || "").toLowerCase().replace(/[^a-z]/g, "");
+              if (
+                RECITERS.some((b) => {
+                  const n1 = nrm(b.name);
+                  const n2 = nrm(sr.name);
+                  return n1 !== "" && n2 !== "" && (n1 === n2 || n2.includes(n1) || n1.includes(n2));
+                })
+              )
+                return null;
               const on = audio.reciter === sr.reciter_key;
               const locked = sr.is_free === false && !sr.is_unlocked;
               const initials = sr.name
@@ -1839,6 +1858,9 @@ function ReaderInner() {
                   setReciterOpen(false);
                 });
               };
+              const uiAvatar = /ui-avatars\.com/.test(String(sr.photo_url || ""));
+              const localPhoto = EXTRA_RECITER_PHOTOS[sr.reciter_key];
+              const avatarSrc = localPhoto ?? (!uiAvatar && sr.photo_url ? { uri: sr.photo_url } : null);
               return (
                 <Pressable
                   key={sr.reciter_key}
@@ -1864,9 +1886,9 @@ function ReaderInner() {
                       : "transparent",
                   }}
                 >
-                  {sr.photo_url ? (
+                  {avatarSrc ? (
                     <Image
-                      source={{ uri: sr.photo_url }}
+                      source={avatarSrc}
                       style={{
                         width: 36,
                         height: 36,

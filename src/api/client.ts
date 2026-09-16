@@ -13,6 +13,7 @@
  * UI always works in previews.
  */
 
+import { Platform } from "react-native";
 import { storage } from "@/lib/storage";
 import { type EventItem, MOCK_USER, MOCK_WALLPAPERS } from "@/api/mocks";
 import type {
@@ -1713,6 +1714,8 @@ export type ShopProduct = {
   affiliate_url: string | null;
   in_stock: boolean;
   qty?: number;
+  shipping_type?: "free" | "paid";
+  shipping_cost?: number;
 };
 export type ShopCart = {
   items: Array<
@@ -1742,8 +1745,13 @@ export type ShopOrder = {
   created_at: string;
   ship_to: string;
   items: ShopOrderItem[];
+  received_at?: string;
+  can_mark_received?: boolean;
 };
 function normalizeShopProduct(p: ShopProduct): ShopProduct {
+  const anyp = p as any;
+  anyp.shipping_type = anyp.shipping_type === "paid" ? "paid" : "free";
+  anyp.shipping_cost = Math.max(0, Number(anyp.shipping_cost || 0));
   return {
     ...p,
     image_url: p.image_url ? absMedia(p.image_url) : p.image_url,
@@ -1752,6 +1760,67 @@ function normalizeShopProduct(p: ShopProduct): ShopProduct {
       media_url: absMedia(m.media_url),
     })),
   };
+}
+
+/* pass 87 — shipping-aware helpers */
+export async function shopConfirmReceived(
+  orderId: number,
+): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{ status?: string; message?: string }>(
+    "/api/shop/confirm_received.php",
+    { method: "POST", auth: true, body: { order_id: orderId } },
+  );
+  return {
+    ok: r.ok && r.data.status === "success",
+    message: r.data.message,
+  };
+}
+
+/** Register a scholar application with its verification documents (server-side). */
+export async function scholarApply(payload: {
+  display_name: string;
+  phone?: string;
+  fields?: string[];
+  other_field?: string;
+  madhhab?: string;
+  institute?: string;
+  years?: number;
+  teachers?: string;
+  aqeedah?: string;
+  links?: string[];
+  proof?: { uri: string; name: string } | null;
+  letter?: { uri: string; name: string } | null;
+}): Promise<{ ok: boolean; message?: string }> {
+  const form = new FormData();
+  form.append("display_name", payload.display_name);
+  if (payload.phone) form.append("phone", payload.phone);
+  form.append("fields", JSON.stringify(payload.fields ?? []));
+  if (payload.other_field) form.append("other_field", payload.other_field);
+  if (payload.madhhab) form.append("madhhab", payload.madhhab);
+  if (payload.institute) form.append("institute", payload.institute);
+  form.append("years", String(payload.years ?? 0));
+  if (payload.teachers) form.append("teachers", payload.teachers);
+  if (payload.aqeedah) form.append("aqeedah", payload.aqeedah);
+  if (payload.links?.length) form.append("links", payload.links.join("\n"));
+  if (payload.proof?.uri)
+    form.append(
+      "proof_file",
+      Platform.OS === "web"
+        ? await fetch(payload.proof.uri).then((r) => r.blob()).then((b) => new File([b], payload.proof!.name, { type: "image/jpeg" }))
+        : ({ uri: payload.proof.uri, name: payload.proof.name, type: "image/jpeg" } as any),
+    );
+  if (payload.letter?.uri)
+    form.append(
+      "letter_file",
+      Platform.OS === "web"
+        ? await fetch(payload.letter.uri).then((r) => r.blob()).then((b) => new File([b], payload.letter!.name, { type: "image/jpeg" }))
+        : ({ uri: payload.letter.uri, name: payload.letter.name, type: "image/jpeg" } as any),
+    );
+  const r = await request<{ status?: string; message?: string }>(
+    "/api/auth/scholar_apply.php",
+    { method: "POST", auth: true, form },
+  );
+  return { ok: r.ok && r.data.status === "success", message: r.data.message };
 }
 
 export async function shopProducts(

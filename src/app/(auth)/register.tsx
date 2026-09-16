@@ -10,7 +10,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
-import { checkUsernameAvailable, checkEmailAvailable } from '@/api/client';
+import { checkUsernameAvailable, checkEmailAvailable, scholarApply,} from '@/api/client';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -68,10 +68,9 @@ const AQEEDAH: Array<{ id: string; desc: string; descNG?: string }> = [
 const KNOWLEDGE_FIELDS = ['Tawhid', 'Fiqh', 'Aqeedah', 'Tafsir', 'Quran', 'Seerah', 'Hadith'];
 const MADHHABS = ['Hanafi', 'Maliki', 'Shafi\u2019i', 'Hanbali', 'Other'];
 const YEARS = ['1–3', '4–7', '8–15', '16–25', '25+'];
-const VERIFY_METHODS: Array<{ id: 'documents' | 'letter' | 'links'; icon: string; title: string; sub: string }> = [
+const VERIFY_METHODS: Array<{ id: 'documents' | 'letter'; icon: string; title: string; sub: string }> = [
   { id: 'documents', icon: 'file-alt', title: 'Proof of qualifications', sub: 'Certificates, ijazahs or degrees from your institute' },
   { id: 'letter', icon: 'envelope-open-text', title: 'Recommendation letter', sub: 'A letter from a recognized scholar or organization' },
-  { id: 'links', icon: 'link', title: 'Dawah platforms', sub: 'Verified links to your lectures, TV/radio or big platforms' },
 ];
 
 const usernameValid = (u: string) => /^[a-z0-9._]{3,20}$/i.test(u);
@@ -144,6 +143,7 @@ function PasswordBlock({ password, setPassword, confirm, setConfirm, showConfirm
     { label: 'At least 6 characters', ok: password.length >= 6 },
     { label: 'Contains a letter', ok: /[A-Za-z]/.test(password) },
     { label: 'Contains a number', ok: /[0-9]/.test(password) },
+    { label: 'Contains a special character (!@#$…)', ok: /[^A-Za-z0-9]/.test(password) },
   ];
   return (
     <View>
@@ -308,10 +308,12 @@ export default function Register() {
   const [years, setYears] = useState<string | null>(null);
   const [teachers, setTeachers] = useState('');
   const [proofName, setProofName] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<{ uri: string; name: string } | null>(null);
+  const [letterFile, setLetterFile] = useState<{ uri: string; name: string } | null>(null);
   const [letterName, setLetterName] = useState<string | null>(null);
   const [links, setLinks] = useState<string[]>([]);
   const [linkDraft, setLinkDraft] = useState('');
-  const [method, setMethod] = useState<'documents' | 'letter' | 'links' | null>(null);
+  const [method, setMethod] = useState<'documents' | 'letter' | null>(null);
   const [agree, setAgree] = useState(false);
 
   const nigeria = country === 'Nigeria';
@@ -341,7 +343,7 @@ export default function Register() {
     return () => clearTimeout(t);
   }, [email]);
 
-  const pwOk = password.length >= 6 && /[A-Za-z]/.test(password) && /[0-9]/.test(password) && password === confirm;
+  const pwOk = password.length >= 6 && /[A-Za-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) && password === confirm;
 
   const pickUpload = async (which: 'proof' | 'letter') => {
     try {
@@ -352,7 +354,9 @@ export default function Register() {
         if (!f) return;
         haptic.success();
         const nm = f.name.slice(0, 40);
-        if (which === 'proof') setProofName(nm); else setLetterName(nm);
+        const uri = (f as any).uri || (f as any).dataUrl || '';
+        if (which === 'proof') { setProofName(nm); setProofFile(uri ? { uri, name: 'proof.jpg' } : null); }
+        else { setLetterName(nm); setLetterFile(uri ? { uri, name: 'letter.jpg' } : null); }
         return;
       }
       const { launchImageLibraryAsync } = await import('expo-image-picker');
@@ -361,7 +365,8 @@ export default function Register() {
       if (!asset) return;
       haptic.success();
       const nm = (asset.fileName ?? 'document.jpg').slice(0, 40);
-      if (which === 'proof') setProofName(nm); else setLetterName(nm);
+      if (which === 'proof') { setProofName(nm); setProofFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'proof.jpg' } : null); }
+      else { setLetterName(nm); setLetterFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'letter.jpg' } : null); }
     } catch {
       setError('Could not open the file picker');
     }
@@ -425,7 +430,6 @@ export default function Register() {
     if (!method) return setError('Choose ONE verification method');
     if (method === 'documents' && !proofName) return setError('Please upload your proof of qualifications');
     if (method === 'letter' && !letterName) return setError('Please upload a recommendation letter');
-    if (method === 'links' && !links.length) return setError('Please add at least one dawah platform link');
     if (!agree) return setError('Please agree to the Terms and Privacy Policy');
     setError('');
     setBusy(true);
@@ -435,13 +439,29 @@ export default function Register() {
       aqeedah: aqeedahValue, country: country || undefined,
     });
     if (res.ok) {
-      /* keep the scholar application for the verification team */
+      /* keep a local copy for the verification team in case the upload fails */
       await storage.setItem(`dl.scholar.app.${username}`, JSON.stringify({
         account: 'scholar', display_name: displayName.trim(), phone, fields: allFields,
         madhhab, institute: institute.trim(), years, teachers: teachers.trim(),
         method, proof: proofName, letter: letterName, links, at: Date.now(),
       })).catch(() => {});
-      Alert.alert('Application received', 'Jazakallahu khairan! Your scholar application is under review — you can use DeenLink as a user in the meantime.');
+      /* pass 87 — the application + documents now go to the SERVER (was
+       * device-only, so the verification team never received anything). */
+      let sent = false; let why = '';
+      try {
+        const out = await scholarApply({
+          display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
+          fields: allFields, other_field: fieldsOther.trim() || undefined,
+          madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined, teachers: teachers.trim(),
+          aqeedah: aqeedahValue, links,
+          proof: proofFile, letter: letterFile,
+        });
+        sent = out.ok; why = out.message || '';
+      } catch (e) { why = String(e); }
+      Alert.alert(sent ? 'Application received' : 'Registered — application pending send',
+        sent
+          ? 'Jazakallahu khairan! Your scholar application is under review — you can use DeenLink as a user in the meantime.'
+          : `We could not send your documents for review (${why || 'network'}). They are saved on this device — close the app, check your connection, then re-submit the scholar application from Sign up once, or contact support.`);
       router.replace('/(tabs)');
     } else {
       setError(res.message || 'Something went wrong');
@@ -699,33 +719,10 @@ export default function Register() {
             })}
           </View>
 
-          <UploadRow icon="file-alt" title="Proof of qualifications" sub="Certificate, ijazah or degree image" name={proofName} onPick={() => pickUpload('proof')} onClear={() => setProofName(null)} required={method === 'documents'} />
-          <UploadRow icon="envelope-open-text" title="Recommendation letter" sub="From a recognized scholar or organization" name={letterName} onPick={() => pickUpload('letter')} onClear={() => setLetterName(null)} required={method === 'letter'} />
+          <UploadRow icon="file-alt" title="Proof of qualifications" sub="Certificate, ijazah or degree image" name={proofName} onPick={() => pickUpload('proof')} onClear={() => { setProofName(null); setProofFile(null); }} required={method === 'documents'} />
+          <UploadRow icon="envelope-open-text" title="Recommendation letter" sub="From a recognized scholar or organization" name={letterName} onPick={() => pickUpload('letter')} onClear={() => { setLetterName(null); setLetterFile(null); }} required={method === 'letter'} />
 
-          <View style={{ marginBottom: 13 }}>
-            <Label>Links to dawah platforms</Label>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{ flex: 1, borderRadius: 13, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)', paddingHorizontal: 12, height: 42, justifyContent: 'center' }}>
-                <TextInput value={linkDraft} onChangeText={setLinkDraft} placeholder="youtube.com/@yourdawah…" placeholderTextColor={isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} autoCapitalize="none" style={{ fontFamily: 'Poppins-Medium', fontSize: 13.5, color: isDark ? '#F2F7F3' : '#14241C', paddingVertical: 0 }} />
-              </View>
-              <Pressable onPress={() => { if (linkDraft.trim()) { haptic.light(); setLinks((l) => [...l, linkDraft.trim()]); setLinkDraft(''); } }} style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesome5 name="plus" size={13} color="#fff" />
-              </Pressable>
-            </View>
-            {links.length ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 }}>
-                {links.map((l, i) => (
-                  <View key={`${l}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(91,200,245,0.45)', backgroundColor: 'rgba(91,200,245,0.09)', paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <FontAwesome5 name="link" size={9} color="#5BC8F5" />
-                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '700', color: isDark ? '#F2F7F3' : '#14241C', maxWidth: 170 }} numberOfLines={1}>{l}</T>
-                    <Pressable hitSlop={8} onPress={() => { haptic.light(); setLinks((ls) => ls.filter((_, j) => j !== i)); }}><FontAwesome5 name="times" size={9} color="#FF7B7B" /></Pressable>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
-
-          <Pressable onPress={() => { haptic.selection(); setAgree(!agree); }} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginBottom: 14 }}>
+                    <Pressable onPress={() => { haptic.selection(); setAgree(!agree); }} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginBottom: 14 }}>
             <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: agree ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.2)' : 'rgba(20,36,28,0.2)', backgroundColor: agree ? (isDark ? '#4AE38F' : '#1D6F42') : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
               {agree ? <FontAwesome5 name="check" size={10} color="#fff" /> : null}
             </View>

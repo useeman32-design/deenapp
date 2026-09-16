@@ -21,6 +21,7 @@ import {
   downloadDataUrl,
 } from "@/lib/shareCard";
 import { ShareCardSvg } from "@/components/ShareCardSvg";
+import { PostShareCardSvg } from "@/components/PostShareCardSvg";
 import {
   canSaveImages,
   saveSvgRefAsJpg,
@@ -59,6 +60,10 @@ export function ContentShareSheet({
     time?: string;
     likes?: number;
     comments?: number;
+    /** pass 87 — post-card variant extras (avatar + verified badge + media flag) */
+    photoUri?: string | null;
+    badge?: string | null;
+    hasMedia?: boolean;
   } | null;
   link: string;
   /** pass true to hide the "share as image" row (e.g. profiles) */
@@ -71,6 +76,7 @@ export function ContentShareSheet({
   const [busy, setBusy] = useState(false);
   /* pass 35 — native share-as-image: the same card rendered as SVG (web keeps the canvas path) */
   const [svgMode, setSvgMode] = useState(false);
+  const [variant, setVariant] = useState<"classic" | "post">("classic");
   const exportRef = useRef<SvgRefHandle>(null);
   /* pass 37 — saving to the gallery is a privilege (needs photo permission);
    * sharing via the native sheet is for everyone */
@@ -101,6 +107,7 @@ export function ContentShareSheet({
 
   if (!visible && (svgMode || imgUrl)) {
     setSvgMode(false);
+    setVariant("classic");
     setImgUrl(null);
   }
   if (!visible) return null;
@@ -285,14 +292,40 @@ export function ContentShareSheet({
                 }).catch(() => {});
               }}
             />
-            {!noImage ? (
-              <Row
-                icon="image"
-                label="Share as image"
-                tint="#E8C96A"
-                onPress={makeImage}
-              />
-            ) : null}
+            {(() => {
+              /* pass 87 — owner: posts that carry images/video/YouTube must not
+               * be turned into an image card; text posts get the dedicated
+               * "Share as post" render of the actual post container. */
+              const isPost = card?.kind === "post";
+              const mediaLocked = isPost && !!card?.hasMedia;
+              if (mediaLocked) return null;
+              return isPost ? (
+                <Row
+                  icon="comment-dots"
+                  label="Share as post"
+                  tint="#7FD3A8"
+                  onPress={() => {
+                    haptic.light();
+                    setVariant("post");
+                    if (Platform.OS !== "web") {
+                      setSvgMode(true);
+                    } else {
+                      void makeImage();
+                    }
+                  }}
+                />
+              ) : !noImage ? (
+                <Row
+                  icon="image"
+                  label="Share as image"
+                  tint="#E8C96A"
+                  onPress={() => {
+                    setVariant("classic");
+                    void makeImage();
+                  }}
+                />
+              ) : null;
+            })()}
           </View>
 
           {busy ? (
@@ -330,7 +363,24 @@ export function ContentShareSheet({
                   borderColor: theme.border,
                 }}
               >
-                <ShareCardSvg input={imgCard!} ref={exportRef} />
+                {variant === "post" && card ? (
+                  <PostShareCardSvg
+                    input={{
+                      name: card.authorName || "DeenLink",
+                      username: card.username ? `@${card.username}` : "",
+                      photoUri: card.photoUri ?? null,
+                      badge: card.badge ?? null,
+                      text: card.meaning,
+                      likeCount: card.likes ?? 0,
+                      commentCount: card.comments ?? 0,
+                      link: previewUrl,
+                      timeAgo: card.time ?? "now",
+                    }}
+                    ref={exportRef as any}
+                  />
+                ) : (
+                  <ShareCardSvg input={imgCard!} ref={exportRef} />
+                )}
               </View>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable

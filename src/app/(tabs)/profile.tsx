@@ -169,6 +169,21 @@ function ProfileInner() {
   const username = (user?.username as string) || "";
   const bio = (user?.bio as string) || "";
   const aqeedah = (user?.aqeedah as string) || "";
+  const [scholarAskCount, setScholarAskCount] = useState<number>(0);
+  useEffect(() => {
+    if (((user as any)?.user_type ?? "") !== "scholar") return;
+    let alive = true;
+    (async () => {
+      try {
+        const n = api.askUnreadCount();
+        const v = await n;
+        if (alive) setScholarAskCount(Number(v || 0));
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [((user as any)?.user_type ?? "")]);
   /* pass 80 — the chip follows the SYNCED ledger (dp), not the auth snapshot:
    * after a check-in the auth object never refreshes, so the balance on screen
    * used to stay stale until the next app start. */
@@ -378,7 +393,32 @@ function ProfileInner() {
               {fmt(deenpoints)}
             </T>
           </Pressable>
-          <Pressable
+          {/* pass 87 — scholars get a My Questions desk button with an unread badge */}
+          {((user as any)?.user_type ?? "") === "scholar" ? (
+            <Pressable
+              onPress={() => router.push("/tools/scholar-inbox")}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: isDark ? "rgba(212,175,55,0.14)" : "rgba(29,111,66,0.08)",
+                borderWidth: 1,
+                borderColor: isDark ? "rgba(212,175,55,0.4)" : "rgba(29,111,66,0.25)",
+              }}
+            >
+              <FontAwesome5 name="inbox" size={14} color={isDark ? "#D4AF37" : "#1D6F42"} />
+              {(scholarAskCount ?? 0) > 0 ? (
+                <View
+                  style={{ position: "absolute", top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#E74C3C", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}
+                >
+                  <T v="caption" style={{ fontSize: 9, fontWeight: "900", color: "#fff" }}>{scholarAskCount > 9 ? "9+" : scholarAskCount}</T>
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
+<Pressable
             onPress={() => {
               haptic.selection();
               router.push("/settings");

@@ -4625,6 +4625,23 @@ function EditGroupSheet({
                 onValueChange={(v) => {
                   haptic.selection();
                   setOpen(v);
+                  /* pass 87 — persist instantly (owner: the switch flipped
+                   * back on its own because only Save used to sync it). */
+                  const sid = srvGroupId(group);
+                  if (sid) {
+                    void groupUpdate(sid, { open_join: v })
+                      .then((r) => {
+                        if (r && typeof r.open_join === "boolean") setOpen(r.open_join);
+                        else if (r && r.ok === false) {
+                          setOpen(!v);
+                          Alert.alert(
+                            "Could not save on the server",
+                            r.message || "Your internet connection may be down — the setting was kept on this device only.",
+                          );
+                        }
+                      })
+                      .catch(() => setOpen(!v));
+                  }
                 }}
                 trackColor={{
                   false: d.bgSoft,

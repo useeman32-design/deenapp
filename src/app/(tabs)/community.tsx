@@ -1445,8 +1445,13 @@ function CommunityScreenInner() {
                       />
                       {/* every 5th card — suggested accounts; every 3rd — suggested
                        * groups (pass 40), like the accounts strip */}
-                      {(pi + 1) % 5 === 0 ? <SuggestStrip dash={d} /> : null}
-                      {(pi + 1) % 3 === 0 && (pi + 1) % 5 !== 0 ? (
+                      {/* pass 87 — owner: suggestions were flooding the feed.
+                       * At most one accounts strip + one groups strip, and a
+                       * second accounts strip only on very long feeds. */}
+                      {pi === 5 || (visiblePosts.length > 34 && pi === 28) ? (
+                        <SuggestStrip dash={d} />
+                      ) : null}
+                      {pi === 13 && visiblePosts.length > 15 ? (
                         <GroupsSuggestStrip dash={d} />
                       ) : null}
                     </View>

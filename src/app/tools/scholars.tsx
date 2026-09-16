@@ -12,6 +12,7 @@ import { storage } from '@/lib/storage';
 import * as api from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useAuth } from '@/context/AuthContext';
+import { router } from 'expo-router';
 import type { Scholar } from '@/api/types';
 import { DPIcon } from '@/components/DeenPoints';
 
@@ -135,7 +136,24 @@ export default function Scholars() {
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
-      <TopBar showBack title="Ask Scholars" right={<DeenPointsPill />} />
+      <TopBar
+        showBack
+        title="Ask Scholars"
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {((me as any)?.user_type ?? '') === 'scholar' ? (
+              <Pressable
+                accessibilityLabel="Scholar Desk — my questions"
+                onPress={() => { haptic.light(); router.push('/tools/scholar-inbox'); }}
+                style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <FontAwesome5 name="inbox" size={13} color={d.text} />
+              </Pressable>
+            ) : null}
+            <DeenPointsPill />
+          </View>
+        }
+      />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {picked == null ? (

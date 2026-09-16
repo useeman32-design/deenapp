@@ -163,6 +163,14 @@ function ReelItem({
     p.muted = false;
   });
   const [paused, setPaused] = useState(false);
+  /* pass 87 — STRICT stop rule: leaving the reels screen pauses every player */
+  const [screenFocused, setScreenFocused] = useState(true);
+  useFocusEffect(
+    () => {
+      setScreenFocused(true);
+      return () => setScreenFocused(false);
+    },
+  );
   const endedRef = useRef(false);
   useEffect(() => {
     const sub = (player.addListener as (ev: string, cb: (st: { status?: string }) => void) => { remove: () => void })('statusChange', (st) => {
@@ -187,9 +195,9 @@ function ReelItem({
   );
 
   useEffect(() => {
-    if (active && !paused) player.play();
+    if (active && !paused && screenFocused) player.play();
     else player.pause();
-  }, [active, paused, player]);
+  }, [active, paused, player, screenFocused]);
 
   useEffect(() => {
     player.muted = muted;

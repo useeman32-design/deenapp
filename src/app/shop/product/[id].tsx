@@ -78,7 +78,7 @@ function ShopProductScreenInner() {
 
   const img = activeMedia?.media_type === 'image' && activeMedia.media_url ? { uri: activeMedia.media_url } : shopImage(p.image_key);
   const net = p.network ? SHOP_NETWORKS[p.network] : null;
-  const off = p.compare_at && p.compare_at > p.price ? Math.round((1 - p.price / p.compare_at) * 100) : 0;
+  const off = p.compare_at && p.price > 0 && p.compare_at > p.price ? Math.round((1 - p.price / p.compare_at) * 100) : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -116,6 +116,12 @@ function ShopProductScreenInner() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}>
             <T v="h1" style={{ fontWeight: '900', fontSize: 24, color: gold }}>{fmt(p.price)}</T>
             {p.compare_at ? <T v="bodyS" style={{ fontSize: 14, color: d.faint, textDecorationLine: 'line-through' }}>{fmt(p.compare_at)}</T> : null}
+          <View style={{ flex: 1 }} />
+            <View style={{ borderRadius: 8, borderWidth: 1, borderColor: (p as any).shipping_type === 'paid' ? d.cardBorder : 'rgba(29,111,66,0.4)', backgroundColor: (p as any).shipping_type === 'paid' ? d.card : 'rgba(29,111,66,0.08)', paddingHorizontal: 8, paddingVertical: 3 }}>
+              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: (p as any).shipping_type === 'paid' ? d.subtext : '#1D6F42' }}>
+                {(p as any).shipping_type === 'paid' ? `🚚 Shipping: ${fmt(Number((p as any).shipping_cost || 0))}` : '✓ Free shipping'}
+              </T>
+            </View>
           </View>
           <T v="bodyS" style={{ fontSize: 13, color: d.subtext, lineHeight: 21, marginTop: 14 }}>{p.description}</T>
           {p.variants && p.variants.length > 0 ? (

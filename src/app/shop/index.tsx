@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { useAuth } from '@/context/AuthContext';
-import { isLive, shopCart, shopCartAction, shopCheckout, shopOrders, shopProducts, type ShopCart, type ShopOrder, type ShopProduct } from '@/api/client';
+import { isLive, shopCart, shopCartAction, shopCheckout, shopConfirmReceived, shopOrders, shopProducts, type ShopCart, type ShopOrder, type ShopProduct } from '@/api/client';
 import { DEMO_PRODUCTS, SHOP_CATEGORIES, SHOP_IMAGES, SHOP_NETWORKS, shopImage } from '@/lib/shop';
 import { payShopOrder } from '@/lib/flutterwave';
 import { useCurrency } from '@/lib/currency';
@@ -72,6 +72,15 @@ function ShopScreenInner() {
     /* pass 83-39 — LIVE = real data only: the cart is the server cart. */
     if (live) shopCart().then(setCart).catch(() => setCart({ items: [], count: 0, total: 0 }));
   }, [live]);
+  /* pass 87 — badges must be current on every return to the shop (adding to
+   * cart from the product screen, admin status changes, new orders) */
+  useFocusEffect(
+    useCallback(() => {
+      if (!live) return;
+      shopCart().then(setCart).catch(() => {});
+      shopOrders().then((v) => setOrders(v ?? [])).catch(() => {});
+    }, [live]),
+  );
   /* pass 86 — cart/orders badges must be REAL on first paint: load both
    * counts every mount/tab-change (was lazy: badges only existed once the
    * tab had been opened at least once this session). */
@@ -137,7 +146,7 @@ function ShopScreenInner() {
           {img ? <Image source={img} style={{ width: '100%', height: 150 }} resizeMode="cover" /> : <View style={{ width: '100%', height: 150, backgroundColor: d.bgSoft }} />}
           {off > 0 ? (
             <View style={{ position: 'absolute', top: 8, left: 8, borderRadius: 8, backgroundColor: '#E05252', paddingHorizontal: 7, paddingVertical: 3 }}>
-              <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: '#fff' }}>-{off}%</T>
+              <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: '#fff' }}>Save {off}%</T>
             </View>
           ) : null}
           <View style={{ position: 'absolute', top: 8, right: 8, borderRadius: 8, backgroundColor: net ? net.color : emerald, paddingHorizontal: 7, paddingVertical: 3 }}>
@@ -150,6 +159,9 @@ function ShopScreenInner() {
             <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: gold }}>{fmt(p.price)}</T>
             {p.compare_at ? <T v="caption" style={{ fontSize: 10, color: d.faint, textDecorationLine: 'line-through' }}>{fmt(p.compare_at)}</T> : null}
           </View>
+          <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', color: (p as any).shipping_type === 'paid' ? d.subtext : emerald, marginTop: 3 }}>
+            {(p as any).shipping_type === 'paid' ? `Shipping ${fmt(Number((p as any).shipping_cost || 0))}` : '✓ Free shipping'}
+          </T>
           {!net ? (
             <T v="caption" style={{ fontSize: 9, color: emerald, fontWeight: '700', marginTop: 3 }}>Free worldwide shipping</T>
           ) : (
@@ -262,7 +274,10 @@ function ShopScreenInner() {
               <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginTop: 4 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext }}>Items ({cart.count})</T>
-                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{fmt(cart.total)}</T>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>{fmt(cart.total)}</T>
+                    <T v="caption" style={{ fontSize: 8.5, color: d.faint, marginTop: 1 }}>incl. shipping where set</T>
+                  </View>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <T v="bodyS" style={{ fontSize: 12.5, color: d.subtext }}>Shipping</T>
@@ -316,6 +331,35 @@ function ShopScreenInner() {
                 <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{o.ship_to} · {o.created_at.slice(0, 10)}</T>
                 <T v="bodyS" style={{ fontSize: 13, fontWeight: '900', color: gold }}>{fmt(o.total)}</T>
               </View>
+              {/* pass 87 — user confirms delivery once the shop marks it in transit */}
+              {(o as any).can_mark_received ? (
+                <Pressable
+                  onPress={() => {
+                    haptic.medium();
+                    Alert.alert(
+                      'Are you sure that you received this order?',
+                      'Please confirm all items arrived in good condition. This closes the order and cannot be undone.',
+                      [
+                        { text: 'Not yet', style: 'cancel' },
+                        {
+                          text: 'Yes, I received it',
+                          onPress: () => {
+                            shopConfirmReceived(o.id)
+                              .then((r) => {
+                                if (r.ok) { Alert.alert('Thank you!', 'Order closed — jazakallahu khayr for shopping with DeenLink.'); if (live) shopOrders().then(setOrders).catch(() => {}); }
+                                else Alert.alert('Could not update', r.message || 'Please try again in a moment.');
+                              })
+                              .catch(() => Alert.alert('Could not update', 'Please check your connection and try again.'));
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                  style={{ marginTop: 10, borderRadius: 12, borderWidth: 1.5, borderColor: emerald, backgroundColor: isDark ? 'rgba(74,227,143,0.10)' : 'rgba(29,111,66,0.07)', paddingVertical: 10, alignItems: 'center' }}
+                >
+                  <T v="bodyS" style={{ fontSize: 12, fontWeight: '900', color: emerald }}>✓ Mark as Received</T>
+                </Pressable>
+              ) : null}
             </View>
           ))}
         </ScrollView>

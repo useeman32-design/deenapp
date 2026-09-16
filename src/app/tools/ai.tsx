@@ -871,7 +871,7 @@ export default function DeenLinkAI() {
         tafsirCtx +
         (sources.length ? "\n\n" + buildContext(sources) : "") +
         (webRef.current
-          ? "\n\nWeb search is enabled — verify current facts and cite [web]."
+          ? "\n\nThink step by step before answering; show brief reasoning, then a clear conclusion with [source] citations."
           : "");
       let acc = "";
       let reasoning = "";
@@ -1489,9 +1489,7 @@ export default function DeenLinkAI() {
             numberOfLines={1}
             style={{ fontSize: 9.5, color: d.faint, marginTop: 1 }}
           >
-            {apiKey && provider
-              ? `${modelList.find((m) => m.id === model)?.note ?? "deep reasoning"} · library + ${webToggle ? "web" : "model"}`
-              : "Your library · History ⟶ Settings for full AI"}
+            {"Answers with library references — tap a [source] to open it"}
           </T>
         </View>
         <DeenPointsPill />
@@ -1745,66 +1743,7 @@ export default function DeenLinkAI() {
             paddingBottom: insets.bottom + 12,
           }}
         >
-          <Pressable
-            accessibilityLabel="AI settings"
-            onPress={() => {
-              haptic.selection();
-              setDrawerOpen(false);
-              setShowSettings(true);
-            }}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              borderRadius: 13,
-              borderWidth: 1,
-              borderColor: glass.border,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.04)"
-                : "rgba(255,255,255,0.6)",
-              paddingHorizontal: 12,
-              paddingVertical: 11,
-              opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 10,
-                backgroundColor: isDark
-                  ? "rgba(46,204,113,0.12)"
-                  : "rgba(29,111,66,0.08)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <FontAwesome5
-                name="cog"
-                size={12}
-                color={isDark ? "#4AE38F" : "#1D6F42"}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T
-                v="bodyS"
-                style={{ fontSize: 12, fontWeight: "800", color: d.text }}
-              >
-                Settings
-              </T>
-              <T
-                v="caption"
-                style={{ fontSize: 9, color: d.faint, marginTop: 1 }}
-              >
-                {apiKey
-                  ? `${modelList.find((m) => m.id === model)?.note ?? "deep reasoning"} · web ${webOn ? "on" : "off"}`
-                  : serverAi
-                    ? "Secure DeenLink AI"
-                    : "Add an API key for full AI"}
-              </T>
-            </View>
-            <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
-          </Pressable>
+          
         </View>
       </Animated.View>
 
@@ -1986,21 +1925,21 @@ export default function DeenLinkAI() {
                   paddingBottom: 5,
                 }}
               >
-                ANSWER MODE
+                AI CAPABILITY
               </T>
               {(
                 [
                   {
                     k: false,
-                    icon: "book-open",
-                    label: "Library only",
-                    note: "Your saved sources",
+                    icon: "bolt",
+                    label: "Quick answer",
+                    note: "Direct, library-sourced",
                   },
                   {
                     k: true,
-                    icon: "globe",
-                    label: "Library + Web",
-                    note: "Live web results",
+                    icon: "brain",
+                    label: "Deep reasoning",
+                    note: "Step-by-step, careful",
                   },
                 ] as const
               ).map((o) => (
@@ -2182,9 +2121,7 @@ export default function DeenLinkAI() {
               marginTop: 6,
             }}
           >
-            {apiKey
-              ? "References like [Quran 2:255] are tappable · verify rulings with a scholar"
-              : "On-device mode · open History ⟶ Settings to add an API key"}
+            "References like [Quran 2:255] are tappable · verify rulings with a scholar"
           </T>
         </View>
       </KeyboardAvoidingView>

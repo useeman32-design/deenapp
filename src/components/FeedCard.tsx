@@ -76,13 +76,22 @@ const YouTubeFrame = ({
    * loses screen focus or the browser tab hides, even while "in view". Track
    * both here; the iframe is UNMOUNTED when inactive, which hard-stops audio. */
   const [focused, setFocused] = useState(true);
+  /* pass 87 — strict stop rule also respects NAVIGATION focus: moving to the
+   * notifications/shop tab unmounts the embed, so nothing keeps playing. */
+  const [screenFocused, setScreenFocused] = useState(true);
+  useFocusEffect(
+    () => {
+      setScreenFocused(true);
+      return () => setScreenFocused(false);
+    },
+  );
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const v = () => setFocused(document.visibilityState === "visible");
     document.addEventListener("visibilitychange", v);
     return () => document.removeEventListener("visibilitychange", v);
   }, []);
-  const active = inView && focused;
+  const active = inView && focused && screenFocused;
   useEffect(() => {
     if (
       Platform.OS !== "web" ||
@@ -2107,6 +2116,15 @@ export function FeedCard({
           time: post.time_ago ?? "now",
           likes: post.like_count ?? 0,
           comments: post.comment_count ?? 0,
+          /* pass 87 — post-card share extras */
+          photoUri: (user as any)?.profile_image_url ?? null,
+          badge: (user as any)?.verified ? ((user as any)?.verified_tier === "gold" ? "gold" : "blue") : null,
+          hasMedia: !!(
+            ((post as any)?.media && (post as any).media.length) ||
+            (post as any)?.images?.length ||
+            post.youtube_url ||
+            post.video_url
+          ),
         }}
         link={`https://deenlink.org/post/${post.id}`}
         post={post}
