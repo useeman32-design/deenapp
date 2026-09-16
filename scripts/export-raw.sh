@@ -13,5 +13,9 @@ BASE= node scripts/slashguard.mjs
 # pass 83-35 — the PWA manifest link was only ever hand-added to gh-pages; the
 # root artifact must have it too (A2HS install on app.deenlink.org).
 node -e "const{readFileSync,writeFileSync}=require('node:fs');let h=readFileSync('dist/index.html','utf8');if(!h.includes('rel=\"manifest\"')){h=h.replace('</head>','<link rel=\"manifest\" href=\"/manifest.json\"/></head>');writeFileSync('dist/index.html',h);console.log('manifest link injected');}"
+# pass 88 — absolute asset paths in every exported page, so a refresh on a deep
+# link (/tools/courses) no longer resolves ./_expo/… under the sub-directory and
+# shows a blank white page (owner report). Runs BEFORE the gate on purpose.
+node scripts/absolutize-html.mjs dist
 node scripts/check-raw.mjs dist
 echo "✅ RAW export ready in dist/ → ship to app.deenlink.org ROOT (merge, never prune)."

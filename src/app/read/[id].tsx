@@ -1745,105 +1745,90 @@ function ReaderInner() {
                 🔥 {streak}-day reading streak — keep it alive by reading today
               </T>
             ) : null}
-            {RECITERS.map((r) => {
-              const on = audio.reciter === r.id;
-              return (
-                <Pressable
-                  key={r.id}
-                  onPress={() => {
-                    haptic.light();
-                    audio.setReciter(r.id);
-                    setReciterOpen(false);
-                  }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    borderWidth: 1,
-                    borderColor: on
-                      ? isDark
-                        ? "rgba(74,227,143,0.5)"
-                        : "rgba(29,111,66,0.4)"
-                      : d.cardBorder,
-                    backgroundColor: on
-                      ? isDark
-                        ? "rgba(46,204,113,0.12)"
-                        : "rgba(29,111,66,0.07)"
-                      : "transparent",
-                  }}
-                >
-                  <Image
-                    source={r.photo}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      borderWidth: on ? 2 : 1,
-                      borderColor: on
-                        ? isDark
-                          ? "#4AE38F"
-                          : "#1D6F42"
-                        : d.cardBorder,
-                    }}
-                    contentFit="cover"
-                  />
-                  <T
-                    v="body"
-                    style={{
-                      flex: 1,
-                      color: d.text,
-                      fontWeight: "700",
-                      fontSize: 13,
-                    }}
-                  >
-                    {r.name}
-                  </T>
-                  {on ? (
-                    <FontAwesome5
-                      name="check"
-                      size={12}
-                      color={isDark ? "#4AE38F" : "#1D6F42"}
-                    />
-                  ) : null}
-                </Pressable>
-              );
-            })}
-            {/* pass 72 — admin-managed extra reciters (some unlock with DeenPoints) */}
-            {audio.serverReciters.map((sr) => {
-              if (RECITERS.some((b) => b.id === sr.reciter_key)) return null;
-              /* pass 87 — a server row whose name matches a local reciter is a
-               * DUPLICATE (different key ids). Hiding it removes the entries
-               * that showed only generated-initials art instead of a photo. */
-              const nrm = (x: string) => String(x || "").toLowerCase().replace(/[^a-z]/g, "");
-              if (
-                RECITERS.some((b) => {
-                  const n1 = nrm(b.name);
-                  const n2 = nrm(sr.name);
-                  return n1 !== "" && n2 !== "" && (n1 === n2 || n2.includes(n1) || n1.includes(n2));
-                })
-              )
-                return null;
-              const on = audio.reciter === sr.reciter_key;
-              const locked = sr.is_free === false && !sr.is_unlocked;
-              const initials = sr.name
-                .split(" ")
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w[0])
-                .join("");
-              const pick = () => {
-                haptic.light();
-                if (!locked) {
-                  audio.setReciter(sr.reciter_key);
-                  setReciterOpen(false);
-                  return;
-                }
-                setUnlockingKey(sr.reciter_key);
-                void quranUnlockReciter(sr.reciter_key).then((res) => {
+            {/* pass 88 — ONE unified list. The admin table (api/quran/reciters.php)
+                * is the roster; the bundled RECITERS only fill rows the admin has
+                * no entry for (and supply the audio id + portrait when the admin row
+                * points at the same reciter under a different key). No more duplicate
+                * names, no initials placeholders, and the sheet scrolls on phones. */}
+            {(() => {
+              type Row = {
+                ids: string[];
+                name: string;
+                sub?: string;
+                photo: number | { uri: string } | null;
+                locked: boolean;
+                price: number;
+              };
+              const nrm = (x: unknown) =>
+                String(x ?? "")
+                  .toLowerCase()
+                  .replace(/[^a-z]/g, "");
+              const PHOTO: Record<string, number> = {
+                mishary: require("../../../assets/img/reciters/alafasy.jpg"),
+                abdulbasit: require("../../../assets/img/reciters/abdulbasit.jpg"),
+                saad: require("../../../assets/img/reciters/ghamdi.jpg"),
+                maher: require("../../../assets/img/reciters/maher.jpg"),
+                sudais: require("../../../assets/img/reciters/sudais.jpg"),
+                shuraim: require("../../../assets/img/reciters/shuraim.jpg"),
+                ayyub: require("../../../assets/img/reciters/ayyub.jpg"),
+                yasser_aldosari: require("../../../assets/img/reciters/yasser.jpg"),
+                husary: require("../../../assets/img/reciters/husary.jpg"),
+                minshawi: require("../../../assets/img/reciters/minshawi.jpg"),
+                shaatree: require("../../../assets/img/reciters/shaatree.jpg"),
+              };
+              const rows: Row[] = [];
+              const server = audio.serverReciters ?? [];
+              for (const sr of server) {
+                const local = RECITERS.find(
+                  (b) =>
+                    b.id === sr.reciter_key ||
+                    (nrm(b.name) !== "" &&
+                      (nrm(b.name) === nrm(sr.name) ||
+                        nrm(sr.name).includes(nrm(b.name)) ||
+                        nrm(b.name).includes(nrm(sr.name)))),
+                );
+                const url = String(sr.photo_url || "");
+                const photo =
+                  PHOTO[sr.reciter_key] ??
+                  (local as { photo?: number } | undefined)?.photo ??
+                  EXTRA_RECITER_PHOTOS[sr.reciter_key] ??
+                  (url && !/ui-avatars\.com/.test(url) ? { uri: url } : null);
+                rows.push({
+                  ids: [sr.reciter_key, local?.id].filter(Boolean) as string[],
+                  name: sr.name,
+                  sub: [sr.country, sr.style].filter(Boolean).join(" · "),
+                  photo: (photo as number | { uri: string }) ?? null,
+                  locked: sr.is_free === false && !sr.is_unlocked,
+                  price: sr.price ?? 0,
+                });
+              }
+              for (const b of RECITERS) {
+                if (
+                  server.some(
+                    (sr) =>
+                      sr.reciter_key === b.id ||
+                      (nrm(b.name) !== "" &&
+                        (nrm(b.name) === nrm(sr.name) ||
+                          nrm(sr.name).includes(nrm(b.name)) ||
+                          nrm(b.name).includes(nrm(sr.name)))),
+                  )
+                )
+                  continue;
+                rows.push({
+                  ids: [b.id],
+                  name: b.name,
+                  sub: "DeenLink stream",
+                  photo: ((b as { photo?: number }).photo ??
+                    PHOTO[b.id] ??
+                    null) as number | { uri: string } | null,
+                  locked: false,
+                  price: 0,
+                });
+              }
+              const unlockRow = (row: Row) => {
+                const key = row.ids[0];
+                setUnlockingKey(key);
+                void quranUnlockReciter(key).then((res) => {
                   setUnlockingKey(null);
                   if (!res.ok) {
                     Alert.alert(
@@ -1854,116 +1839,202 @@ function ReaderInner() {
                   }
                   if (res.balance != null) void dp.sync(res.balance);
                   audio.refreshReciters();
-                  audio.setReciter(sr.reciter_key);
+                  audio.setReciter(key);
                   setReciterOpen(false);
                 });
               };
-              const uiAvatar = /ui-avatars\.com/.test(String(sr.photo_url || ""));
-              const localPhoto = EXTRA_RECITER_PHOTOS[sr.reciter_key];
-              const avatarSrc = localPhoto ?? (!uiAvatar && sr.photo_url ? { uri: sr.photo_url } : null);
               return (
-                <Pressable
-                  key={sr.reciter_key}
-                  onPress={pick}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    borderWidth: 1,
-                    borderColor: on
-                      ? isDark
-                        ? "rgba(74,227,143,0.5)"
-                        : "rgba(29,111,66,0.4)"
-                      : d.cardBorder,
-                    backgroundColor: on
-                      ? isDark
-                        ? "rgba(46,204,113,0.12)"
-                        : "rgba(29,111,66,0.07)"
-                      : "transparent",
-                  }}
+                <ScrollView
+                  style={{ maxHeight: 420 }}
+                  showsVerticalScrollIndicator
+                  contentContainerStyle={{ gap: 6, paddingRight: 2 }}
                 >
-                  {avatarSrc ? (
-                    <Image
-                      source={avatarSrc}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        borderWidth: 1,
-                        borderColor: d.cardBorder,
-                      }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: isDark
-                          ? "rgba(74,227,143,0.15)"
-                          : "rgba(29,111,66,0.1)",
-                        borderWidth: 1,
-                        borderColor: d.cardBorder,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <T
-                        v="caption"
+                  {rows.map((row) => {
+                    const on = row.ids.some((x) => x === audio.reciter);
+                    const pick = () => {
+                      haptic.light();
+                      if (!row.locked) {
+                        audio.setReciter(row.ids[0]);
+                        setReciterOpen(false);
+                        return;
+                      }
+                      unlockRow(row);
+                    };
+                    return (
+                      <Pressable
+                        key={row.ids[0]}
+                        onPress={pick}
                         style={{
-                          fontWeight: "900",
-                          color: isDark ? "#4AE38F" : "#1D6F42",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                          paddingVertical: 11,
+                          paddingHorizontal: 12,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: on
+                            ? isDark
+                              ? "rgba(74,227,143,0.5)"
+                              : "rgba(29,111,66,0.4)"
+                            : d.cardBorder,
+                          backgroundColor: on
+                            ? isDark
+                              ? "rgba(46,204,113,0.12)"
+                              : "rgba(29,111,66,0.07)"
+                            : "transparent",
                         }}
                       >
-                        {initials}
-                      </T>
-                    </View>
-                  )}
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <T
-                      v="body"
-                      numberOfLines={1}
-                      style={{ color: d.text, fontWeight: "700", fontSize: 13 }}
-                    >
-                      {sr.name}
-                      {sr.country ? ` · ${sr.country}` : ""}
-                    </T>
-                    {locked ? (
-                      <T
-                        v="caption"
-                        style={{
-                          color: "#B8870B",
-                          fontWeight: "800",
-                          fontSize: 10,
-                          marginTop: 2,
-                        }}
-                      >
-                        🔒 {sr.price ?? 0} DeenPoints to unlock
-                      </T>
-                    ) : null}
-                  </View>
-                  {unlockingKey === sr.reciter_key ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={isDark ? "#4AE38F" : "#1D6F42"}
-                    />
-                  ) : on ? (
-                    <FontAwesome5
-                      name="check"
-                      size={12}
-                      color={isDark ? "#4AE38F" : "#1D6F42"}
-                    />
-                  ) : locked ? (
-                    <FontAwesome5 name="lock" size={12} color="#B8870B" />
-                  ) : null}
-                </Pressable>
+                        {row.photo ? (
+                          <Image
+                            source={row.photo as never}
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 19,
+                              borderWidth: on ? 2 : 1,
+                              borderColor: on
+                                ? isDark
+                                  ? "#4AE38F"
+                                  : "#1D6F42"
+                                : d.cardBorder,
+                            }}
+                            contentFit="cover"
+                            transition={140}
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 19,
+                              backgroundColor: isDark
+                                ? "rgba(74,227,143,0.15)"
+                                : "rgba(29,111,66,0.1)",
+                              borderWidth: 1,
+                              borderColor: d.cardBorder,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <T
+                              v="caption"
+                              style={{
+                                fontWeight: "900",
+                                color: isDark ? "#4AE38F" : "#1D6F42",
+                              }}
+                            >
+                              {row.name
+                                .split(" ")
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((w) => w[0])
+                                .join("")}
+                            </T>
+                          </View>
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <T
+                            v="body"
+                            numberOfLines={1}
+                            style={{
+                              color: d.text,
+                              fontWeight: "700",
+                              fontSize: 13.5,
+                            }}
+                          >
+                            {row.name}
+                          </T>
+                          {row.sub ? (
+                            <T
+                              v="caption"
+                              numberOfLines={1}
+                              style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}
+                            >
+                              {row.sub}
+                            </T>
+                          ) : null}
+                          {row.locked ? (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 5,
+                                marginTop: 3,
+                              }}
+                            >
+                              <Image
+                                source={require("../../../assets/img/deenpoints.png")}
+                                style={{ width: 13, height: 13, borderRadius: 4 }}
+                                contentFit="contain"
+                              />
+                              <T
+                                v="caption"
+                                style={{
+                                  color: "#B8870B",
+                                  fontWeight: "800",
+                                  fontSize: 10,
+                                }}
+                              >
+                                {row.price} DeenPoints to unlock
+                              </T>
+                            </View>
+                          ) : null}
+                        </View>
+                        {unlockingKey === row.ids[0] ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={isDark ? "#4AE38F" : "#1D6F42"}
+                          />
+                        ) : on ? (
+                          <FontAwesome5
+                            name="check"
+                            size={12}
+                            color={isDark ? "#4AE38F" : "#1D6F42"}
+                          />
+                        ) : row.locked ? (
+                          <View
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: "rgba(184,135,11,0.45)",
+                              backgroundColor: "rgba(184,135,11,0.1)",
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Image
+                              source={require("../../../assets/img/deenpoints.png")}
+                              style={{ width: 11, height: 11, borderRadius: 3 }}
+                              contentFit="contain"
+                            />
+                            <T
+                              v="caption"
+                              style={{
+                                color: "#B8870B",
+                                fontWeight: "900",
+                                fontSize: 9.5,
+                              }}
+                            >
+                              UNLOCK
+                            </T>
+                          </View>
+                        ) : (
+                          <T
+                            v="caption"
+                            style={{ color: d.faint, fontSize: 9.5, fontWeight: "800" }}
+                          >
+                            FREE
+                          </T>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               );
-            })}
+            })()}
           </View>
         </View>
       ) : null}

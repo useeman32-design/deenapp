@@ -281,6 +281,14 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
   /* pass 44 — email OTP step shown after the account is created */
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
+  /* pass 88 — how the verification mail was actually delivered (the server tells
+   * us): 'otp' = the 6-digit code email went out, 'link' = the code mail failed
+   * so a one-tap link went out instead, 'none' = nothing could be sent. The
+   * screen must say whichever is TRUE, not always "enter the code". */
+  const [otpDelivery, setOtpDelivery] = useState<"otp" | "link" | "none">("otp");
+  /* pass 88 — a scholar signup continues into the SAME verification step, with
+   * its own note, instead of an Alert that swallowed it ("scholar … vanishes"). */
+  const [scholarNote, setScholarNote] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   /* shared fields */
@@ -379,7 +387,11 @@ export default function Register() {
     lastPassword.current = data.password;
     /* DB enum: 'male'/'female' lowercase */
     const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined });
-    if (res.ok) { setBusy(false); setOtpEmail(data.email); } // pass 44 — show the 6-digit OTP step
+    if (res.ok) {
+      setBusy(false);
+      setOtpDelivery(res.emailDelivery ?? "otp");
+      setOtpEmail(data.email); /* pass 44 — show the 6-digit OTP step */
+    }
     else { setError(res.message || 'Something went wrong'); setBusy(false); }
   };
 
@@ -458,11 +470,18 @@ export default function Register() {
         });
         sent = out.ok; why = out.message || '';
       } catch (e) { why = String(e); }
-      Alert.alert(sent ? 'Application received' : 'Registered — application pending send',
+      /* pass 88 — the scholar path used to fire an Alert and bounce straight to the
+       * tabs, so the verification step NEVER appeared (owner: "scholar … it just
+       * vanishes"). It now continues into the same email-verification screen with
+       * the application status shown as a note. */
+      setScholarNote(
         sent
-          ? 'Jazakallahu khairan! Your scholar application is under review — you can use DeenLink as a user in the meantime.'
-          : `We could not send your documents for review (${why || 'network'}). They are saved on this device — close the app, check your connection, then re-submit the scholar application from Sign up once, or contact support.`);
-      router.replace('/(tabs)');
+          ? 'Your scholar application is with the verification team — they review it after your email is confirmed.'
+          : `We could not upload your documents (${why || 'network'}). They are kept on this device — verify your email now, then send the application again from Sign up.`,
+      );
+      setOtpDelivery(res.emailDelivery ?? 'otp');
+      setBusy(false);
+      setOtpEmail(email.trim());
     } else {
       setError(res.message || 'Something went wrong');
       setBusy(false);
@@ -747,8 +766,11 @@ export default function Register() {
         <Modal visible transparent animationType="fade">
           <OtpVerify
             email={otpEmail}
+            delivery={otpDelivery}
+            note={scholarNote}
             onVerified={(u) => {
               setOtpEmail(null);
+              setScholarNote(null);
               if (u) {
                 /* verify_otp minted the session — adopt it */
                 void adoptSession(u).then(() => router.replace('/(tabs)'));

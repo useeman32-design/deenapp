@@ -18,13 +18,28 @@ import { FORCE_DEMO, sendOtp, verifyOtp, checkEmailVerified } from '@/api/client
  */
 const R = 58; // ring radius the boxes fly to
 
-export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVerified: (user?: import('@/api/types').User | null) => void; onCancel: () => void }) {
+export type OtpDelivery = 'otp' | 'link' | 'none';
+
+export function OtpVerify({ email, onVerified, onCancel, delivery: delivery0 = 'otp', note }: {
+  email: string;
+  onVerified: (user?: import('@/api/types').User | null) => void;
+  onCancel: () => void;
+  /* pass 88 — what the server could ACTUALLY deliver: 'otp' = the 6-digit code
+   * email (the primary path and what this screen is built around), 'link' = the
+   * code mail failed so a one-tap link went out, 'none' = nothing was sent.
+   * Owner: the user must SEE the OTP field and the copy must not claim a code
+   * arrived when it did not. */
+  delivery?: OtpDelivery;
+  /** Extra line, e.g. the scholar application status. */
+  note?: string | null;
+}) {
   const { theme } = useTheme();
   const d = theme.dash;
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [status, setStatus] = useState<'idle' | 'verifying' | 'wrong' | 'success'>('idle');
   const [hint, setHint] = useState('');
   const [cooldown, setCooldown] = useState(0);
+  const [delivery, setDelivery] = useState<OtpDelivery>(delivery0);
   const [unlocked, setUnlocked] = useState(false);
   const refs = useRef<Array<TextInput | null>>([]);
   const live = !FORCE_DEMO;
@@ -42,14 +57,28 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
   const send = () => {
     setCooldown(30);
     if (!live) { setHint('Demo mode — use code 123456'); return; }
-    sendOtp(email).then((r) => { if (!r.ok && !r.networkError) setHint(r.message ?? 'Could not send the code'); });
+    sendOtp(email).then((r) => {
+      if (r.ok) {
+        /* the mail server may behave differently now — follow its answer */
+        setDelivery(r.delivery ?? 'otp');
+        setHint(r.delivery === 'link'
+          ? 'The code could not be emailed, so we sent a verification LINK instead — tap it and this screen continues by itself.'
+          : 'A new 6-digit code is on its way. It expires in 10 minutes.');
+      } else if (!r.networkError) {
+        setHint(r.message ?? 'Could not send the code');
+      }
+    });
   };
 
   useEffect(() => {
     // register.php already emailed the 6-digit code, so don't auto-send a second
     // one here — that would overwrite the code hash and send a duplicate email.
     // The "Resend code" button below still calls send() for a manual resend.
-    if (live) setHint('Enter the 6-digit code we emailed you — or tap “Verify my email” in the email.');
+    if (live) setHint(delivery0 === 'link'
+      ? 'No code to type — open your email and tap “Verify my email”. This screen notices it and continues on its own.'
+      : delivery0 === 'none'
+        ? 'The verification email could not be sent. Tap “Resend code” to try again — the boxes below stay ready.'
+        : 'Enter the 6-digit code we emailed you below.');
     else setHint('Demo mode — use code 123456');
     setCooldown(30);
     const iv = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
@@ -202,8 +231,21 @@ export function OtpVerify({ email, onVerified, onCancel }: { email: string; onVe
           </View>
         ) : (
           <>
-            <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20, textAlign: 'center' }}>Verify your email</T>
-            <T v="caption" style={{ color: d.subtext, fontSize: 12, textAlign: 'center', marginTop: 4 }}>We sent a 6-digit code to {email}</T>
+            <T v="h2" style={{ color: d.text, fontWeight: '800', fontSize: 20, textAlign: 'center' }}>
+              {delivery === 'link' ? 'Confirm your email' : delivery === 'none' ? 'One step left — we could not email you' : 'Verify your email'}
+            </T>
+            <T v="caption" style={{ color: d.subtext, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+              {delivery === 'link'
+                ? `The code email failed, so we sent a one-tap verification link to ${email} — tap it and we finish here.`
+                : delivery === 'none'
+                  ? `We could not reach ${email} right now. Resend below, or go back and use another address.`
+                  : `We sent a 6-digit code to ${email} — type it below.`}
+            </T>
+            {note ? (
+              <View style={{ borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: 'rgba(212,175,55,0.08)', paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 }}>
+                <T v="caption" style={{ color: d.gold, fontSize: 11.5, textAlign: 'center', lineHeight: 17 }}>{note}</T>
+              </View>
+            ) : null}
             <Animated.View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', marginVertical: 22, transform: [{ translateX: shakeX }] }}>
               {digits.map((v, i) => (
                 <TextInput

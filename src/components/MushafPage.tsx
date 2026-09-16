@@ -7,6 +7,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { QURAN } from '@/data/quran';
 import { useQuranAudio, globalAyahOf, surahOfGlobal } from '@/context/QuranAudioContext';
+import { ThemePriceChip, useThemeLocks } from '@/lib/themeLocks';
 import { loadSurah, type SurahContent } from '@/lib/content';
 import { bare as bareOf, speakWord, useReciteTracker, type ReciteItem } from '@/lib/reciteEngine';
 
@@ -30,12 +31,17 @@ const MIN_FS = 13;
 const MAX_FS = 26;
 const DEFAULT_FS = 20;
 
+/* pass 88 — the paid skins (sepia / madina / emerald / desert sand) are bought
+ * with DeenPoints through api/themes/unlock.php; Cream, White and Night stay
+ * free so the reader is never naked. Prices live on the SERVER, not here. */
 const THEMES = [
   { id: 'cream', label: 'Cream', bg: '#FFFCF2', text: '#12241A', border: 'rgba(184,134,11,0.55)', accent: '#8C6D1F', basm: '#1D6F42' },
   { id: 'white', label: 'White', bg: '#FFFFFF', text: '#0E1F16', border: 'rgba(29,111,66,0.35)', accent: '#1D6F42', basm: '#1D6F42' },
+  { id: 'night', label: 'Night', bg: '#0A130E', text: '#E9F3EC', border: 'rgba(212,175,55,0.5)', accent: '#E8C96A', basm: '#4AE38F' },
   { id: 'sepia', label: 'Sepia', bg: '#F3E7D0', text: '#3A2E1B', border: 'rgba(122,90,42,0.55)', accent: '#7A5A2A', basm: '#6B4E1F' },
   { id: 'madina', label: 'Madina', bg: '#E9F1EA', text: '#0F2417', border: 'rgba(29,111,66,0.5)', accent: '#1D6F42', basm: '#1D6F42' },
-  { id: 'night', label: 'Night', bg: '#0A130E', text: '#E9F3EC', border: 'rgba(212,175,55,0.5)', accent: '#E8C96A', basm: '#4AE38F' },
+  { id: 'emerald', label: 'Emerald', bg: '#04241A', text: '#E4F6EA', border: 'rgba(74,227,143,0.45)', accent: '#4AE38F', basm: '#9CF5C4' },
+  { id: 'sand', label: 'Sand', bg: '#F6EEDD', text: '#4A3517', border: 'rgba(166,124,52,0.5)', accent: '#A67C34', basm: '#7A5320' },
 ] as const;
 
 type PageAyah = { key: string; global: number; numberInSurah: number; text: string; surahNo: number; surahNameAr: string; isStart: boolean };
@@ -58,6 +64,7 @@ export function MushafPage({
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const audio = useQuranAudio();
+  const locks = useThemeLocks(); /* pass 88 — paid page skins */
 
   const [pg, setPg] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -327,24 +334,36 @@ export function MushafPage({
           <T v="h3" style={{ fontWeight: '800' }}>Mushaf settings</T>
 
           <View>
-            <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6, marginBottom: 8 }}>PAGE THEME</T>
-            <View style={{ flexDirection: 'row', gap: 9 }}>
-              {THEMES.map((t) => (
-                <Pressable
-                  key={t.id}
-                  onPress={() => {
-                    haptic.selection();
-                    setThemeId(t.id);
-                    savePrefs(t.id, fs);
-                  }}
-                  style={{ flex: 1, alignItems: 'center', gap: 5 }}
-                >
-                  <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: t.bg, borderWidth: skin.id === t.id ? 2.5 : 1, borderColor: skin.id === t.id ? '#1F8F5C' : t.border, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontFamily: 'Amiri', fontSize: 15, color: t.text }}>ا</Text>
-                  </View>
-                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '700', color: skin.id === t.id ? '#1F8F5C' : d.faint }}>{t.label.toUpperCase()}</T>
-                </Pressable>
-              ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6 }}>PAGE THEME</T>
+              <T v="caption" style={{ fontWeight: '700', fontSize: 9, color: d.faint }}>Paid skins are yours forever</T>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+              {THEMES.map((t) => {
+                const price = locks.priceOf('mushaf', t.id);
+                const locked = locks.isLocked('mushaf', t.id);
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={async () => {
+                      haptic.selection();
+                      if (locked) {
+                        const ok = await locks.request('mushaf', t.id, `${t.label} page theme`);
+                        if (!ok) return;
+                      }
+                      setThemeId(t.id);
+                      savePrefs(t.id, fs);
+                    }}
+                    style={{ width: '30%', alignItems: 'center', gap: 5 }}
+                  >
+                    <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: t.bg, borderWidth: skin.id === t.id ? 2.5 : 1, borderColor: skin.id === t.id ? '#1F8F5C' : t.border, alignItems: 'center', justifyContent: 'center', opacity: locked ? 0.62 : 1 }}>
+                      <Text style={{ fontFamily: 'Amiri', fontSize: 15, color: t.text }}>ا</Text>
+                    </View>
+                    <T v="caption" style={{ fontSize: 9.5, fontWeight: '700', color: skin.id === t.id ? '#1F8F5C' : d.faint }}>{t.label.toUpperCase()}</T>
+                    {locked && price > 0 ? <ThemePriceChip price={price} compact /> : null}
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 

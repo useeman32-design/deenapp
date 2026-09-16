@@ -35,6 +35,7 @@ import { FeedCard, AvatarImage } from "@/components/FeedCard";
 import { CommunityInbox } from "@/components/CommunityInbox";
 import { CommentsModal } from "@/components/CommentsModal";
 import { haptic } from "@/lib/haptics";
+import { savedStore } from "@/lib/savedPosts";
 import { useFocusEffect, useRouter } from "expo-router";
 import { guestBlock, useIsGuest } from "@/lib/guest";
 import { LoginRequired } from "@/components/LoginRequired";
@@ -522,6 +523,10 @@ function CommunityScreenInner() {
                   p.id === tempId ? { ...p, id: res.id as number } : p,
                 ),
               );
+              /* pass 88 — if this fresh post was bookmarked while it still had
+               * its temporary id, move the save (and the server bookmark row)
+               * onto the real id, otherwise it disappears on the next reload. */
+              if (res.id !== tempId) savedStore.swapId(tempId, Number(res.id));
               markProfileDirty(); /* pass 83-37 — profile refetches on next focus */
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
@@ -1878,51 +1883,144 @@ function CommunityScreenInner() {
                 </>
               ) : null}
 
+              {/* pass 88 — owner: the GROUP composer shows real thumbnails of the
+                * picked photos while the community composer only said “3 photos
+                * attached”. Same strip here: every pick previewed, tappable to
+                * remove one, plus an “add more” tile up to the 5-photo limit. */}
               {imageAttachs.length ? (
                 <View
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 9,
-                    backgroundColor: isDark
-                      ? "rgba(46,204,113,0.1)"
-                      : "rgba(14,122,70,0.07)",
+                    borderRadius: 12,
                     borderWidth: 1,
                     borderColor: isDark
                       ? "rgba(46,204,113,0.4)"
                       : "rgba(14,122,70,0.3)",
-                    borderRadius: 12,
-                    paddingHorizontal: 11,
-                    paddingVertical: 9,
+                    backgroundColor: isDark
+                      ? "rgba(46,204,113,0.07)"
+                      : "rgba(14,122,70,0.05)",
+                    paddingHorizontal: 10,
+                    paddingTop: 4,
+                    paddingBottom: 8,
                   }}
                 >
-                  <FontAwesome5
-                    name="image"
-                    size={14}
-                    color={isDark ? "#4AE38F" : "#0E7A46"}
-                  />
-                  <T
-                    v="bodyS"
-                    numberOfLines={1}
+                  <View
                     style={{
-                      flex: 1,
-                      width: 0,
-                      color: d.text,
-                      fontSize: 12.5,
-                      fontWeight: "600",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 7,
+                      paddingVertical: 6,
                     }}
                   >
-                    {imageAttachs.length === 1
-                      ? imageAttachs[0].name
-                      : `${imageAttachs.length} photos attached`}
-                  </T>
-                  <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
                     <FontAwesome5
-                      name="times-circle"
-                      size={14}
-                      color={d.faint}
+                      name="image"
+                      size={12}
+                      color={isDark ? "#4AE38F" : "#0E7A46"}
                     />
-                  </Pressable>
+                    <T
+                      v="caption"
+                      style={{
+                        flex: 1,
+                        color: d.subtext,
+                        fontSize: 11,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {imageAttachs.length} photo
+                      {imageAttachs.length === 1 ? "" : "s"} — tap ✕ to remove
+                    </T>
+                    <Pressable onPress={() => setImageAttachs([])} hitSlop={8}>
+                      <T v="caption" style={{ color: d.faint, fontSize: 11, fontWeight: "700" }}>
+                        Clear all
+                      </T>
+                    </Pressable>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 7, paddingRight: 6 }}
+                  >
+                    {imageAttachs.map((m, i) => (
+                      <View key={`${m.uri}-${i}`} style={{ position: "relative" }}>
+                        <ExpoImage
+                          source={{ uri: m.uri }}
+                          style={{
+                            width: 62,
+                            height: 62,
+                            borderRadius: 11,
+                            borderWidth: 1,
+                            borderColor: isDark
+                              ? "rgba(74,227,143,0.45)"
+                              : "rgba(14,122,70,0.35)",
+                            backgroundColor: isDark ? "#0D1B13" : "#FFFFFF",
+                          }}
+                          contentFit="cover"
+                        />
+                        <Pressable
+                          accessibilityLabel={`remove photo ${i + 1}`}
+                          onPress={() =>
+                            setImageAttachs((cur) => cur.filter((_, j) => j !== i))
+                          }
+                          hitSlop={7}
+                          style={{
+                            position: "absolute",
+                            top: -6,
+                            right: -6,
+                            width: 21,
+                            height: 21,
+                            borderRadius: 11,
+                            backgroundColor: "#1a1a1a",
+                            borderWidth: 1.5,
+                            borderColor: "#fff",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <FontAwesome5 name="times" size={9} color="#fff" />
+                        </Pressable>
+                        {i === 0 ? (
+                          <View
+                            style={{
+                              position: "absolute",
+                              left: 5,
+                              bottom: 5,
+                              borderRadius: 6,
+                              backgroundColor: "rgba(4,10,7,0.7)",
+                              paddingHorizontal: 5,
+                              paddingVertical: 1.5,
+                            }}
+                          >
+                            <T v="caption" style={{ color: "#fff", fontSize: 8.5, fontWeight: "800" }}>
+                              1
+                            </T>
+                          </View>
+                        ) : null}
+                      </View>
+                    ))}
+                    {imageAttachs.length < 5 ? (
+                      <Pressable
+                        onPress={() => { void pickImage(); }}
+                        accessibilityLabel="add another photo"
+                        style={{
+                          width: 62,
+                          height: 62,
+                          borderRadius: 11,
+                          borderWidth: 1.5,
+                          borderStyle: "dashed",
+                          borderColor: isDark
+                            ? "rgba(74,227,143,0.5)"
+                            : "rgba(14,122,70,0.4)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <FontAwesome5
+                          name="plus"
+                          size={14}
+                          color={isDark ? "#4AE38F" : "#0E7A46"}
+                        />
+                      </Pressable>
+                    ) : null}
+                  </ScrollView>
                 </View>
               ) : null}
 

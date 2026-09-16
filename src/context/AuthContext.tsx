@@ -28,7 +28,13 @@ type AuthValue = {
     aqeedah?: string;
     country?: string;
     gender?: string;
-  }) => Promise<{ ok: boolean; message?: string }>;
+  }) => Promise<{
+    ok: boolean;
+    message?: string;
+    /* pass 88 — 'otp' | 'link' | 'none' when needsVerification is true */
+    needsVerification?: boolean;
+    emailDelivery?: "otp" | "link" | "none";
+  }>;
   logout: () => Promise<void>;
   updateUser: (patch: Partial<User>) => void;
   adoptSession: (u: User) => Promise<void>;
@@ -115,7 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* pass 66-night — an unverified account is NEVER signed in: the server
        * mints no session at register; the OTP step (verify_otp) mints it. */
       if (res.ok && res.needsVerification) {
-        return { ok: true, needsVerification: true };
+        /* pass 88 — pass the delivery mode up so the OTP screen can tell the
+         * truth about what landed in the inbox (code vs. link). */
+        return {
+          ok: true,
+          needsVerification: true,
+          emailDelivery: res.emailDelivery ?? ("otp" as const),
+        };
       }
       if (res.ok && res.user) {
         setUser(res.user); void exitGuest();

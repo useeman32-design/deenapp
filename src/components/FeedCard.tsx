@@ -38,7 +38,7 @@ import {
   PlayIcon,
   ShareIcon,
 } from "@/components/Icons";
-import { savedStore } from "@/lib/savedPosts";
+import { savedStore, useSavedTick } from "@/lib/savedPosts";
 import { ContentShareSheet } from "@/components/ContentShareSheet";
 import { DefaultAvatar } from "@/components/AvatarPicker";
 import { API_ORIGIN } from "@/api/client";
@@ -773,7 +773,12 @@ export function FeedCard({
   }));
   const [reportType, setReportType] = useState<string | null>(null);
   const [reportDesc, setReportDesc] = useState("");
-  const [savedNow, setSavedNow] = useState(() => savedStore.has(post.id));
+  /* pass 88 — the bookmark IS the store, not a per-card copy: saving from the
+   * home feed lights the same card on the profile and in Community instantly
+   * (owner: “I saved posts, went to my profile, they were not there until the
+   * page refreshed”). */
+  useSavedTick();
+  const savedNow = savedStore.has(post.id);
   const [shareOpen, setShareOpen] = useState(false);
   const lastTap = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2117,7 +2122,6 @@ export function FeedCard({
             onPress={() => {
               haptic.light();
               savedStore.toggle(post);
-              setSavedNow(savedStore.has(post.id));
             }}
             hitSlop={8}
             style={({ pressed }) => ({

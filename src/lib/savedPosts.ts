@@ -66,20 +66,38 @@ const fromPayload = (p: unknown): Post | null => {
   return o as unknown as Post;
 };
 
-export function savedHydrate(): Promise<void> {
+/** A save is kept when the server list does not carry it yet but it happened
+ * seconds ago — i.e. the POST is still in flight. Prevents a hydrate that starts
+ * while you tap the bookmark from erasing the save (pass 88, owner: “saved posts
+ * are not in my profile until I refresh the whole page”). */
+const PENDING_MS = 3 * 60 * 1000;
+
+export function savedHydrate(force = false): Promise<void> {
   if (!isLive()) return Promise.resolve();
-  if (hydrating) return hydrating;
+  if (hydrating && !force) return hydrating;
   hydrating = (async () => {
     const items = await bookmarksList('post').catch(() => null);
     if (!items) return;
-    const snaps: Snapshot[] = [];
+    const mine = new Map<number, Snapshot>();
     for (const it of items) {
       const post = fromPayload(it.payload);
-      if (post) snaps.push({ post, saved_at: new Date(it.created_at || Date.now()).getTime() || Date.now() });
+      if (post) mine.set(post.id, { post, saved_at: new Date(it.created_at || Date.now()).getTime() || Date.now() });
     }
+    const before = read();
+    /* MERGE: server rows win, and a brand-new local row survives until the
+     * server confirms it; anything older and absent is genuinely gone. */
+    const cutoff = Date.now() - PENDING_MS;
+    const snaps: Snapshot[] = [...mine.values()];
+    for (const s of before) {
+      if (!mine.has(s.post.id) && s.saved_at >= cutoff) snaps.push(s);
+    }
+    snaps.sort((a, b) => b.saved_at - a.saved_at);
     write(snaps);
   })();
-  return hydrating;
+  const done = hydrating;
+  /* allow the next focus to hydrate again */
+  setTimeout(() => { if (hydrating === done) hydrating = null; }, 1500);
+  return done;
 }
 
 export const savedStore = {
@@ -116,6 +134,22 @@ export const savedStore = {
     }
     return !removing;
   },
+  /** Move a saved snapshot to a new post id (an optimistic post id that the
+   * server replaced after publishing). Keeps the local copy AND the server row
+   * pointed at the real id, so “my post” saves never vanish on refresh. */
+  swapId(fromId: number, toId: number): void {
+    if (fromId === toId) return;
+    const cur = read();
+    const hit = cur.find((x) => x.post.id === fromId);
+    if (!hit) return;
+    write(cur.map((x) => (x.post.id === fromId ? { ...x, post: { ...x.post, id: toId } } : x)));
+    if (isLive()) {
+      void (async () => {
+        await bookmarkToggle('post', String(fromId)).catch(() => null); /* drop the temp row */
+        await bookmarkToggle('post', String(toId), snapshotOf({ ...hit.post, id: toId })).catch(() => null);
+      })();
+    }
+  },
   subscribe(fn: () => void): () => void {
     listeners.add(fn);
     return () => listeners.delete(fn);
@@ -128,9 +162,23 @@ export function useSaved(): { saved: Post[]; isSaved: (id: number) => boolean } 
   useEffect(() => {
     void savedHydrate();
     return savedStore.subscribe(() => bump((n) => n + 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return {
     saved: savedStore.list(),
     isSaved: (id: number) => savedStore.has(id),
   };
+}
+
+/** Light subscription for feed cards: repaints the bookmark on any change and
+ * never fires a request of its own (a 20-card list must not fetch 20 times). */
+export function useSavedTick(): void {
+  const [, bump] = useState(0);
+  useEffect(() => savedStore.subscribe(() => bump((n) => n + 1)), []);
+}
+
+/** Focus-driven refresh (the profile “Saved” tab calls this) — re-reads the
+ * server list and merges, so a save made elsewhere shows up without a reload. */
+export function savedRefresh(): Promise<void> {
+  return savedHydrate(true);
 }

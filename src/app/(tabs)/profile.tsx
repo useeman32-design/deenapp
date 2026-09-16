@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -28,7 +28,7 @@ import {
 } from "@/components/DeenPoints";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 const deenPointsLogo = require("../../../assets/img/deenpoints.png");
-import { useSaved } from "@/lib/savedPosts";
+import { savedRefresh, useSaved } from "@/lib/savedPosts";
 import { useIsGuest } from "@/lib/guest";
 import {
   emitPostDeleted,
@@ -56,6 +56,13 @@ function ProfileInner() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("posts");
   const saved = useSaved().saved;
+  /* pass 88 — the Saved tab re-reads the server every time the tab is focused,
+   * so a bookmark tapped in Home/Community is there without a page reload. */
+  useFocusEffect(
+    useCallback(() => {
+      void savedRefresh();
+    }, []),
+  );
   const [posts, setPosts] = useState<Post[]>([]);
   /* pass 86 — cold start used to sit EMPTY for ~10s until the network list
    * landed (owner: "my profile will be empty… then it will reflect"). The

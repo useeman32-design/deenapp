@@ -567,6 +567,7 @@ export function CommentsModal({
   const [items, setItems] = useState<SampleComment[]>([]);
   const [likedMap, setLikedMap] = useState<Record<number, boolean>>({});
   const [openReplies, setOpenReplies] = useState<Set<number>>(new Set());
+  const [reportedIds, setReportedIds] = useState<Set<number>>(new Set());
   const [draft, setDraft] = useState("");
   /* pass 40 — @DeenLink AI: mentions get an in-thread AI reply (like Grok on X) */
   const [aiTyping, setAiTyping] = useState(false);
@@ -932,8 +933,11 @@ export function CommentsModal({
     setTimeout(() => router.push(`/profile/${handle}`), 140);
   };
 
-  /* pass 83-39 — comment reporting: reason picker → /api/feed/report_comment.php */
-  const [reportedIds, setReportedIds] = useState<Set<number>>(new Set());
+  /* pass 83-39 — comment reporting: reason picker → /api/feed/report_comment.php
+   * pass 88 — the useState MUST stay above the `if (!post) return null`
+   * early return: a hook after it changes the hook count between renders and
+   * React threw #310 (“rendered more hooks…”) the moment comments were opened
+   * — the whole app died on the CrashBoundary screen. */
   const handleReportComment = (c: SampleComment) => {
     const reasons = [
       "Spam or scam",

@@ -16,6 +16,7 @@ import { KaabaIcon } from '@/components/Icons';
 import { QiblaLeaflet } from '@/components/QiblaLeaflet';
 import { QiblaNativeSat } from '@/components/QiblaNativeSat';
 import { haptic } from '@/lib/haptics';
+import { ThemePriceChip, useThemeLocks } from '@/lib/themeLocks';
 import { storage } from '@/lib/storage';
 import { ScrollView } from 'react-native';
 
@@ -37,6 +38,8 @@ export default function Qibla() {
   const [design, setDesign] = useState<QiblaDesign>('classic');
   /* pass 39 — designs live behind a "Change compass" button → modal */
   const [designPicker, setDesignPicker] = useState(false);
+  /* pass 88 — some compass designs cost DeenPoints (api/themes/unlock.php) */
+  const locks = useThemeLocks();
 
   useEffect(() => {
     resolveLocation().then(setLoc);
@@ -49,6 +52,15 @@ export default function Qibla() {
     haptic.selection();
     setDesign(id);
     storage.setItem('dl.qibla.design', id).catch(() => {});
+  };
+  /* pass 88 — paid designs unlock first, then apply */
+  const chooseDesign = async (id: QiblaDesign, label: string) => {
+    if (locks.isLocked('qibla', id)) {
+      const ok = await locks.request('qibla', id, `${label} compass`);
+      if (!ok) return;
+    }
+    pickDesign(id);
+    setDesignPicker(false);
   };
 
   if (!loc) {
@@ -239,7 +251,7 @@ export default function Qibla() {
               </View>
               <View style={{ flex: 1 }}>
                 <T v="h3" style={{ fontWeight: '900', fontSize: 16, color: theme.text }}>Compass style</T>
-                <T v="caption" style={{ fontSize: 10, color: theme.subtext, marginTop: 1 }}>Pick a design — it is saved for next time</T>
+                <T v="caption" style={{ fontSize: 10, color: theme.subtext, marginTop: 1 }}>Pick a design — saved for next time · paid ones unlock with DeenPoints</T>
               </View>
               <Pressable onPress={() => setDesignPicker(false)} hitSlop={10} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: theme.cardSoft, alignItems: 'center', justifyContent: 'center' }}>
                 <FontAwesome5 name="times" size={12} color={theme.subtext} />
@@ -248,19 +260,21 @@ export default function Qibla() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {QIBLA_DESIGNS.map((ds) => {
                 const on = design === ds.id;
+                const locked = locks.isLocked('qibla', ds.id);
                 return (
                   <Pressable
                     key={ds.id}
                     accessibilityLabel={`compass design ${ds.label}`}
-                    onPress={() => { pickDesign(ds.id); setDesignPicker(false); }}
+                    onPress={() => { void chooseDesign(ds.id, ds.label); }}
                     style={{ width: '31%', aspectRatio: 1, borderRadius: 16, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.border, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.05)') : theme.background, alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden' }}
                   >
                     {/* pass 40 — selected chip: faint compass mark behind the label */}
                     {on ? <FontAwesome5 name="compass" size={76} color={isDark ? '#4AE38F' : '#1D6F42'} style={{ position: 'absolute', opacity: 0.14 }} /> : null}
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: ds.dot[0], borderWidth: 2.5, borderColor: ds.dot[1], alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: ds.dot[0], borderWidth: 2.5, borderColor: ds.dot[1], alignItems: 'center', justifyContent: 'center', opacity: locked ? 0.55 : 1 }}>
                       {on ? <FontAwesome5 name="check" size={13} color="#FFFFFF" /> : null}
                     </View>
                     <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: on ? (isDark ? '#4AE38F' : '#1D6F42') : theme.subtext }}>{ds.label}</T>
+                    {locked ? <ThemePriceChip price={locks.priceOf('qibla', ds.id)} compact /> : null}
                   </Pressable>
                 );
               })}

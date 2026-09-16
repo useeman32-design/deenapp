@@ -335,6 +335,11 @@ export async function register(payload: {
    * UI to show the code screen without signing anyone in. */
   const needsVerification = !!(r.data as { needs_verification?: boolean })
     .needs_verification;
+  /* pass 88 — which verification email actually reached the inbox:
+   * 'otp' (a 6-digit code, what the app shows) · 'link' (code mail failed, so a
+   * one-tap link went out instead) · 'none' (nothing could be sent). */
+  const emailDelivery = ((r.data as { email_delivery?: string }).email_delivery ??
+    (needsVerification ? "otp" : "none")) as "otp" | "link" | "none";
   if (r.ok && (r.data.user || needsVerification)) {
     live = true;
     if (r.data.user) await fetchCsrf();
@@ -343,6 +348,7 @@ export async function register(payload: {
       user: r.data.user ?? null,
       demo: false,
       needsVerification,
+      emailDelivery,
     };
   }
   if (r.networkError && FORCE_DEMO)
@@ -2155,41 +2161,70 @@ function uploadForm<T>(
 }
 
 /* pass 83-24 — shrink photos before upload (owner: 4 images froze the app):
- * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error. */
-export async function compressImageForUpload(uri: string): Promise<string> {
+ * longest side ≤1600px, JPEG ~78%. Falls back to the original on any error.
+ *
+ * pass 88 — WEB NEVER TOUCHES expo-image-manipulator. The module lives in a
+ * lazily-loaded Metro chunk; `await import()` of it from the WEB build throws
+ * "Requiring unknown module" (Metro reports it through ErrorUtils BEFORE our
+ * catch can run), which is exactly the “DeenLink hit a problem” screen the owner
+ * got when attaching a photo — and the second attempt worked because the module
+ * had meanwhile registered. Canvas does the same job with no import at all. */
+async function webShrinkImage(uri: string): Promise<string> {
   try {
-    const IM = await import("expo-image-manipulator");
-    const info = await (
-      IM as {
-        getImageInfoAsync?: (
-          u: string,
-        ) => Promise<{ width: number; height: number }>;
-      }
-    )
-      .getImageInfoAsync?.(uri)
-      .catch(() => null);
-    /* pass 83-36 — owner: ~2s UI freeze when posting images. On WEB the
-     * manipulator re-encodes on the MAIN THREAD (canvas) — for images that
-     * don't need resizing the re-encode is pure jank, so skip it. Native
-     * keeps compressing (off-thread, saves real upload bytes). */
-    const small = info ? Math.max(info.width, info.height) <= 1600 : false;
-    if (typeof window !== "undefined" && small && uri.startsWith("blob:"))
-      return uri;
+    if (typeof document === "undefined") return uri;
+    const blob = await fetch(uri).then((r) => r.blob());
+    if (blob.size <= 350 * 1024) return uri; /* already small — no re-encode */
+    const bmp = await createImageBitmap(blob).catch(() => null);
+    if (!bmp) return uri;
+    const longest = Math.max(bmp.width, bmp.height);
+    const scale = longest > 1600 ? 1600 / longest : 1;
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { bmp.close?.(); return uri; }
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close?.();
+    const out: Blob | null = await new Promise((res) =>
+      canvas.toBlob((b) => res(b), "image/jpeg", 0.78),
+    );
+    if (!out || typeof URL === "undefined" || !URL.createObjectURL) return uri;
+    return URL.createObjectURL(out);
+  } catch {
+    return uri;
+  }
+}
+
+export async function compressImageForUpload(uri: string): Promise<string> {
+  if (typeof window !== "undefined") return webShrinkImage(uri);
+  try {
+    const IM = (await import("expo-image-manipulator").catch(() => null)) as {
+      getImageInfoAsync?: (u: string) => Promise<{ width: number; height: number }>;
+      manipulateAsync: (
+        uri: string,
+        actions: Array<{ resize: { width?: number; height?: number } }>,
+        opts: { compress: number; format: unknown },
+      ) => Promise<{ uri: string }>;
+      SaveFormat: { JPEG: unknown };
+    } | null;
+    if (!IM) return uri;
+    const info = await IM.getImageInfoAsync?.(uri).catch(() => null);
     const tooBig = info ? Math.max(info.width, info.height) > 1600 : true;
-    const actions = tooBig
-      ? [
-          {
-            resize:
-              info && info.width >= info.height
-                ? { width: 1600 }
-                : { height: 1600 },
-          },
-        ]
-      : [];
-    const res = await IM.manipulateAsync(uri, actions, {
-      compress: 0.78,
-      format: IM.SaveFormat.JPEG,
-    });
+    if (!tooBig) return uri;
+    const res = await IM.manipulateAsync(
+      uri,
+      [
+        {
+          resize:
+            info && info.width >= info.height
+              ? { width: 1600 }
+              : { height: 1600 },
+        },
+      ],
+      { compress: 0.78, format: IM.SaveFormat.JPEG },
+    );
     return res.uri || uri;
   } catch {
     return uri;
@@ -2740,6 +2775,62 @@ export async function quranReciters(): Promise<{
   return null;
 }
 
+/* ─────────────── pass 88 — PREMIUM LOOKS (mushaf page themes + compass designs)
+ * One catalogue of prices + the buyer's unlock set, and one purchase call. The
+ * server (api/themes/*.php) holds the ledger, so a theme bought on the phone is
+ * already owned on the web. price 0 → free, never needs the unlock call. */
+export type ThemeCatalogue = Record<
+  string,
+  Record<string, { label?: string; price?: number }>
+>;
+export type ThemeUnlocks = Record<string, string[]>;
+
+export async function themesList(): Promise<{
+  catalogue: ThemeCatalogue | null;
+  unlocked: ThemeUnlocks;
+} | null> {
+  const r = await request<{
+    status?: string;
+    catalogue?: ThemeCatalogue;
+    unlocked?: ThemeUnlocks;
+  }>("/api/themes/list.php", { auth: true });
+  if (!r.ok || r.data.status !== "success") return null;
+  return {
+    catalogue: r.data.catalogue ?? null,
+    unlocked: r.data.unlocked ?? {},
+  };
+}
+
+export async function themeUnlock(
+  kind: string,
+  key: string,
+): Promise<{ ok: boolean; balance?: number; message?: string; unlocked?: ThemeUnlocks }> {
+  const r = await request<{
+    status?: string;
+    message?: string;
+    new_balance?: number;
+    unlocked?: ThemeUnlocks;
+  }>("/api/themes/unlock.php", {
+    method: "POST",
+    body: { kind, key },
+    auth: true,
+  });
+  if (r.ok && r.data.status === "success") {
+    const bal = Number(r.data.new_balance ?? NaN);
+    return {
+      ok: true,
+      balance: Number.isFinite(bal) ? bal : undefined,
+      message: r.data.message,
+      unlocked: r.data.unlocked,
+    };
+  }
+  return {
+    ok: false,
+    message: r.data.message ?? "Could not unlock this look",
+    unlocked: r.data.unlocked,
+  };
+}
+
 export async function quranUnlockReciter(
   reciterKey: string,
 ): Promise<{ ok: boolean; balance?: number; message?: string }> {
@@ -3182,17 +3273,22 @@ export async function sendOtp(email: string): Promise<{
   message?: string;
   already?: boolean;
   networkError?: boolean;
+  /* pass 88 — 'otp' | 'link' | 'none': how the code actually reached the user */
+  delivery: "otp" | "link" | "none";
 }> {
   const r = await request<{
     status?: string;
     message?: string;
     already?: boolean;
+    delivery?: string;
   }>("/api/auth/send_otp.php", { body: { email } });
+  const d = (r.data.delivery ?? "otp") as "otp" | "link" | "none";
   return {
     ok: r.ok,
     message: r.data.message,
     already: !!r.data.already,
     networkError: r.networkError,
+    delivery: r.ok ? d : "none",
   };
 }
 /** Poll whether an email has been verified (via OTP or the email link). */
@@ -3312,7 +3408,12 @@ export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>(
     "/api/campaigns/list.php",
   );
-  if (r.ok && Array.isArray(r.data.campaigns))
+  /* pass 88 — owner: “campaigns banners disappear on the home screen — they
+   * show, then vanish.” The home strip renders the BUNDLED campaigns first and
+   * swaps in the admin list when it arrives; an admin list that is EMPTY was
+   * treated as real data, so the swap wiped every banner. Empty means “nothing
+   * configured yet” → keep the bundled rail (same rule as learningSections). */
+  if (r.ok && Array.isArray(r.data.campaigns) && r.data.campaigns.length)
     return r.data.campaigns.map((campaign) => ({
       ...campaign,
       imageUrl: campaign.imageUrl
