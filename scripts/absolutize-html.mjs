@@ -16,6 +16,8 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dist = process.argv[2] || 'dist';
+/* prefix for this flavor: '' for the cPanel root, '/deenapp' for GitHub Pages */
+const PREFIX = (process.argv[3] || '').replace(/\/+$/, '');
 const walk = (d, out = []) => {
   for (const f of readdirSync(d)) {
     const p = join(d, f);
@@ -31,12 +33,12 @@ for (const f of walk(dist)) {
   const before = readFileSync(f, 'utf8');
   let s = before;
   /* "./_expo/…", "./assets/…", "./manifest.json" … → "/_expo/…", "/assets/…" */
-  s = s.replace(/(src|href)="\.\/+/g, '$1="/');
+  s = s.replace(/(src|href)="\.\/+/g, `$1="${PREFIX}/`);
   /* the export also emits root-relative-less refs like href="manifest.json" */
-  s = s.replace(/(src|href)="(manifest\.json|favicon\.ico)"/g, '$1="/$2"');
+  s = s.replace(/(src|href)="(manifest\.json|favicon\.ico)"/g, `$1="${PREFIX}/$2"`);
   if (s !== before) {
     writeFileSync(f, s);
     changed++;
   }
 }
-console.log(`ABSOLUTE-PASS OK — ${changed} html file(s) now reference /_expo and /assets absolutely`);
+console.log(`ABSOLUTE-PASS OK — ${changed} html file(s) now reference ${PREFIX || ''}/_expo and ${PREFIX || ''}/assets absolutely`);

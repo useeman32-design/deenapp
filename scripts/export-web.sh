@@ -41,6 +41,10 @@ find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*
 node -e "const{readFileSync,writeFileSync}=require('node:fs');let m=readFileSync('dist/manifest.json','utf8');m=m.split('\"start_url\": \"/\"').join('\"start_url\": \"/deenapp/\"').split('\"scope\": \"/\"').join('\"scope\": \"/deenapp/\"').split('\"/icons/').join('\"/deenapp/icons/');writeFileSync('dist/manifest.json',m);let h=readFileSync('dist/index.html','utf8');if(!h.includes('rel=\"manifest\"')){h=h.replace('</head>','<link rel=\"manifest\" href=\"/deenapp/manifest.json\"/></head>');writeFileSync('dist/index.html',h);console.log('gh manifest rewritten+injected');}"
 
 # SPA fallback for GitHub Pages deep links.
+# pass 88 — deep links under the subpath broke the same way as at the root
+# (/deenapp/tools/courses.html resolving ./_expo → /deenapp/tools/_expo → 404 →
+# blank page), so the exported pages get the flavour's own absolute prefix.
+node scripts/absolutize-html.mjs dist "${BASE:-/deenapp}"
 cp dist/index.html dist/404.html
 
 # GitHub Pages runs Jekyll, which drops folders starting with "_" (_expo/ holds the JS).
