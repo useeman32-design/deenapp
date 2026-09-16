@@ -1,3 +1,26 @@
+# ══ 2026-09-16 — PASS 88 SHIPPED TO REPOS (owner's app.deenlink.org pull is the ONLY blocker) ══ READ FIRST ══
+# STATE: read CONTINUE.md → "## Pass 88" for everything shipped, verified and open.
+#
+# FAST MODE (owner complained an agent took 8 hours — do not repeat that):
+#  • Everything below is ALREADY DONE and verified. Do not re-audit it.
+#  • Repos have no .git here: clone with the token into a PERSISTED dir
+#    (/home/user/deploy), copy ONLY your changed files, `git diff --cached --diff-filter=D`
+#    must print 0, commit as DeenLink Dev <dev@deenlink.org>, push.
+#    deenapp default branch = master (NOT main). deenlink-api default = main.
+#  • Order: npm ci (node_modules is never persisted) → tsc → php -l (binary /home/user/tools/php,
+#    chmod +x it and the scripts) → bash scripts/export-raw.sh (expect ABSOLUTE-PASS OK +
+#    CHECK-RAW OK) → cp -a deenapp/dist/. deploy/deenlink-api/ → commit+push → bash scripts/
+#    export-web.sh → git worktree add gh-pages → cp -a dist (NEVER --delete, no CNAME) → push →
+#    deenapp push → eas build (start_process, it outlives tool calls; bash jobs do NOT) → curl verify.
+#  • Verify server logic by RUNNING it: scripts/local-test-rig/README.md has the 6-line MariaDB
+#    bootstrap + the CSRF/login curl harness. Three production bugs were only visible that way.
+#  • Live truth right now: gh-pages = entry-28b2e494 (pass 88, deep links 200). app.deenlink.org =
+#    entry-61aaf421 (pass 87b) → still needs cPanel *Update from Remote* + *Deploy HEAD commit*.
+#  • Owner tokens (rotate at session end; never commit them): see the session notes / this repo's
+#    private channel. EXPO_TOKEN must be exported in the same call as any eas/git command.
+#
+# NEXT AGENT: items 1-4 at the bottom of the Pass 88 section in CONTINUE.md are the whole job.
+
 # ══ 2026-09-13 — PASS 83-40 START: SHOP/ADMIN CONTROL AUDIT + FIRST FIXES ══
 # OWNER SCOPE: shop server error, affiliate product control, NGN order display, Quran reciter
 # locking/offline feasibility, fully editable learning/admin modules, cleanup reliability, uniform
