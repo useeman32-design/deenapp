@@ -2359,6 +2359,20 @@ gh-pages `511ad96` → `6358190` → `76a5eb5` (live, entry-28b2e494, deep-link 
 • `git add -A` in these repos after a snapshot truncation records phantom DELETIONS; always `git diff --cached --diff-filter=D --name-only | wc -l` before committing (0 every time this pass).
 • Hand-authoring course prose as PHP arrays is a dead end (apostrophes); content is JSON in `api/admin/courses/data/`.
 
+### Measured space discipline (verified 2026-09-16, don't argue with these numbers)
+Persisted workspace with everything pruned = **90 MB**: `deenapp` 49 MB (src 6, assets 32, public 11)
++ `deenlink-api` 41 MB + `tools` 12 KB. One `npm ci` puts it at **951 MB** (`node_modules` 651 MB
+plus the `~/.npm` cache) and a web export adds `deenapp/dist`. `node_modules`, `dist`, `.cache`,
+`.npm`, `.venv`, `build`, `out`, `target` are EXCLUDED from snapshots (they don't persist), but if the
+owner's meter counts the disk, prune at the end of a session:
+`rm -rf deenapp/node_modules deenapp/dist deenapp/.npm deenapp/.cache .npm .cache deploy`
+Verified harmless: from that pruned state `npm ci` (30 s) + `tsc --noEmit` is CLEAN, and
+`scripts/unpack-content.mjs` did NOT re-download the 17 MB content pack because `assets/content/`
+was still present — so never delete `assets/content/`, only the optional zip next to it.
+Re-clone `/home/user/deploy/*` is on demand (ship.sh does it), and PHP comes from
+`apt-get install -y -qq php8.4-cli`. Anything else you delete here is either tracked in GitHub
+(recoverable) or a cache (regenerable) — nothing outside these two repos is load-bearing.
+
 ### The 128 MB budget — what was deleted on 2026-09-16 (200 MB → 74 MB) and why it is safe
 * `tools/php` + `tools/php.tar.gz` (32 MB): the workspace no longer carries a PHP binary. `sudo
   apt-get update -qq && sudo apt-get install -y -qq php8.4-cli` takes ~10 s, installs to /usr/bin
