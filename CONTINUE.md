@@ -2359,6 +2359,23 @@ gh-pages `511ad96` → `6358190` → `76a5eb5` (live, entry-28b2e494, deep-link 
 • `git add -A` in these repos after a snapshot truncation records phantom DELETIONS; always `git diff --cached --diff-filter=D --name-only | wc -l` before committing (0 every time this pass).
 • Hand-authoring course prose as PHP arrays is a dead end (apostrophes); content is JSON in `api/admin/courses/data/`.
 
+### The 128 MB budget — what was deleted on 2026-09-16 (200 MB → 74 MB) and why it is safe
+* `tools/php` + `tools/php.tar.gz` (32 MB): the workspace no longer carries a PHP binary. `sudo
+  apt-get update -qq && sudo apt-get install -y -qq php8.4-cli` takes ~10 s, installs to /usr/bin
+  (outside the workspace) and re-runs after every sandbox rebuild. `scripts/ship.sh` now does this
+  itself when `php` is missing. Verified with it: **467 API files linted, 0 failures**.
+* `deenapp/assets/content.zip` (16 MB) and `deenapp/avatar.zip` (5.6 MB): `assets/content/` (4.5 MB,
+  the files the bundler actually reads) stays. `scripts/unpack-content.mjs` short-circuits when the
+  pack is present and otherwise DOWNLOADS it, so fresh clones are unaffected. avatar.zip remains in
+  the deenapp repo (tracked).
+* `deenlink-api/deenapp/` (37 MB): the legacy `/deenapp/` subpath export inside the docroot tree —
+  a local copy of tracked files, still on GitHub, still deployed on the host. Deleted locally only.
+* `/home/user/deploy` (35 MB) and `image-search/`: `.git` never survives a sandbox rebuild, so those
+  clones were worthless between turns — `ship.sh` re-clones on demand.
+* Standing rule: keep `deenapp/{src,assets,scripts,public}`, `deenlink-api/{api,admin}`,
+  `tools/seedtest`. Never persist clones, `node_modules`, `dist`, `*.zip` packs, or toolchains.
+* `deenapp/CONTINUE.md` itself is ~0.3 MB and is the price of not re-deriving a pass; keep appending.
+
 ### Ship it in one command (pass 88 follow-up)
 `bash scripts/ship.sh --check` runs the gates (npm ci → `tsc --noEmit` → `php -l` over every
 PHP file in the API repo). Verified: 467 files linted, 0 failures, typecheck clean.

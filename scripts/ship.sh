@@ -26,7 +26,9 @@ esac; done
 if [ "$CHECK" != 1 ]; then [ -n "${GH_TOKEN:-}" ] || { echo "GH_TOKEN is required (never stored in the repo)" >&2; exit 2; }; fi
 say(){ printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 fail(){ printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
-PHP=${PHP_BIN:-$(command -v php || echo "$HOME/tools/php")}
+PHP=${PHP_BIN:-$(command -v php || command -v php8.4 || echo "")}
+[ -n "$PHP" ] || { sudo apt-get update -qq >/dev/null 2>&1; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq php8.4-cli >/dev/null 2>&1; PHP=$(command -v php8.4 || command -v php); }
+[ -n "$PHP" ] || fail "no php — apt install php8.4-cli failed, set PHP_BIN=…"
 [ -x "$PHP" ] || { [ -f "$PHP" ] && chmod +x "$PHP" 2>/dev/null; } || fail "no usable php binary (set PHP_BIN=…)"
 
 say "0/6 npm ci (node_modules is not persisted between sandboxes)"

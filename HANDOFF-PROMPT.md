@@ -1,4 +1,6 @@
 # ══ 2026-09-16 — PASS 88 SHIPPED TO REPOS (owner's app.deenlink.org pull is the ONLY blocker) ══ READ FIRST ══
+# PHP: never persist a php binary — `sudo apt-get update -qq && sudo apt-get install -y -qq php8.4-cli` (~10 s); ship.sh self-installs it.
+# BUDGET 128 MB: no clones/deploy, no node_modules, no dist, no *.zip packs → see CONTINUE.md “The 128 MB budget”.
 # SHIP WITH: bash scripts/ship.sh --check   (gates)   |   GH_TOKEN=… EXPO_TOKEN=… bash scripts/ship.sh -m "pass NN: …" --eas
 # LIVE NOW: both hosts serve entry-28b2e494 (pass 88); the ONLY open production action is admin → Course Tests → Fill catalogue.
 # STATE: read CONTINUE.md → "## Pass 88" for everything shipped, verified and open.
