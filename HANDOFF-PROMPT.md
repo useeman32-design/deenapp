@@ -1,4 +1,6 @@
 # ══ 2026-09-16 — PASS 88 SHIPPED TO REPOS (owner's app.deenlink.org pull is the ONLY blocker) ══ READ FIRST ══
+# SHIP WITH: bash scripts/ship.sh --check   (gates)   |   GH_TOKEN=… EXPO_TOKEN=… bash scripts/ship.sh -m "pass NN: …" --eas
+# LIVE NOW: both hosts serve entry-28b2e494 (pass 88); the ONLY open production action is admin → Course Tests → Fill catalogue.
 # STATE: read CONTINUE.md → "## Pass 88" for everything shipped, verified and open.
 #
 # FAST MODE (owner complained an agent took 8 hours — do not repeat that):

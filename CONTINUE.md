@@ -2343,9 +2343,9 @@ deenlink-api@main `9e482c1` (themes endpoints + seeder + quiz parity + raw bundl
 gh-pages `511ad96` → `6358190` → `76a5eb5` (live, entry-28b2e494, deep-link refs absolute).
 
 ### OPEN — the only things left
-1. **app.deenlink.org has NOT pulled pass 88.** Verified just now: it still serves `entry-61aaf421…js` (pass 87b) and `/api/themes/list.php` returns the SPA fallback HTML. Per `DEENLINK-SETUP-PLAN.md` Part 4 there is no webhook: cPanel → Git Version Control → `deenlink-api` → *Update from Remote* → *Deploy HEAD commit* (or the documented cron). After the pull, verify:
-   `curl -s https://app.deenlink.org/ | grep -o 'entry-[a-f0-9]*' | head -1` (expect 28b2e494) and `curl -s https://app.deenlink.org/api/themes/list.php | head -c 120` (expect JSON, not HTML).
+1. ~~cPanel pull~~ **DONE AND VERIFIED LIVE** (2026-09-16): `https://app.deenlink.org/` serves `entry-28b2e494…js` — the same hash gh-pages has — `/api/themes/list.php` now returns real JSON (`{"status":"success","catalogue":{"mushaf":…`), `/api/admin/courses/seed_pass88.php` answers `403 {"status":"error","message":"CSRF validation failed"}` (endpoint present, auth intact) and the live `admin/course-quizzes.html` contains the two-stage Fill code. No webhook exists; the owner pulled manually.
 2. **Run the seeder once on production**: admin → Course Tests → *Fill catalogue*. Idempotent; ~1 s per 47 courses on the rig. Then spot-check a course in the app.
+2b. **State of the live catalogue right now** (so nobody re-derives it): `api/courses/list.php?limit=100` → 47 courses, min 3 lessons, **41 still under 10**, and `api/courses/quiz.php?course_id=2|3|8` → `questions: []`. That is expected: the content upgrade only lands when *Fill catalogue* is clicked (or the seeder POSTed with an admin session). Nothing else is missing.
 3. **EAS**: `1e3e2d8a` FINISHED → `https://expo.dev/artifacts/eas/H3b-F0ecrb2bCdeBBAslYa3iAH-uPhL9IhdVqC5a6B8.aab`; `be2098cc` was IN_QUEUE at handoff (adds the campaign-rail change) — take the newer AAB, and delete old builds if storage pressure appears (`eas build:list --json`, `eas build:delete`).
 4. Nothing was ever committed with a token in it; the owner's GH/Expo tokens still work at handoff — **rotate them when the session ends**.
 
@@ -2358,3 +2358,13 @@ gh-pages `511ad96` → `6358190` → `76a5eb5` (live, entry-28b2e494, deep-link 
 • `src/lib/lazy.ts` was deleted (dead code) — do not resurrect it.
 • `git add -A` in these repos after a snapshot truncation records phantom DELETIONS; always `git diff --cached --diff-filter=D --name-only | wc -l` before committing (0 every time this pass).
 • Hand-authoring course prose as PHP arrays is a dead end (apostrophes); content is JSON in `api/admin/courses/data/`.
+
+### Ship it in one command (pass 88 follow-up)
+`bash scripts/ship.sh --check` runs the gates (npm ci → `tsc --noEmit` → `php -l` over every
+PHP file in the API repo). Verified: 467 files linted, 0 failures, typecheck clean.
+`GH_TOKEN=… EXPO_TOKEN=… bash scripts/ship.sh -m "pass NN: …" [--eas] [--api-only|--app-only]`
+runs the whole verified order: both exports with their CHECK-RAW gate, re-clones into
+`$DEPLOY` when the sandbox wiped `.git`, refuses any commit containing deletions
+(merge-never-prune), overlays gh-pages without `--delete` and removes CNAME, then curls
+both hosts and compares the entry hash and the deep-link page. Use it instead of
+re-deriving the sequence; it exists because pass 88 burned hours on exactly that.
