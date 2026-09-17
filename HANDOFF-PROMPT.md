@@ -2,7 +2,8 @@
 # PHP: never persist a php binary — `sudo apt-get update -qq && sudo apt-get install -y -qq php8.4-cli` (~10 s); ship.sh self-installs it.
 # BUDGET 128 MB: no clones/deploy, no node_modules, no dist, no *.zip packs → see CONTINUE.md “The 128 MB budget”.
 # SHIP WITH: bash scripts/ship.sh --check   (gates)   |   GH_TOKEN=… EXPO_TOKEN=… bash scripts/ship.sh -m "pass NN: …" --eas
-# LIVE NOW: both hosts serve entry-28b2e494 (pass 88); the ONLY open production action is admin → Course Tests → Fill catalogue.
+# LIVE NOW: both hosts serve entry-28b2e494 (pass 88). AAB: https://expo.dev/artifacts/eas/8jdrSQ06yw4d6v4bGnvgdLD8rE21uIsGc8VNdJCvjeo.aab (be2098cc, commit f4b893d, finished).
+# ONLY open production action: admin → Course Tests → Fill catalogue (then re-check quiz.php?course_id=2 → 20 questions).
 # STATE: read CONTINUE.md → "## Pass 88" for everything shipped, verified and open.
 #
 # FAST MODE (owner complained an agent took 8 hours — do not repeat that):

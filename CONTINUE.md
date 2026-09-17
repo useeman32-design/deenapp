@@ -2376,6 +2376,27 @@ gh-pages `511ad96` → `6358190` → `76a5eb5` (live, entry-28b2e494, deep-link 
   `tools/seedtest`. Never persist clones, `node_modules`, `dist`, `*.zip` packs, or toolchains.
 * `deenapp/CONTINUE.md` itself is ~0.3 MB and is the price of not re-deriving a pass; keep appending.
 
+### Launch artefact + live audit (2026-09-16, end of pass 88)
+**AAB ready to upload:** `https://expo.dev/artifacts/eas/8jdrSQ06yw4d6v4bGnvgdLD8rE21uIsGc8VNdJCvjeo.aab`
+— build `be2098cc`, status FINISHED, commit `f4b893d` (all of pass 88 **including** the
+campaign-rail change), version 0.1.0 / versionCode 1, profile production, distribution store.
+Expo queued it 13:56 → 14:50, so budget ~15–55 min per build. `eas build:list` needs the project's
+`node_modules` present (run `npm ci` first) and there is no `eas` bin in the project — use
+`npx --yes eas-cli@latest`. `--json` prints a bare ARRAY (not `{records}`) followed by npm noise,
+so parse with `json.JSONDecoder().raw_decode(raw[raw.find('['):])`.
+
+Live audit of the shipped host, executed rather than assumed (47 courses, `ThreadPoolExecutor`, 2 s):
+* `/api/courses/get.php?slug=…` → **success for all 47**, and no lesson body under 40 chars.
+* `/api/courses/quiz.php?course_id=…` → 2 courses return **21** questions (`purification-fitrah`,
+  `dua-and-dhikr`, leftovers of the pass-87 seed; the app shows the first 20) and the 7 slugs I
+  authored return **0** — because the production *Fill catalogue* has not been clicked yet
+  (`list.php` still reports 41 courses under 10 lessons). Both self-heal on that one click:
+  seed_pass88 skips banks ≥ 10 questions and never deletes, and upserts the rest.
+* `cover_image_url` is empty on 47/47 — harmless: the app never renders a course cover (grep for
+  `cover_image_url` in `src/` returns only the type declaration). Same for `estimated_duration`
+  (7 empty, and no app code reads it). **Do not "fix" either** — they are not defects, and the
+  admin can fill them whenever he wants artwork.
+
 ### Ship it in one command (pass 88 follow-up)
 `bash scripts/ship.sh --check` runs the gates (npm ci → `tsc --noEmit` → `php -l` over every
 PHP file in the API repo). Verified: 467 files linted, 0 failures, typecheck clean.
