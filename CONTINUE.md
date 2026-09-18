@@ -2610,3 +2610,15 @@ EAS production Android build **`e07b60ca-d94b-4ebe-a6a7-fa5bdff85231`** (submitt
 fixes: every social write under `feed/`, `groups/`, `videos/`, `questions/` and `users/toggle_follow` +
 `users/daily_checkin` now calls a moderation guard, while reports, profile/security/avatar/email edits,
 shop purchases, view counters and a user's own question bookkeeping stay open to a suspended account.
+
+**Pass 90 artifacts (confirmed, not assumed).** EAS production Android build `e07b60ca-d94b-4ebe-a6a7-fa5bdff85231`
+**FINISHED** → AAB `https://expo.dev/artifacts/eas/gJ1ZsvVwS258GWUI0Xq8bE7WoIw8pVlMP5faZPoCbgs.aab`
+(v0.1.0 / code 1) — built from `deenapp@master eaf0266`, so it contains all ten fixes but not the two
+follow-up commits (`f162f77` scholar-re-apply 409 handling, `7a85a4e` untrack the temporary
+`node_modules` symlink the EAS helper had added — that symlink is why `.gitignore` now lists
+`node_modules` without a trailing slash). The pass-89 build `020edd7f-028c-44d5-9681-a8724c0c7946` is
+also confirmed FINISHED (AAB `…/gfeDarq59zqR_vgDJYYZAsUKZ7232jwi4RRfE280SYY.aab`), which closes the
+"finish status never checked" note from earlier passes.
+**Web:** gh-pages `d96cb8f` → live `entry-9fe8b206d514f9d4d09ab4fbc77cf7a1.js` (deep link HTTP 200);
+`deenlink-api@main d58654a` carries the matching raw export for the app.deenlink.org root, and app.deenlink.org
+only serves it after the owner runs cPanel → Git → Update from Remote → Deploy HEAD.
