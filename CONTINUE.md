@@ -2601,3 +2601,12 @@ notices are now written after the commit, best-effort.
 **Still waiting on the owner:** R2 account id / bucket / public dev URL / access key + secret for the
 media CDN (new uploads only, existing rows untouched); cPanel → Git → Update from Remote → Deploy HEAD;
 Admin → Course Tests → "Professional 10" Fill; a new EAS build is required for these JS changes (no OTA).
+
+**Pass 90 ship record:** `deenlink-api@main 115a167` · `deenapp@master eaf0266` ·
+`deenapp@gh-pages b89f99f` (gh-pages live with `entry-af00ba7e25cf36310ea13f6d2e0322fd.js`; app.deenlink.org
+still serves the pass-89 entry until the owner runs cPanel → Git → Update from Remote → Deploy HEAD).
+EAS production Android build **`e07b60ca-d94b-4ebe-a6a7-fa5bdff85231`** (submitted from
+`/home/user/deploy/deenapp--master`; log `/tmp/eas-pass90.log`). Guard inventory was audited after the
+fixes: every social write under `feed/`, `groups/`, `videos/`, `questions/` and `users/toggle_follow` +
+`users/daily_checkin` now calls a moderation guard, while reports, profile/security/avatar/email edits,
+shop purchases, view counters and a user's own question bookkeeping stay open to a suspended account.
