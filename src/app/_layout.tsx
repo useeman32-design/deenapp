@@ -17,6 +17,7 @@ import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
 import { initGuest } from '@/lib/guest';
+import { installWebAssetBase } from '@/lib/assetUri';
 
 initGuest(); // pass 80 — restore guest flag once per app load
 
@@ -183,6 +184,9 @@ useEffect(() => {
     </SplashGate>
   );
 }
+
+/* pass 93 — runs once, before anything renders, so nested routes resolve local assets */
+installWebAssetBase();
 
 export default function RootLayout() {
   return (

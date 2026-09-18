@@ -82,6 +82,10 @@ const YEARS: Array<{ label: string; n: number }> = [
 ];
 const usernameValid = (u: string) => /^[a-z0-9._]{3,20}$/i.test(u);
 
+/** pass 93 — a picked document: the web File (when there is one) or a native
+ *  uri, plus the name and mime the picker reported. */
+export type ProofDoc = { name: string; uri?: string; file?: unknown; mimeType?: string };
+
 /** The symbol set the server accepts (api/lib/password_policy.php). */
 export const DL_PW_SPECIAL =
   /[-!@#$%^&*()_+=|{}[\]:;"'<>,.?/~`\\]/;
@@ -365,8 +369,8 @@ export default function Register() {
   const [years, setYears] = useState<{ label: string; n: number } | null>(null);
   const [teachers, setTeachers] = useState('');
   const [proofName, setProofName] = useState<string | null>(null);
-  const [proofFile, setProofFile] = useState<{ uri: string; name: string } | null>(null);
-  const [letterFile, setLetterFile] = useState<{ uri: string; name: string } | null>(null);
+  const [proofFile, setProofFile] = useState<ProofDoc | null>(null);
+  const [letterFile, setLetterFile] = useState<ProofDoc | null>(null);
   const [letterName, setLetterName] = useState<string | null>(null);
   /* pass 90 — owner: "remove the dawah platforms from there, links to dawah
    * platforms are not required" and "proof of qualification or a
@@ -379,19 +383,7 @@ export default function Register() {
   /* pass 91 — the one-shot scholar sign-up keeps ITS payload here for the
    * documented retry path (account already exists → attach documents to it
    * after the code is verified, when a session finally exists). */
-  const scholarRetry = useRef<{
-    display_name: string;
-    phone?: string;
-    fields: string[];
-    other_field?: string;
-    madhhab?: string;
-    institute?: string;
-    years?: number;
-    teachers?: string;
-    aqeedah?: string;
-    proof?: { uri: string; name: string } | null;
-    letter?: { uri: string; name: string } | null;
-  } | null>(null);
+  const scholarRetry = useRef<Parameters<typeof scholarApply>[0] | null>(null);
   const [agree, setAgree] = useState(false);
 
   const nigeria = country === 'Nigeria';
@@ -428,13 +420,20 @@ export default function Register() {
       if (Platform.OS === 'web') {
         /* pass 83-2 — web uses a plain file input; never load the native picker */
         const { pickWebFile } = require('@/lib/webfile');
-        const f = await pickWebFile('image/*');
+        const f = (await pickWebFile('image/*')) as File | null;
         if (!f) return;
         haptic.success();
-        const nm = f.name.slice(0, 40);
-        const uri = (f as any).uri || (f as any).dataUrl || '';
-        if (which === 'proof') { setProofName(nm); setProofFile(uri ? { uri, name: 'proof.jpg' } : null); }
-        else { setLetterName(nm); setLetterFile(uri ? { uri, name: 'letter.jpg' } : null); }
+        /* pass 93 — owner: "i uploaded both its not working even with one" and
+         * the server answered "Please provide at least one method of
+         * verification". A DOM File has NEITHER `.uri` NOR `.dataUrl`, so the
+         * old code stored the NAME and dropped the file itself: the chip showed
+         * "uploaded", the request carried no attachment, and the server quite
+         * correctly said no document arrived. The File object is kept and is
+         * what gets appended to the multipart body. */
+        const nm = String(f.name || 'document.jpg').slice(0, 40);
+        const doc: ProofDoc = { file: f, name: String(f.name || 'document.jpg') };
+        if (which === 'proof') { setProofName(nm); setProofFile(doc); }
+        else { setLetterName(nm); setLetterFile(doc); }
         return;
       }
       const { launchImageLibraryAsync } = await import('expo-image-picker');
@@ -443,8 +442,8 @@ export default function Register() {
       if (!asset) return;
       haptic.success();
       const nm = (asset.fileName ?? 'document.jpg').slice(0, 40);
-      if (which === 'proof') { setProofName(nm); setProofFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'proof.jpg' } : null); }
-      else { setLetterName(nm); setLetterFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'letter.jpg' } : null); }
+      if (which === 'proof') { setProofName(nm); setProofFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'proof.jpg', mimeType: asset.mimeType ?? undefined } : null); }
+      else { setLetterName(nm); setLetterFile(asset.uri ? { uri: asset.uri, name: asset.fileName ?? 'letter.jpg', mimeType: asset.mimeType ?? undefined } : null); }
     } catch {
       setError('Could not open the file picker');
     }

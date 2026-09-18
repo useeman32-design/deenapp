@@ -1854,24 +1854,47 @@ function mimeOfFile(name: string): string {
   return "image/jpeg";
 }
 
+export type ProofDoc = {
+  name: string;
+  uri?: string;
+  /** the DOM File from the web picker (a File has no .uri — pass it through) */
+  file?: unknown;
+  mimeType?: string;
+};
+
+/** Append one picked document to a multipart body. Returns false when nothing
+ *  could be attached, so the caller can say WHICH document failed instead of
+ *  letting the server answer "no verification provided". */
 async function attachDoc(
   form: FormData,
   field: string,
-  doc: { uri: string; name: string },
-): Promise<void> {
+  doc: ProofDoc,
+): Promise<boolean> {
   const name = doc.name || `${field}.jpg`;
-  const type = mimeOfFile(name);
+  const type = doc.mimeType || mimeOfFile(name);
+
+  /* pass 93 — on web the picker hands back a real File: append THAT. The old
+   * code fetched a `.uri` that a File does not have, so the attachment was
+   * silently dropped (owner: "i uploaded both its not working even with one"). */
+  const asFile = doc.file as
+    | (Blob & { name?: string })
+    | undefined;
+  if (asFile && typeof Blob !== "undefined" && asFile instanceof Blob) {
+    form.append(field, asFile, name);
+    return true;
+  }
+  if (!doc.uri) return false;
   if (Platform.OS === "web") {
-    /* on web a picked file is a blob: URL — FormData wants a real File */
     try {
       const blob = await fetch(doc.uri).then((r) => r.blob());
       form.append(field, new File([blob], name, { type }));
+      return true;
     } catch {
-      /* blob expired (page reloaded) — drop it; the server will say what is missing */
+      return false;
     }
-    return;
   }
   form.append(field, { uri: doc.uri, name, type } as unknown as Blob);
+  return true;
 }
 
 /**
@@ -1907,8 +1930,8 @@ export async function registerScholar(payload: {
   institute?: string;
   years?: number;
   teachers?: string;
-  proof?: { uri: string; name: string } | null;
-  letter?: { uri: string; name: string } | null;
+  proof?: ProofDoc | null;
+  letter?: ProofDoc | null;
 }): Promise<{
   ok: boolean;
   message?: string;
@@ -1942,8 +1965,8 @@ export async function registerScholar(payload: {
   put("teachers", payload.teachers);
   /* the endpoint wants the literal string "1" (it compares === '1') */
   form.append("agree_terms", "1");
-  if (payload.proof?.uri) await attachDoc(form, "certificate", payload.proof);
-  if (payload.letter?.uri) await attachDoc(form, "recommendation", payload.letter);
+  const attachedProof = payload.proof ? await attachDoc(form, "certificate", payload.proof) : false;
+  const attachedLetter = payload.letter ? await attachDoc(form, "recommendation", payload.letter) : false;
 
   const r = await request<{
     status?: string;
@@ -1957,6 +1980,22 @@ export async function registerScholar(payload: {
   const needsVerification = !!r.data.needs_verification;
   const emailDelivery = (r.data.email_delivery ??
     (needsVerification ? "otp" : "none")) as "otp" | "link" | "none";
+
+  /* pass 93 — an unattachable document is a client-side failure, not a server
+   * rejection: say so plainly (which file, why) instead of submitting an empty
+   * application and showing the server's "provide at least one method of
+   * verification". */
+  if (!attachedProof && !attachedLetter && (payload.proof || payload.letter)) {
+    const which = payload.proof && payload.letter ? "your two documents" : payload.proof ? "your certificate" : "your recommendation letter";
+    return {
+      ok: false,
+      needsVerification: false,
+      emailDelivery: "none",
+      message: `We could not read ${which} from this device. Please pick ${
+        payload.proof && payload.letter ? "them" : "it"
+      } again (a JPG or PNG screenshot works well).`,
+    };
+  }
 
   if (r.ok && r.data.status === "success") {
     live = true;
@@ -2005,8 +2044,8 @@ export async function scholarApply(payload: {
   teachers?: string;
   aqeedah?: string;
   links?: string[];
-  proof?: { uri: string; name: string } | null;
-  letter?: { uri: string; name: string } | null;
+  proof?: ProofDoc | null;
+  letter?: ProofDoc | null;
 }): Promise<{ ok: boolean; message?: string }> {
   const form = new FormData();
   form.append("display_name", payload.display_name);
@@ -2019,20 +2058,16 @@ export async function scholarApply(payload: {
   if (payload.teachers) form.append("teachers", payload.teachers);
   if (payload.aqeedah) form.append("aqeedah", payload.aqeedah);
   if (payload.links?.length) form.append("links", payload.links.join("\n"));
-  if (payload.proof?.uri)
-    form.append(
-      "proof_file",
-      Platform.OS === "web"
-        ? await fetch(payload.proof.uri).then((r) => r.blob()).then((b) => new File([b], payload.proof!.name, { type: "image/jpeg" }))
-        : ({ uri: payload.proof.uri, name: payload.proof.name, type: "image/jpeg" } as any),
-    );
-  if (payload.letter?.uri)
-    form.append(
-      "letter_file",
-      Platform.OS === "web"
-        ? await fetch(payload.letter.uri).then((r) => r.blob()).then((b) => new File([b], payload.letter!.name, { type: "image/jpeg" }))
-        : ({ uri: payload.letter.uri, name: payload.letter.name, type: "image/jpeg" } as any),
-    );
+  /* pass 93 — same File-vs-uri fix as registerScholar (a DOM File has no .uri) */
+  const proofOk = payload.proof ? await attachDoc(form, "proof_file", payload.proof) : false;
+  const letterOk = payload.letter ? await attachDoc(form, "letter_file", payload.letter) : false;
+  if (!proofOk && !letterOk && (payload.proof || payload.letter)) {
+    return {
+      ok: false,
+      message:
+        "We could not read that document from this device. Please pick it again — a JPG or PNG screenshot works well.",
+    };
+  }
   const r = await request<{ status?: string; message?: string }>(
     "/api/auth/scholar_apply.php",
     { method: "POST", auth: true, form },

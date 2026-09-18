@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { localAsset } from '@/lib/assetUri';
 import { Alert, Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
@@ -1115,7 +1116,7 @@ function HomeInner() {
                 >
                   {photo ? (
                     <Image
-                      source={photo}
+                      source={localAsset(photo) as never}
                       style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: d.greenBorder }}
                       resizeMode="cover"
                     />

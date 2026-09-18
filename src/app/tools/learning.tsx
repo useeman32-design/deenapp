@@ -1,4 +1,5 @@
 import { markGoal } from '@/lib/routine';
+import { localAsset } from '@/lib/assetUri';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useGoalFocus, focusRing, focusKeyFromHref } from '@/lib/useGoalFocus';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
@@ -248,7 +249,7 @@ export default function Learning() {
 
         {/* ── hero banner ── */}
         <View style={{ marginHorizontal: 16, marginTop: 10, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: d.cardBorder }}>
-          <Image source={require('../../../assets/img/mecca.jpg')} style={{ width: '100%', height: 168 }} contentFit="cover" />
+          <Image source={localAsset(require('../../../assets/img/mecca.jpg')) as never} style={{ width: '100%', height: 168 }} contentFit="cover" />
           <LinearGradient colors={['rgba(6,20,13,0.30)', 'rgba(6,20,13,0.86)']} style={{ position: 'absolute', inset: 0 }} />
           <View style={{ position: 'absolute', inset: 0, padding: 18, justifyContent: 'flex-end' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 7 }}>

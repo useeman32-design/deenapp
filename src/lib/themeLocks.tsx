@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { localAsset } from '@/lib/assetUri';
 import { Platform, Pressable, View } from "react-native";
 import { askConfirm, dismissConfirm } from "@/components/ConfirmDialog";
 import { Image } from "expo-image";
@@ -100,6 +102,13 @@ export type ThemeLocks = {
 export function useThemeLocks(): ThemeLocks {
   const [, tick] = useState(0);
   const dp = useDeenPoints();
+  /* pass 93 — owner: "when purchasing something with insufficient deenpoints the
+   * open deenpoints is not navigating to deenpoints page". The old code pulled
+   * `router` out of `require("expo-router")` at call time; that export is not
+   * there in the bundled build, the optional chain swallowed it, and the button
+   * did nothing. useRouter() is the supported way and it works on both
+   * platforms. */
+  const router = useRouter();
 
   useEffect(() => {
     readMirror();
@@ -138,11 +147,8 @@ export function useThemeLocks(): ThemeLocks {
       });
       if (!buy) return false;
       if (short) {
-        try {
-          const { router } = require("expo-router") as { router?: { push: (href: string) => void } };
-          dismissConfirm();
-          router?.push("/tools/deenpoints");
-        } catch { /* noop */ }
+        dismissConfirm();
+        router.push("/tools/deenpoints" as never);
         return false;
       }
       if (!api.isLive()) {
@@ -210,7 +216,7 @@ export function ThemePriceChip({
       }}
     >
       <Image
-        source={require("../../assets/img/deenpoints.png")}
+        source={localAsset(require("../../assets/img/deenpoints.png")) as never}
         style={{ width: compact ? 10 : 12, height: compact ? 10 : 12, borderRadius: 3 }}
         contentFit="contain"
       />

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { localAsset } from '@/lib/assetUri';
+import { askConfirm, dismissConfirm } from '@/components/ConfirmDialog';
 import { goBack } from "@/lib/navigation";
 import {
   Alert,
@@ -1437,8 +1439,10 @@ function ReaderInner() {
                 >
                   <Image
                     source={
-                      RECITERS.find((r) => r.id === audio.reciter)?.photo ??
-                      RECITERS[0].photo
+                      localAsset(
+                        RECITERS.find((r) => r.id === audio.reciter)?.photo ??
+                          RECITERS[0].photo,
+                      ) as never
                     }
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
@@ -1828,13 +1832,32 @@ function ReaderInner() {
               const unlockRow = (row: Row) => {
                 const key = row.ids[0];
                 setUnlockingKey(key);
-                void quranUnlockReciter(key).then((res) => {
+                void quranUnlockReciter(key).then(async (res) => {
                   setUnlockingKey(null);
                   if (!res.ok) {
-                    Alert.alert(
-                      "Could not unlock",
-                      res.message ?? "Try again in a moment.",
-                    );
+                    /* pass 93 — owner: "when purchasing something with
+                     * insufficient deenpoints the open deenpoints is not
+                     * navigating to deenpoints page". This used Alert.alert,
+                     * which does not render on the web build at all, so nothing
+                     * happened — and there was no way to top up from here.
+                     * The shared sheet always renders and its button really
+                     * navigates to the wallet. */
+                    const short = /not enough|insufficient/i.test(res.message ?? "");
+                    const go = await askConfirm({
+                      title: short ? "Not enough DeenPoints" : "Could not unlock",
+                      message: short
+                        ? `${row.name} costs ${row.price} DeenPoints and your balance is ${dp.points}. Nothing was spent — top up the wallet, then come back.`
+                        : res.message ?? "Try again in a moment.",
+                      confirmLabel: short ? "Open DeenPoints" : "OK",
+                      cancelLabel: short ? "Not now" : "Close",
+                      tone: short ? "neutral" : "danger",
+                      icon: (short ? "coins" : "exclamation-circle") as never,
+                    });
+                    if (short && go) {
+                      dismissConfirm();
+                      setReciterOpen(false);
+                      router.push("/tools/deenpoints" as never);
+                    }
                     return;
                   }
                   if (res.balance != null) void dp.sync(res.balance);
@@ -1886,7 +1909,7 @@ function ReaderInner() {
                       >
                         {row.photo ? (
                           <Image
-                            source={row.photo as never}
+                            source={localAsset(row.photo) as never}
                             style={{
                               width: 38,
                               height: 38,
@@ -1963,7 +1986,7 @@ function ReaderInner() {
                               }}
                             >
                               <Image
-                                source={require("../../../assets/img/deenpoints.png")}
+                                source={localAsset(require("../../../assets/img/deenpoints.png")) as never}
                                 style={{ width: 13, height: 13, borderRadius: 4 }}
                                 contentFit="contain"
                               />
@@ -2006,7 +2029,7 @@ function ReaderInner() {
                             }}
                           >
                             <Image
-                              source={require("../../../assets/img/deenpoints.png")}
+                              source={localAsset(require("../../../assets/img/deenpoints.png")) as never}
                               style={{ width: 11, height: 11, borderRadius: 3 }}
                               contentFit="contain"
                             />

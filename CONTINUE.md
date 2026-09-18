@@ -2811,3 +2811,87 @@ is NOT junk: those files come from the intentional Sep-09 server sync and stay.
 - App: `(auth)/register.tsx` (years map, `otherFields[]`, `EmailStatusRow`, step gates),
   `tools/scholars.tsx` (awaiting-approval desk state), `tools/scholar-inbox.tsx` (under-review banner
   + no 403 spam).
+
+## PASS 93 — the four reports: sign-up uploads, the courses, and the DeenPoints coin
+
+Owner report, in his words: (1) the scholar sign-up final stage still answers *"Please provide at
+least one method of verification (certificate, recommendation, or links)"* although he uploaded both
+files; (2) *"wipe the current courses we have entirely"* — researched, authentic content, full-length
+lectures (*"a lecture is not more than 3 lines, it looks very ugly"*), and fix the test bug where
+*"the first option is always the answer"*; (3) buying with insufficient DeenPoints — *"the open
+deenpoints is not navigating to deenpoints page"* (theme and reciter); (4) the DeenPoints coin does
+not show on the theme price chip or the reciter purchase rows, and reciter images do not show.
+
+### 1. The uploads (root cause, then the fix)
+
+`pickWebFile()` hands back a **DOM `File`**, and the old code read `f.uri || f.dataUrl` off it —
+neither exists on a `File`. So the chip showed the filename, the request carried **no attachment**, and
+the server answered with the exact message the owner saw. The client now keeps the `File` itself,
+appends it to the multipart body, and *refuses to submit* if a document could not be attached, naming
+the file ("We could not read your certificate…pick it again"). `scholarApply()` was fixed the same way,
+`attachDoc()` returns a boolean instead of swallowing the failure, and `register_scholar.php` now also
+accepts the `proof_file` / `letter_file` field names — so a client that mixes the names can never be
+told "no method of verification" again.
+
+### 2. The courses — wiped, and rebuilt from the repo
+
+The reason a plain wipe could never stick: `api/courses/list.php` calls `dl_seed_courses_defaults()`,
+which re-creates seven one-paragraph starter stubs the moment the table is empty. So the rebuild is a
+single admin action (`api/admin/courses/seed_pass93.php`, button **"Rebuild courses (authentic 10)"** in
+Admin → Course Tests):
+
+- every content file in `data/pass93/` is **validated before anything is deleted** — a missing or
+  malformed file aborts with 409 and touches nothing;
+- it sets `seeds.courses_disabled` in **`system_settings`** (the table `dl_seeds_disabled()` actually
+  reads — writing it anywhere else lets the stubs come back), so the starter seeder is finished;
+- it wipes `course_lessons` / `course_modules` / `courses` / `course_quizzes` and rebuilds in one
+  transaction, and running it twice changes nothing.
+
+Result on the rig: **10 courses · 31 modules · 114 lessons · 107 test questions**, average lesson
+~2,000 characters (the draft curriculum was ~140). Slugs and lessons: Tajwīd Essentials (16),
+Reading the Qur’an: From Letters to Āyah (13), Getting Started with Arabic (14), Fiqh of Worship (12),
+ʿAqīdah: The Foundations of Faith (11), Tawḥīd: Knowing Allah by His Names and Attributes (9),
+The Sīrah (9), Tafsīr of Juzʾ ʿAmma (11), Introduction to Ḥadīth Sciences (10),
+Duʿāʾ and Dhikr in Daily Life (9). Every course has modules, full lesson text with Qur’anic and ḥadīth
+references, a practice task, and a 10–12 question test **with an explanation for every answer**.
+
+### The "first option is always the answer" bug
+
+Root cause: every seeded bank had the correct choice authored at index 0 and nothing ever moved it, so
+the answer was literally always A. `courses_quiz_load()` (api/courses/common.php) now shuffles the
+options of every question **per request** and remaps `correct` to the new position — which fixes every
+existing bank and any bank authored later, including banks the owner edits in the admin. Proven on the
+rig: five consecutive loads of one bank gave correct positions `1,1,3,1` / `2,0,0,0` / `1,3,0,1` /
+`2,2,0,3` / `0,3,0,3` while the correct *text* stayed identical every time. (The authored JSONs also
+carry varied indexes now, so the admin editor shows a normal spread.)
+
+### 3 & 4. DeenPoints: navigation and the coin
+
+- **Navigation.** The theme flow pushed `/tools/deenpoints` through an optional-chained
+  `require("expo-router").router` inside a swallowing `try` — on the bundled build that export is not
+  there, so the button did nothing. It now uses `useRouter()` at hook level. The reciter flow reported
+  failures with `Alert.alert`, which is a **no-op on web**, so the insufficient-balance case was
+  invisible; it now uses the shared confirm sheet and its button closes the sheet and pushes to
+  `/tools/deenpoints`.
+- **The coin and the portraits.** Metro's web export compiles `require('…/deenpoints.png')` to
+  `{ uri: './assets/assets/img/deenpoints.<hash>.png' }` — a **relative** path. expo-image passes that
+  straight to `<img src>`, so on a nested route the browser asked for `/read/assets/…` or
+  `/tools/assets/…` and got a 404: the coin vanished exactly where the owner reported it (theme chip,
+  reciter rows) while rendering fine on screens whose URL happened to be the app root. Fix: a new
+  `src/lib/assetUri.ts` — `localAsset()` at the six reported sites plus a runtime `<base>` install
+  (`installWebAssetBase()`, called once from `_layout.tsx`) so **every** relative asset URI in the app
+  resolves from any route, including the screens we did not touch individually (courses badge,
+  charity, prayer, calendar, PageHero, QiblaMap, the DeenPoints page itself).
+
+### Verified by execution (not by reading)
+
+- upload: `proof_file=@/tmp/doc.png` on the rig → success, `scholars` row `cert=1 status=pending`;
+  the client path returns a plain-language error instead of letting the server say "no verification".
+- quiz shuffle: 5 loads, positions move, answer text constant (above).
+- courses: seed endpoint **HTTP 200** — *"Courses wiped and rebuilt: 10 courses, 114 lessons,
+  107 test questions."*; second run identical (idempotent); `get.php?slug=…` serves every course with
+  its full lesson count and 1,843–2,785 characters per lesson; UTF-8 correct through PHP
+  (`Tajwīd Essentials: Reciting the Qur’an Correctly`, `Duʿāʾ and Dhikr in Daily Life`).
+- **kill-switch proven**: emptied the four tables, hit the student `list.php` → **0 courses** (the
+  starter stubs no longer come back); re-seeded through the endpoint in one click.
+- `tsc --noEmit` 0 · `php -l` clean · admin page inline JS `node --check` OK.
