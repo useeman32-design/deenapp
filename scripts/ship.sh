@@ -83,6 +83,12 @@ if [ "$MODE" != app ]; then
   grep -q "CHECK-RAW OK" /tmp/ship-raw.log || fail "raw export gate did not pass — refusing to ship"
   DL=$(sync_clone deenlink-api main)
   [ -d "$DL/.git" ] || fail "no API clone to ship into (DL=$DL)"
+  # the API repo IS the deployable docroot: it carries api/ + admin/ source as
+  # well as the exported site. Copying only dist/ (as earlier drafts of this
+  # script did) silently left every PHP change out of the push — pass 89 hit
+  # exactly that. rsync WITHOUT --delete: additive, so files that exist on
+  # origin but were pruned from this sandbox never show up as staged deletions.
+  [ -d "$API_DEFAULT" ] && rsync -a --exclude '.git/' --exclude 'node_modules/' --exclude '*.log' "$API_DEFAULT/" "$DL/"
   cp -a "$APP/dist/." "$DL/"
   commit_push "$DL" main "$MSG" deenlink-api
 fi
