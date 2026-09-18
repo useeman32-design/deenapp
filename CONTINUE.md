@@ -2622,3 +2622,192 @@ also confirmed FINISHED (AAB `…/gfeDarq59zqR_vgDJYYZAsUKZ7232jwi4RRfE280SYY.aa
 **Web:** gh-pages `d96cb8f` → live `entry-9fe8b206d514f9d4d09ab4fbc77cf7a1.js` (deep link HTTP 200);
 `deenlink-api@main d58654a` carries the matching raw export for the app.deenlink.org root, and app.deenlink.org
 only serves it after the owner runs cPanel → Git → Update from Remote → Deploy HEAD.
+
+---
+
+## PASS 91 — scholar sign-up root cause, stale-account feed, skeletons, groups rail
+
+Owner reported (this is the whole pass): the OTP modal still said *"Your documents were kept on this
+device and will be sent again the moment your email is confirmed (first try failed: Not logged in)"*;
+after it he was logged in as an ordinary user; the application was in **Users Management but not in
+Scholars Management**; switching accounts showed the OLD account's posts in the profile; profile and
+community sat blank for ~10s before posts appeared ("instead of showing empty it should show a
+loading, maybe breathing skeleton"); and the groups rail at the top showed groups he does not belong to.
+
+### The actual root cause of the scholar complaints (all four are one cause)
+
+`register_scholar.php` already existed and already did everything in ONE multipart request — user +
+`scholars` row (`approval_status='pending'`) + certificate/recommendation uploads + admin notification
+— but **the app never called it**: `grep register_scholar src/api/client.ts src/context/AuthContext.tsx`
+was empty. The app instead did `register.php` (creates a plain user) and then posted the documents to
+`scholar_apply.php`, which requires a session that does not exist until the code is verified. So:
+the first attempt ALWAYS answered `{"message":"Not logged in","requires_login":true}` (that is the text
+in his modal), the post-OTP retry was a fire-and-forget `void` promise whose failure was swallowed, and
+when it failed there was **no `scholars` row at all** → `user_type` stayed `user` (so the app treated him
+as an ordinary member: no tag, no desk card, no My Questions) and Scholars Management had nothing to
+list while Users Management did. `register_scholar.php` was also **link-only** (it mailed a 24h
+`verify_email.php?token=…` and never minted a code), which is why it could not simply be swapped in.
+
+Fixes:
+- `api/auth/register_scholar.php` — now mints the same 6-digit OTP as `register.php` (sha256 code,
+  10-minute expiry, `otp_email_html()`), falls back to the link only when the code mail fails, and
+  reports `email_delivery` (`otp`/`link`/`none`) so the app knows what to say. Requires
+  `config/otp_email.php` (added).
+- `src/api/client.ts` — new `registerScholar()`: one multipart POST with the endpoint's exact contract
+  (`fields_of_knowledge` as a JSON string, `certificate`/`recommendation` file inputs, `agree_terms="1"`,
+  proper mime per extension). Deploy-order guard: if an older API does not report `email_delivery`, it
+  calls `sendOtp()` so the code screen never waits for a code nobody sent.
+- `src/app/(auth)/register.tsx` — `submitScholar()` is now that single call. The dishonest
+  "documents kept on this device" note is gone; a rejected submission shows the server's own field
+  error and keeps every value and both picked files in memory so "Submit application" IS the retry.
+  If the username/email already exists it opens the code screen and attaches the documents right after
+  verification (that path reports its outcome with an alert instead of swallowing it). A **Gender**
+  picker was added to the scholar form — the endpoint validates `male|female` and the form never asked,
+  so the old payloads would have failed validation.
+- `src/lib/blockNotice.ts` — `scholarTagLabel()` now returns **"Scholar · under review"** for
+  `pending`/`reviewing` instead of an empty string, so a scholar awaiting review is not rendered as a
+  plain member. (`isScholarMe` in profile/scholars already keys off `user_type === 'scholar'`.)
+
+### The other three reports
+
+- **Old account's posts after switching** — `profile.tsx` mirrored its page to a single global key
+  `dl.myprofile.v1` (pass 86's fix for the blank start) and never scoped it to an account, so the next
+  login painted the previous account's posts. Now per-account (`dl.myprofile.v2.<userId>`, with the
+  old key abandoned); community got the same treatment (`dl.community.feed.v1.<userId>`) plus a
+  per-account cached first page so its feed paints instantly too.
+- **Blank for ~10s instead of a loading state** — neither screen had a loading flag; they rendered the
+  empty-state card while the first request was in flight (community literally said "No scholar posts
+  yet" on the For-You tab). Both now show the repo's breathing `FeedSkeleton` (2-3 cards) until the
+  request settles, and the empty copy only after that. Profile's videos tab too.
+- **Groups rail** — it listed every group (joined or not). Now it lists **only his groups** plus the
+  existing "+ New group" tile, with a one-line hint when he has none; groups he is not in stay in the
+  Recommendations strip, and the rail's search box still searches every group (labelled "Search
+  results · every group").
+
+### Rig proof (executed, not assumed)
+
+Sandbox this time allowed `sudo apt-get install mariadb-server` (portable PHP 8.1 static build still
+works; it has pdo_mysql). Rig = `deenlink_test` from `deenlink_db (9).sql` + 4 columns added to `users`
+(`account_status`, `moderation_reason`, `security_question`, `security_answer_hash`), `email.verification.enabled=1`,
+PHP dev server on 8099. Driver: `/tmp/p91_v2.sh`.
+
+- multipart `register_scholar.php` (the app's new call) → **201**, `{"scholar_id":20,"approval_status":"pending","email_delivery":"otp"}`;
+  DB: `users` row `user_type=scholar`, `scholars` row `pending` with `["Tajweed","Fiqh"]` + both document
+  rows in `scholar_documents` (files on disk).
+- the stored `email_verification_token_hash` is the sha256 of a 6-digit code — recovered by brute force
+  (`639572`), i.e. the OTP path really ran; `verify_otp.php` with that code → **200 `verified:true`**.
+- `me.php` → `user_type=scholar` and top-level `scholar:{approval_status:"pending",aqeedah:"Sunni",level:null}`
+  (the app's `restoreSession()` merges that sibling into `user.scholar`).
+- `admin/scholars/list.php?status=pending` as a `super_admin` → **200** with the new applicant in the
+  pending rows (`id`, `approval_status:"pending"`, `certificate_url`/`recommendation_url` keys present).
+- letter-only submission (no certificate) → 200 and `scholars` row `letter=1 cert=0` (one document is
+  enough, pass-90 rule intact). Duplicate submit → 400 `Email already registered` (the app routes that
+  to the code screen). Missing gender → 400 `Please select a valid gender`.
+- `tsc --noEmit` 0 errors; `php -l` 469 files 0 failures; CHECK-RAW OK.
+
+### Rig facts worth keeping (new)
+
+- `sudo apt-get install -y mariadb-server` works via passwordless sudo in this sandbox; `sudo mysql …`.
+- Admin API calls need BOTH a CSRF token (`/api/auth/csrf.php` with the same cookie jar) and an admin
+  whose role is exactly **`super_admin`** — any other value (e.g. `superadmin`) is treated as a normal
+  role and endpoints answer 403 "Permission denied". Admin login reads the **`admin_users`** table.
+- The mailer prefers the tracked `api/config/mail_settings.php` (live SMTP, mode `smtp`) over env vars.
+  To exercise OTP paths in the rig, move that file aside temporarily and run the server with
+  `MAIL_MODE=log` — `send_email()` then returns true and writes the full body (code included) to the
+  PHP error log. **That file carries the live SMTP password and IS tracked on origin (private repo) and
+  NOT in `.gitignore`:** rotate the mailbox password and, when convenient, untrack it + create an
+  ignored `mail_settings.php` on the server (the `mail_settings.example.php` template already exists).
+  Live host blocks direct reads (`api/config/mail_settings.php` → 403), so the only exposure is GitHub.
+
+### Shipped
+
+- **deenlink-api@main `841a43b`** then **`3a7ac24`** (raw export for the cPanel root).
+- **deenapp@master `6cc3d64`** then **`b2a0ebb`** (deploy-order guard).
+- **deenapp@gh-pages `c5e62cf`** then **`48c2330`** (local entry `entry-1a776a101dadc6d75c8fa2b9af65e31a.js`).
+- EAS production Android build **`d5de66e2-24c1-4f4d-86b0-f3c657c361a4`** from `b2a0ebb`
+  (the first pass-91 build `ff2c472e-fbdc-4e9f-9fab-88a8863cfe49` was cancelled on purpose so the
+  artifact would include the deploy-order guard).
+
+### Still on the owner
+
+1. cPanel → Git → **Update from Remote → Deploy HEAD** (the pass-91 API is what makes a scholar
+   registration create its `scholars` row in one shot).
+2. Install the new build for the client-side items (feed cache, skeletons, rail, pending tag).
+3. Rotate the SMTP mailbox password (see above).
+
+---
+
+## PASS 92 — the scholar journey end to end (years, custom field, live email check, "ordinary user")
+
+Owner reported four things, all about scholar registration and the scholar's question page:
+*"at final stage am getting years of study must be between 1 and 80 and its not creating the account"*,
+*"the email checking should be realtime as the normal user registration is checking if that email
+exist"*, *"in field of knowledge when adding other its not adding"*, and *"lets make sure the scholars
+registrations is going smoothly, its creating scholars account and scholars can have their page to
+manage questions"*.
+
+### Root causes (each one executed, not guessed)
+
+1. **Years of study.** The chips were RANGE LABELS (`['1–3','4–7','8–15','16–25','25+']`), and
+   `submitScholar` sent `Number(label)` → `NaN` → the string `"NaN"` → `(int)"NaN"` = **0** on the
+   server → `Years of study must be between 1 and 80`. Every scholar sign-up from the app died on the
+   last step. Chips now carry `{ label, n }` (floor of the range) and the number is what travels.
+2. **"Other" field of knowledge.** The typed text appeared as a chip by itself and the ＋ button
+   **cleared the input** instead of committing anything, so the field vanished as soon as you pressed
+   Add. Custom fields now live in `otherFields[]`: committed by ＋/return, removable, surviving step
+   changes, sent as `other_field`, and anything left typed in the box is committed at submit.
+3. **Live email check.** The check itself already ran for the scholar form (shared `eState`) but its
+   result was **never rendered** and **never enforced** — so an already-registered email sailed to the
+   last step and came back as a server error. The status row is now a shared `EmailStatusRow`
+   component shown under both email fields, and steps 1, 2 and submit all refuse a taken address.
+4. **"Logs me in as an ordinary user."** `verify_otp.php` — the response the OTP modal adopts as the
+   session — **hand-builds its user object and never included the scholars row**; `login.php` and
+   `me.php` had the same defect (`me.php` set `$user['scholar']` but its hand-built `json_out` array
+   dropped it; only the sibling key survived, which is why pass 90's `restoreSession()` merge was the
+   only thing hiding it). All three now return `user.scholar` (plus the sibling for older builds).
+5. **A pending scholar desk that looked broken.** `scholar-inbox.tsx` swallowed the 403 with
+   `.catch(() => setRows([]))`, so a scholar awaiting review saw an empty page with no explanation.
+   The desk page and the scholars-screen card now say what unlocks question management, and the queue
+   call is skipped while pending (no pointless 403).
+6. **Two smaller defects found while rigging:** (a) an email registered but never verified was a
+   hard 400 `Email already registered` in `register_scholar.php`, while `register.php` **reuses** such
+   a row — so the app's live "Email available" and the submit disagreed; the same reuse rule is now
+   mirrored (verified rows still own their email/username, `scholars` row refreshed not duplicated).
+   (b) `other_field` was only validated when the literal `other` was in the fields array, so a
+   custom-only submission skipped the HTML check entirely; it is validated whenever present (cap 160,
+   one entry per chip, max 12).
+
+### Rig proof (executed against MariaDB + PHP 8.1, `/tmp/p92_v3.sh`)
+
+- old payload (`years_of_study=NaN`) → **400 "Years of study must be between 1 and 80"** (the bug,
+  reproduced); new payload (years=8, chips + custom field) → **201**, `scholars` row
+  `fields=["Tajweed","Fiqh","Other"] | other=Islamic Finance | years=8 | status=pending`.
+- `verify_otp.php` → **200** with `user_type=scholar` **and `user.scholar.approval_status=pending`**.
+- while pending: `scholar_list.php` → 403 *"Your scholar application is still pending approval…"*
+  (the message the new desk banner shows).
+- admin `scholars/review.php {user_id, action:approve, level:sheikh, confirm_aqeedah:true}` → **200**;
+  `me.php` → `user.scholar.status=approved level=sheikh aqeedah=Sunni` (tag "sheikh · Sunni");
+  a FRESH `login.php` → same nested scholar row.
+- a question inserted for him → desk counts `{to_answer:1}` → `respond.php` with `answer_text` →
+  **200 `{"question_status":"answered","reward_points":10}`**, profile gains exactly one `__DL_QA__`
+  post, `questions/public_list.php` lists the answer, counts become `{answered:1,to_answer:1}`.
+- reuse: abandoned (unverified) row + resubmit → **201**, still ONE user row and ONE `scholars` row,
+  other_field updated; a VERIFIED email → live check `available:false` and submit 400.
+- HTML in a custom field → 400 with the new message. `tsc --noEmit` 0 · `php -l` 469 files 0 failures.
+
+### Hygiene fix that came out of this
+
+`uploads/scholars/` in the repo contained **16 files, every one of them a rig test document** from
+today's sandbox runs (certificates/recommendation letters for scholar ids 13–21, plus two from the
+pass-90 run at 10:24 that the pass-90 cleanup missed). They are deleted in this pass and
+`uploads/scholars/` is now in `.gitignore` — applicants' identity documents are user content and must
+never be tracked (same rule the repo already has for `uploads/audio/`). `uploads/posts/2026/09/*`
+is NOT junk: those files come from the intentional Sep-09 server sync and stay.
+
+### Shipped (pass 92)
+
+- API: `register_scholar.php` (years/reuse/custom-field/hardening), `login.php`, `me.php`,
+  `verify_otp.php` (scholar row nested), `.gitignore`.
+- App: `(auth)/register.tsx` (years map, `otherFields[]`, `EmailStatusRow`, step gates),
+  `tools/scholars.tsx` (awaiting-approval desk state), `tools/scholar-inbox.tsx` (under-review banner
+  + no 403 spam).

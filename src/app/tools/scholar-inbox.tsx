@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
@@ -15,6 +16,7 @@ import {
   type ScholarQueueRow,
 } from '@/api/client';
 import { useIsGuest } from '@/lib/guest';
+import { useAuth } from '@/context/AuthContext';
 import { LoginRequired } from '@/components/LoginRequired';
 
 /* pass 75 (Tier 2) — the SCHOLAR side of Ask Scholars: the queue of questions
@@ -39,6 +41,7 @@ function ScholarInboxScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const green = isDark ? '#4AE38F' : '#0E7A46';
+  const router = useRouter();
 
   const [tab, setTab] = useState<Tab>('to_answer');
   const [rows, setRows] = useState<ScholarQueueRow[] | null>(null);
@@ -49,13 +52,26 @@ function ScholarInboxScreenInner() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
+  /* pass 92 — owner: "scholars can have their page to manage questions". The
+   * page exists for every scholar account from the moment he registers; while
+   * the application is still with the verification team the queue is not
+   * available yet and the server says so (403 with an explanation). Show that
+   * on the page itself instead of an empty list that looks broken. */
+  const { user } = useAuth();
+  const approval = String(
+    ((user as { scholar?: { approval_status?: string } | null } | null)?.scholar)
+      ?.approval_status ?? '',
+  ).toLowerCase();
+  const awaitingApproval = approval === 'pending' || approval === 'reviewing';
+
   const load = useCallback((t: Tab) => {
     if (!isLive()) { setRows([]); return; }
+    if (awaitingApproval) { setRows([]); return; }
     scholarQueue(t).then((r) => {
       setRows(r?.questions ?? []);
       setCounts(r?.counts ?? {});
     }).catch(() => setRows([]));
-  }, []);
+  }, [awaitingApproval]);
 
   useEffect(() => { load(tab); }, [tab, load]);
 
@@ -128,6 +144,20 @@ function ScholarInboxScreenInner() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {awaitingApproval ? (
+          <View style={{ borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.33)', backgroundColor: 'rgba(212,175,55,0.06)', padding: 16, gap: 7 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <FontAwesome5 name="hourglass-half" size={14} color="#D4AF37" />
+              <T v="h3" style={{ fontSize: 13.5, fontWeight: '800', color: d.text }}>Your application is under review</T>
+            </View>
+            <T v="bodyS" style={{ fontSize: 12, lineHeight: 17, color: d.subtext }}>
+              This is your Scholar Desk. Question management — answering, rejecting and messaging askers — unlocks the moment an admin approves your application and assigns your level. You will get an email at that point.
+            </T>
+            <Pressable onPress={() => router.push('/tools/scholar-apply' as never)} style={{ alignSelf: 'flex-start', marginTop: 2, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', paddingHorizontal: 11, paddingVertical: 7 }}>
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#D4AF37' }}>View my application</T>
+            </Pressable>
+          </View>
+        ) : null}
         {!rows ? (
           <View style={{ alignItems: 'center', paddingVertical: 50 }}>
             <ActivityIndicator color={green} />

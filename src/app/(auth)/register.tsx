@@ -67,7 +67,19 @@ const AQEEDAH: Array<{ id: string; desc: string; descNG?: string }> = [
 
 const KNOWLEDGE_FIELDS = ['Tawhid', 'Fiqh', 'Aqeedah', 'Tafsir', 'Quran', 'Seerah', 'Hadith'];
 const MADHHABS = ['Hanafi', 'Maliki', 'Shafi\u2019i', 'Hanbali', 'Other'];
-const YEARS = ['1–3', '4–7', '8–15', '16–25', '25+'];
+/* pass 92 — owner: "at final stage am getting years of study must be between 1
+ * and 80". The chips carried RANGE LABELS, and submitScholar sent
+ * Number('1–3') → NaN → "NaN" → (int) on the server → 0 → that exact error, so
+ * no scholar account could ever be created from the app. Each chip now carries
+ * a numeric value (the floor of its range, never an overstatement) plus the
+ * label it displays. */
+const YEARS: Array<{ label: string; n: number }> = [
+  { label: '1–3', n: 1 },
+  { label: '4–7', n: 4 },
+  { label: '8–15', n: 8 },
+  { label: '16–25', n: 16 },
+  { label: '25+', n: 25 },
+];
 const usernameValid = (u: string) => /^[a-z0-9._]{3,20}$/i.test(u);
 
 /** The symbol set the server accepts (api/lib/password_policy.php). */
@@ -177,6 +189,23 @@ function PasswordBlock({ password, setPassword, confirm, setConfirm, showConfirm
           </View>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+/** pass 92 — the live availability row shown under an email field. */
+function EmailStatusRow({ state }: { state: 'idle' | 'checking' | 'ok' | 'taken' }) {
+  const { isDark } = useTheme();
+  if (state === 'idle') return null;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -6, marginBottom: 13, minHeight: 16 }}>
+      {state === 'checking' ? (
+        <><ActivityIndicator size="small" color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} /><T v="caption" style={{ fontSize: 10, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)' }}>Checking email…</T></>
+      ) : state === 'ok' ? (
+        <><FontAwesome5 name="check-circle" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#4AE38F' : '#1D6F42' }}>Email available</T></>
+      ) : (
+        <><FontAwesome5 name="times-circle" size={11} color="#FF7B7B" /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#FF7B7B' }}>Already registered — sign in instead</T></>
+      )}
     </View>
   );
 }
@@ -325,9 +354,15 @@ export default function Register() {
   const [phone, setPhone] = useState('');
   const [fields, setFields] = useState<string[]>([]);
   const [fieldsOther, setFieldsOther] = useState('');
+  /* pass 92 — owner: "in field of knowledge when adding other its not adding".
+   * The typed text became a chip by itself and the ＋ button CLEARED the input,
+   * so nothing was ever committed. Added fields now live in this array: they
+   * stay as removable chips, they survive step changes, and they are sent as
+   * `other_field`. */
+  const [otherFields, setOtherFields] = useState<string[]>([]);
   const [madhhab, setMadhhab] = useState<string | null>(null);
   const [institute, setInstitute] = useState('');
-  const [years, setYears] = useState<string | null>(null);
+  const [years, setYears] = useState<{ label: string; n: number } | null>(null);
   const [teachers, setTeachers] = useState('');
   const [proofName, setProofName] = useState<string | null>(null);
   const [proofFile, setProofFile] = useState<{ uri: string; name: string } | null>(null);
@@ -457,6 +492,14 @@ export default function Register() {
     if (!displayName.trim()) return setError('Please enter a display name (e.g. Sheikh Muhammad)');
     if (uState !== 'ok') return setError('Please choose an available username');
     if (!email.includes('@')) return setError('Please enter a valid email');
+    /* pass 92 — owner: "the email checking should be realtime as the normal user
+     * registration is checking if that email exists". The check already ran for
+     * this form (shared state) but its result was never rendered and never
+     * enforced, so a scholar could push an email that was already registered
+     * all the way to the last step. */
+    if (eState === 'taken')
+      return setError('This email is already registered — sign in instead, or use another email');
+    if (eState === 'checking') return setError('Checking that email — one moment');
     if (!country) return setError('Please select your country');
     if (phone.replace(/\D/g, '').length < 7) return setError('Please enter a valid phone number');
     if (!pwOk) return setError('Password does not meet the requirements');
@@ -464,7 +507,10 @@ export default function Register() {
   };
 
   const nextStep2 = () => {
-    if (!fields.length) return setError('Select at least one field of knowledge');
+    if (eState === 'taken')
+      return setError('This email is already registered — sign in instead, or use another email');
+    if (!fields.length && !otherFields.length && !fieldsOther.trim())
+      return setError('Select at least one field of knowledge');
     if (!madhhab) return setError('Please select your madhhab');
     if (!aqeedah) return setError('Please select your aqeedah');
     if (!institute.trim()) return setError('Please enter the institute you studied at');
@@ -474,6 +520,8 @@ export default function Register() {
 
   const submitScholar = async () => {
     if (busy) return;
+    if (eState === 'taken')
+      return setError('This email is already registered — sign in instead, or use another email');
     if (!proofName && !letterName)
       return setError(
         'Upload either your proof of qualifications or a recommendation letter — one is enough',
@@ -482,10 +530,21 @@ export default function Register() {
     if (!agree) return setError('Please agree to the Terms and Privacy Policy');
     setError('');
     setBusy(true);
-    const allFields = fieldsOther.trim() ? [...fields, fieldsOther.trim()] : fields;
+    /* pass 92 — anything typed in "Others" but not yet committed is committed
+     * now, so a custom field of knowledge can never be silently dropped again. */
+    const typedOther = fieldsOther.trim();
+    const others =
+      typedOther && !otherFields.some((x) => x.toLowerCase() === typedOther.toLowerCase())
+        ? [...otherFields, typedOther]
+        : otherFields;
+    if (!fields.length && !others.length) {
+      setBusy(false);
+      return setError('Select at least one field of knowledge (or add your own)');
+    }
+    const allFields = fields;
     const draft = {
       account: 'scholar', display_name: displayName.trim(), phone, fields: allFields,
-      madhhab, institute: institute.trim(), years, teachers: teachers.trim(),
+      madhhab, institute: institute.trim(), years: years?.label, teachers: teachers.trim(),
       proof: proofName, letter: letterName, at: Date.now(),
     };
     /* a local copy is still kept — if the network dies mid-request he does not
@@ -493,8 +552,8 @@ export default function Register() {
     await storage.setItem(`dl.scholar.app.${username}`, JSON.stringify(draft)).catch(() => {});
     const payload = {
       display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
-      fields: allFields, other_field: fieldsOther.trim() || undefined,
-      madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined,
+      fields: allFields, other_field: others.join(', ') || undefined,
+      madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? years.n : undefined,
       teachers: teachers.trim(), aqeedah: aqeedahValue,
       proof: proofFile, letter: letterFile,
     };
@@ -507,9 +566,9 @@ export default function Register() {
       full_name: fullName.trim(), display_name: displayName.trim(), email: email.trim(),
       username, password, gender: gender?.toLowerCase(), country: country || undefined,
       phone: phone || undefined, aqeedah: aqeedahValue,
-      fields: allFields, other_field: fieldsOther.trim() || undefined,
+      fields: allFields, other_field: others.join(', ') || undefined,
       madhhab: madhhab ?? undefined, institute: institute.trim(),
-      years: years ? Number(years) : undefined, teachers: teachers.trim(),
+      years: years ? years.n : undefined, teachers: teachers.trim(),
       proof: proofFile, letter: letterFile,
     });
     if (res.ok) {
@@ -547,6 +606,23 @@ export default function Register() {
   };
 
   const toggleField = (f: string) => setFields((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]));
+
+  /** Commit whatever is typed in the "Others" box into the chip list. */
+  const addOtherField = () => {
+    const v = fieldsOther.trim();
+    if (!v) return;
+    if (v.length > 60) return setError('A custom field of knowledge must be 60 characters or less');
+    setOtherFields((cur) =>
+      cur.some((x) => x.toLowerCase() === v.toLowerCase()) ? cur : [...cur, v],
+    );
+    setFieldsOther('');
+    setError('');
+    haptic.light();
+  };
+  const removeOtherField = (v: string) => {
+    setOtherFields((cur) => cur.filter((x) => x !== v));
+    haptic.selection();
+  };
 
   /* ── CHOOSE screen ── */
   const ChooseScreen = (
@@ -622,15 +698,7 @@ export default function Register() {
 
       <AuthField label="Full name" value={fullName} onChangeText={setFullName} placeholder="e.g. Aminu Abubakar" icon="user" autoCap="words" />
       <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" icon="envelope" keyboard="email-address" />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -6, marginBottom: 13, minHeight: 16 }}>
-        {eState === 'checking' ? (
-          <><ActivityIndicator size="small" color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} /><T v="caption" style={{ fontSize: 10, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)' }}>Checking email…</T></>
-        ) : eState === 'ok' ? (
-          <><FontAwesome5 name="check-circle" size={11} color={isDark ? '#4AE38F' : '#1D6F42'} /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#4AE38F' : '#1D6F42' }}>Email available</T></>
-        ) : eState === 'taken' ? (
-          <><FontAwesome5 name="times-circle" size={11} color="#FF7B7B" /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#FF7B7B' }}>Already registered — sign in instead</T></>
-        ) : null}
-      </View>
+      <EmailStatusRow state={eState} />
 
       {IdentityBlock}
 
@@ -726,6 +794,7 @@ export default function Register() {
           <AuthField label="Display name" value={displayName} onChangeText={setDisplayName} placeholder='e.g. "Sheikh Muhammad"' icon="id-badge" autoCap="words" />
           <UsernameField value={username} onChange={setUsername} state={uState} />
           <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" icon="envelope" keyboard="email-address" />
+          <EmailStatusRow state={eState} />
           <CountryPicker value={country} onPick={(c) => setCountry(c)} />
           <AuthField label="Phone" value={phone} onChangeText={(v) => setPhone(v.replace(/[^0-9+\s]/g, '').slice(0, 16))} placeholder="+234 800 000 0000" icon="phone" keyboard="phone-pad" />
           {/* pass 91 — the server requires a gender for scholar accounts; this
@@ -748,14 +817,17 @@ export default function Register() {
             <Label>Fields of knowledge</Label>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {KNOWLEDGE_FIELDS.map((f) => <Chip key={f} label={f} on={fields.includes(f)} onPress={() => toggleField(f)} />)}
-              {fieldsOther.trim() ? <Chip label={fieldsOther.trim()} on onPress={() => {}} tint="#D4AF37" /> : null}
+              {otherFields.map((f) => (
+                <Chip key={`other-${f}`} label={`${f} ✕`} on onPress={() => removeOtherField(f)} tint="#D4AF37" />
+              ))}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 }}>
               <View style={{ flex: 1, borderRadius: 13, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)', paddingHorizontal: 12, height: 42, justifyContent: 'center' }}>
-                <TextInput value={fieldsOther} onChangeText={setFieldsOther} placeholder="Others — type and press Add" placeholderTextColor={isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} style={{ fontFamily: 'Poppins-Medium', fontSize: 13.5, color: isDark ? '#F2F7F3' : '#14241C', paddingVertical: 0 }} />
+                <TextInput value={fieldsOther} onChangeText={setFieldsOther} onSubmitEditing={addOtherField} returnKeyType="done" placeholder="Others — type and press ＋" placeholderTextColor={isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} style={{ fontFamily: 'Poppins-Medium', fontSize: 13.5, color: isDark ? '#F2F7F3' : '#14241C', paddingVertical: 0 }} />
               </View>
               <Pressable
-                onPress={() => { if (fieldsOther.trim()) { haptic.light(); setFieldsOther(''); } }}
+                accessibilityLabel="add field of knowledge"
+                onPress={addOtherField}
                 style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}
               >
                 <FontAwesome5 name="plus" size={13} color="#fff" />
@@ -777,7 +849,7 @@ export default function Register() {
           <View style={{ marginBottom: 13 }}>
             <Label>Years of experience</Label>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {YEARS.map((y) => <Chip key={y} label={`${y} yrs`} on={years === y} onPress={() => setYears(y)} />)}
+              {YEARS.map((y) => <Chip key={y.label} label={`${y.label} yrs`} on={years?.label === y.label} onPress={() => setYears(y)} />)}
             </View>
           </View>
 

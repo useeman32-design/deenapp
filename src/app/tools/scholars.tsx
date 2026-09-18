@@ -141,13 +141,18 @@ export default function Scholars() {
    * account, add a button My Questions that will match the design of the
    * others". The count is the scholar's own waiting queue (server-side). */
   const [desk, setDesk] = useState<{ toAnswer: number; reviewing: number; answered: number } | null>(null);
+  const myApproval = String(
+    (((me as { scholar?: { approval_status?: string } | null } | null | undefined)?.scholar) || null)
+      ?.approval_status || '',
+  ).toLowerCase();
+  const awaitingApproval = myApproval === 'pending' || myApproval === 'reviewing';
   const isScholarMe =
     String((me as { user_type?: string } | null | undefined)?.user_type || '') === 'scholar' ||
     String(
       ((me as { scholar?: { approval_status?: string } | null } | null | undefined)?.scholar || null)?.approval_status || '',
     ).toLowerCase() === 'approved';
   const refreshDesk = () => {
-    if (!isScholarMe) return;
+    if (!isScholarMe || awaitingApproval) return;
     api
       .scholarDeskCounts()
       .then((c) => {
@@ -235,10 +240,17 @@ export default function Scholars() {
                       </View>
                     ) : null}
                   </View>
+                  {/* pass 92 — a scholar whose application is still with the
+                      verification team keeps his desk card (his page exists from
+                      the moment he registers) and is told exactly what unlocks
+                      question management, instead of the card vanishing or the
+                      queue answering 403 with no explanation. */}
                   <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>
                     {desk
                       ? `${desk.toAnswer} waiting for an answer · ${desk.reviewing} under review · ${desk.answered} answered`
-                      : 'Answer the ummah\u2019s questions — public answers are posted to your profile.'}
+                      : awaitingApproval
+                        ? 'Your application is with the verification team — answering unlocks the moment an admin approves you and assigns your level.'
+                        : 'Answer the ummah\u2019s questions — public answers are posted to your profile.'}
                   </T>
                 </View>
                 <FontAwesome5 name="chevron-right" size={13} color={d.faint} />
