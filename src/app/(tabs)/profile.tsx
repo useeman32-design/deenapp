@@ -17,6 +17,7 @@ import { T } from "@/components/T";
 import { AvatarImage } from "@/components/FeedCard";
 import { VerificationBadge } from "@/components/VerificationBadge";
 import { FeedCard } from "@/components/FeedCard";
+import { CommentsModal } from "@/components/CommentsModal";
 import { haptic } from "@/lib/haptics";
 import { Platform } from "react-native";
 import { UI_SCALES, useUIScale, useSetUIScale } from "@/context/UIScale";
@@ -48,6 +49,10 @@ type Tab = "posts" | "videos" | "saved";
  */
 function ProfileInner() {
   const { theme, mode, setMode, isDark } = useTheme();
+  /* pass 89 — the profile feed rendered FeedCard without an onComments handler, so the
+   * speech bubble was a dead tap. The comments modal is mounted by the screen, the way
+   * the community feed does it, so it works for posts, videos and saved alike. */
+  const [commentPost, setCommentPost] = useState<Post | null>(null);
   const uiScale = useUIScale();
   const setUiScale = useSetUIScale();
   const d = theme.dash;
@@ -836,6 +841,7 @@ function ProfileInner() {
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {posts.map((p) => (
               <FeedCard
+                onComments={(pp) => setCommentPost(pp)}
                 key={p.id}
                 dash={d}
                 post={p}
@@ -881,6 +887,7 @@ function ProfileInner() {
               .filter((p) => p.video_url || p.youtube_url)
               .map((p) => (
                 <FeedCard
+                  onComments={(pp) => setCommentPost(pp)}
                   key={p.id}
                   post={p}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
@@ -924,6 +931,7 @@ function ProfileInner() {
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
             {saved.map((p) => (
               <FeedCard
+                onComments={(pp) => setCommentPost(pp)}
                 key={p.id}
                 dash={d}
                 post={p}
@@ -988,6 +996,14 @@ function ProfileInner() {
           router.replace("/(auth)/login");
         }}
       />
+
+    <CommentsModal
+      visible={!!commentPost}
+      post={commentPost}
+      seed={[]}
+      postId={commentPost?.id ?? null}
+      onClose={() => setCommentPost(null)}
+    />
     </View>
   );
 }

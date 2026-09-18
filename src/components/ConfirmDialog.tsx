@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -59,5 +60,70 @@ export function ConfirmDialog({
         </View>
       </View>
     </Modal>
+  );
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * pass 89 — imperative wrapper around the sheet above.
+ * Any module (a hook, an api helper, a .ts file with no JSX) can now await a
+ * confirm:  `if (!(await askConfirm({ title, message, confirmLabel }))) return;`
+ * WHY: the DeenPoints theme unlock asked through Alert.alert, which does not
+ * render on the web build at all — tapping a priced mushaf skin or compass
+ * design silently did nothing (owner report). Screens that already own a
+ * ConfirmDialog keep using it; this is for the ones that don't.
+ * ───────────────────────────────────────────────────────────────────────────── */
+export type AskConfirmOpts = {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: 'danger' | 'neutral';
+  icon?: keyof typeof FontAwesome5.glyphMap;
+};
+
+type Pending = { opts: AskConfirmOpts; settle: (ok: boolean) => void } | null;
+let pending: Pending = null;
+const watchers = new Set<(p: Pending) => void>();
+
+function publish(next: Pending) {
+  pending = next;
+  watchers.forEach((w) => w(next));
+}
+
+export function askConfirm(opts: AskConfirmOpts): Promise<boolean> {
+  return new Promise<boolean>((settle) => {
+    /* a newer request replaces an older one; the old caller resolves false so no
+     * await is ever left hanging */
+    if (pending) pending.settle(false);
+    publish({ opts, settle });
+  });
+}
+
+/** Close whatever is open (used right before pushing a route from a dialog). */
+export function dismissConfirm() {
+  if (pending) { const p = pending; publish(null); p.settle(false); }
+}
+
+export function GlobalConfirmDialog() {
+  const [cur, setCur] = useState<Pending>(pending);
+  useEffect(() => {
+    watchers.add(setCur);
+    return () => { watchers.delete(setCur); };
+  }, []);
+  const settle = (ok: boolean) => { const p = pending; publish(null); p?.settle(ok); };
+  if (!cur) return null;
+  return (
+    <ConfirmDialog
+      visible
+      title={cur.opts.title}
+      message={cur.opts.message}
+      confirmLabel={cur.opts.confirmLabel}
+      cancelLabel={cur.opts.cancelLabel}
+      tone={cur.opts.tone ?? 'neutral'}
+      icon={cur.opts.icon}
+      onCancel={() => settle(false)}
+      onConfirm={() => settle(true)}
+    />
   );
 }

@@ -924,8 +924,8 @@ const makeCertificateSvg = (
 
 const CertificateSvg = forwardRef<
   any,
-  { certificate: Record<string, unknown>; courseTitle: string }
->(function CertificateSvg({ certificate, courseTitle }, ref) {
+  { certificate: Record<string, unknown>; courseTitle: string; width?: number; height?: number }
+>(function CertificateSvg({ certificate, courseTitle, width = 1200, height = 850 }, ref) {
   const learner = String(certificate.learner_name ?? "Learner");
   const title = String(certificate.course_title ?? courseTitle);
   const percent = String(certificate.quiz_percent ?? "0");
@@ -942,7 +942,18 @@ const CertificateSvg = forwardRef<
     qr = { size: made.modules.size, get: (x, y) => made.modules.get(x, y) };
   } catch {}
   return (
-    <Svg ref={ref} width="1200" height="850" viewBox="0 0 1200 850">
+    /* pass 89 — the certificate was drawn into a FIXED 1200×850 element inside a
+     * ~360 pt card with overflow:hidden, so the phone showed the left third of it
+     * (owner: "the certificate comes half of it, not full"). Draw at the size the
+     * container actually has and let the viewBox scale the artwork; the export
+     * still rasterises at full 1200×850 because saveSvgRefAsJpg passes {width,height}. */
+    <Svg
+      ref={ref}
+      width={width}
+      height={height}
+      viewBox="0 0 1200 850"
+      preserveAspectRatio="xMidYMid meet"
+    >
       <Rect width="1200" height="850" fill="#fffdf7" />
       <Rect
         x="28"
@@ -1202,6 +1213,9 @@ function CoursePlayer({
   > | null>(null);
   const [certificateQr, setCertificateQr] = useState("");
   const [certificateOpen, setCertificateOpen] = useState(false);
+  /* pass 89 — the certificate SVG is drawn at the size of this card, not at a
+   * fixed 1200×850 (that showed only the left third on a phone). */
+  const [certBox, setCertBox] = useState({ w: 0, h: 0 });
   const [certificateBusy, setCertificateBusy] = useState(false);
   const certificateExportRef = useRef<SvgRefHandle>(null);
   const certificateXml =
@@ -2188,6 +2202,7 @@ function CoursePlayer({
               }}
             >
               <View
+                onLayout={(e) => setCertBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
                 style={{
                   width: "100%",
                   aspectRatio: 1200 / 850,
@@ -2203,6 +2218,8 @@ function CoursePlayer({
                     ref={certificateExportRef}
                     certificate={certificate}
                     courseTitle={String(course.title)}
+                    width={certBox.w > 8 ? certBox.w : 1200}
+                    height={certBox.h > 8 ? certBox.h : 850}
                   />
                 ) : null}
               </View>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
+import { askConfirm, dismissConfirm } from "@/components/ConfirmDialog";
 import { Image } from "expo-image";
 import { T } from "@/components/T";
 import { storage } from "@/lib/storage";
@@ -121,23 +122,25 @@ export function useThemeLocks(): ThemeLocks {
       const price = priceOf(kind, key);
       if (price <= 0 || ownsLocal(kind, key)) return true;
       const balance = dp.points;
-      const answer = await new Promise<"buy" | "cancel">((resolve) => {
-        Alert.alert(
-          `Unlock ${label}?`,
-          price > balance
-            ? `This look costs ${price} DeenPoints and your balance is ${balance}. Top up DeenPoints to buy it.`
-            : `Costs ${price} DeenPoints · your balance ${balance}. The look is yours forever, on every device.`,
-          [
-            { text: price > balance ? "Top up later" : "Cancel", style: "cancel", onPress: () => resolve("cancel") },
-            { text: price > balance ? "Get DeenPoints" : `Unlock for ${price}`, onPress: () => resolve("buy") },
-          ],
-        );
+      const short = price > balance;
+      /* pass 89 — the old code asked through react-native's Alert.alert, which is a
+       * NO-OP on the web build: tapping a priced look did nothing at all, which is
+       * exactly what the owner reported. One promise-based sheet, all platforms. */
+      const buy = await askConfirm({
+        title: short ? `Not enough DeenPoints` : `Unlock the ${label}?`,
+        message: short
+          ? `This look costs ${price} DeenPoints and your balance is ${balance}. Nothing was spent — top up the wallet, then come back.`
+          : `Costs ${price} DeenPoints (balance ${balance} → ${Math.max(0, balance - price)}). The look stays yours forever, on every device you sign in on.`,
+        confirmLabel: short ? "Open DeenPoints" : `Unlock for ${price}`,
+        cancelLabel: "Not now",
+        tone: "neutral",
+        icon: short ? ("exclamation-circle" as never) : ("coins" as never),
       });
-      if (answer !== "buy") return false;
-      if (price > balance) {
-        /* send them to the wallet — the coin modal is the only way in */
+      if (!buy) return false;
+      if (short) {
         try {
           const { router } = require("expo-router") as { router?: { push: (href: string) => void } };
+          dismissConfirm();
           router?.push("/tools/deenpoints");
         } catch { /* noop */ }
         return false;
@@ -154,7 +157,13 @@ export function useThemeLocks(): ThemeLocks {
       }
       const out = await api.themeUnlock(kind, key);
       if (!out.ok) {
-        Alert.alert("Could not unlock", out.message ?? "Try again in a moment.");
+        await askConfirm({
+          title: "Could not unlock that look",
+          message: out.message ?? "Nothing was spent. Try again in a moment.",
+          confirmLabel: "OK",
+          cancelLabel: "Close",
+          tone: "danger",
+        });
         return false;
       }
       if (out.balance != null) void dp.sync(out.balance);
@@ -164,6 +173,8 @@ export function useThemeLocks(): ThemeLocks {
       }
       void load();
       bump();
+      /* let the sheet behind the dialog see the new ownership before it closes */
+      dismissConfirm();
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -193,7 +204,9 @@ export function ThemePriceChip({
         backgroundColor: "rgba(184,135,11,0.12)",
         paddingHorizontal: compact ? 5 : 7,
         paddingVertical: compact ? 1.5 : 2.5,
-        alignSelf: "flex-start",
+        /* pass 89 — the chip sat hard left of the swatch it belongs to
+         * (owner: "the price badge look too lefty, centralise it") */
+        alignSelf: "center",
       }}
     >
       <Image

@@ -3032,6 +3032,22 @@ export type DirectFatwa = {
   };
 };
 
+/** pass 89 — the signed-in user's OWN scholar application (approval state, notes).
+ *  api/users/get_scholar_me.php answers 403 with "Not a scholar account" when the
+ *  account has no scholars row, so `ok:false, scholar:null` means "never applied". */
+export async function scholarStatus(): Promise<{
+  ok: boolean;
+  scholar: Record<string, unknown> | null;
+  message?: string;
+}> {
+  const r = await request<{ status?: string; scholar?: Record<string, unknown>; message?: string }>(
+    "/api/users/get_scholar_me.php",
+    { auth: true },
+  );
+  const row = r.ok && r.data.scholar ? r.data.scholar : null;
+  return { ok: !!row, scholar: row, message: r.data.message };
+}
+
 /** Direct fatwas — public questions answered by verified DeenLink scholars
  * (api/questions/public_list.php). Empty in demo/offline mode. */
 export async function directFatwas(

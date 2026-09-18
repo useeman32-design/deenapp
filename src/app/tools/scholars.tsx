@@ -111,6 +111,34 @@ export default function Scholars() {
     }).catch(() => {});
   }, []);
 
+  /* pass 89 — the server side of Ask Scholars. Three separate gaps made this
+   * screen read as “nothing new”, and all three are closed here:
+   *   · the ask sheet never contacted the API: it wrote the question into this
+   *     phone's storage and then FABRICATED a scholar's reply after nine
+   *     seconds, so nothing reached a scholar's inbox and nothing could be
+   *     published;
+   *   · the MY QUESTIONS and PUBLIC tabs rendered that same local storage, so a
+   *     real answer written by a scholar on the server could never appear;
+   *   · an empty roster said “No scholars match that search”.
+   * The local list is still kept, as the offline mirror underneath the server
+   * rows — the DB is what the user is shown first. */
+  const [liveFatwas, setLiveFatwas] = useState<api.DirectFatwa[]>([]);
+  const [liveMine, setLiveMine] = useState<api.MyQuestion[]>([]);
+  const [scholarBusy, setScholarBusy] = useState(false);
+  const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+  const refreshScholarData = async () => {
+    setScholarBusy(true);
+    const [pub, mine] = await Promise.all([
+      api.directFatwas(30).catch(() => [] as api.DirectFatwa[]),
+      api.myQuestions().catch(() => null),
+    ]);
+    setLiveFatwas(pub);
+    setLiveMine(mine?.questions ?? []);
+    setScholarBusy(false);
+  };
+  useEffect(() => { void refreshScholarData(); }, []);
+  useEffect(() => { if (tab === 'public' || tab === 'mine') { void refreshScholarData(); } }, [tab]);
+
   const save = (list: Question[]) => {
     setQuestions(list);
     storage.setItem('dl.scholars.questions.v1', JSON.stringify(list)).catch(() => {});
@@ -155,6 +183,11 @@ export default function Scholars() {
         }
       />
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {flash ? (
+          <View style={{ borderRadius: 13, borderWidth: 1, marginBottom: 12, paddingHorizontal: 12, paddingVertical: 10, borderColor: flash.ok ? (isDark ? 'rgba(74,227,143,0.4)' : 'rgba(29,111,66,0.3)') : '#F58FB0', backgroundColor: flash.ok ? (isDark ? 'rgba(46,204,113,0.08)' : 'rgba(29,111,66,0.05)') : 'rgba(245,143,176,0.1)' }}>
+            <T v="caption" style={{ fontSize: 11, lineHeight: 16, color: d.subtext }} onPressIn={() => setFlash(null)}>{flash.text}</T>
+          </View>
+        ) : null}
 
         {picked == null ? (
           /* pass 41 — the SELECTION screen: three big cards instead of tabs */
@@ -262,7 +295,19 @@ export default function Scholars() {
                 </View>
               </Pressable>
             ))}
-            {!list.length ? <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>No scholars match that search.</T> : null}
+            {!list.length ? (
+              <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginTop: 24 }}>
+                <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{roster.length ? 'No scholar matches that search or field.' : 'No scholars are on the roster yet.'}</T>
+                <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>
+                  {roster.length
+                    ? 'Try clearing the search or picking another field — the roster is filtered by the field you chose.'
+                    : 'A scholar applies with one document (a certificate, an ijāzah or a recommendation letter), and appears here once the team approves them in Admin → Scholar Management. Press the button below to apply from your own account.'}
+                </T>
+                <Pressable onPress={() => { haptic.light(); router.push('/tools/scholar-apply' as never); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Apply as a scholar</T>
+                </Pressable>
+              </View>
+            ) : null}
 
             {/* DeenPoints clarification — bottom of the selection screen */}
             <View style={{ borderRadius: 17, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : 'rgba(212,175,55,0.05)', padding: 15, marginTop: 16 }}>
@@ -287,6 +332,35 @@ export default function Scholars() {
               <T v="caption" style={{ fontSize: 10, color: d.faint, fontStyle: 'italic', marginTop: 10 }}>🤍 This system ensures fairness, respect and sustainability.</T>
             </View>
           </>
+        ) : null}
+
+        {/* pass 89 — YOUR QUESTIONS AS THE SCHOLARS SEE THEM (server first). */}
+        {picked != null && tab === 'mine' ? (
+          liveMine.length ? (
+            <View style={{ marginBottom: 8 }}>
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>SENT TO SCHOLARS · {liveMine.length}</T>
+              {liveMine.map((x) => (
+                <View key={'srvq' + x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>
+                    {String(x.status || 'pending').toUpperCase()}{x.scholar?.name ? ' · ' + x.scholar.name : ''}
+                  </T>
+                  <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
+                  {x.answer ? (
+                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 9 }}>
+                      <ActivityIndicator size="small" color="#E8C96A" />
+                      <T v="caption" style={{ fontSize: 10, color: d.faint }}>
+                        {x.status === 'rejected' ? 'This question could not be answered — see the note from the verification team.' : 'A scholar has the question in their queue. Answers arrive in this list.'}
+                      </T>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : scholarBusy && !(questions?.length) ? (
+            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginVertical: 16 }} />
+          ) : null
         ) : null}
 
         {/* ── MY QUESTIONS ── */}
@@ -343,6 +417,45 @@ export default function Scholars() {
           )
         ) : null}
 
+        {/* pass 89 — answers PUBLISHED ON THE SERVER. This tab used to read only
+            this phone's storage, so a scholar's public answer could never appear. */}
+        {picked != null && tab === 'public' ? (
+          liveFatwas.length ? (
+            <View style={{ marginBottom: 8 }}>
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>ANSWERED IN PUBLIC · {liveFatwas.length}</T>
+              {liveFatwas.map((f) => (
+                <View key={'pf' + f.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>
+                    {(f.category || 'GENERAL').toUpperCase()} · {f.answered_time_ago}
+                  </T>
+                  <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{f.title}</T>
+                  <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{f.question}</T>
+                  <View style={{ marginTop: 9, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <AvatarImage source={f.scholar?.profile_image_url ?? null} name={f.scholar?.name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
+                      <View style={{ flex: 1 }}>
+                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{f.scholar?.name || 'DeenLink scholar'}</T>
+                        <T v="caption" style={{ fontSize: 9, color: d.faint }}>answered publicly · {f.tags?.length ? f.tags.slice(0, 3).join(', ') : 'fatwa'}</T>
+                      </View>
+                    </View>
+                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.text, marginTop: 7 }}>{f.answer}</T>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : !publicQs.length ? (
+            <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginBottom: 10 }}>
+              <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{scholarBusy ? 'Loading public answers…' : 'Nothing published yet'}</T>
+              <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>
+                When a scholar answers a question that was asked in public, the question and the answer are published here for everyone. Ask your own question and leave “Share the answer publicly” on to add to this page — private questions are answered in My Questions only.
+              </T>
+              <Pressable onPress={() => { haptic.light(); void refreshScholarData(); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, borderWidth: 1, borderColor: d.cardBorder, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>Refresh</T>
+              </Pressable>
+            </View>
+          ) : null
+        ) : null}
+
         {/* ── PUBLIC ── */}
         {picked != null && tab === 'public' ? (
           publicQs.map((x) => (
@@ -389,20 +502,36 @@ export default function Scholars() {
             fields={scholar?.fields_of_knowledge ?? ''}
             points={points}
             onClose={() => setAsking(null)}
-            onSubmit={(payload) => {
+            onSubmit={async (payload) => {
               const entry: Question = { ...payload, id: `q${Date.now()}`, scholarId: asking ?? 0, at: Date.now(), status: 'processing' };
-              const next = [entry, ...(questions ?? [])];
-              /* simulate the scholar answering shortly (or keep processing) */
-              setTimeout(() => {
-                setQuestions((cur) => {
-                  const upd = (cur ?? []).map((x) => (x.id === entry.id ? { ...x, status: 'answered' as const, answer: 'JazakAllahu khairan for your question. Based on the Qur’an and Sunnah: ' + (payload.body.length > 40 ? 'the general ruling here is that which is closest to the prophetic guidance — please consult local specifics with a qualified scholar in person. Allahu a\'lam.' : '…') } : x));
-                  storage.setItem('dl.scholars.questions.v1', JSON.stringify(upd)).catch(() => {});
-                  return upd;
-                });
-              }, 9000);
-              save(next);
+              save([entry, ...(questions ?? [])]);
               setAsking(null);
               setTab('mine');
+              /* pass 89 — this is what “scholar: nothing new” actually was: the
+               * question never left the phone, and a fake reply was written into
+               * local storage after nine seconds. It now goes to
+               * api/questions/submit.php so it lands in the scholar's inbox, and
+               * the answer (if the scholar shares it publicly) on the public
+               * page. The local entry above stays as the offline mirror. */
+              if (!api.isLive()) {
+                setFlash({ ok: false, text: 'Offline — your question is saved on this phone and will be sent when the connection returns.' });
+                return;
+              }
+              const r = await api.submitQuestion({
+                scholar_id: entry.scholarId,
+                title: payload.title,
+                details: payload.body,
+                privacy: payload.isPublic ? 'public' : 'private',
+                category: payload.cat,
+                additional_deenpoints: payload.urgency > 0 ? payload.urgency : undefined,
+              }).catch(() => ({ ok: false }));
+              if (r.ok) {
+                setFlash({ ok: true, text: 'Sent — the scholar has it in their queue. Answers show up in My Questions, and in Public if you allowed it. JazakAllahu khairan.' });
+                const fresh = await api.myQuestions().catch(() => null);
+                if (fresh) { setLiveMine(fresh.questions); }
+              } else {
+                setFlash({ ok: false, text: 'Could not reach the server. The question is on your phone — try sending it again in a moment.' });
+              }
             }}
           />
         </View>

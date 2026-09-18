@@ -636,6 +636,13 @@ function VideosFeedInner() {
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
   /* pass 83-36 — owner: tapping your own name on a reel must not open your profile */
   const { user: meUser } = useAuth();
+  /* pass 88 — owner: the videos sheets looked LIGHTER than the community post
+   * cards on dark theme. They are painted with the dash card colour now
+   * (#0D1B13 dark / white light), i.e. literally the same surface. */
+  const { theme: vTheme, isDark: vIsDark } = useTheme();
+  const vCard = vIsDark ? '#0D1B13' : '#FFFFFF';
+  const vBorder = vIsDark ? 'rgba(212,175,55,0.22)' : 'rgba(20,36,28,0.1)';
+  const vRow = vIsDark ? 'rgba(255,255,255,0.05)' : 'rgba(20,36,28,0.045)';
 
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou');
   const [index, setIndex] = useState(0);
@@ -1339,7 +1346,7 @@ function VideosFeedInner() {
       {friendsOpen ? (
         <View style={{ position: 'absolute', inset: 0, zIndex: 80, backgroundColor: 'rgba(4,8,6,0.72)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setFriendsOpen(false)} />
-          <View style={{ maxHeight: 520, backgroundColor: '#0C1712', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16, gap: 10 }}>
+          <View style={{ maxHeight: 520, backgroundColor: vCard, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: vBorder, padding: 16, gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <T v="body" style={{ flex: 1, color: '#F2F7F3', fontWeight: '800', fontSize: 15 }}>
                 Friends
@@ -1350,7 +1357,7 @@ function VideosFeedInner() {
             </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 8 }}>
               {friends.map((a) => (
-                <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                <View key={a.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: vRow }}>
                   <AvatarImage source={a.photo ?? null} name={a.full_name} size={36} tint="rgba(46,204,113,0.2)" border="rgba(255,255,255,0.2)" />
                   <View style={{ flex: 1 }}>
                     <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ color: '#F2F7F3', fontWeight: '700', fontSize: 12.5 }}>
@@ -1390,7 +1397,7 @@ function VideosFeedInner() {
       {shareReel ? (
         <View style={{ position: 'absolute', inset: 0, zIndex: 85, backgroundColor: 'rgba(4,8,6,0.72)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShareReel(null)} />
-          <View style={{ backgroundColor: '#0C1712', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16 }}>
+          <View style={{ backgroundColor: vCard, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: vBorder, padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <T v="body" style={{ flex: 1, color: '#F2F7F3', fontWeight: '800', fontSize: 15 }}>
                 Share
@@ -1420,7 +1427,7 @@ function VideosFeedInner() {
                 </Pressable>
               ))}
             </ScrollView>
-            <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 14 }} />
+            <View style={{ height: 1, backgroundColor: vBorder, marginVertical: 14 }} />
             <Pressable
               onPress={async () => {
                 haptic.light();
@@ -1582,11 +1589,11 @@ function VideosFeedInner() {
           <View
             style={{
               maxHeight: 560,
-              backgroundColor: '#0C1511',
+              backgroundColor: vCard,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.1)',
+              borderColor: vBorder,
               paddingBottom: 18,
             }}
           >
@@ -1667,11 +1674,11 @@ function VideosFeedInner() {
           <Pressable style={{ flex: 1 }} onPress={() => { setMoreReel(null); setSendToOpen(false); }} />
           <View
             style={{
-              backgroundColor: '#0C1511',
+              backgroundColor: vCard,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.1)',
+              borderColor: vBorder,
               paddingTop: 12,
               paddingBottom: 20,
             }}
@@ -1896,7 +1903,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         <Pressable style={{ flex: 1 }} onPress={() => !posting && onClose()} />
         <View
           style={{
-            backgroundColor: isDark ? '#0C1511' : '#FFFFFF',
+            backgroundColor: isDark ? '#0D1B13' : '#FFFFFF',
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             borderWidth: 1,

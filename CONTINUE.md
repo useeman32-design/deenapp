@@ -2420,3 +2420,68 @@ runs the whole verified order: both exports with their CHECK-RAW gate, re-clones
 (merge-never-prune), overlays gh-pages without `--delete` and removes CNAME, then curls
 both hosts and compares the entry hash and the deep-link page. Use it instead of
 re-deriving the sequence; it exists because pass 88 burned hours on exactly that.
+
+## Pass 89 — the eight complaints, and the two content items (2026-09-18)
+
+Owner's list, verbatim in effect: theme purchase did nothing · certificate cut in half · profile
+share/comment taps dead · “Share as image / as post” must go · admin hamburger only on the
+dashboard · campaign banners never reach Home · “only 10 professional courses with correct tests” ·
+“scholar: nothing new”.
+
+**Fixed and gated (tsc clean, 468 php files lint clean, MariaDB rig + live HTTP chain):**
+
+1. **Theme purchase** — root cause was `Alert.alert`, a no-op on RN-web, so the confirm never
+   resolved and the purchase silently returned. `src/components/ConfirmDialog.tsx` (the file that
+   ALREADY ships the declarative dialog used by FeedCard/settings/profile) now also exports
+   `askConfirm()/dismissConfirm()/GlobalConfirmDialog`, mounted once in `src/app/_layout.tsx`;
+   `src/lib/themeLocks.tsx` awaits `askConfirm` and pushes `/tools/deenpoints` on an insufficient
+   balance. Price chips are `alignSelf:"center"`.
+2. **Certificate** — `CertificateSvg` in `src/app/tools/courses.tsx` takes the measured box
+   (`onLayout`) and renders `width/height + viewBox + preserveAspectRatio`, so it is never cropped;
+   export still rasterises at 1200×850.
+3. **Profile comments** — `(tabs)/profile.tsx` and `profile/[username].tsx` mount `CommentsModal`
+   and pass `onComments` into every `FeedCard` (screen-level on purpose: `CommentsModal` imports
+   `AvatarImage` from `FeedCard`, so wiring it inside FeedCard would be a cycle).
+4. **Share sheet** — `ContentShareSheet.tsx` returns `null` for the image/post toggle branch on
+   posts; the two-row choice is gone everywhere.
+5. **Admin hamburger** — `admin/assets/sidebar.js` injects drawer CSS and binds
+   `#menuToggle/#mobileMenuToggle/.menu-toggle` in the **capture** phase with
+   `stopImmediatePropagation` + a `dataset` guard, so it wins over the per-page add-only handlers
+   on all 47 admin pages. Escape closes.
+6. **Campaigns** — `api/campaigns/list.php` uses `COALESCE(status,'active') <> 'inactive'`, and
+   `admin/campaigns.html` re-fetches the public endpoint after saving and toasts
+   “Saved ✓ the app is serving N banner(s) now”. (His rows were not persisting because of the reused
+   `:cb` placeholder in `api/admin/campaigns/save.php`, fixed in the same area.)
+7. **The ten courses** — `api/admin/courses/seed_pass89.php` + `data/pass89_focus_new.json`:
+   hand-written curriculum for exactly ten slugs (`tajwid-essentials`, `reading-quran-basics`,
+   `arabic-reading-writing`, `getting-started-with-arabic`, `tafsir-juz-amma`, `aqeedah-foundations`,
+   `tauhid-knowing-allah`, `fiqh-worship`, `seerah`, `dua-and-dhikr`) — 83 lessons, 190 questions,
+   every question with an explanation. It PRUNES only machine-made filler (fingerprint:
+   “This starter lesson was seeded automatically”, `Lesson N of M`, `Revision Notes — …`) into
+   `deenlink_content_archive` (never a raw DELETE), replaces each test bank with the curated one,
+   and un-publishes the other 37 so the app shows ten. `?action=status|undo|restore_hidden` are the
+   escape hatches, and `admin/course-quizzes.html` shows a **Professional 10** button plus a live
+   status line, Restore and Undo. Rig: `47 → created 2, 83 lessons, 10 banks, 190 questions,
+   21 stubs archived, 39 hidden`; second run: all zeros.
+   ⚠️ **Production still needs one click: Admin → Course Tests → “Professional 10”.** It was never
+   run after the last pull, which is why he kept seeing the 3-lesson stubs and pass-87 auto banks.
+8. **Scholar: nothing new** — two causes. (a) `api/auth/scholar_apply.php` called `db_conn()`, which
+   `config/db.php` does not define (same class of bug as campaigns/list.php in pass 88) → every
+   application was a fatal 500 that the app swallowed, so the roster stayed empty forever; now
+   `function_exists('db_conn') ? db_conn() : DB::conn()`, hardened the same way in
+   `api/defaults/get.php`, `api/events/list.php`, `api/learning/list.php`. (b) the Ask Scholars
+   screen never used the server: the ask sheet invented a scholar's reply after nine seconds and the
+   PUBLIC tab read that same device storage — now it posts `api/questions/submit.php`, renders
+   `public_list.php` and `my_list.php` server rows first, says “No scholars are on the roster yet”
+   instead of “no match”, and links a new `src/app/tools/scholar-apply.tsx` so an EXISTING account can
+   apply (previously only possible during sign-up). Verified over live HTTP in the rig:
+   apply → pending (roster 0) → admin approve with `level` → roster 1 → public question →
+   scholar queue → answer (+10 DP) → `public_list.php` returns the fatwa → asker sees “answered”.
+
+**Owner-side notes worth keeping:** approval requires a `level` — that is the Scholar Management
+page's picker, so approve there (Admin → Verification has no level control). `api/config/db.php`
+uses `getenv('DB_HOST'|'DB_NAME'|'DB_USER'|'DB_PASS')`; a sandbox/`php -S` rig must export them or
+every endpoint answers “Server error”.
+
+**Next in line (owner's order):** CDN for media (need host/plan + public bucket base URL +
+upload-scoped key; `upload.php` keeps the local `assets/` fallback) → ads → store submission.

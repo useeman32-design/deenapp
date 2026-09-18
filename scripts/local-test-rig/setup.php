@@ -43,9 +43,25 @@ foreach ($slugs as $slug => $title) {
     $cid = (int)$pdo->lastInsertId();
     $insMod->execute([$cid, $slug . '-core']);
     $mid = (int)$pdo->lastInsertId();
+    $isThin = in_array($slug, $thin, true);
     for ($k = 1; $k <= $n; $k++) {
+        if ($isThin) {
+            /* pass 89 — the seven thin courses carry the ORIGINAL auto-starter
+             * stub in production (verified live via /api/courses/get.php?course_id=2):
+             * "Module 1 — Getting Started" → lesson "Introduction" whose body says
+             * "This starter lesson was seeded automatically". Reproduce it exactly so
+             * the seeder's prune fingerprint is tested against the real thing. */
+            $html = '<h2>Introduction</h2><p>Welcome to <strong>' . htmlspecialchars($title) . '</strong>. This lesson is part of the starter content for the course.</p>'
+                  . '<p><em>This starter lesson was seeded automatically. Open <strong>Admin → Courses</strong> to replace it with real material.</em></p>';
+            $insLsn->execute([$cid, $mid, $k === 1 ? 'Introduction' : 'Lesson ' . $k . ' of ' . $n, $slug . '-l' . $k, $html, $k]);
+            continue;
+        }
         $t = $slug . ' lesson ' . $k;
         $insLsn->execute([$cid, $mid, 'Lesson ' . $k . ' of ' . $title, $slug . '-l' . $k, '<p>Original fixture paragraph for lesson ' . $k . '.</p>', $k]);
+    }
+    if ($isThin) {
+        /* one hand-written lesson per thin course: the seeder must NEVER prune it */
+        $insLsn->execute([$cid, $mid, 'Owner note: how to study this course', $slug . '-owner', '<p>Written by the owner in the admin builder. Must survive every seed run.</p>', 99]);
     }
     /* twenty of the courses already carry a pass-87 style bank with terse and
      * sometimes EMPTY explanations — the exact state the owner complained about */

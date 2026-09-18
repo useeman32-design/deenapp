@@ -11,6 +11,7 @@ import { NetPill } from '@/lib/net';
 import { LoginModalHost } from '@/components/LoginModal';
 import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
+import { GlobalConfirmDialog } from '@/components/ConfirmDialog';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
@@ -190,6 +191,9 @@ export default function RootLayout() {
         <UIScaleProvider>
         <AuthProvider>
           <Root />
+          {/* pass 89 — one confirm sheet for every screen; Alert.alert is a no-op
+              on web, which silently killed the DeenPoints unlock prompt. */}
+          <GlobalConfirmDialog />
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>

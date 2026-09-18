@@ -298,6 +298,10 @@ export function ContentShareSheet({
                * "Share as post" render of the actual post container. */
               const isPost = card?.kind === "post";
               const mediaLocked = isPost && !!card?.hasMedia;
+              /* pass 89 — owner asked twice: a post is shared as a LINK, never
+               * rebuilt as a picture or re-posted. So the post branch returns
+               * nothing at all (the old code only hid it when media was present). */
+              if (isPost) return null;
               if (mediaLocked) return null;
               return isPost ? (
                 <Row
