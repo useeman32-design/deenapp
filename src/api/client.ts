@@ -1961,10 +1961,21 @@ export async function registerScholar(payload: {
   if (r.ok && r.data.status === "success") {
     live = true;
     if (!needsVerification) await fetchCsrf();
+    let delivery = emailDelivery;
+    /* pass 91 — deploy-order guard. An API that does not REPORT a delivery mode
+     * is the older register_scholar.php, which only ever mailed a 24-hour LINK:
+     * the code screen would then wait forever for a code nobody sent. Ask
+     * send_otp.php for a real code instead (it mints one and reports how it
+     * went). Servers that do report a mode already sent the right mail, so this
+     * never double-sends. */
+    if (needsVerification && r.data.email_delivery === undefined) {
+      const again = await sendOtp(payload.email).catch(() => null);
+      if (again?.delivery && again.delivery !== "none") delivery = again.delivery;
+    }
     return {
       ok: true,
       needsVerification,
-      emailDelivery,
+      emailDelivery: delivery,
       scholarId: r.data.scholar_id,
     };
   }
