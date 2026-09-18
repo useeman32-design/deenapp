@@ -493,6 +493,7 @@ export default function Register() {
       } catch (e) { why = String(e); }
       /* keep the payload (the picked files are still in memory) so the retry
        * after email verification never asks him to upload again */
+      if (sent) await storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
       pendingApply.current = { payload: applyPayload, sent };
       /* pass 88 — the scholar path used to fire an Alert and bounce straight to the
        * tabs, so the verification step NEVER appeared (owner: "scholar … it just
@@ -791,9 +792,12 @@ export default function Register() {
                 const retry = pendingApply.current.payload;
                 void scholarApply(retry)
                   .then((out) => {
-                    if (out.ok) {
+                    /* "already a verified scholar" means the first attempt DID
+                     * land (or the admin approved in the meantime) — nothing to
+                     * resend, and the local draft must not linger. */
+                    if (out.ok || /already a verified scholar/i.test(out.message || '')) {
                       pendingApply.current = null;
-                      storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
+                      void storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
                     }
                   })
                   .catch(() => {});
