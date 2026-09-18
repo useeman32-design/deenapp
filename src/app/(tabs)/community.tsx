@@ -26,6 +26,7 @@ import { Image as ExpoImage } from "expo-image";
 import { useTheme } from "@/context/ThemeContext";
 import type { Post } from "@/api/types";
 import { GroupFeedInline, GroupsRail, loadGroups } from "@/components/Groups";
+import { FeedSkeleton } from "@/components/Skeletons";
 
 import * as api from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
@@ -91,6 +92,36 @@ function CommunityScreenInner() {
   const [posts, setPosts] = useState<Post[]>(
     [],
   ); /* pass 83-38 — real posts only */
+  /* pass 91 — owner: "when i switch account am finding posts of the old account
+   * … and i will be seeing like there's no posts … for like 10 secs, it should
+   * show a loading breathing skeleton instead of showing empty."
+   *  · the cached page is now keyed by the ACCOUNT that fetched it, so a
+   *    different login can never paint the previous account's feed;
+   *  · while the first page is still in flight the screen shows FeedSkeleton
+   *    (the breathing card) instead of an empty-state card. */
+  const [feedLoading, setFeedLoading] = useState(true);
+  /* `user` is destructured further down this component (needed there for delete-own-post),
+   * so the cache key reads its own hook value here rather than using a variable
+   * before its declaration. */
+  const { user: sessionUser } = useAuth();
+  const feedCacheKey =
+    sessionUser?.id != null ? `dl.community.feed.v1.${sessionUser.id}` : null;
+  useEffect(() => {
+    if (!feedCacheKey) return;
+    void storage
+      .getItem(feedCacheKey)
+      .then((raw) => {
+        if (!raw) return;
+        try {
+          const rows = JSON.parse(raw) as Post[];
+          if (Array.isArray(rows) && rows.length) setPosts((cur) => (cur.length ? cur : rows));
+        } catch {
+          /* junk cache — the network list replaces it */
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedCacheKey]);
   useEffect(() => {
     const offD = onPostDeleted((id) =>
       setPosts((ps) => ps.filter((p) => p.id !== id)),
@@ -114,10 +145,19 @@ function CommunityScreenInner() {
     api
       .feed("for-you")
       .then((r) => {
-        if (r.posts && r.posts.length) setPosts(r.posts);
+        if (r.posts && r.posts.length) {
+          setPosts(r.posts);
+          if (feedCacheKey) {
+            void storage
+              .setItem(feedCacheKey, JSON.stringify(r.posts.slice(0, 30)))
+              .catch(() => {});
+          }
+        }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {})
+      .finally(() => setFeedLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedCacheKey]);
   /* pass 83-36 — admin toggle: community video posting (default OFF) */
   useEffect(() => {
     api
@@ -1375,7 +1415,9 @@ function CommunityScreenInner() {
                 </View>
               </View>
               <View style={{ gap: 4 }}>
-                {visiblePosts.length === 0 ? (
+                {visiblePosts.length === 0 && feedLoading && tab !== "scholars" ? (
+                  <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={3} />
+                ) : visiblePosts.length === 0 ? (
                   <View
                     style={{
                       backgroundColor: d.card,

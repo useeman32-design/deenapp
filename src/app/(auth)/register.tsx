@@ -10,7 +10,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
-import { checkUsernameAvailable, checkEmailAvailable, restoreSession, scholarApply,} from '@/api/client';
+import { checkUsernameAvailable, checkEmailAvailable, registerScholar, restoreSession, scholarApply,} from '@/api/client';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -341,6 +341,22 @@ export default function Register() {
     payload: Parameters<typeof scholarApply>[0];
     sent: boolean;
   } | null>(null);
+  /* pass 91 — the one-shot scholar sign-up keeps ITS payload here for the
+   * documented retry path (account already exists → attach documents to it
+   * after the code is verified, when a session finally exists). */
+  const scholarRetry = useRef<{
+    display_name: string;
+    phone?: string;
+    fields: string[];
+    other_field?: string;
+    madhhab?: string;
+    institute?: string;
+    years?: number;
+    teachers?: string;
+    aqeedah?: string;
+    proof?: { uri: string; name: string } | null;
+    letter?: { uri: string; name: string } | null;
+  } | null>(null);
   const [agree, setAgree] = useState(false);
 
   const nigeria = country === 'Nigeria';
@@ -462,55 +478,72 @@ export default function Register() {
       return setError(
         'Upload either your proof of qualifications or a recommendation letter — one is enough',
       );
+    if (!gender) return setError('Please select your gender');
     if (!agree) return setError('Please agree to the Terms and Privacy Policy');
     setError('');
     setBusy(true);
     const allFields = fieldsOther.trim() ? [...fields, fieldsOther.trim()] : fields;
-    const res = await register({
-      full_name: fullName.trim(), username, email: email.trim(), password,
-      aqeedah: aqeedahValue, country: country || undefined,
+    const draft = {
+      account: 'scholar', display_name: displayName.trim(), phone, fields: allFields,
+      madhhab, institute: institute.trim(), years, teachers: teachers.trim(),
+      proof: proofName, letter: letterName, at: Date.now(),
+    };
+    /* a local copy is still kept — if the network dies mid-request he does not
+     * have to retype anything, and the verification team has a record */
+    await storage.setItem(`dl.scholar.app.${username}`, JSON.stringify(draft)).catch(() => {});
+    const payload = {
+      display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
+      fields: allFields, other_field: fieldsOther.trim() || undefined,
+      madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined,
+      teachers: teachers.trim(), aqeedah: aqeedahValue,
+      proof: proofFile, letter: letterFile,
+    };
+    /* pass 91 — ONE request that creates the account, the `pending` scholars row
+     * and both documents (api/auth/register_scholar.php). The old flow posted
+     * the documents to scholar_apply.php BEFORE there was a session, which
+     * always answered "Not logged in" and left the account without a scholars
+     * row: visible in Users Management, missing from Scholars Management. */
+    const res = await registerScholar({
+      full_name: fullName.trim(), display_name: displayName.trim(), email: email.trim(),
+      username, password, gender: gender?.toLowerCase(), country: country || undefined,
+      phone: phone || undefined, aqeedah: aqeedahValue,
+      fields: allFields, other_field: fieldsOther.trim() || undefined,
+      madhhab: madhhab ?? undefined, institute: institute.trim(),
+      years: years ? Number(years) : undefined, teachers: teachers.trim(),
+      proof: proofFile, letter: letterFile,
     });
     if (res.ok) {
-      /* keep a local copy for the verification team in case the upload fails */
-      await storage.setItem(`dl.scholar.app.${username}`, JSON.stringify({
-        account: 'scholar', display_name: displayName.trim(), phone, fields: allFields,
-        madhhab, institute: institute.trim(), years, teachers: teachers.trim(),
-        proof: proofName, letter: letterName, at: Date.now(),
-      })).catch(() => {});
-      /* pass 87 — the application + documents now go to the SERVER (was
-       * device-only, so the verification team never received anything). */
-      const applyPayload = {
-        display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
-        fields: allFields, other_field: fieldsOther.trim() || undefined,
-        madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined, teachers: teachers.trim(),
-        aqeedah: aqeedahValue,
-        proof: proofFile, letter: letterFile,
-      };
-      let sent = false; let why = '';
-      try {
-        const out = await scholarApply(applyPayload);
-        sent = out.ok; why = out.message || '';
-      } catch (e) { why = String(e); }
-      /* keep the payload (the picked files are still in memory) so the retry
-       * after email verification never asks him to upload again */
-      if (sent) await storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
-      pendingApply.current = { payload: applyPayload, sent };
-      /* pass 88 — the scholar path used to fire an Alert and bounce straight to the
-       * tabs, so the verification step NEVER appeared (owner: "scholar … it just
-       * vanishes"). It now continues into the same email-verification screen with
-       * the application status shown as a note. */
+      scholarRetry.current = null;
+      pendingApply.current = null;
+      await storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
       setScholarNote(
-        sent
-          ? 'Your scholar application is with the verification team — they review it after your email is confirmed.'
-          : `Your documents were kept on this device and will be sent again the moment your email is confirmed${why ? ` (first try failed: ${why})` : ''}.`,
+        'Your scholar application is with the verification team — they review it after your email is confirmed.',
       );
-      setOtpDelivery(res.emailDelivery ?? 'otp');
+      setOtpDelivery(res.emailDelivery);
       setBusy(false);
       setOtpEmail(email.trim());
-    } else {
-      setError(res.message || 'Something went wrong');
-      setBusy(false);
+      return;
     }
+    /* the server refused: keep every field typed and both picked files in memory
+     * so pressing "Submit application" again is the whole retry */
+    const fieldError = Object.values(res.errors ?? {})[0];
+    const taken =
+      /already (taken|registered)/i.test(res.message ?? '') ||
+      Object.keys(res.errors ?? {}).some((k) => /username|email/i.test(k));
+    if (taken) {
+      /* the account exists (an earlier attempt got through, or he already has an
+       * account) — verify it and attach the documents immediately afterwards */
+      scholarRetry.current = payload;
+      setScholarNote(
+        'This email or username already has an account. Enter the code below — your documents are attached right after confirmation.',
+      );
+      setOtpDelivery('otp');
+      setBusy(false);
+      setOtpEmail(email.trim());
+      return;
+    }
+    setError(fieldError || res.message || 'We could not submit your application. Please try again.');
+    setBusy(false);
   };
 
   const toggleField = (f: string) => setFields((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]));
@@ -695,6 +728,15 @@ export default function Register() {
           <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" icon="envelope" keyboard="email-address" />
           <CountryPicker value={country} onPick={(c) => setCountry(c)} />
           <AuthField label="Phone" value={phone} onChangeText={(v) => setPhone(v.replace(/[^0-9+\s]/g, '').slice(0, 16))} placeholder="+234 800 000 0000" icon="phone" keyboard="phone-pad" />
+          {/* pass 91 — the server requires a gender for scholar accounts; this
+              form never asked for one, so every submission was rejected with
+              "Please select a valid gender" before anything else was looked at. */}
+          <View style={{ marginBottom: 13 }}>
+            <Label>Gender</Label>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {GENDERS.map((g) => <Chip key={g} label={g} on={gender === g} onPress={() => setGender(g)} />)}
+            </View>
+          </View>
           <PasswordBlock password={password} confirm={confirm} setPassword={setPassword} setConfirm={setConfirm} />
           {error ? <T v="caption" style={{ color: '#FF7B7B', fontWeight: '700', fontSize: 12, marginBottom: 10 }}>{error}</T> : null}
           <AuthPrimaryButton label="Continue" busy={false} onPress={nextStep1} />
@@ -784,23 +826,40 @@ export default function Register() {
             onVerified={(u) => {
               setOtpEmail(null);
               setScholarNote(null);
-              /* pass 90 — owner: after the OTP the app said "documents were not
-               * saved, reupload them". The uploads are still in memory here, so
-               * the application is retried automatically as soon as the session
-               * exists instead of sending him back through the form. */
-              if (accountType === 'scholar' && pendingApply.current && !pendingApply.current.sent) {
-                const retry = pendingApply.current.payload;
-                void scholarApply(retry)
+              /* pass 91 — the normal path no longer needs a retry at all: the
+               * account, the `pending` scholars row and the documents are all
+               * created by ONE request before the code screen appears. What is
+               * left here is the documented edge case (the email/username
+               * already had an account), where the documents are attached now
+               * that a session exists — and the outcome is SHOWN, never
+               * swallowed. */
+              const retryPayload = scholarRetry.current;
+              if (accountType === 'scholar' && retryPayload) {
+                void scholarApply({
+                  ...retryPayload,
+                  years: retryPayload.years,
+                })
                   .then((out) => {
-                    /* "already a verified scholar" means the first attempt DID
-                     * land (or the admin approved in the meantime) — nothing to
-                     * resend, and the local draft must not linger. */
-                    if (out.ok || /already a verified scholar/i.test(out.message || '')) {
+                    const ok =
+                      out.ok || /already a verified scholar/i.test(out.message || '');
+                    if (ok) {
+                      scholarRetry.current = null;
                       pendingApply.current = null;
                       void storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
+                    } else {
+                      Alert.alert(
+                        'Documents not uploaded',
+                        out.message ||
+                          'We could not attach your documents to this account. Open Scholars → Apply as scholar and send them again — everything you typed is still on this device.',
+                      );
                     }
                   })
-                  .catch(() => {});
+                  .catch(() =>
+                    Alert.alert(
+                      'Documents not uploaded',
+                      'Check your connection and send them again from Scholars → Apply as scholar.',
+                    ),
+                  );
               }
               if (u) {
                 /* verify_otp minted the session — adopt it */

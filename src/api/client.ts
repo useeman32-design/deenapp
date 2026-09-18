@@ -1841,6 +1841,147 @@ export async function shopConfirmReceived(
   };
 }
 
+/** pass 91 — guess the part's mime from its filename (multipart needs it). */
+function mimeOfFile(name: string): string {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (ext === "png") return "image/png";
+  if (ext === "gif") return "image/gif";
+  if (ext === "webp") return "image/webp";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "doc") return "application/msword";
+  if (ext === "docx")
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return "image/jpeg";
+}
+
+async function attachDoc(
+  form: FormData,
+  field: string,
+  doc: { uri: string; name: string },
+): Promise<void> {
+  const name = doc.name || `${field}.jpg`;
+  const type = mimeOfFile(name);
+  if (Platform.OS === "web") {
+    /* on web a picked file is a blob: URL — FormData wants a real File */
+    try {
+      const blob = await fetch(doc.uri).then((r) => r.blob());
+      form.append(field, new File([blob], name, { type }));
+    } catch {
+      /* blob expired (page reloaded) — drop it; the server will say what is missing */
+    }
+    return;
+  }
+  form.append(field, { uri: doc.uri, name, type } as unknown as Blob);
+}
+
+/**
+ * pass 91 — ONE-SHOT scholar sign-up.
+ *
+ * The owner: "on OTP modal I'm getting: Your documents were kept on this device …
+ * (first try failed: Not logged in)". The app used to create the account with
+ * register.php and then POST the documents to scholar_apply.php — which needs a
+ * session that does not exist before the code is verified. The first attempt
+ * therefore always answers "Not logged in", the retry after the OTP is
+ * fire-and-forget, and when it fails there is no `scholars` row at all: the
+ * account shows up in Users Management but not in Scholars Management, and the
+ * signed-in user sees himself as an ordinary member.
+ *
+ * api/auth/register_scholar.php does the whole thing in one multipart request —
+ * user + `scholars` row (approval_status `pending`) + both documents — and now
+ * mints the same 6-digit OTP as register.php, so the code screen works.
+ */
+export async function registerScholar(payload: {
+  full_name: string;
+  display_name?: string;
+  email: string;
+  username: string;
+  password: string;
+  gender?: string;
+  country?: string;
+  tribe?: string;
+  phone?: string;
+  aqeedah?: string;
+  fields: string[];
+  other_field?: string;
+  madhhab?: string;
+  institute?: string;
+  years?: number;
+  teachers?: string;
+  proof?: { uri: string; name: string } | null;
+  letter?: { uri: string; name: string } | null;
+}): Promise<{
+  ok: boolean;
+  message?: string;
+  needsVerification: boolean;
+  emailDelivery: "otp" | "link" | "none";
+  errors?: Record<string, string>;
+  scholarId?: number;
+  networkError?: boolean;
+}> {
+  const form = new FormData();
+  const put = (k: string, v?: string | number) => {
+    if (v === undefined || v === null || v === "" || v === 0) return;
+    form.append(k, String(v));
+  };
+  put("full_name", payload.full_name);
+  put("display_name", payload.display_name || payload.full_name);
+  put("email", payload.email);
+  put("username", payload.username);
+  put("password", payload.password);
+  put("confirm_password", payload.password);
+  put("gender", payload.gender);
+  put("country", payload.country);
+  put("tribe", payload.tribe);
+  put("phone", payload.phone);
+  put("aqeedah", payload.aqeedah || "Sunni");
+  form.append("fields_of_knowledge", JSON.stringify(payload.fields ?? []));
+  put("other_field", payload.other_field);
+  put("madhhab", payload.madhhab);
+  put("institute", payload.institute);
+  put("years_of_study", payload.years);
+  put("teachers", payload.teachers);
+  /* the endpoint wants the literal string "1" (it compares === '1') */
+  form.append("agree_terms", "1");
+  if (payload.proof?.uri) await attachDoc(form, "certificate", payload.proof);
+  if (payload.letter?.uri) await attachDoc(form, "recommendation", payload.letter);
+
+  const r = await request<{
+    status?: string;
+    message?: string;
+    needs_verification?: boolean;
+    email_delivery?: string;
+    errors?: Record<string, string>;
+    scholar_id?: number;
+  }>("/api/auth/register_scholar.php", { method: "POST", form });
+
+  const needsVerification = !!r.data.needs_verification;
+  const emailDelivery = (r.data.email_delivery ??
+    (needsVerification ? "otp" : "none")) as "otp" | "link" | "none";
+
+  if (r.ok && r.data.status === "success") {
+    live = true;
+    if (!needsVerification) await fetchCsrf();
+    return {
+      ok: true,
+      needsVerification,
+      emailDelivery,
+      scholarId: r.data.scholar_id,
+    };
+  }
+  return {
+    ok: false,
+    needsVerification: false,
+    emailDelivery: "none",
+    errors: r.data.errors,
+    networkError: r.networkError,
+    message:
+      r.data.message ??
+      (r.networkError
+        ? "Network error — check your connection and try again"
+        : "We could not submit your application. Please try again."),
+  };
+}
+
 /** Register a scholar application with its verification documents (server-side). */
 export async function scholarApply(payload: {
   display_name: string;

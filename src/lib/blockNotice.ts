@@ -105,7 +105,14 @@ export function suspensionReason(u: MaybeUser): string {
 /** "Mufti · Sunni" style label for the scholar tag, built from the session row. */
 export function scholarTagLabel(u: MaybeUser): string {
   const sc = u?.scholar;
-  if (!sc || String(sc.approval_status || '').toLowerCase() !== 'approved') return '';
+  if (!sc) return '';
+  const status = String(sc.approval_status || '').toLowerCase();
+  /* pass 91 — owner: "it logs me in as an ordinary user". A scholar whose
+   * application is still with the verification team IS a scholar account: he
+   * keeps the scholar tag, labelled with the review state, until the admin
+   * assigns his level. */
+  if (status === 'pending' || status === 'reviewing') return 'Scholar · under review';
+  if (status !== 'approved') return '';
   const level = String(sc.level || '')
     .replace(/[_-]+/g, ' ')
     .trim()

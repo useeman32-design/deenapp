@@ -18,6 +18,7 @@ import { T } from "@/components/T";
 import { AvatarImage } from "@/components/FeedCard";
 import { VerificationBadge } from "@/components/VerificationBadge";
 import { FeedCard } from "@/components/FeedCard";
+import { FeedSkeleton } from "@/components/Skeletons";
 import { CommentsModal } from "@/components/CommentsModal";
 import { haptic } from "@/lib/haptics";
 import { Platform } from "react-native";
@@ -70,12 +71,24 @@ function ProfileInner() {
     }, []),
   );
   const [posts, setPosts] = useState<Post[]>([]);
-  /* pass 86 — cold start used to sit EMPTY for ~10s until the network list
-   * landed (owner: "my profile will be empty… then it will reflect"). The
-   * last successful page is mirrored to storage and painted first. */
+  /* pass 91 — owner: "when i switch account am finding posts of the old account
+   * in profile instead of loading the new logged account posts … instead of
+   * showing empty it should show a loading, maybe a breathing skeleton."
+   * Two defects: the cached page lived under ONE key ("dl.myprofile.v1") for
+   * every account, and the screen painted "No posts yet" while the request was
+   * still in flight. The cache is now keyed by the signed-in account id and the
+   * empty note waits for the request to settle. */
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const profileCacheKey = user?.id != null ? `dl.myprofile.v2.${user.id}` : null;
   useEffect(() => {
+    if (!profileCacheKey) {
+      setPosts([]);
+      return;
+    }
+    /* a different account must never inherit the previous one's page */
+    setPosts([]);
     void storage
-      .getItem("dl.myprofile.v1")
+      .getItem(profileCacheKey)
       .then((s) => {
         if (!s) return;
         try {
@@ -87,13 +100,13 @@ function ProfileInner() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [profileCacheKey]);
   useEffect(() => {
-    if (posts.length)
+    if (posts.length && profileCacheKey)
       void storage
-        .setItem("dl.myprofile.v1", JSON.stringify(posts.slice(0, 60)))
+        .setItem(profileCacheKey, JSON.stringify(posts.slice(0, 60)))
         .catch(() => {});
-  }, [posts]);
+  }, [posts, profileCacheKey]);
   useEffect(() => {
     const offD = onPostDeleted((id) =>
       setPosts((ps) => ps.filter((p) => p.id !== id)),
@@ -159,9 +172,12 @@ function ProfileInner() {
   const dp = useDeenPoints();
 
   useEffect(() => {
+    setLoadingPosts(true);
     api
       .userPosts(user?.id != null ? Number(user.id) : undefined)
-      .then(setPosts);
+      .then(setPosts)
+      .catch(() => {})
+      .finally(() => setLoadingPosts(false));
     if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
   }, [user?.id]);
 
@@ -172,7 +188,9 @@ function ProfileInner() {
     if (!consumeProfileDirty()) return;
     api
       .userPosts(user?.id != null ? Number(user.id) : undefined)
-      .then(setPosts);
+      .then(setPosts)
+      .catch(() => {})
+      .finally(() => setLoadingPosts(false));
     if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
   });
 
@@ -929,6 +947,9 @@ function ProfileInner() {
 
         {tab === "posts" ? (
           <View style={{ paddingTop: 14, paddingHorizontal: 16, gap: 12 }}>
+            {loadingPosts && posts.length === 0 ? (
+              <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={3} />
+            ) : null}
             {posts.map((p) => (
               <FeedCard
                 onComments={(pp) => setCommentPost(pp)}
@@ -962,7 +983,7 @@ function ProfileInner() {
                 }}
               />
             ))}
-            {posts.length === 0 ? (
+            {posts.length === 0 && !loadingPosts ? (
               <T
                 v="bodyS"
                 style={{ color: d.faint, textAlign: "center", marginTop: 30 }}
@@ -1013,7 +1034,10 @@ function ProfileInner() {
                   }}
                 />
               ))}
-            {posts.filter((p) => p.video_url || p.youtube_url).length === 0 ? (
+            {loadingPosts && posts.length === 0 ? (
+              <FeedSkeleton card={d.card} cardBorder={d.cardBorder} count={2} />
+            ) : null}
+            {!loadingPosts && posts.filter((p) => p.video_url || p.youtube_url).length === 0 ? (
               <T
                 v="bodyS"
                 style={{ color: d.faint, textAlign: "center", marginTop: 30 }}

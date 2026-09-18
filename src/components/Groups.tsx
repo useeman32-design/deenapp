@@ -306,7 +306,14 @@ export function GroupsRail() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
-  const list = results ?? groups ?? [];
+  /* pass 91 — owner: "the groups at the top shouldn't show a group the user does
+   * not belong to — only show recommendations for him in the recommendations,
+   * and at the top only leave the new group adding +".
+   * The rail is now HIS groups (plus the existing "+ New group" tile). Groups he
+   * is not in appear in the Recommendations strip; the search box still queries
+   * every group on purpose, and its results are labelled as such. */
+  const joinedGroups = (groups ?? []).filter((g) => g.joined === 'member' || g.mine === true);
+  const list = results ?? joinedGroups;
   const openGroup = (id: string) => { haptic.selection(); router.push({ pathname: '/tools/group', params: { id } } as never); };
 
   return (
@@ -343,6 +350,22 @@ export function GroupsRail() {
       {results && !searching && list.length === 0 ? (
         <View style={{ paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' }}>
           <T v="caption" style={{ fontSize: 11, color: d.faint }}>No groups match “{query.trim()}”.</T>
+        </View>
+      ) : null}
+
+      {results ? (
+        <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
+          <T v="caption" style={{ fontSize: 10, color: d.faint }}>Search results · every group</T>
+        </View>
+      ) : !groups ? (
+        <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
+          <T v="caption" style={{ fontSize: 10, color: d.faint }}>Loading your groups…</T>
+        </View>
+      ) : joinedGroups.length === 0 ? (
+        <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
+          <T v="caption" style={{ fontSize: 10, color: d.faint }}>
+            You haven't joined a group yet — suggestions appear in the feed.
+          </T>
         </View>
       ) : null}
 
