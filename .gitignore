@@ -62,3 +62,4 @@ dist-app/
 # EAS needs it on disk but it must NEVER be committed (17 MB, pass 76)
 assets/content.zip
 dist-root/
+node_modules
