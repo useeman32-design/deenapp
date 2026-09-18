@@ -44,7 +44,6 @@ export default function ScholarApplyScreen() {
   const [aqeedah, setAqeedah] = useState<string>('Ahl al-Sunnah');
   const [fields, setFields] = useState<string[]>([]);
   const [fieldsOther, setFieldsOther] = useState('');
-  const [links, setLinks] = useState('');
   const [proof, setProof] = useState<Doc>(null);
   const [letter, setLetter] = useState<Doc>(null);
   const [busy, setBusy] = useState(false);
@@ -144,7 +143,6 @@ export default function ScholarApplyScreen() {
       years: years ? Number(years) || undefined : undefined,
       teachers: teachers.trim() || undefined,
       aqeedah: aqeedah === 'Ahl al-Sunnah' ? aqeedah : [aqeedah, teachers.trim()].filter(Boolean).join(' — ') || undefined,
-      links: links.split('\n').map((x) => x.trim()).filter(Boolean),
       proof,
       letter,
     }).catch((e: unknown) => ({ ok: false, message: String(e) }));
@@ -254,8 +252,9 @@ export default function ScholarApplyScreen() {
           <Label>PHONE (OPTIONAL, FOR THE REVIEW TEAM)</Label>
           <TextInput value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+234…" placeholderTextColor={d.faint} style={input(focus === 'p')} onFocus={() => setFocus('p')} onBlur={() => setFocus(null)} />
 
-          <Label>DAWAH LINKS (OPTIONAL — CHANNEL, SITE, YOUTUBE)</Label>
-          <TextInput value={links} onChangeText={setLinks} multiline placeholder="one per line" placeholderTextColor={d.faint} style={{ ...input(focus === 'l'), minHeight: 64, textAlignVertical: 'top' }} onFocus={() => setFocus('l')} onBlur={() => setFocus(null)} />
+          {/* pass 90 — owner: "remove the dawah platforms from there, links to
+           * dawah platforms are not required". A scholar is verified by what
+           * they studied and who vouches for them, not by their channel count. */}
 
           <Label>DOCUMENT — CERTIFICATE, IJĀZAH OR RECOMMENDATION LETTER</Label>
           <View style={{ flexDirection: 'row', gap: 9 }}>

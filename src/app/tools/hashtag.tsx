@@ -80,6 +80,9 @@ function HashtagScreenInner() {
         {tagged.map((p) => (
           <View key={p.id} style={{ marginBottom: 12 }}>
             <FeedCard
+              /* pass 90 — cards inside a hashtag feed must carry the active dash
+               * theme too, otherwise dark mode shows the fallback background. */
+              dash={d}
               post={{ ...p, liked_by_me: likedPosts.has(p.id) || p.liked_by_me, like_count: (p.like_count ?? 0) + (likedPosts.has(p.id) && !p.liked_by_me ? 1 : 0) }}
               onLike={(id) => toggleLike(id)}
             />

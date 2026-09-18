@@ -136,6 +136,29 @@ export default function Scholars() {
     setLiveMine(mine?.questions ?? []);
     setScholarBusy(false);
   };
+  /* pass 90 — owner: "in the scholar's profile … add a button of My Questions
+   * with the number of questions … and on the scholars screen, for a scholar
+   * account, add a button My Questions that will match the design of the
+   * others". The count is the scholar's own waiting queue (server-side). */
+  const [desk, setDesk] = useState<{ toAnswer: number; reviewing: number; answered: number } | null>(null);
+  const isScholarMe =
+    String((me as { user_type?: string } | null | undefined)?.user_type || '') === 'scholar' ||
+    String(
+      ((me as { scholar?: { approval_status?: string } | null } | null | undefined)?.scholar || null)?.approval_status || '',
+    ).toLowerCase() === 'approved';
+  const refreshDesk = () => {
+    if (!isScholarMe) return;
+    api
+      .scholarDeskCounts()
+      .then((c) => {
+        if (c) setDesk(c);
+      })
+      .catch(() => {});
+  };
+  useEffect(() => {
+    void refreshDesk();
+  }, [isScholarMe]);
+
   useEffect(() => { void refreshScholarData(); }, []);
   useEffect(() => { if (tab === 'public' || tab === 'mine') { void refreshScholarData(); } }, [tab]);
 
@@ -192,15 +215,44 @@ export default function Scholars() {
         {picked == null ? (
           /* pass 41 — the SELECTION screen: three big cards instead of tabs */
           <View style={{ gap: 12, marginBottom: 14 }}>
+            {/* pass 90 — a scholar gets his own desk as the first card, with the
+             * number of questions waiting to be answered. */}
+            {isScholarMe ? (
+              <Pressable
+                accessibilityLabel="Scholar desk — my questions"
+                onPress={() => { haptic.medium(); refreshDesk(); router.push('/tools/scholar-inbox' as never); }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.33)', backgroundColor: 'rgba(212,175,55,0.06)', padding: 15, opacity: pressed ? 0.85 : 1 })}
+              >
+                <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.33)', alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name="chess" size={17} color="#D4AF37" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                    <T v="h3" style={{ fontSize: 14.5, fontWeight: '800', color: d.text }}>My Questions — Scholar Desk</T>
+                    {desk && desk.toAnswer + desk.reviewing > 0 ? (
+                      <View style={{ minWidth: 20, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}>
+                        <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: '#14240F' }}>{desk.toAnswer + desk.reviewing}</T>
+                      </View>
+                    ) : null}
+                  </View>
+                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>
+                    {desk
+                      ? `${desk.toAnswer} waiting for an answer · ${desk.reviewing} under review · ${desk.answered} answered`
+                      : 'Answer the ummah\u2019s questions — public answers are posted to your profile.'}
+                  </T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={13} color={d.faint} />
+              </Pressable>
+            ) : null}
             {([
               ['browse', 'Browse scholars', 'user-graduate', 'Find a qualified scholar by field of knowledge, madhhab or institute — then ask directly.', '#4AE38F'],
               ['public', 'Public questions', 'globe-africa', 'Read answered questions from the community — fiqh, taharah, marriage and more.', '#5BC8F5'],
-              ['mine', 'My questions', 'inbox', 'Track everything you asked — processing, answered, or returned.', '#E8C96A'],
-            ] as const).map(([id, label, icon, sub, tint]) => (
+              ['mine', isScholarMe ? 'Questions I asked' : 'My questions', 'inbox', 'Track everything you asked — processing, answered, or returned.', '#E8C96A'],
+            ] as ReadonlyArray<readonly [string, string, string, string, string]>).map(([id, label, icon, sub, tint]) => (
               <Pressable
                 key={id}
                 accessibilityLabel={label}
-                onPress={() => { haptic.medium(); setTab(id); setPicked(id); }}
+                onPress={() => { haptic.medium(); setTab(id as 'browse' | 'mine' | 'public'); setPicked(id as 'browse' | 'mine' | 'public'); }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, borderWidth: 1.5, borderColor: `${tint}55`, backgroundColor: `${tint}0F`, padding: 15, opacity: pressed ? 0.85 : 1 })}
               >
                 <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: `${tint}1E`, borderWidth: 1, borderColor: `${tint}55`, alignItems: 'center', justifyContent: 'center' }}>

@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { Image, Linking, Modal, Platform, Pressable, Share, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { YouTubeFrame } from '@/components/FeedCard';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
+import { silenceMedia } from '@/lib/mediaBus';
 import type { Video } from '@/api/types';
 
 export function fmtViews(n?: number | null) {
@@ -30,6 +32,12 @@ export function VideoModal({
 }) {
   const { theme } = useTheme();
   const d = theme.dash;
+
+  /* pass 90 — closing the viewer must free the speaker so nothing is left
+   * running underneath it. */
+  useEffect(() => {
+    if (!video) silenceMedia();
+  }, [video]);
 
   return (
     <Modal visible={!!video} transparent animationType="slide" onRequestClose={onClose}>

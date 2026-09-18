@@ -12,6 +12,7 @@ import { LoginModalHost } from '@/components/LoginModal';
 import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
 import { GlobalConfirmDialog } from '@/components/ConfirmDialog';
+import { SuspensionNotice } from '@/components/SuspensionNotice';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
 import { bmHydrate } from '@/lib/bookmarks';
@@ -193,6 +194,9 @@ export default function RootLayout() {
           <Root />
           {/* pass 89 — one confirm sheet for every screen; Alert.alert is a no-op
               on web, which silently killed the DeenPoints unlock prompt. */}
+          {/* pass 90 — the suspension strip + refusal notices live at the root so
+           * they follow the user into every screen (below the dialog layer). */}
+          <SuspensionNotice />
           <GlobalConfirmDialog />
         </AuthProvider>
         </UIScaleProvider>

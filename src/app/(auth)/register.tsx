@@ -10,7 +10,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
-import { checkUsernameAvailable, checkEmailAvailable, scholarApply,} from '@/api/client';
+import { checkUsernameAvailable, checkEmailAvailable, restoreSession, scholarApply,} from '@/api/client';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -20,7 +20,7 @@ import { checkUsernameAvailable, checkEmailAvailable, scholarApply,} from '@/api
  *    descriptions (Sunni/Sufi/Shia/Athari/Other ≤10 chars), password + confirm
  *    with a live checkmark requirement list
  *  · SCHOLAR form — 3 steps: basic → qualifications → verification (uploads,
- *    dawah links, ONE verification method, terms + privacy agreement)
+ *    proof of qualification OR a recommendation letter, terms + privacy agreement)
  *  · GMAIL — skips name/email/password → "Complete your info" screen
  */
 
@@ -68,12 +68,19 @@ const AQEEDAH: Array<{ id: string; desc: string; descNG?: string }> = [
 const KNOWLEDGE_FIELDS = ['Tawhid', 'Fiqh', 'Aqeedah', 'Tafsir', 'Quran', 'Seerah', 'Hadith'];
 const MADHHABS = ['Hanafi', 'Maliki', 'Shafi\u2019i', 'Hanbali', 'Other'];
 const YEARS = ['1–3', '4–7', '8–15', '16–25', '25+'];
-const VERIFY_METHODS: Array<{ id: 'documents' | 'letter'; icon: string; title: string; sub: string }> = [
-  { id: 'documents', icon: 'file-alt', title: 'Proof of qualifications', sub: 'Certificates, ijazahs or degrees from your institute' },
-  { id: 'letter', icon: 'envelope-open-text', title: 'Recommendation letter', sub: 'A letter from a recognized scholar or organization' },
-];
-
 const usernameValid = (u: string) => /^[a-z0-9._]{3,20}$/i.test(u);
+
+/** The symbol set the server accepts (api/lib/password_policy.php). */
+export const DL_PW_SPECIAL =
+  /[-!@#$%^&*()_+=|{}[\]:;"'<>,.?/~`\\]/;
+
+/** Every rule from the checklist satisfied (used by both sign-up paths). */
+export const dlPasswordOk = (pw: string) =>
+  pw.length >= 8 &&
+  /[A-Z]/.test(pw) &&
+  /[a-z]/.test(pw) &&
+  /[0-9]/.test(pw) &&
+  DL_PW_SPECIAL.test(pw);
 
 /* ── small shared pieces ────────────────────────────────────────────────── */
 
@@ -139,15 +146,22 @@ function UsernameField({ value, onChange, state }: { value: string; onChange: (v
 /** password + live checkmark requirement list */
 function PasswordBlock({ password, setPassword, confirm, setConfirm, showConfirm = true }: { password: string; setPassword: (v: string) => void; confirm: string; setConfirm: (v: string) => void; showConfirm?: boolean }) {
   const { isDark } = useTheme();
+  /* pass 90 — owner: "we don't have special characters check in the check of
+   * password". The list existed but asked for 6 characters and any letter,
+   * while the API (api/lib/password_policy.php) requires 8, an uppercase
+   * letter, a lowercase letter, a number AND a real symbol — so a password
+   * that looked valid was rejected by the server with a message the checklist
+   * never mentioned. The list below is the same five rules the server checks. */
   const reqs = [
-    { label: 'At least 6 characters', ok: password.length >= 6 },
-    { label: 'Contains a letter', ok: /[A-Za-z]/.test(password) },
-    { label: 'Contains a number', ok: /[0-9]/.test(password) },
-    { label: 'Contains a special character (!@#$…)', ok: /[^A-Za-z0-9]/.test(password) },
+    { label: 'At least 8 characters', ok: password.length >= 8 },
+    { label: 'One uppercase letter (A–Z)', ok: /[A-Z]/.test(password) },
+    { label: 'One lowercase letter (a–z)', ok: /[a-z]/.test(password) },
+    { label: 'One number (0–9)', ok: /[0-9]/.test(password) },
+    { label: 'One special character (!@#$…)', ok: DL_PW_SPECIAL.test(password) },
   ];
   return (
     <View>
-      <AuthField label="Password" value={password} onChangeText={setPassword} placeholder="At least 6 characters" icon="lock" secure />
+      <AuthField label="Password" value={password} onChangeText={setPassword} placeholder="8+ chars · Aa · 0 · !" icon="lock" secure />
       {showConfirm ? <AuthField label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Re-enter your password" icon="lock" secure /> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 13, marginTop: -3 }}>
         {reqs.map((r) => (
@@ -269,7 +283,7 @@ function BackHeader({ onBack, title }: { onBack: () => void; title: string }) {
 
 export default function Register() {
   const { isDark } = useTheme();
-  const { register, login, adoptSession } = useAuth();
+  const { register, login, adoptSession, updateUser } = useAuth();
   const router = useRouter();
   /* the password used for this signup, so a link-verified email can sign in */
   const lastPassword = useRef('');
@@ -319,9 +333,14 @@ export default function Register() {
   const [proofFile, setProofFile] = useState<{ uri: string; name: string } | null>(null);
   const [letterFile, setLetterFile] = useState<{ uri: string; name: string } | null>(null);
   const [letterName, setLetterName] = useState<string | null>(null);
-  const [links, setLinks] = useState<string[]>([]);
-  const [linkDraft, setLinkDraft] = useState('');
-  const [method, setMethod] = useState<'documents' | 'letter' | null>(null);
+  /* pass 90 — owner: "remove the dawah platforms from there, links to dawah
+   * platforms are not required" and "proof of qualification or a
+   * recommendation letter — one is enough". The method chooser and the links
+   * field are deleted; either upload satisfies the application. */
+  const pendingApply = useRef<{
+    payload: Parameters<typeof scholarApply>[0];
+    sent: boolean;
+  } | null>(null);
   const [agree, setAgree] = useState(false);
 
   const nigeria = country === 'Nigeria';
@@ -351,7 +370,7 @@ export default function Register() {
     return () => clearTimeout(t);
   }, [email]);
 
-  const pwOk = password.length >= 6 && /[A-Za-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) && password === confirm;
+  const pwOk = dlPasswordOk(password) && password === confirm;
 
   const pickUpload = async (which: 'proof' | 'letter') => {
     try {
@@ -439,9 +458,10 @@ export default function Register() {
 
   const submitScholar = async () => {
     if (busy) return;
-    if (!method) return setError('Choose ONE verification method');
-    if (method === 'documents' && !proofName) return setError('Please upload your proof of qualifications');
-    if (method === 'letter' && !letterName) return setError('Please upload a recommendation letter');
+    if (!proofName && !letterName)
+      return setError(
+        'Upload either your proof of qualifications or a recommendation letter — one is enough',
+      );
     if (!agree) return setError('Please agree to the Terms and Privacy Policy');
     setError('');
     setBusy(true);
@@ -455,21 +475,25 @@ export default function Register() {
       await storage.setItem(`dl.scholar.app.${username}`, JSON.stringify({
         account: 'scholar', display_name: displayName.trim(), phone, fields: allFields,
         madhhab, institute: institute.trim(), years, teachers: teachers.trim(),
-        method, proof: proofName, letter: letterName, links, at: Date.now(),
+        proof: proofName, letter: letterName, at: Date.now(),
       })).catch(() => {});
       /* pass 87 — the application + documents now go to the SERVER (was
        * device-only, so the verification team never received anything). */
+      const applyPayload = {
+        display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
+        fields: allFields, other_field: fieldsOther.trim() || undefined,
+        madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined, teachers: teachers.trim(),
+        aqeedah: aqeedahValue,
+        proof: proofFile, letter: letterFile,
+      };
       let sent = false; let why = '';
       try {
-        const out = await scholarApply({
-          display_name: displayName.trim() || fullName.trim(), phone: phone || undefined,
-          fields: allFields, other_field: fieldsOther.trim() || undefined,
-          madhhab: madhhab ?? undefined, institute: institute.trim(), years: years ? Number(years) : undefined, teachers: teachers.trim(),
-          aqeedah: aqeedahValue, links,
-          proof: proofFile, letter: letterFile,
-        });
+        const out = await scholarApply(applyPayload);
         sent = out.ok; why = out.message || '';
       } catch (e) { why = String(e); }
+      /* keep the payload (the picked files are still in memory) so the retry
+       * after email verification never asks him to upload again */
+      pendingApply.current = { payload: applyPayload, sent };
       /* pass 88 — the scholar path used to fire an Alert and bounce straight to the
        * tabs, so the verification step NEVER appeared (owner: "scholar … it just
        * vanishes"). It now continues into the same email-verification screen with
@@ -477,7 +501,7 @@ export default function Register() {
       setScholarNote(
         sent
           ? 'Your scholar application is with the verification team — they review it after your email is confirmed.'
-          : `We could not upload your documents (${why || 'network'}). They are kept on this device — verify your email now, then send the application again from Sign up.`,
+          : `Your documents were kept on this device and will be sent again the moment your email is confirmed${why ? ` (first try failed: ${why})` : ''}.`,
       );
       setOtpDelivery(res.emailDelivery ?? 'otp');
       setBusy(false);
@@ -632,7 +656,7 @@ export default function Register() {
     </View>
   );
 
-  const UploadRow = ({ icon, title, sub, name, onPick, onClear, required }: { icon: string; title: string; sub: string; name: string | null; onPick: () => void; onClear: () => void; required: boolean }) => (
+  const UploadRow = ({ icon, title, sub, name, onPick, onClear, required }: { icon: string; title: string; sub: string; name: string | null; onPick: () => void; onClear: () => void; required?: boolean }) => (
     <View style={{ marginBottom: 11 }}>
       <Label>{title}</Label>
       {name ? (
@@ -721,25 +745,13 @@ export default function Register() {
         </>
       ) : (
         <>
-          <AuthHeading title="Verification" sub="Choose ONE method — our team reviews every application" />
+          <AuthHeading
+            title="Verification"
+            sub="Upload your certificates or a recommendation letter — one is enough, and our team reviews every application"
+          />
 
-          <View style={{ marginBottom: 14 }}>
-            {VERIFY_METHODS.map((m) => {
-              const on = method === m.id;
-              return (
-                <Pressable key={m.id} accessibilityLabel={`verify by ${m.title}`} onPress={() => { haptic.selection(); setMethod(m.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1.5, borderColor: on ? 'rgba(212,175,55,0.55)' : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: on ? 'rgba(212,175,55,0.09)' : isDark ? 'rgba(2,59,42,0.5)' : 'rgba(255,255,255,0.7)', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 8 }}>
-                  <FontAwesome5 name={on ? 'check-circle' : 'circle'} size={15} color={on ? '#D4AF37' : isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} />
-                  <View style={{ flex: 1 }}>
-                    <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{m.title}</T>
-                    <T v="caption" style={{ fontSize: 9.5, color: isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.55)', marginTop: 1 }}>{m.sub}</T>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <UploadRow icon="file-alt" title="Proof of qualifications" sub="Certificate, ijazah or degree image" name={proofName} onPick={() => pickUpload('proof')} onClear={() => { setProofName(null); setProofFile(null); }} required={method === 'documents'} />
-          <UploadRow icon="envelope-open-text" title="Recommendation letter" sub="From a recognized scholar or organization" name={letterName} onPick={() => pickUpload('letter')} onClear={() => { setLetterName(null); setLetterFile(null); }} required={method === 'letter'} />
+          <UploadRow icon="file-alt" title="Proof of qualifications" sub="Certificate, ijazah or degree image — or send a letter below instead" name={proofName} onPick={() => pickUpload('proof')} onClear={() => { setProofName(null); setProofFile(null); }} />
+          <UploadRow icon="envelope-open-text" title="Recommendation letter" sub="From a recognized scholar or organization — or send your certificates above" name={letterName} onPick={() => pickUpload('letter')} onClear={() => { setLetterName(null); setLetterFile(null); }} />
 
                     <Pressable onPress={() => { haptic.selection(); setAgree(!agree); }} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginBottom: 14 }}>
             <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: agree ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.2)' : 'rgba(20,36,28,0.2)', backgroundColor: agree ? (isDark ? '#4AE38F' : '#1D6F42') : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
@@ -771,9 +783,39 @@ export default function Register() {
             onVerified={(u) => {
               setOtpEmail(null);
               setScholarNote(null);
+              /* pass 90 — owner: after the OTP the app said "documents were not
+               * saved, reupload them". The uploads are still in memory here, so
+               * the application is retried automatically as soon as the session
+               * exists instead of sending him back through the form. */
+              if (accountType === 'scholar' && pendingApply.current && !pendingApply.current.sent) {
+                const retry = pendingApply.current.payload;
+                void scholarApply(retry)
+                  .then((out) => {
+                    if (out.ok) {
+                      pendingApply.current = null;
+                      storage.removeItem(`dl.scholar.app.${username}`).catch(() => {});
+                    }
+                  })
+                  .catch(() => {});
+              }
               if (u) {
                 /* verify_otp minted the session — adopt it */
-                void adoptSession(u).then(() => router.replace('/(tabs)'));
+                void adoptSession(u)
+                  .then(() => router.replace('/(tabs)'))
+                  .finally(() => {
+                    /* pass 90 — the scholar row only exists on the server from
+                     * this moment (register → upload → OTP). The session the OTP
+                     * minted was created BEFORE it, so without one refresh the
+                     * new scholar lands in the app with no tag, no level and no
+                     * My Questions button — exactly the report. */
+                    if (accountType === 'scholar') {
+                      void restoreSession()
+                        .then(({ user: fresh }) => {
+                          if (fresh) updateUser(fresh);
+                        })
+                        .catch(() => {});
+                    }
+                  });
               } else {
                 /* verified via the email LINK in another tab: sign in normally */
                 void login(otpEmail, lastPassword.current).then((r) => {

@@ -2485,3 +2485,119 @@ every endpoint answers “Server error”.
 
 **Next in line (owner's order):** CDN for media (need host/plan + public bucket base URL +
 upload-scoped key; `upload.php` keeps the local `assets/` fallback) → ads → store submission.
+
+---
+
+## Pass 90 — suspension semantics, the scholar identity loop, video stop rule (shipped: see commit below)
+
+Owner's list of ten, each item verified against the code before touching it. **Nothing here is a guess:
+every server-side claim below was executed against the MariaDB rig (`scripts/local-test-rig`), and the
+commands + outputs are recorded in `## Pass 90 rig evidence`.**
+
+1. **Suspension = signed-in read-only** (was: logged out). `api/auth/login.php`, `api/auth/me.php` and
+   `api/auth/check_session.php` rejected *any* moderation status that was not `active`, so suspending a
+   user destroyed his session and blocked sign-in — the opposite of the rule ("I should be able to login
+   but he cannot post/comment/like"). All three now refuse only `banned` / `is_active=0`; `me.php` keeps
+   sending `account_status` + `moderation_reason`, and `login.php` sends them too. The refusal itself is
+   `interaction_guard()` in `api/lib/notifications.php`, whose message is exactly *"Your account has been
+   suspended. Contact support for more information."* + the admin's reason. Twelve social writers had no
+   guard at all and got one: `feed/{poll_vote,delete_post,delete_comment,delete_reply}`,
+   `groups/{create,create_post,join,update,delete_post}`, `users/daily_checkin`, `questions/respond`,
+   `videos/delete_comment`. Deliberately still open to a suspended account: reports
+   (`feed/report_post`, `feed/report_comment`, `users/report_account`) and profile/security/avatar/email
+   changes — support and account recovery must stay reachable. App: `src/lib/blockNotice.ts` +
+   `src/components/SuspensionNotice.tsx` (mounted in `src/app/_layout.tsx`) surface the 403 message from
+   `api/client.ts` on *every* blocked write, plus a strip explaining browse-only while suspended. Banning
+   already returned the reason on the login screen — unchanged.
+2. **Profile → Videos background mismatch** — the videos tab rendered `FeedCard` without `dash={d}`
+   (posts and saved tabs pass it), so the card fell back to a fixed palette in dark mode. Same missing
+   prop found and fixed in `src/app/tools/hashtag.tsx`.
+3. **Suggestion flooding** — `community.tsx` could inject two account strips + one group strip; now one
+   of each, and the new ✕ on each header writes `dl.suggest.hidden.v1` so it stays hidden. The community
+   Scholars tab also stopped trusting a demo-only `user.scholar` key and reads the server's
+   `scholar_level` / `scholar_status` / `user_type` instead.
+4. **Videos playing out of view** — the leak was `src/components/YouTubePlayer.tsx`: it rendered an
+   iframe (web) / WebView (native) with **no** focus, visibility or on-screen logic, and each card hosted
+   its own copy, so sound survived a tab switch and several played at once. New `src/lib/mediaBus.ts`
+   makes the rule global: one holder of the speaker, and a holder keeps it only while its screen is
+   focused, the app is foreground, the browser tab is visible and the host view is on screen — otherwise
+   the embed is *unmounted* (the only reliable stop for a YouTube document) and returns as a tap-to-play
+   poster. The feed's inline `expo-video` player, the reels screen and the shop product preview are on
+   the same bus, and `VideoModal` silences it on close. `tsc` + the web export cover compilation; there is
+   no browser in this sandbox, so playback itself still needs his device check.
+5. **Scholar registration** — the "choose ONE verification method" picker is deleted: `proof of
+   qualifications` **or** `recommendation letter` (either one) now satisfies validation in
+   `src/app/(auth)/register.tsx`; dawah links are gone from the form and from
+   `src/app/tools/scholar-apply.tsx` (the server column stays, written as NULL).
+6. **Password rules** — the sign-up checklist asked for 6 chars, any letter and "any non-alnum", while
+   the API demanded 8 + upper + lower + digit + symbol: passwords the app called valid were rejected by
+   the server with a rule the checklist never showed. One policy now lives in
+   `api/lib/password_policy.php` (`dl_password_policy_error`, `DL_PW_SPECIAL_CHARS`), used by
+   `auth/register.php`, `auth/register_scholar.php`, `auth/reset_password.php`,
+   `auth/recover_password.php`, `admin/users/reset_password.php`, `admin/auth/reset_password.php`,
+   `admin/auth/confirm_password_change.php` and staff creation (`admin/roles/common.php`) — the admin
+   forms previously checked length only. The client checklist mirrors the five rules
+   (`dlPasswordOk` / `DL_PW_SPECIAL` in `register.tsx`).
+7. **Scholar identity** — the post-card chip (`FeedCard.tsx`) is approval-gated and its label is built by
+   `dlScholarLevelLabel` + `dlAqeedahShort`, so a verified scholar reads **"Mufti · Sunni"**
+   (`Ahl al-Sunnah` → `Sunni`); it renders on home, community, profile, group and hashtag cards because
+   `get_posts.php` and `get_user_posts.php` both return `scholar_level` / `scholar_aqeedah` /
+   `user.scholar_status`. `api/auth/me.php` now nests the scholar row *inside* `user` and selects
+   `level, aqeedah` (it never did — the profile had nothing to show), `login.php` sends the same row so
+   the tag exists the second he signs in, and `register.tsx` re-reads the session right after the OTP so
+   a just-approved applicant is not stuck waiting for the 45 s poll. Approval emails the assigned level
+   (verified: SMTP accepted the message in the rig).
+8. **My Questions** — his own profile shows a labelled **My Questions** pill with the number of questions
+   waiting; it used to be an anonymous icon counting `askUnreadCount()` (the *asker's* unread answers — a
+   full inbox showed no number), now it counts his queue (`scholarDeskCounts()`, refreshed on focus).
+   Public answers are auto-published to his profile by `questions/respond.php` and appear in Public
+   questions; private ones are not posted (rig: posts 0 → 1 for one public + one private answer).
+9. **Scholars screen** — a scholar now gets a fourth choice card, "My Questions — Scholar Desk", styled
+   like the other three with the same badge, opening `tools/scholar-inbox`; his existing "My questions"
+   card is relabelled "Questions I asked" so the two cannot be confused.
+10. **"Documents were not saved, reupload them"** — two causes, both real. (a) `scholar_apply.php`'s
+    UPDATE branch built its parameter list from a `$params` array that already contained
+    `certificate_path` / `recommendation_path`, then appended them again for the SET list: every
+    re-application died with `PDOException: Invalid parameter number` → 500 (the pass-89 entry in this
+    file blamed only the missing `db_conn`; the placeholder bug was still there underneath it). Columns
+    and values are now one ordered map for both INSERT and UPDATE. (b) the app told him to re-upload;
+    the picked files are still in memory, so `register.tsx` retries the application itself after the
+    session is adopted and only then clears the local draft. **Admin "not delivering"** was
+    `admin/scholars/list.php` filtering `WHERE users.user_type='scholar'` — a status that only becomes
+    `'scholar'` *after* approval, so every pending application (the entire purpose of the queue) was
+    invisible; the INNER JOIN on `scholars` is the population and pending still sorts first.
+
+**Two more defects the rig caught while testing this pass (fixed here, not on the owner's list):**
+`admin/users/reset_password.php` and `admin/deenpoints/reward_bulk.php` both called
+`push_admin_notification()` *inside* an open transaction; its `ensure_notifications_table()` DDL makes
+MySQL commit implicitly, so the later `commit()` threw "There is no active transaction" → a 500 for an
+action that had already been applied (bulk DeenPoints rewards were therefore doubled on retry). Both
+notices are now written after the commit, best-effort.
+
+## Pass 90 rig evidence (MariaDB, `php -S 127.0.0.1:8099`, scripts in /tmp/p90_v*.sh)
+
+* suspend → `login.php` **HTTP 200** with `account_status:"suspended"`, `me.php` 200 (`moderation_reason:
+  "Repeated harassment of members"`), `get_posts.php` 200; the writes below all **403** with the exact
+  message: `feed/toggle_like`, `feed/create_post`, `feed/delete_post`, `feed/poll_vote`,
+  `feed/add_comment`, `feed/delete_comment`, `groups/create`, `groups/join`, `groups/update`,
+  `groups/create_post`, `groups/delete_post`, `users/daily_checkin`, `questions/respond`,
+  `videos/delete_comment`. `feed/report_post` **200**, `users/update_profile` **200**.
+* ban → `login.php` **403 "Your account was banned. Reason: Fraud ring"**, and his open session → 401.
+* `notifications/list.php` → `{"type":"admin_suspended","title":"Account suspended","body":"Reason: …"}`.
+* scholar: apply with ONE document (no links) → 200; re-apply as pending (UPDATE branch) → **200** with
+  the row updated (previously a 500); `admin/scholars/list.php?status=all` → the applicant **is** present
+  (was absent); approve `level:"mufti"` → `me.php` `user.scholar:{approval_status:"approved",level:"mufti",
+  aqeedah:"Ahl al-Sunnah"}`; his post in `get_posts.php` → `scholar_level:"mufti"`,
+  `scholar_aqeedah:"Ahl al-Sunnah"`, `user.scholar_status:"approved"`; public answer → +1 profile post
+  (`__DL_QA__` payload) and listed by `questions/public_list.php`; private answer → no post.
+* password: `admin/users/reset_password.php` with `abcdefgh` → **400** "Password must contain uppercase,
+  lowercase, number and special character"; with `Str0ng!Pass` → **200**. `reward_bulk.php` → **200
+  {"updated":59}** (was 500).
+* Gates: `tsc --noEmit` 0 errors · `php -l` 465 files 0 failures · export-raw CHECK-RAW OK · gh-pages
+  overlay keeps old chunks.
+* Rig note: that old dump lacks `users.security_question`, `users.aqeedah`, `users.tribe` — me.php 500s
+  until they are added (`ALTER TABLE users ADD COLUMN …`), which production already has.
+
+**Still waiting on the owner:** R2 account id / bucket / public dev URL / access key + secret for the
+media CDN (new uploads only, existing rows untouched); cPanel → Git → Update from Remote → Deploy HEAD;
+Admin → Course Tests → "Professional 10" Fill; a new EAS build is required for these JS changes (no OTA).

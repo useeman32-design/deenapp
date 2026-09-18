@@ -74,7 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /* Admin moderation must reach an already-open native app, not only the next
    * cold launch. Recheck the server session periodically; /me clears the
-   * session for banned, suspended, or disabled accounts. */
+   * session for BANNED or disabled accounts. A SUSPENDED account keeps its
+   * session by design (pass 90: he can sign in and read, but every social write
+   * is refused by the server) — the poll then only re-flags him, and
+   * SuspensionNotice shows the strip. */
   useEffect(() => {
     if (!user || isDemo) return;
     const check = async () => {

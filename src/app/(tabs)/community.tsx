@@ -397,13 +397,45 @@ function CommunityScreenInner() {
     if (searching) return [];
     if (tab === "following")
       return posts.filter((p) => followingSet.has(p.user.username));
-    if (tab === "scholars") return posts.filter((p) => !!p.user.scholar);
+    if (tab === "scholars")
+      return posts.filter(
+        (p) =>
+          !!(p.user as { scholar?: unknown }).scholar ||
+          (p as { scholar_level?: string | null }).scholar_level != null ||
+          (p.user as { scholar_status?: string | null }).scholar_status ===
+            "approved" ||
+          (p.user as { user_type?: string | null }).user_type === "scholar",
+      );
     return posts;
   }, [posts, tab, searching]);
   /* pass 36 — feed pages in while you scroll, with a loader at the bottom
    * (older posts "load" like a real network feed instead of all at once) */
   const [feedLimit, setFeedLimit] = useState(4);
   const [feedMore, setFeedMore] = useState(false);
+  /* pass 90 — owner: suggestions flooded the community feed. One strip of each
+   * kind, and "Hide" makes them stay hidden across launches. */
+  const [suggestHidden, setSuggestHidden] = useState<{
+    accounts: boolean;
+    groups: boolean;
+  }>({ accounts: false, groups: false });
+  useEffect(() => {
+    storage
+      .getItem("dl.suggest.hidden.v1")
+      .then((raw: string | null) => {
+        if (!raw) return;
+        const v = JSON.parse(raw) as { accounts?: boolean; groups?: boolean };
+        setSuggestHidden({ accounts: !!v.accounts, groups: !!v.groups });
+      })
+      .catch(() => {});
+  }, []);
+  const hideSuggestion = (kind: "accounts" | "groups") => {
+    haptic.selection();
+    setSuggestHidden((cur) => {
+      const next = { ...cur, [kind]: true };
+      storage.setItem("dl.suggest.hidden.v1", JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
   const feedShown = visiblePosts.slice(0, feedLimit);
   useEffect(() => {
     setFeedLimit(4);
@@ -1453,11 +1485,17 @@ function CommunityScreenInner() {
                       {/* pass 87 — owner: suggestions were flooding the feed.
                        * At most one accounts strip + one groups strip, and a
                        * second accounts strip only on very long feeds. */}
-                      {pi === 5 || (visiblePosts.length > 34 && pi === 28) ? (
-                        <SuggestStrip dash={d} />
+                      {/* pass 90 — owner: "We're having group suggestions and
+                       * accounts suggestions too much on the community screen,
+                       * you should be displaying it once or twice, but it's too
+                       * much." So: ONE accounts strip and ONE groups strip for
+                       * the whole feed, and each one disappears for good when
+                       * dismissed (dl.suggest.hidden.v1). */}
+                      {pi === 5 && !suggestHidden ? (
+                        <SuggestStrip dash={d} onDismiss={() => hideSuggestion("accounts")} />
                       ) : null}
-                      {pi === 13 && visiblePosts.length > 15 ? (
-                        <GroupsSuggestStrip dash={d} />
+                      {pi === 13 && visiblePosts.length > 15 && !suggestHidden ? (
+                        <GroupsSuggestStrip dash={d} onDismiss={() => hideSuggestion("groups")} />
                       ) : null}
                     </View>
                   ))
@@ -2383,7 +2421,7 @@ const GROUP_SEEDS = [
 ];
 
 /* pass 40 — SUGGESTED GROUPS strip, interleaved like the accounts strip. */
-function GroupsSuggestStrip({ dash }: { dash: any }) {
+function GroupsSuggestStrip({ dash, onDismiss }: { dash: any; onDismiss?: () => void }) {
   const { isDark } = useTheme();
   const router = useRouter();
   const [joined, setJoined] = useState<string[]>([]);
@@ -2440,17 +2478,37 @@ function GroupsSuggestStrip({ dash }: { dash: any }) {
           marginBottom: 10,
         }}
       >
-        <T
-          v="caption"
-          style={{
-            fontWeight: "800",
-            fontSize: 10,
-            letterSpacing: 0.6,
-            color: dash.faint,
-          }}
-        >
-          SUGGESTED GROUPS FOR YOU
-        </T>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <T
+            v="caption"
+            style={{
+              fontWeight: "800",
+              fontSize: 10,
+              letterSpacing: 0.6,
+              color: dash.faint,
+            }}
+          >
+            SUGGESTED GROUPS FOR YOU
+          </T>
+          {onDismiss ? (
+            <Pressable
+              onPress={onDismiss}
+              hitSlop={8}
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 9,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(128,128,128,0.16)",
+              }}
+            >
+              <T v="caption" style={{ fontSize: 10, color: dash.faint, lineHeight: 12 }}>
+                ✕
+              </T>
+            </Pressable>
+          ) : null}
+        </View>
         <Pressable
           onPress={() => {
             haptic.selection();
@@ -2578,7 +2636,7 @@ const TRENDING: Array<{ tag: string; posts: string }> =
   []; /* pass 83-38 — no fabricated trends */
 
 /* Suggested accounts card — interleaved into the community feed (pass 22). */
-function SuggestStrip({ dash }: { dash: any }) {
+function SuggestStrip({ dash, onDismiss }: { dash: any; onDismiss?: () => void }) {
   const { isDark } = useTheme();
   const router = useRouter();
   const [followed, setFollowed] = useState<string[]>([]);
@@ -2629,17 +2687,37 @@ function SuggestStrip({ dash }: { dash: any }) {
           marginBottom: 10,
         }}
       >
-        <T
-          v="caption"
-          style={{
-            fontWeight: "800",
-            fontSize: 10,
-            letterSpacing: 0.6,
-            color: dash.faint,
-          }}
-        >
-          SUGGESTED FOR YOU
-        </T>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <T
+            v="caption"
+            style={{
+              fontWeight: "800",
+              fontSize: 10,
+              letterSpacing: 0.6,
+              color: dash.faint,
+            }}
+          >
+            SUGGESTED FOR YOU
+          </T>
+          {onDismiss ? (
+            <Pressable
+              onPress={onDismiss}
+              hitSlop={8}
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 9,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(128,128,128,0.16)",
+              }}
+            >
+              <T v="caption" style={{ fontSize: 10, color: dash.faint, lineHeight: 12 }}>
+                ✕
+              </T>
+            </Pressable>
+          ) : null}
+        </View>
         <Pressable
           onPress={() => {
             haptic.selection();

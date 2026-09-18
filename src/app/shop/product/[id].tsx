@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, Linking, Pressable, ScrollView, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
@@ -67,6 +67,27 @@ function ShopProductScreenInner() {
   const activeMedia = mediaItems[selectedMedia] ?? mediaItems[0];
   const activeVideo = activeMedia?.media_type === 'video' ? activeMedia.media_url : '';
   const player = useVideoPlayer(activeVideo || null, (instance) => { instance.loop = false; });
+  /* pass 90 — strict stop rule: product previews must not keep playing after
+   * the screen is left or the app is backgrounded. */
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        try {
+          player.pause();
+        } catch {}
+      };
+    }, [player]),
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') {
+        try {
+          player.pause();
+        } catch {}
+      }
+    });
+    return () => sub.remove();
+  }, [player]);
 
   if (!p) {
     return (

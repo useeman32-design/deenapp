@@ -7,6 +7,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/context/AuthContext";
+import { scholarTagLabel } from "@/lib/blockNotice";
 import { useTheme, type ThemeMode } from "@/context/ThemeContext";
 import { storage } from "@/lib/storage";
 import { consumeProfileDirty } from "@/lib/userPosts";
@@ -181,21 +182,42 @@ function ProfileInner() {
   const username = (user?.username as string) || "";
   const bio = (user?.bio as string) || "";
   const aqeedah = (user?.aqeedah as string) || "";
+  /* pass 90 — the desk badge counts the questions WAITING ON HIM (pending +
+   * reviewing in his own queue). It used to read askUnreadCount(), which is the
+   * number of unread answers on the ASKER's side — a scholar with a full inbox
+   * saw no number at all. */
   const [scholarAskCount, setScholarAskCount] = useState<number>(0);
+  const isScholarMe =
+    ((user as { user_type?: string } | null)?.user_type ?? "") === "scholar" ||
+    String(
+      (user as { scholar?: { approval_status?: string } | null } | null)?.scholar
+        ?.approval_status ?? "",
+    ).toLowerCase() === "approved";
   useEffect(() => {
-    if (((user as any)?.user_type ?? "") !== "scholar") return;
+    if (!isScholarMe) return;
     let alive = true;
     (async () => {
       try {
-        const n = api.askUnreadCount();
-        const v = await n;
-        if (alive) setScholarAskCount(Number(v || 0));
+        const c = await api.scholarDeskCounts();
+        if (alive && c) setScholarAskCount(Number(c.toAnswer + c.reviewing) || 0);
       } catch {}
     })();
     return () => {
       alive = false;
     };
-  }, [((user as any)?.user_type ?? "")]);
+  }, [isScholarMe]);
+  /* refresh the badge when he comes back from answering */
+  useFocusEffect(
+    useCallback(() => {
+      if (!isScholarMe) return;
+      api
+        .scholarDeskCounts()
+        .then((c) => {
+          if (c) setScholarAskCount(Number(c.toAnswer + c.reviewing) || 0);
+        })
+        .catch(() => {});
+    }, [isScholarMe]),
+  );
   /* pass 80 — the chip follows the SYNCED ledger (dp), not the auth snapshot:
    * after a check-in the auth object never refreshes, so the balance on screen
    * used to stay stale until the next app start. */
@@ -405,27 +427,37 @@ function ProfileInner() {
               {fmt(deenpoints)}
             </T>
           </Pressable>
-          {/* pass 87 — scholars get a My Questions desk button with an unread badge */}
-          {((user as any)?.user_type ?? "") === "scholar" ? (
+          {/* pass 87/90 — scholars get a MY QUESTIONS button on their own
+           * profile with the number of questions waiting (owner: "in the
+           * scholars profile add a button of My Questions with the number of
+           * questions"). Tapping it opens the desk where he answers; public
+           * answers are posted to his profile automatically by the server. */}
+          {isScholarMe ? (
             <Pressable
-              onPress={() => router.push("/tools/scholar-inbox")}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
+              accessibilityLabel="My questions — scholar desk"
+              onPress={() => { haptic.light(); router.push("/tools/scholar-inbox" as never); }}
+              style={({ pressed }) => ({
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 6,
+                height: 32,
+                borderRadius: 16,
+                paddingHorizontal: 11,
                 backgroundColor: isDark ? "rgba(212,175,55,0.14)" : "rgba(29,111,66,0.08)",
                 borderWidth: 1,
                 borderColor: isDark ? "rgba(212,175,55,0.4)" : "rgba(29,111,66,0.25)",
-              }}
+                opacity: pressed ? 0.78 : 1,
+              })}
             >
-              <FontAwesome5 name="inbox" size={14} color={isDark ? "#D4AF37" : "#1D6F42"} />
+              <FontAwesome5 name="inbox" size={12} color={isDark ? "#D4AF37" : "#1D6F42"} />
+              <T v="caption" style={{ fontSize: 10.5, fontWeight: "800", color: isDark ? "#E8C96A" : "#1D6F42", letterSpacing: 0.2 }}>
+                My Questions
+              </T>
               {(scholarAskCount ?? 0) > 0 ? (
                 <View
-                  style={{ position: "absolute", top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#E74C3C", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}
+                  style={{ minWidth: 17, height: 17, borderRadius: 9, backgroundColor: "#E74C3C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}
                 >
-                  <T v="caption" style={{ fontSize: 9, fontWeight: "900", color: "#fff" }}>{scholarAskCount > 9 ? "9+" : scholarAskCount}</T>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: "900", color: "#fff" }}>{scholarAskCount > 99 ? "99+" : scholarAskCount}</T>
                 </View>
               ) : null}
             </Pressable>
@@ -547,6 +579,64 @@ function ProfileInner() {
                     </T>
                   </View>
                 ) : null}
+                {/* pass 90 — owner: "he should see himself as scholar with
+                 * scholars tag". Approved → the same gold tag the posts carry
+                 * ("Scholar · Sunni"); applied but not reviewed yet → an
+                 * honest under-review chip that opens the application page. */}
+                {(() => {
+                  const tag = scholarTagLabel(user as never);
+                  if (tag) {
+                    return (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 5,
+                          borderRadius: 9,
+                          borderWidth: 1,
+                          borderColor: "rgba(212,175,55,0.55)",
+                          backgroundColor: "rgba(212,175,55,0.12)",
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          alignSelf: "flex-start",
+                        }}
+                      >
+                        <T v="caption" style={{ fontSize: 10, fontWeight: "900", color: isDark ? "#E8C96A" : "#8C6D1F", letterSpacing: 0.3 }}>
+                          🎓 {tag}
+                        </T>
+                      </View>
+                    );
+                  }
+                  const st = String(
+                    (user as { scholar?: { approval_status?: string } | null } | null)?.scholar
+                      ?.approval_status ?? "",
+                  ).toLowerCase();
+                  if (st === "pending" || st === "reviewing") {
+                    return (
+                      <Pressable
+                        onPress={() => router.push("/tools/scholar-apply" as never)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 5,
+                          borderRadius: 9,
+                          borderWidth: 1,
+                          borderColor: d.cardBorder,
+                          backgroundColor: d.card,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          alignSelf: "flex-start",
+                        }}
+                      >
+                        <FontAwesome5 name="hourglass-half" size={8.5} color={d.faint} />
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: "800", color: d.faint, letterSpacing: 0.3 }}>
+                          SCHOLAR ACCOUNT · UNDER REVIEW
+                        </T>
+                      </Pressable>
+                    );
+                  }
+                  return null;
+                })()}
               </View>
             </View>
 
@@ -889,6 +979,12 @@ function ProfileInner() {
                 <FeedCard
                   onComments={(pp) => setCommentPost(pp)}
                   key={p.id}
+                  /* pass 90 — owner: "profile video tab posts container on dark
+                   * theme, its background is still not same as the normal
+                   * Community posts background". This card was the only feed
+                   * card rendered without the active dash theme, so it fell
+                   * back to a fixed palette. */
+                  dash={d}
                   post={p}
                   /* pass 83-25 — group posts on profiles carry a chip into the group */
                   group={

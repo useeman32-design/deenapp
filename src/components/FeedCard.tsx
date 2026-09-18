@@ -44,6 +44,7 @@ import { DefaultAvatar } from "@/components/AvatarPicker";
 import { API_ORIGIN } from "@/api/client";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { VideoView, useVideoPlayer } from "expo-video";
+import { claimMedia, releaseMedia, useMediaHolds } from "@/lib/mediaBus";
 import { VideoLoader } from "@/components/VideoLoader";
 import { isLive, votePoll } from "@/api/client";
 import { guestBlock } from "@/lib/guest";
@@ -306,6 +307,22 @@ function VideoPostPlayer({
       onPanResponderTerminate: () => setDragging(false),
     });
 
+  /* pass 90 — the feed's inline player now shares the global media bus: it may
+   * only make sound while it holds the speaker (so a reel or a YouTube card
+   * can't play over it), and losing the speaker pauses it immediately. */
+  const mediaKey = `inline:${post?.id ?? src}`;
+  const holdsMedia = useMediaHolds(mediaKey);
+  useEffect(() => {
+    if (!holdsMedia) {
+      try {
+        player.pause();
+      } catch {}
+    }
+  }, [holdsMedia, player]);
+  useEffect(() => {
+    if (started && !paused && !outRef.current && screenFocusedRef.current) claimMedia(mediaKey);
+    else releaseMedia(mediaKey);
+  }, [started, paused, mediaKey]);
   useEffect(() => {
     if (started && !paused && !outRef.current && screenFocusedRef.current) {
       if (endedRef.current) {
@@ -680,6 +697,63 @@ const REPORT_TYPES: Array<{ id: string; label: string; icon: any }> = [
  * YouTube in-container (double-tap = like, tap = in-app player) ·
  * like / comment / share actions · ••• menu (Report modal / Not interested).
  */
+/* pass 90 — scholar identity labels for the post chip. The DB stores the raw
+ * admin/applicant strings ("shaykh", "ahl al-sunnah"), the chip must read
+ * "Mufti · Sunni" / "Scholar · Sunni". */
+const DL_AQEEDAH_SHORT: Record<string, string> = {
+  sunni: "Sunni",
+  "ahl al-sunnah": "Sunni",
+  "ahlus sunnah": "Sunni",
+  "ahle sunnah": "Sunni",
+  "sunni ahle hadith": "Ahle Hadith",
+  "ahle hadith": "Ahle Hadith",
+  salafi: "Salafi",
+  shia: "Shia",
+  "shia jafari": "Jafari",
+  ibadi: "Ibadi",
+  sufi: "Sufi",
+};
+export function dlAqeedahShort(raw?: string | null): string {
+  const v = String(raw || "").trim().toLowerCase();
+  if (!v) return "";
+  if (DL_AQEEDAH_SHORT[v]) return DL_AQEEDAH_SHORT[v];
+  if (v.includes("sunna") || v.includes("sunni")) return "Sunni";
+  if (v.includes("hadith")) return "Ahle Hadith";
+  if (v.includes("shia") || v.includes("jafari")) return "Shia";
+  if (v.includes("ibadi")) return "Ibadi";
+  return v
+    .split(/\s+/)
+    .slice(0, 3)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+const DL_SCHOLAR_LEVELS: Record<string, string> = {
+  scholar: "Scholar",
+  mufti: "Mufti",
+  sheikh: "Sheikh",
+  shaykh: "Sheikh",
+  alim: "Alim",
+  alimah: "Alimah",
+  ustaz: "Ustaz",
+  ustaza: "Ustaza",
+  imam: "Imam",
+  qari: "Qari",
+  student: "Student of Knowledge",
+  "student_of_knowledge": "Student of Knowledge",
+};
+export function dlScholarLevelLabel(raw?: string | null): string {
+  const v = String(raw || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (!v) return "Scholar";
+  return (
+    DL_SCHOLAR_LEVELS[v] ||
+    v
+      .split(/\s+/)
+      .slice(0, 3)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+  );
+}
+
 export function FeedCard({
   post,
   onLike,
@@ -1097,10 +1171,33 @@ export function FeedCard({
                * style, like the profile's aqeedah tag but server-fed so it
                * shows on HOME too (post.scholar_level / scholar_aqeedah). */}
               {(() => {
-                const lvl = String((post as any).scholar_level || "").trim();
-                const aq = String((post as any).scholar_aqeedah || "").trim();
-                if (!lvl && !aq) return null;
-                const label = [lvl || "Scholar", aq].filter(Boolean).join(" · ");
+                /* pass 90 — owner: "when a scholar registers ... he should see
+                 * himself as scholar with scholars tag like how aqeedah tag is
+                 * displaying on posts card. So the scholar's aqeedah tag should
+                 * be like this: Scholar - Sunni. Levels (scholar, mufti,
+                 * sheikh, alim ...) are the ones the admin assigned in Scholar
+                 * Management, and the chip must show on HOME posts too. */
+                const approved =
+                  String((user as any)?.scholar_status || "").toLowerCase() ===
+                  "approved";
+                if (!approved) return null;
+                const lvl = String(
+                  (post as any).scholar_level ||
+                    (user as any)?.scholar_level ||
+                    "",
+                ).trim();
+                const aq = dlAqeedahShort(
+                  String(
+                    (post as any).scholar_aqeedah ||
+                      (user as any)?.scholar_aqeedah ||
+                      (user as any)?.aqeedah ||
+                      "",
+                  ),
+                );
+                const label = [dlScholarLevelLabel(lvl), aq]
+                  .filter(Boolean)
+                  .join(" · ");
+                if (!label) return null;
                 return (
                   <View
                     style={{
@@ -1121,7 +1218,6 @@ export function FeedCard({
                         fontWeight: "900",
                         color: "#C9A227",
                         letterSpacing: 0.3,
-                        textTransform: "capitalize",
                       }}
                     >
                       🎓 {label}

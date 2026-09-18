@@ -26,6 +26,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { claimMedia, releaseMedia, useMediaHolds } from '@/lib/mediaBus';
 import { VideoLoader } from '@/components/VideoLoader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { guestBlock, useIsGuest } from '@/lib/guest';
@@ -194,10 +195,30 @@ function ReelItem({
     [],
   );
 
+  /* pass 90 — owner: "on the native app multiple videos are playing
+   * simultaneously on the videos page". The bus is what makes that impossible:
+   * a reel may only run while it holds the speaker, and holding it is what
+   * takes it away from every other surface (feed cards, YouTube embeds, the
+   * shop preview). Losing the screen releases it, which stops playback on the
+   * way to Notifications/Shops instead of leaving sound behind. */
+  const mediaKey = `reel:${reel.id ?? reel.src}`;
+  const holdsMedia = useMediaHolds(mediaKey);
   useEffect(() => {
-    if (active && !paused && screenFocused) player.play();
+    if (active && !paused && screenFocused) claimMedia(mediaKey);
+    else releaseMedia(mediaKey);
+  }, [active, paused, screenFocused, mediaKey]);
+  useEffect(() => {
+    if (!holdsMedia) {
+      try {
+        player.pause();
+      } catch {}
+    }
+  }, [holdsMedia, player]);
+
+  useEffect(() => {
+    if (active && !paused && screenFocused && holdsMedia) player.play();
     else player.pause();
-  }, [active, paused, player, screenFocused]);
+  }, [active, paused, player, screenFocused, holdsMedia]);
 
   useEffect(() => {
     player.muted = muted;

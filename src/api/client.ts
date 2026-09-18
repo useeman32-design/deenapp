@@ -13,6 +13,7 @@
  * UI always works in previews.
  */
 
+import { reportBlockedAction } from "@/lib/blockNotice";
 import { Platform } from "react-native";
 import { storage } from "@/lib/storage";
 import { type EventItem, MOCK_USER, MOCK_WALLPAPERS } from "@/api/mocks";
@@ -157,6 +158,31 @@ async function request<T = Record<string, unknown>>(
     csrf = null;
   }
 
+  /* pass 90 — a moderation refusal must never be swallowed. Every guarded
+   * social write answers 403 { message, interaction_blocked } ("Your account
+   * has been suspended. Contact support for more information. Reason: …");
+   * screens used to simply not-do the action, so the user saw nothing. One
+   * central notice shows the server's own wording. */
+  if (res.status === 403) {
+    const d = data as {
+      message?: string;
+      interaction_blocked?: boolean;
+      account_status?: string;
+    };
+    const msg = String(d?.message || "");
+    if (
+      d?.interaction_blocked ||
+      d?.account_status === "suspended" ||
+      /\bsuspended\b|\bbanned\b/i.test(msg)
+    ) {
+      try {
+        reportBlockedAction(msg || "Your account cannot perform this action.");
+      } catch {
+        /* notice bus is best-effort */
+      }
+    }
+  }
+
   // pass 50 — the cached CSRF token can go stale (server rotated it, or the
   // session was regenerated). On a CSRF rejection, refresh the token and retry
   // the write once so profile edits don't fail with "invalid CSRF token".
@@ -204,9 +230,16 @@ export async function restoreSession(): Promise<{
   // `dl.session` may be empty after a refresh — but the browser still sends the
   // cookie automatically. So ALWAYS probe /me instead of bailing (which used to
   // log the user out on every page refresh).
-  const me = await request<{ status: string; user?: User }>("/api/auth/me.php");
-  if (me.ok && me.data.user)
-    return { user: hydrateUser(me.data.user), ok: true };
+  const me = await request<{ status: string; user?: User; scholar?: User["scholar"] }>(
+    "/api/auth/me.php",
+  );
+  if (me.ok && me.data.user) {
+    const u = me.data.user as User;
+    /* pass 90 — API builds that still return the scholar row as a SIBLING of
+     * `user` must not cost the profile its scholar tag. */
+    if (!u.scholar && me.data.scholar) u.scholar = me.data.scholar;
+    return { user: hydrateUser(u), ok: true };
+  }
 
   if (!me.networkError) {
     // Server says the session is invalid.
@@ -1632,6 +1665,32 @@ export async function scholarQueue(
     return { questions: r.data.questions, counts: r.data.counts ?? {} };
   }
   return null;
+}
+
+/**
+ * pass 90 — the scholar's own queue counts for the "My Questions" badge. Cheaper
+ * than loading the whole queue: the server answers with `counts` regardless of
+ * how many rows are requested.
+ */
+export async function scholarDeskCounts(): Promise<{
+  toAnswer: number;
+  reviewing: number;
+  answered: number;
+  all: number;
+} | null> {
+  if (FORCE_DEMO) return null;
+  const r = await request<{ status?: string; counts?: Record<string, number> }>(
+    "/api/questions/scholar_list.php?tab=all&limit=1",
+    { auth: true },
+  );
+  if (!r.ok || r.data.status !== "success") return null;
+  const c = r.data.counts ?? {};
+  return {
+    toAnswer: Number(c.to_answer ?? c.pending ?? 0) || 0,
+    reviewing: Number(c.reviewing ?? 0) || 0,
+    answered: Number(c.answered ?? 0) || 0,
+    all: Number(c.all ?? 0) || 0,
+  };
 }
 
 /** Answer / mark reviewing / reject / message a question as the scholar. */
