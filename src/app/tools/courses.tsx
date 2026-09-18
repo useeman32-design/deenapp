@@ -468,6 +468,27 @@ const serverLessons = (sc: ServerCourse): Lesson[] =>
 const serverLessonIds = (sc: ServerCourse): number[] =>
   (sc.modules ?? []).flatMap((m) => (m.lessons ?? []).map((l) => l.id));
 
+/* pass 93 — the bundled fallback banks still carry their authored order (the
+ * `default` set answers every question at index 1), so a student who never
+ * reaches the server bank sees the same letter every time. Server-authored
+ * banks are already shuffled in courses_quiz_load; this spreads the bundled
+ * ones once per course, so the answer position is never fixed anywhere. */
+function spreadCorrect(qs: QuizQ[]): QuizQ[] {
+  return qs.map((it) => {
+    const n = it.a.length;
+    if (n < 2) return it;
+    const order = it.a.map((_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = order[i];
+      order[i] = order[j];
+      order[j] = t;
+    }
+    const correct = order.indexOf(it.correct);
+    return { ...it, a: order.map((i) => it.a[i]), correct: correct < 0 ? 0 : correct };
+  });
+}
+
 const quizFor = (c: Course): QuizQ[] =>
   QUIZZES[c.slug ?? ""] ?? QUIZZES.default;
 
@@ -1283,7 +1304,15 @@ function CoursePlayer({
       alive = false;
     };
   }, [server]);
-  const quiz = quizBank ?? quizFor(course);
+  /* pass 93 — memoised: the bundled fallback is spread ONCE per course, so the
+   * options cannot move while the student is answering. */
+  const quizKey = `${course.slug ?? ""}#${course.id}`;
+  const quiz = useMemo(
+    () => quizBank ?? spreadCorrect(quizFor(course)),
+    // keyed on the course IDENTITY, not the object: a parent re-render must not
+    // re-spread the options mid-quiz
+    [quizBank, quizKey],
+  );
   useEffect(() => {
     (async () => {
       try {

@@ -2895,3 +2895,43 @@ carry varied indexes now, so the admin editor shows a normal spread.)
 - **kill-switch proven**: emptied the four tables, hit the student `list.php` → **0 courses** (the
   starter stubs no longer come back); re-seeded through the endpoint in one click.
 - `tsc --noEmit` 0 · `php -l` clean · admin page inline JS `node --check` OK.
+
+### Pass 93b — three things the re-check turned up, all fixed
+
+1. **The lesson counts on the cards were wrong.** Every catalogue entry carried a hand-written
+   `estimated_duration` whose "N lessons" disagreed with the course it sat on (Tajwīd said *14 lessons*
+   and has 16; Sīrah said *13 lessons* and has 9; the Arabic description said *Thirteen lessons* and has
+   14). All ten `estimated_duration` lines are now generated from the real lesson counts and the summed
+   per-lesson reading times, and two in-copy claims were corrected. Verified through PHP:
+   `seerah 9→9`, `tajwid 16→16`, `hadith 10→10`, … and a sweep of **every** published string for
+   `\d+ lessons|Nine…Sixteen lessons` returns **0 mismatches**.
+2. **The bundled quiz fallback was still a fixed letter.** Server banks are shuffled by
+   `courses_quiz_load()`, but if a course has no server bank (offline, or a course whose slug is not in
+   the DB) the app falls back to its bundled set — whose `default` bank answered **every** question at
+   index 1. `spreadCorrect()` in `src/app/tools/courses.tsx` now spreads the bundled options once per
+   course (memoised on the course identity so options cannot move under the student's finger), so no
+   quiz anywhere in the app can show a fixed answer position.
+3. **Proof that the coin fix is real, not plausible.** The exported web bundle contains **53**
+   `./assets/assets/img/…` URIs and **zero** absolute ones; `assetUri.js` was compiled and executed in
+   node against a fake DOM for both flavours: `withAppBase('./assets/…/deenpoints.<hash>.png')` →
+   `https://app.deenlink.org/assets/…` and `https://useeman32-design.github.io/deenapp/assets/…`;
+   `installWebAssetBase()` inserts the right `<base href>`, once; `data:`/`https:`/absolute URIs and
+   native asset ids pass through untouched. Finally the browser rule itself, applied to the shipped
+   files: at `/deenapp/tools/deenpoints` the unresolvable path
+   `/deenapp/tools/assets/…/deenpoints.<hash>.png` does **not** exist in the export, and the
+   `<base>`-resolved `/deenapp/assets/…/deenpoints.<hash>.png` **does**.
+
+### Shipped (pass 93)
+
+- API: `register_scholar.php` (`proof_file`/`letter_file` aliases), `api/courses/common.php`
+  (`courses_quiz_load()` option shuffle), `api/admin/courses/seed_pass93.php` + `data/pass93/`
+  (manifest + 10 researched courses: 114 lessons, 107 test questions), `admin/course-quizzes.html`
+  (the one-click **Rebuild courses (authentic 10)** button + the missing `loadCourses()`).
+- App: `src/lib/assetUri.ts` (+ `installWebAssetBase()` from `_layout.tsx`), `(auth)/register.tsx`,
+  `api/client.ts` (`ProofDoc`/`attachDoc()`), `lib/themeLocks.tsx`, `read/[id].tsx`, `(tabs)/index.tsx`,
+  `tools/learning.tsx`, `tools/courses.tsx` (`spreadCorrect`).
+- Proof on the rig: seed **HTTP 200** *"Courses wiped and rebuilt: 10 courses, 114 lessons,
+  107 test questions."*, second run identical; emptying the tables and hitting the student list gives
+  **0 courses** (the starter stubs stay dead), then one click rebuilds; per-course lesson counts and
+  durations verified through `list.php`/`get.php`; quiz correct positions move on every load with
+  constant option text; scholar upload attaches (`cert=1 status=pending`).
