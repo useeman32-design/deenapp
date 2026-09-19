@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { MALE_AVATARS, FEMALE_AVATARS } from '@/data/avatars';
+import { MALE_AVATARS_ITEMS, FEMALE_AVATARS_ITEMS, type AvatarItem } from '@/data/avatars';
 import { profileAvatars, selectProfileAvatar, type ProfileAvatar } from '@/api/client';
 
 /** Gendered default avatars — male silhouette / female hijab (inline SVG, no network).
@@ -41,16 +41,25 @@ export function DefaultAvatar({ gender, size = 96 }: { gender?: string | null; s
   );
 }
 
+/** What the picker hands back: a library image (bundle + server path), a plain
+ *  URL from the server list, or null for the gendered default. */
+export type AvatarPick =
+  | { kind: 'default' }
+  | { kind: 'library'; item: AvatarItem }
+  | { kind: 'server'; url: string };
+
 type Props = {
   visible: boolean;
   gender?: string | null;
-  selected?: string | number | null;
+  /** currently saved URL, so the right tile shows as selected */
+  selectedUrl?: string | null;
   onClose: () => void;
-  /** source = a require()d avatar, or null to use the gendered default */
-  onSelect: (source: number | string | null) => void;
+  onSelect: (pick: AvatarPick) => void;
+  /** the "upload from gallery" row; hidden when the screen cannot upload */
+  onPickFromGallery?: () => void;
 };
 
-export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: Props) {
+export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, onPickFromGallery }: Props) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const g = (gender ?? '').toLowerCase();
@@ -63,11 +72,17 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
   const [tab, setTab] = useState<'male' | 'female'>(startTab);
   const [remote, setRemote] = useState<ProfileAvatar[] | null>(null);
   const [remoteBusy, setRemoteBusy] = useState<number | null>(null);
-  useEffect(() => { if (!visible) return; profileAvatars(gender || undefined).then(setRemote).catch(() => setRemote(null)); }, [visible, gender]);
+  useEffect(() => {
+    if (!visible) return;
+    profileAvatars(gender || undefined)
+      .then((rows) => setRemote(rows && rows.length ? rows : null))
+      .catch(() => setRemote(null));
+  }, [visible, gender]);
   const list = useMemo(
-    () => (locked ? (isFemale ? FEMALE_AVATARS : MALE_AVATARS) : (tab === 'male' ? MALE_AVATARS : FEMALE_AVATARS)),
+    () => (locked ? (isFemale ? FEMALE_AVATARS_ITEMS : MALE_AVATARS_ITEMS) : tab === 'male' ? MALE_AVATARS_ITEMS : FEMALE_AVATARS_ITEMS),
     [locked, isFemale, tab],
   );
+  const defaultOn = !selectedUrl;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -82,38 +97,88 @@ export function AvatarPicker({ visible, gender, selected, onClose, onSelect }: P
 
           {/* default option */}
           <Pressable
-            onPress={() => { haptic.selection(); onSelect(null); onClose(); }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: selected == null ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: selected == null ? 'rgba(212,175,55,0.1)' : d.card, marginBottom: 12 }}
+            onPress={() => { haptic.selection(); onSelect({ kind: 'default' }); onClose(); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: defaultOn ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: defaultOn ? 'rgba(212,175,55,0.1)' : d.card, marginBottom: 12 }}
           >
             <DefaultAvatar gender={gender} size={44} />
             <View style={{ flex: 1 }}>
               <T v="body" style={{ fontWeight: '700', fontSize: 13, color: d.text }}>Use default avatar</T>
-              <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>{(gender ?? '').toLowerCase().startsWith('f') ? 'Hijab avatar' : 'Male avatar'}</T>
+              <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>{isFemale ? 'Hijab avatar' : 'Male avatar'}</T>
             </View>
-            {selected == null ? <FontAwesome5 name="check-circle" size={16} color="#E8C96A" /> : null}
+            {defaultOn ? <FontAwesome5 name="check-circle" size={16} color="#E8C96A" /> : null}
           </Pressable>
 
+          {/* gallery (owner: "local Image adding from gallery") */}
+          {onPickFromGallery ? (
+            <Pressable
+              onPress={() => { haptic.selection(); onClose(); onPickFromGallery(); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, marginBottom: 12 }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(212,175,55,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5 name="image" size={16} color="#E8C96A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T v="body" style={{ fontWeight: '700', fontSize: 13, color: d.text }}>Upload from gallery</T>
+                <T v="caption" style={{ color: d.faint, fontSize: 10.5 }}>Use a photo from this device</T>
+              </View>
+              {remoteBusy === -1 ? <ActivityIndicator size="small" color="#E8C96A" /> : <FontAwesome5 name="chevron-right" size={12} color={d.faint} />}
+            </Pressable>
+          ) : null}
+
           {/* tabs — only when we don't know the account's gender */}
-          {!locked && <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-            {(['male', 'female'] as const).map((t) => {
-              const on = tab === t;
-              return (
-                <Pressable key={t} onPress={() => { haptic.selection(); setTab(t); }} style={{ flex: 1, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.12)' : d.card, alignItems: 'center' }}>
-                  <T v="caption" style={{ fontWeight: '800', fontSize: 11, color: on ? '#E8C96A' : d.subtext, textTransform: 'capitalize' }}>{t}</T>
-                </Pressable>
-              );
-            })}
-          </View>}
+          {!locked && (
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              {(['male', 'female'] as const).map((t) => {
+                const on = tab === t;
+                return (
+                  <Pressable key={t} onPress={() => { haptic.selection(); setTab(t); }} style={{ flex: 1, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: on ? 'rgba(212,175,55,0.12)' : d.card, alignItems: 'center' }}>
+                    <T v="caption" style={{ fontWeight: '800', fontSize: 11, color: on ? '#E8C96A' : d.subtext, textTransform: 'capitalize' }}>{t}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {remote && remote.length ? remote.map((avatar) => {
-                const on = selected === avatar.url;
-                return <Pressable key={avatar.id} disabled={remoteBusy === avatar.id} onPress={async () => { haptic.selection(); setRemoteBusy(avatar.id); const result = await selectProfileAvatar(avatar.id); setRemoteBusy(null); if (!result.ok) { Alert.alert('Could not select avatar', result.message ?? 'You may need more DeenPoints.'); return; } onSelect(result.url || avatar.url); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}><ExpoImage source={{ uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" /><View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}><FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" /></View></Pressable>;
-              }) : list.map((src, i) => {
-                const on = selected === src;
-                return <Pressable key={i} onPress={() => { haptic.selection(); onSelect(src); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : 'transparent', backgroundColor: d.card }}><ExpoImage source={src} style={{ width: '100%', height: '100%', backgroundColor: d.card }} contentFit="cover" transition={200} /></Pressable>;
-              })}
+              {remote
+                ? remote.map((avatar) => {
+                    const on = selectedUrl === avatar.url;
+                    return (
+                      <Pressable
+                        key={avatar.id}
+                        disabled={remoteBusy === avatar.id}
+                        onPress={async () => {
+                          haptic.selection();
+                          setRemoteBusy(avatar.id);
+                          const result = await selectProfileAvatar(avatar.id);
+                          setRemoteBusy(null);
+                          if (result.ok && result.url) onSelect({ kind: 'server', url: result.url });
+                          else onSelect({ kind: 'server', url: avatar.url });
+                          onClose();
+                        }}
+                        style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}
+                      >
+                        <ExpoImage source={{ uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                        <View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
+                          <FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" />
+                        </View>
+                        {remoteBusy === avatar.id ? (
+                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+                            <ActivityIndicator color="#fff" />
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                : list.map((item, i) => {
+                    const on = !!selectedUrl && selectedUrl.includes(item.name);
+                    return (
+                      <Pressable key={i} onPress={() => { haptic.selection(); onSelect({ kind: 'library', item }); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : 'transparent', backgroundColor: d.card }}>
+                        <ExpoImage source={item.src} style={{ width: '100%', height: '100%', backgroundColor: d.card }} contentFit="cover" transition={200} />
+                      </Pressable>
+                    );
+                  })}
             </View>
           </ScrollView>
         </View>

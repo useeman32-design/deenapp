@@ -283,12 +283,17 @@ export function hydrateUser<T extends Record<string, unknown>>(u: T): T {
     !s || s === "default_profile.jpg" || s.endsWith("/img/default_profile.jpg");
   let url = String(out.profile_image_url ?? "");
   if (isDefault(url)) {
-    const raw = String(out.profile_image ?? "");
+    const raw = String(out.profile_image ?? "").replace(/^\/+/, "");
     url = isDefault(raw)
       ? ""
       : raw.startsWith("http")
         ? raw
-        : `${BASE}/uploads/profile/${raw}`;
+        : /* pass 94 — a library avatar is stored as "img/profile/male/x.jpg";
+             it is NOT an upload, so it must not be pushed under
+             /uploads/profile/ (that URL 404s and the avatar disappears again) */
+          raw.startsWith("img/") || raw.startsWith("uploads/")
+          ? `${BASE}/${raw}`
+          : `${BASE}/uploads/profile/${raw}`;
   }
   out.profile_image_url = url;
   return out;
@@ -2254,7 +2259,45 @@ export async function profileAvatars(
     `/api/users/list_profile_avatars.php${qs}`,
     { auth: true },
   );
-  return r.ok && Array.isArray(r.data.avatars) ? r.data.avatars : null;
+  if (!r.ok || !Array.isArray(r.data.avatars)) return null;
+  /* pass 94 — the server answers with root-relative paths ('/img/profile/…').
+   * expo-image cannot resolve those on native and the browser resolves them
+   * against the wrong host on web, so they are absolutised here — the same thing
+   * the client already does for uploaded profile photos. */
+  const rows = r.data.avatars.map((a) => ({
+    ...a,
+    url: a.url && a.url.startsWith("/") ? `${BASE}${a.url}` : a.url,
+  }));
+  const want = (gender ?? "").toLowerCase().startsWith("f")
+    ? "female"
+    : (gender ?? "").toLowerCase().startsWith("m")
+      ? "male"
+      : "";
+  /* a male account must never be shown the female set (and the reverse) */
+  return want ? rows.filter((a) => String(a.gender ?? "").toLowerCase() === want) : rows;
+}
+
+/** pass 94 — pick one of the library avatars (the owner's own images, served
+ *  from /img/profile/{male,female}/). Persists immediately: no upload, no
+ *  points, and the URL that comes back is what every screen then shows. */
+export async function setProfileAvatar(
+  avatarPath: string,
+): Promise<{ ok: boolean; url?: string; message?: string }> {
+  const r = await request<{
+    status?: string;
+    profile_image?: string;
+    profile_image_url?: string;
+    message?: string;
+  }>("/api/users/set_profile_avatar.php", {
+    method: "POST",
+    body: { avatar_path: avatarPath },
+    auth: true,
+  });
+  if (r.ok && r.data.status === "success") {
+    const raw = String(r.data.profile_image_url ?? r.data.profile_image ?? "");
+    return { ok: true, url: raw.startsWith("http") || raw.startsWith("/") ? raw : `${BASE}/${raw}` };
+  }
+  return { ok: false, message: r.data?.message };
 }
 export async function selectProfileAvatar(avatarId: number): Promise<{
   ok: boolean;
@@ -3154,12 +3197,46 @@ export async function videosRepost(
   return null;
 }
 
+/* ── pass 94 — THE PUBLISHED CATALOGUE ────────────────────────────────────────
+ * The owner wants exactly the ten researched courses in the app. They are the
+ * ten slugs the admin "Rebuild courses (authentic 10)" button installs; every
+ * other row that may still be sitting in a database (an older course, a starter
+ * stub, a test row) is not part of the app's catalogue any more and must not
+ * reach the student list. The server list is filtered through this list, so no
+ * stale row and no stale cache can put an old course back on the screen.
+ *
+ * The lesson-count guard is what keeps the four same-slug OLD courses (from the
+ * pre-93 catalogue) out until the rebuild is run: a rebuilt course has 9–16
+ * lessons, the thin ones had a handful. */
+export const CATALOGUE_SLUGS = [
+  "tajwid-essentials",
+  "reading-quran-basics",
+  "getting-started-with-arabic",
+  "fiqh-of-worship",
+  "aqeedah-foundations",
+  "tauhid-knowing-allah",
+  "seerah-of-the-prophet",
+  "tafsir-juz-amma",
+  "hadith-sciences-intro",
+  "daily-dua-and-dhikr",
+] as const;
+
 export async function courses(): Promise<Course[]> {
   const r = await request<{ status?: string; courses?: Course[] }>(
     "/api/courses/list.php",
   );
-  if (r.ok && Array.isArray(r.data.courses)) return r.data.courses;
-  return []; /* pass 83-38 — admin-managed courses only */
+  if (!r.ok || !Array.isArray(r.data.courses)) return []; /* admin-managed only */
+  const all = r.data.courses;
+  const inCatalogue = all.filter((c) =>
+    (CATALOGUE_SLUGS as readonly string[]).includes(String(c.slug ?? "")),
+  );
+  const rebuilt = inCatalogue.filter(
+    (c) => Number((c as { total_lessons?: number }).total_lessons ?? 0) >= 5,
+  );
+  if (rebuilt.length) return rebuilt;
+  /* nothing rebuilt yet — show the catalogue rows we do have rather than a
+     screen full of the courses the owner asked to remove */
+  return inCatalogue;
 }
 
 export async function userPosts(userId?: number): Promise<Post[]> {
@@ -3360,6 +3437,31 @@ export async function updateProfile(payload: {
   return { ok: false, message: r.data?.message };
 }
 
+/* ── pass 94 — the aqeedah options, straight from the admin ──────────────────
+ * Registration and Edit profile both read this list (Admin → Aqeedah &
+ * Security), so the two screens can never drift apart again. A network failure
+ * is not fatal: the caller falls back to the bundled list it shipped with. */
+export type AqeedahOption = {
+  id: number;
+  name: string;
+  description: string;
+  description_ng: string;
+};
+
+export async function aqeedahOptions(): Promise<AqeedahOption[] | null> {
+  const r = await request<{ status?: string; aqeedah?: AqeedahOption[] }>(
+    "/api/aqeedah/list.php",
+    { auth: false },
+  );
+  if (!r.ok || !Array.isArray(r.data.aqeedah) || !r.data.aqeedah.length) return null;
+  return r.data.aqeedah.map((a) => ({
+    id: Number(a.id ?? 0),
+    name: String(a.name ?? ""),
+    description: String(a.description ?? ""),
+    description_ng: String(a.description_ng ?? ""),
+  }));
+}
+
 export async function uploadProfileImage(
   uri: string,
   name: string,
@@ -3379,6 +3481,27 @@ export async function uploadProfileImage(
     method: "POST",
     form,
   });
+  if (r.ok && r.data.profile_image_url)
+    return { ok: true, url: r.data.profile_image_url };
+  return { ok: false, message: r.data?.message ?? "Upload failed" };
+}
+
+/** pass 94 — the same DOM-File case the scholar documents hit in pass 93: the
+ *  web picker (and the gallery input) hand back a File with no `.uri`, so the
+ *  old {uri,name,type} part produced an empty request and the avatar "never
+ *  saved". Append the File itself. */
+export async function uploadProfileImageFile(
+  file: File,
+): Promise<{ ok: boolean; url?: string; message?: string }> {
+  if (FORCE_DEMO) return { ok: false, message: "Photo upload needs the live API" };
+  await fetchCsrf();
+  const form = new FormData();
+  form.append("profile_image", file, file.name || "avatar.jpg");
+  const r = await request<{
+    status?: string;
+    profile_image_url?: string;
+    message?: string;
+  }>("/api/users/upload_profile_image.php", { method: "POST", form });
   if (r.ok && r.data.profile_image_url)
     return { ok: true, url: r.data.profile_image_url };
   return { ok: false, message: r.data?.message ?? "Upload failed" };

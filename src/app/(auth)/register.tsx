@@ -11,6 +11,7 @@ import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
 import { checkUsernameAvailable, checkEmailAvailable, registerScholar, restoreSession, scholarApply,} from '@/api/client';
+import { AqeedahPicker, isOtherOption, useAqeedahOptions } from '@/components/AqeedahPicker';
 
 /**
  * pass 41 — FULL signup rebuild.
@@ -56,14 +57,6 @@ const COUNTRIES: Array<{ name: string; flag: string }> = [
 ];
 const TRIBES = ['Hausa', 'Igbo', 'Yoruba', 'General'];
 const GENDERS = ['Male', 'Female'];
-
-const AQEEDAH: Array<{ id: string; desc: string; descNG?: string }> = [
-  { id: 'Sunni', desc: 'Ahlus-Sunnah wal-Jama\u2019ah — the Qur\u2019an, the Sunnah and the way of the righteous predecessors.', descNG: 'Ahlus-Sunnah wal-Jama\u2019ah — the Qur\u2019an, the Sunnah and the way of the righteous predecessors. Izala and Salafiyya fall under Sunni.' },
-  { id: 'Sufi', desc: 'Tasawwuf — purifying the heart and soul. Tijaniyya and Qadiriyya fall here.' },
-  { id: 'Shia', desc: 'The school of the Ahl al-Bayt — belief in the Imamate and the leadership of the Prophet\u2019s \ufdfa household after him.' },
-  { id: 'Athari', desc: 'The creed of the salaf — affirmation of the texts without speculative interpretation.' },
-  { id: 'Other', desc: 'Describe your aqeedah in your own words (max 10 characters).' },
-];
 
 const KNOWLEDGE_FIELDS = ['Tawhid', 'Fiqh', 'Aqeedah', 'Tafsir', 'Quran', 'Seerah', 'Hadith'];
 const MADHHABS = ['Hanafi', 'Maliki', 'Shafi\u2019i', 'Hanbali', 'Other'];
@@ -261,45 +254,6 @@ function CountryPicker({ value, onPick }: { value: string; onPick: (c: string) =
   );
 }
 
-function AqeedahPicker({ value, other, setValue, setOther, nigeria }: { value: string; other: string; setValue: (v: string) => void; setOther: (v: string) => void; nigeria: boolean }) {
-  const { isDark } = useTheme();
-  return (
-    <View style={{ marginBottom: 16 }}>
-      <Label>Aqeedah</Label>
-      <View style={{ gap: 7 }}>
-        {AQEEDAH.map((a) => {
-          const on = value === a.id;
-          const desc = nigeria && a.descNG ? a.descNG : a.desc;
-          return (
-            <Pressable
-              key={a.id}
-              accessibilityLabel={`aqeedah ${a.id}`}
-              onPress={() => { haptic.selection(); setValue(a.id); }}
-              style={{ borderRadius: 14, borderWidth: 1.5, borderColor: on ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : isDark ? 'rgba(2,59,42,0.5)' : 'rgba(255,255,255,0.7)', paddingHorizontal: 13, paddingVertical: 10 }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <FontAwesome5 name={on ? 'check-circle' : 'circle'} size={13} color={on ? (isDark ? '#4AE38F' : '#1D6F42') : isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'} />
-                <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{a.id}</T>
-              </View>
-              <T v="caption" style={{ fontSize: 10.5, lineHeight: 15.5, color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)', marginLeft: 21, marginTop: 3 }}>{desc}</T>
-              {a.id === 'Other' && on ? (
-                <TextInput
-                  value={other}
-                  onChangeText={(t) => setOther(t.slice(0, 10))}
-                  placeholder="Max 10 characters"
-                  placeholderTextColor={isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'}
-                  maxLength={10}
-                  style={{ marginLeft: 21, marginTop: 8, borderRadius: 11, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(20,36,28,0.16)', backgroundColor: isDark ? 'rgba(3,36,24,0.6)' : 'rgba(255,255,255,0.8)', paddingHorizontal: 11, height: 40, fontFamily: 'Poppins-Medium', fontSize: 14, color: isDark ? '#F2F7F3' : '#14241C' }}
-                />
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function BackHeader({ onBack, title }: { onBack: () => void; title: string }) {
   const { isDark } = useTheme();
   return (
@@ -348,6 +302,8 @@ export default function Register() {
   const [country, setCountry] = useState('');
   const [tribe, setTribe] = useState<string | null>(null);
   const [aqeedah, setAqeedah] = useState('Sunni');
+  /* pass 94 — the same list Edit profile uses, straight from the admin */
+  const { options: aqeedahList } = useAqeedahOptions();
   const [aqeedahOther, setAqeedahOther] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -449,7 +405,7 @@ export default function Register() {
     }
   };
 
-  const aqeedahValue = aqeedah === 'Other' ? (aqeedahOther.trim() || 'Other') : aqeedah;
+  const aqeedahValue = isOtherOption(aqeedah) ? (aqeedahOther.trim() || aqeedah) : aqeedah;
 
   const doRegister = async (data: { full_name: string; username: string; email: string; password: string }) => {
     setBusy(true); setError('');
@@ -685,7 +641,7 @@ export default function Register() {
         </View>
       ) : null}
 
-      <AqeedahPicker value={aqeedah} other={aqeedahOther} setValue={setAqeedah} setOther={setAqeedahOther} nigeria={nigeria} />
+      <AqeedahPicker value={aqeedah} other={aqeedahOther} setValue={setAqeedah} setOther={setAqeedahOther} nigeria={nigeria} options={aqeedahList} />
     </>
   );
 
@@ -841,7 +797,7 @@ export default function Register() {
             </View>
           </View>
 
-          <AqeedahPicker value={aqeedah} other={aqeedahOther} setValue={setAqeedah} setOther={setAqeedahOther} nigeria={nigeria} />
+          <AqeedahPicker value={aqeedah} other={aqeedahOther} setValue={setAqeedah} setOther={setAqeedahOther} nigeria={nigeria} options={aqeedahList} />
 
           <AuthField label="Institute studied at" value={institute} onChangeText={setInstitute} placeholder="e.g. Islamic University of Madinah" icon="university" autoCap="words" />
 

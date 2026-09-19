@@ -61,7 +61,7 @@ const QUICK: Section[] = [
 ];
 
 const LIBRARY: Section[] = [
-  { title: 'Courses & Lectures', desc: 'Structured courses on Tafsir, Fiqh, Aqeedah, Arabic and Seerah.', icon: BookIcon, grad: ['#00796B', '#26A69A'], chip: '25+ courses', cta: 'Browse', href: '/tools/courses' },
+  { title: 'Courses & Lectures', desc: 'Structured courses on Tafsir, Fiqh, Aqeedah, Arabic and Seerah.', icon: BookIcon, grad: ['#00796B', '#26A69A'], chip: '10 courses', cta: 'Browse', href: '/tools/courses' },
   /* pass 42 — Tafsir library (Ibn Kathir · Ma'arif · Tazkirul) + Short Lessons as first-class sections */
   { title: 'Tafsir Library', desc: "Ibn Kathir, Ma'arif al-Qur'an and Tazkirul Quran — verse by verse.", icon: BookIcon, grad: ['#8D6E15', '#B8962A'], chip: '3 tafsirs', cta: 'Read', href: '/tools/tafsir' },
   { title: 'Short Lessons', desc: 'Bite-size micro-lessons on tawhid, salah, ramadan and more.', icon: NewspaperIcon, grad: ['#2F6D33', '#4CAF50'], chip: '9 lessons', cta: 'Learn', href: '/tools/lessons' },

@@ -2935,3 +2935,107 @@ carry varied indexes now, so the admin editor shows a normal spread.)
   **0 courses** (the starter stubs stay dead), then one click rebuilds; per-course lesson counts and
   durations verified through `list.php`/`get.php`; quiz correct positions move on every load with
   constant option text; scholar upload attaches (`cert=1 status=pending`).
+
+## PASS 94 — the five reports: old courses leaking, the silent check-in, edit profile, avatars, iOS audio
+
+Owner's words: *"its loading old courses i think its already saved in the database, i need only these new
+10"* · *"the checking button add loading checking in, because its just user waiting blindly"* · *"the edit
+profile screen, refine it add spaces btw the input fields … the select aqeedah make it display the listing
+of aqeedah just like how it is in the registrations page, the aqeedah name and its explanation … in the
+admin add a section where i can edit add or delete aqeedah … both the registrations and edit profile will
+share same thing"* · *"for an account that is male gender only male avatars will be displayed … even if i
+choosed avatar its not saving in realtime, or even preview and local Image adding from gallery"* · *"still
+i cannot upload audio in group posts its greyyed on my file manager every audio on my ios"*.
+
+### 1. "It is loading old courses" — the database, and now the code, agree on ten
+
+The app was showing whatever `api/courses/list.php` returned. His live database still holds the **47**
+old courses (four of them even sharing a slug with a new one, each with 3 thin lessons). Two changes:
+
+- **App:** `courses()` in `src/api/client.ts` now keeps only the ten catalogue slugs, and among those only
+  rows that actually carry lessons (`total_lessons >= 5`) — a rebuilt course has 9–16, the old thin ones
+  had 3. So even a stale row, a stale cache or a half-finished rebuild can never put an old course back on
+  the screen. If nothing has been rebuilt yet it shows the catalogue rows it does have rather than the 43
+  strangers. The Learning Hub chip that claimed *"25+ courses"* now says **10 courses**.
+- **Admin → Course Tests:** a new **Remove old courses** button + a status line at the top of the page:
+  *"Authentic catalogue: 10/10 present · 2 other course(s) still in the database"*. The button lists
+  exactly what it will delete, deletes only courses whose slug is NOT one of the ten, keeps the ten and
+  their lessons untouched, and is idempotent (proven on the rig: planted two stale courses → 10/10 + 2
+  extras → prune → 10/10 + 0 extras, 10 courses / 114 lessons intact → prune again → "Nothing to remove").
+  The existing **Rebuild courses (authentic 10)** remains the full route: it wipes and re-installs.
+
+### 2. The check-in chip no longer leaves you watching nothing
+
+`doCheckIn` had no busy state: on a slow network the gold chip sat there unchanged while the request ran.
+It now shows a spinner and **"Checking in…"**, ignores a second tap while it is working, and only then
+turns green. Rig: first call `success … 5 DeenPoints added`, second call `"You already checked in today."
+points_awarded=0` — no double award.
+
+### 3. Edit profile: spacing, one shared aqeedah list, admin-editable
+
+- **Spacing**: the surface gap went 14 → 18, the named rows (Full name / Username / Email), phone, bio and
+  the security-question blocks each got their own margin, and the Save button has air above it. The
+  aqeedah block is now a full list like registration's, not a dropdown.
+- **One list, two screens**: a new `src/components/AqeedahPicker.tsx` holds the picker **and** the fetch.
+  Registration and Edit profile both render it and both read `GET /api/aqeedah/list.php` (public, because
+  registration needs it before login). The bundled five are only the offline fallback.
+- **Admin → Aqeedah & Security** (new page, in the shared sidebar): add, rename, re-describe, switch off,
+  reorder and delete the options, with a live preview of how a registrant sees them. Backed by
+  `api/admin/aqeedah/manage.php` (create/update/delete/reorder, admin + CSRF required). Proven on the rig:
+  create → 200; duplicate name (case-insensitive) → 409; empty name → 400; update incl. `is_active=0`
+  → disappears from the public list; reorder → order changes; delete → gone; no CSRF → refused; a
+  `<script>` in a name → stripped. The defaults are seeded **once per database** (`system_settings`
+  `aqeedah.seeded`), so an owner who deletes them all gets an empty list, not five resurrected options.
+
+### 4. Avatars: his images, gendered, saved for real
+
+Root causes found, all three fixed:
+
+- **The images were in the database but not on the server.** `profile_avatars` had rows pointing at
+  `img/profile/{male,female}/*.jpg` and the files were never deployed, so the grid rendered blanks. His
+  **38 male + 24 female** avatar files are now in the repo at `img/profile/male|female/` (672 KB); the
+  library syncs itself on first use.
+- **Choosing one "did nothing".** `set_profile_avatar.php` stores `img/profile/male/x.jpg`, and `me.php`
+  then built the URL as `/uploads/profile/img/profile/male/x.jpg` → **404** (proved: that URL answers 404,
+  the corrected one answers 200 `image/jpeg`). The feed endpoints already handled the `img/` shape, which
+  is exactly why a chosen avatar appeared in the feed and vanished on the profile. `me.php` (+ the client's
+  own URL builder, and four endpoints that still missed it: admin/videos, blocks, connections, questions)
+  now resolve library paths correctly.
+- **The gallery did nothing either**, because the picker handed back a DOM `File` (no `.uri`) — the same
+  bug fixed for scholar documents in pass 93. `uploadProfileImageFile()` appends the File itself; the
+  screen keeps a **bundled item → one small JSON call** (no upload, instant, same picture on every
+  device), a **gallery pick → upload**, and **default → cleared**. The preview is set the moment you pick,
+  before the request finishes, and a failure now says so in words instead of silently doing nothing.
+  Rig, end to end: paid library avatar → charged once (60 → 38, second pick `spent=0`), `me.php` URL →
+  **HTTP 200 image/jpeg**; insufficient balance → clean refusal, balance untouched; a female avatar on a
+  male account → refused; `../api/config/db.php` → "Invalid avatar path"; JPEG upload → saved and served;
+  default → cleared. Gender lock: a male account sees only the 38 male images (server-side `?gender=` and
+  again in the client), a female account only the 24 female.
+
+**A real charging bug came out of this** — `select_avatar.php` ran `CREATE TABLE IF NOT EXISTS` *inside*
+its transaction; MySQL auto-commits DDL, so the closing `commit()` threw "There is no active transaction"
+and the endpoint answered **500 while the account had already been charged**. DDL is now hoisted above
+`beginTransaction()`, and a new `api/lib/txn.php` (`dl_txn_begin/commit/rollback`) makes the sequence
+harmless in the seven other endpoints that had the same shape.
+
+### 5. iOS audio — the real reason every file was greyed out
+
+`expo-document-picker` does **not** take UTIs: in its iOS module (v57, read from `node_modules`) each
+`type` entry goes through `UTType(mimeType:)`, with only `audio/*`, `image/*`, `video/*`, `text/*` and
+`*/*` special-cased. The old `["public.audio","public.data"]` was therefore read as two *MIME types*,
+both returned `nil`, `compactMap` collapsed the list to **empty**, and `UIDocumentPickerViewController`
+greys out every file when its content-type list is empty — exactly what he saw, twice. It is now
+`"audio/*"` on iOS (→ `UTType.audio`, the whole audio tree: m4a, mp3, aac, wav, caf, opus…), `"*/*"` on
+Android, and `validateAudio()` still rejects a non-audio pick with a clear message.
+
+### Also fixed while in there
+
+`me.php` answered **500** on any database whose security-question columns are named `security_question_1/_2`
+instead of `security_question/_2` — i.e. the app fell back to a stale snapshot after login. It now tries
+the rich SELECT and degrades instead of failing the request. `api/admin/aqeedah/manage.php` no longer
+requires mbstring (a host without it got a 500).
+
+### Verified by execution
+
+`tsc --noEmit` 0 · `php -l` clean · admin inline JS `node --check` clean · rig (PHP 8.4 + MariaDB 11.8):
+aqeedah CRUD suite, catalogue status/prune suite, avatar suite, check-in suite all green as quoted above.

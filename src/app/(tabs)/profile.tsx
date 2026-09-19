@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -123,6 +123,10 @@ function ProfileInner() {
     following: 0,
   });
   const [checkin, setCheckin] = useState<"idle" | "done" | "already">("idle");
+  /* pass 94 — owner: "the checking button add loading checking in, because its
+   * just user waiting blindly". The chip had no busy state, so on a slow
+   * network the tap looked like nothing happened. */
+  const [checkinBusy, setCheckinBusy] = useState(false);
   /* pass 83-20 — the server is the source of truth for today's check-in;
    * local storage alone reset the button to unchecked (owner: "if i checked
    * in and comeback again i will see the button as uncheck"). */
@@ -245,7 +249,17 @@ function ProfileInner() {
   const photo = (user?.profile_image_url as string | number | null) ?? null;
 
   const doCheckIn = async () => {
+    if (checkinBusy || checkin !== "idle") return;
+    setCheckinBusy(true);
     haptic.success();
+    try {
+      await runCheckIn();
+    } finally {
+      setCheckinBusy(false);
+    }
+  };
+
+  const runCheckIn = async () => {
     const k = "dl.checkin.date";
     const today = new Date().toISOString().slice(0, 10);
     /* pass 71 — live: the SERVER decides (unique per day) and returns the real
@@ -756,7 +770,7 @@ function ProfileInner() {
                   borderRadius: 12,
                   backgroundColor: d.emerald,
                   paddingVertical: 10,
-                  opacity: pressed ? 0.85 : 1,
+                  opacity: pressed || checkinBusy ? 0.7 : 1,
                 })}
               >
                 <FontAwesome5 name="user-edit" size={12} color="#FFFFFF" />
@@ -795,11 +809,18 @@ function ProfileInner() {
                   opacity: pressed ? 0.85 : 1,
                 })}
               >
-                <FontAwesome5
-                  name={checkin === "idle" ? "calendar-check" : "check"}
-                  size={12}
-                  color={checkin === "idle" ? d.gold : d.emerald}
-                />
+                {checkinBusy ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={isDark ? "#E8C96A" : "#8C6D1F"}
+                  />
+                ) : (
+                  <FontAwesome5
+                    name={checkin === "idle" ? "calendar-check" : "check"}
+                    size={12}
+                    color={checkin === "idle" ? d.gold : d.emerald}
+                  />
+                )}
                 <T
                   v="button"
                   style={{
@@ -815,11 +836,11 @@ function ProfileInner() {
                     fontSize: 12.5,
                   }}
                 >
-                  {checkin === "done"
-                    ? "Checked In"
-                    : checkin === "already"
-                      ? "Checked In"
-                      : "Check In"}
+                  {checkinBusy
+                    ? "Checking in…"
+                    : checkin === "idle"
+                      ? "Check In"
+                      : "Checked In"}
                 </T>
               </Pressable>
             </View>

@@ -303,19 +303,22 @@ function GroupScreenInner() {
         return;
       }
       const docPicker = await import("expo-document-picker");
-      /* pass 83-34 — iOS: the old all-media wildcard string is NOT a UTI; the
-       * picker maps it to nothing and the Files app GREYS OUT audio (owner,
-       * 3rd report). Real UTIs:
-       * public.data is the base type every readable file conforms to (mp3,
-       * m4a, wav, aac…), public.audio is the explicit audio tree. Files in
-       * iCloud download on pick (copyToCacheDirectory defaults true).
-       * validateAudio() still rejects non-audio picks with a clear message. */
-      /* pass 83-35 — Android too: the audio/* intent greys m4a/aac in the
-       * Files picker (owner: "I have m4a and aac … it won't work"). ALL
-       * platforms now open the full picker; validateAudio() rejects
-       * non-audio picks with a clear message right after. */
-      const audioTypes =
-        Platform.OS === "ios" ? ["public.audio", "public.data"] : "*/*";
+      /* ── pass 94 — WHY THE OWNER'S AUDIO WAS GREYED OUT ──────────────────
+       * expo-document-picker does NOT accept UTIs here. In its iOS module
+       * (DocumentPickerModule.swift, v57) every entry of `type` goes through
+       *     case AUDIO-WILDCARD: return UTType.audio      <- the one that works
+       *     default:             return UTType(mimeType: entry)
+       * so the old pair ("public.audio", "public.data") was read as two MIME
+       * types, both returned nil, and createDocumentPicker() ran
+       *     options.type.compactMap { … }   ->   []   (empty)
+       * An EMPTY content-type list makes UIDocumentPickerViewController grey
+       * out every file — exactly what he saw, on every audio, on iOS, twice
+       * already. The audio wildcard below is the documented value and maps to
+       * UTType.audio, the whole audio tree (mp3, m4a, aac, wav, caf, opus…).
+       * Android takes MIME types as-is; the everything-wildcard is used there
+       * because some Android document providers ignore a narrower filter.
+       * validateAudio() still rejects a non-audio pick with a clear message. */
+      const audioTypes = Platform.OS === "ios" ? "audio/*" : "*/*";
       const res = await docPicker.getDocumentAsync({
         type: audioTypes as never,
       });
