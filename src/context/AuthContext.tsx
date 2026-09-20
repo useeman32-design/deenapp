@@ -28,6 +28,8 @@ type AuthValue = {
     aqeedah?: string;
     country?: string;
     gender?: string;
+    /** pass 96 — required by the server for every new account */
+    date_of_birth?: string;
   }) => Promise<{
     ok: boolean;
     message?: string;
@@ -119,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       aqeedah?: string;
       country?: string;
       gender?: string;
+      date_of_birth?: string;
     }) => {
       const res = await apiRegister(data);
       /* pass 66-night — an unverified account is NEVER signed in: the server

@@ -350,6 +350,8 @@ export async function register(payload: {
   aqeedah?: string;
   country?: string;
   gender?: string;
+  /** pass 96 — every new registration now carries a date of birth (YYYY-MM-DD) */
+  date_of_birth?: string;
 }) {
   const r = await request<{ status: string; user?: User; message?: string }>(
     "/api/auth/register.php",
@@ -365,6 +367,7 @@ export async function register(payload: {
         aqeedah: payload.aqeedah ?? "Sunni",
         country: payload.country,
         gender: payload.gender,
+        date_of_birth: payload.date_of_birth,
       },
     },
   );
@@ -2242,6 +2245,34 @@ export async function reportAccount(
     },
   );
   return r.ok && r.data.status === "success";
+}
+
+/* pass 96 — the DeenPoints balance of the signed-in user, used by the avatar
+ * picker to say "unlock for 50 points" instead of failing on tap. */
+export async function myPointsBalance(): Promise<number | null> {
+  const r = await request<{ status?: string; balance?: number; deenpoints_balance?: number }>(
+    "/api/users/balance.php",
+    { auth: true },
+  );
+  if (!r.ok) return null;
+  const n = Number(r.data.balance ?? r.data.deenpoints_balance);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** pass 96 — spend DeenPoints on a locked library avatar (server enforces the
+ *  price from the admin's price_points, this only asks for it). */
+export async function unlockProfileAvatar(
+  avatarId: number,
+): Promise<{ ok: boolean; balance?: number; message?: string }> {
+  const r = await request<{ status?: string; balance?: number; new_balance?: number; message?: string }>(
+    "/api/users/unlock_profile_avatar.php",
+    { method: "POST", body: { avatar_id: avatarId }, auth: true },
+  );
+  if (r.ok && r.data.status === "success") {
+    const b = Number(r.data.balance ?? r.data.new_balance);
+    return { ok: true, balance: Number.isFinite(b) ? b : undefined };
+  }
+  return { ok: false, message: r.data?.message ?? "Could not unlock this avatar" };
 }
 
 export type ProfileAvatar = {

@@ -310,6 +310,11 @@ export default function Register() {
 
   /* scholar fields */
   const [step, setStep] = useState(1);
+  /* pass 96 — owner: "in registrations we will add date of birth for every new
+   * registration". A plain YYYY-MM-DD box with live checks beats a native picker
+   * here: it behaves the same on every platform, and the server validates it
+   * again before the row is written. */
+  const [dob, setDob] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [fields, setFields] = useState<string[]>([]);
@@ -407,11 +412,29 @@ export default function Register() {
 
   const aqeedahValue = isOtherOption(aqeedah) ? (aqeedahOther.trim() || aqeedah) : aqeedah;
 
+  /* validated here for a clear inline message, and again on the server */
+  const dobError = (() => {
+    const v = dob.trim();
+    if (v === '') return 'Date of birth is required';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'Use the format YYYY-MM-DD';
+    const d = new Date(`${v}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return 'That date does not exist';
+    const today = new Date();
+    if (d > today) return 'Date of birth cannot be in the future';
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+    if (age < 13) return 'You must be at least 13 years old to register';
+    if (age > 120) return 'Please check the year';
+    return '';
+  })();
+
   const doRegister = async (data: { full_name: string; username: string; email: string; password: string }) => {
     setBusy(true); setError('');
     lastPassword.current = data.password;
     /* DB enum: 'male'/'female' lowercase */
-    const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined });
+    if (dobError) { setError(dobError); setBusy(false); return; }
+    const res = await register({ ...data, aqeedah: aqeedahValue, country: country || undefined, gender: gender ? gender.toLowerCase() : undefined, date_of_birth: dob.trim() });
     if (res.ok) {
       setBusy(false);
       setOtpDelivery(res.emailDelivery ?? "otp");
@@ -657,6 +680,15 @@ export default function Register() {
 
       {IdentityBlock}
 
+      <AuthField label="Date of birth" value={dob} onChangeText={(v) => setDob(v.replace(/[^0-9-]/g, '').slice(0, 10))} placeholder="YYYY-MM-DD" icon="birthday-cake" />
+      {dob && dobError ? (
+        <T v="caption" style={{ color: '#FF9B6A', fontSize: 11.5, marginTop: -6, marginBottom: 10 }}>{dobError}</T>
+      ) : (
+        <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)', marginTop: -6, marginBottom: 10 }}>
+          Used for your age in the app — never shown on your profile.
+        </T>
+      )}
+
       <PasswordBlock password={password} confirm={confirm} setPassword={setPassword} setConfirm={setConfirm} />
 
       {error ? <T v="caption" style={{ color: '#FF7B7B', fontWeight: '700', fontSize: 12, marginBottom: 10 }}>{error}</T> : null}
@@ -684,6 +716,15 @@ export default function Register() {
       </View>
 
       {IdentityBlock}
+
+      <AuthField label="Date of birth" value={dob} onChangeText={(v) => setDob(v.replace(/[^0-9-]/g, '').slice(0, 10))} placeholder="YYYY-MM-DD" icon="birthday-cake" />
+      {dob && dobError ? (
+        <T v="caption" style={{ color: '#FF9B6A', fontSize: 11.5, marginTop: -6, marginBottom: 10 }}>{dobError}</T>
+      ) : (
+        <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)', marginTop: -6, marginBottom: 10 }}>
+          Used for your age in the app — never shown on your profile.
+        </T>
+      )}
 
       {error ? <T v="caption" style={{ color: '#FF7B7B', fontWeight: '700', fontSize: 12, marginBottom: 10 }}>{error}</T> : null}
       <AuthPrimaryButton label="Create my account" busy={busy} onPress={submitGmail} />

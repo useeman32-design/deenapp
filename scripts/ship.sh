@@ -31,6 +31,17 @@ PHP=${PHP_BIN:-$(command -v php || command -v php8.4 || echo "")}
 [ -n "$PHP" ] || fail "no php — apt install php8.4-cli failed, set PHP_BIN=…"
 [ -x "$PHP" ] || { [ -f "$PHP" ] && chmod +x "$PHP" 2>/dev/null; } || fail "no usable php binary (set PHP_BIN=…)"
 
+# rsync is NOT part of the base image and apt packages do not survive between
+# sessions. Without this guard a missing rsync made the API/app copy step fail
+# silently, commit_push reported "no changes to commit", and the pass looked
+# shipped while nothing had moved. Stop loudly instead.
+if ! command -v rsync >/dev/null 2>&1; then
+  say "installing rsync (apt packages are dropped between sessions)"
+  sudo apt-get update -qq >/dev/null 2>&1
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq rsync >/dev/null 2>&1
+fi
+command -v rsync >/dev/null 2>&1 || fail "rsync is required and could not be installed — refusing to run (silently shipping nothing is worse)"
+
 say "0/6 npm ci (node_modules is not persisted between sandboxes)"
 [ -d node_modules/react ] || npm ci --no-audit --no-fund >/dev/null 2>&1 || npm install --no-audit --no-fund >/dev/null 2>&1
 [ -d node_modules/react ] || fail "npm install did not produce node_modules"
@@ -125,4 +136,23 @@ if [ "$DO_EAS" = 1 ]; then
   ( cd "$EDIR" && EXPO_TOKEN="${EXPO_TOKEN:-}" nohup npx --yes eas-cli@latest build --platform android --profile production --non-interactive > /tmp/ship-eas.log 2>&1 & )
   echo "   started from $EDIR — tail /tmp/ship-eas.log"
 fi
+# ── 7/6 workspace budget ─────────────────────────────────────────────────────
+# The three deploy clones cost ~82 MB (gh-pages keeps every old chunk by design,
+# the API docroot carries the exported site, master carries the sources), and the
+# sandbox snapshot budget is 128 MB per turn. They are re-clonable at any moment,
+# so a finished ship removes the ones it created again. Without this the budget
+# crept back over the cap after every second pass.
+if [ "$DO_EAS" = 1 ]; then
+  say "workspace: deploy clones kept (an EAS build is running out of \$SRC)"
+else
+  if [ -d "$DEPLOY" ]; then
+    find "$DEPLOY" -maxdepth 1 -type d \( -name '*-main' -o -name '*-master' -o -name '*-gh-pages' \) -exec rm -rf {} + 2>/dev/null
+    rmdir "$DEPLOY" 2>/dev/null
+    say "workspace: deploy clones removed (ship.sh re-clones them on demand)"
+  fi
+  # node_modules/dist/build are NOT part of the snapshot, so counting them here
+  # reported a meaningless "1000M" while the real budget number was ~87M.
+  printf '   workspace now: %s (snapshot budget; node_modules/dist excluded)\n' "$(du -sh --exclude=node_modules --exclude=dist --exclude=.expo --exclude=.npm --exclude=build --exclude=coverage --exclude=.next --exclude=.cache --exclude=__pycache__ --exclude=out --exclude=target --exclude=.venv --exclude=.turbo "$(cd "$APP/.." && pwd)" 2>/dev/null | cut -f1)"
+fi
+
 say "done. Reminder: a cPanel push is NOT automatic — Git Version Control → Update from Remote → Deploy HEAD, then Admin → Course Tests → Professional 10."

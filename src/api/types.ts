@@ -16,6 +16,11 @@ export interface User {
   bio?: string | null;
   gender?: string | null;
   country?: string | null;
+  /* pass 96 — /me now returns the creed the account chose and the date its
+   * weekly change window reopens (neither was returned before, so Edit profile
+   * opened with nothing selected). */
+  aqeedah?: string | null;
+  aqeedah_change_allowed_at?: string | null;
   deenpoints_balance?: number;
   is_email_verified?: number;
   account_status?: string;

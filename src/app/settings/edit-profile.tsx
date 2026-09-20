@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -41,8 +41,9 @@ export default function EditProfile() {
   const { user, updateUser } = useAuth();
   const router = useRouter();
   const [bio, setBio] = useState((user?.bio as string) ?? '');
-  const [aqeedah, setAqeedah] = useState((user?.aqeedah as string) ?? '');
+  const [aqeedah, setAqeedah] = useState(user?.aqeedah ?? '');
   const [aqeedahOther, setAqeedahOther] = useState('');
+  const presetDone = useRef(false);
   const [phone, setPhone] = useState((user?.phone as string) ?? '');
   const [busy, setBusy] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string>((user?.profile_image_url as string) ?? '');
@@ -52,6 +53,29 @@ export default function EditProfile() {
   const [avatarNote, setAvatarNote] = useState<string>('');
   /* pass 94 — the aqeedah list is the admin's, shared with registration */
   const { options: aqeedahList } = useAqeedahOptions();
+
+  /* pass 96 — /me never returned `aqeedah` at all (fixed server-side), so the
+   * section always opened blank even for a member who had chosen one. Now the
+   * saved value is pre-selected, and a custom wording lands on "Other" with the
+   * text already in its field. Runs once, and never overwrites an edit in
+   * progress. */
+  useEffect(() => {
+    const saved = String(user?.aqeedah ?? '').trim();
+    if (!saved || aqeedahList.length === 0 || presetDone.current) return;
+    presetDone.current = true;
+    const managed = aqeedahList.some((o) => o.name.trim().toLowerCase() === saved.toLowerCase());
+    if (managed) {
+      setAqeedah(aqeedahList.find((o) => o.name.trim().toLowerCase() === saved.toLowerCase())?.name ?? saved);
+    } else {
+      setAqeedah('Other');
+      setAqeedahOther(saved);
+    }
+  }, [user?.aqeedah, aqeedahList]);
+
+  /* pass 96 — "he can change it once in a week": the server sends the exact
+   * date the window reopens, so the picker can say it instead of failing on
+   * save. */
+  const aqeedahLockedUntil = String(user?.aqeedah_change_allowed_at ?? '') || null;
   const [sq, setSq] = useState<[string, string]>([(user?.security_question as string) || '', (user?.security_question_2 as string) || '']);
   const [sqAnswers, setSqAnswers] = useState<[string, string]>(['', '']);
   const [sqOpen, setSqOpen] = useState<0 | 1 | null>(null);
@@ -209,10 +233,9 @@ export default function EditProfile() {
           <NavRow icon="at" label="USERNAME" value={user?.username ? `@${user.username}` : ''} onPress={() => router.push('/settings/edit-username')} />
           <NavRow icon="envelope" label="EMAIL" value={user?.email as string} onPress={() => router.push('/settings/change-email')} />
 
-          {/* aqeedah — the SAME list registration shows: name + explanation */}
+          {/* aqeedah — the same options, no explanations here (owner, pass 96) */}
           <View style={{ marginTop: 4 }}>
             <T v="meta" style={label}>AQEEDAH</T>
-            <T v="meta" style={{ marginBottom: 10, textTransform: 'none', letterSpacing: 0, lineHeight: 16 }}>The same list you chose from when you registered. Edit it in Admin → Aqeedah &amp; Security and it changes here too.</T>
             <AqeedahPicker
               value={aqeedah}
               other={aqeedahOther}
@@ -220,6 +243,8 @@ export default function EditProfile() {
               setOther={setAqeedahOther}
               nigeria={String(user?.country ?? '').toLowerCase() === 'nigeria'}
               options={aqeedahList}
+              showDescriptions={false}
+              lockedUntil={aqeedahLockedUntil}
             />
           </View>
 

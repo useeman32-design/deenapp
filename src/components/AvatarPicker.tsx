@@ -21,7 +21,7 @@ function bundledFor(url: string): AvatarItem | undefined {
   const name = decodeURIComponent(url.split('?')[0].split('/').pop() ?? '');
   return BY_NAME.get(name);
 }
-import { profileAvatars, selectProfileAvatar, type ProfileAvatar } from '@/api/client';
+import { profileAvatars, selectProfileAvatar, unlockProfileAvatar, myPointsBalance, type ProfileAvatar } from '@/api/client';
 
 /** Gendered default avatars — male silhouette / female hijab (inline SVG, no network).
  * pass 83-27 — react-native-svg primitives (raw lowercase svg DOM tags crash Expo Go
@@ -73,6 +73,28 @@ type Props = {
   onPickFromGallery?: () => void;
 };
 
+/** One avatar tile: bundled image when we have it, otherwise the server URL —
+ *  with a spinner until the picture is actually on screen (owner: "the images
+ *  should have loaders case of network"). */
+function TileImage({ local, url }: { local?: AvatarItem; url: string }) {
+  const [failed, setFailed] = useState(false);
+  /* a bundled asset never needs a spinner; a network URL does */
+  const source = local ? local.src : { uri: url };
+  return (
+    <View style={{ width: '100%', height: '100%', backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+      {!local && !failed ? <ActivityIndicator size="small" color="#E8C96A" style={{ position: 'absolute' }} /> : null}
+      {failed ? <FontAwesome5 name="image" size={14} color="rgba(255,255,255,0.35)" style={{ position: 'absolute' }} /> : null}
+      <ExpoImage
+        source={source}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="cover"
+        transition={200}
+        onError={() => setFailed(true)}
+      />
+    </View>
+  );
+}
+
 export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, onPickFromGallery }: Props) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -85,12 +107,23 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
   const startTab = isFemale ? 'female' : 'male';
   const [tab, setTab] = useState<'male' | 'female'>(startTab);
   const [remote, setRemote] = useState<ProfileAvatar[] | null>(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [balance, setBalance] = useState<number | null>(null);
   const [remoteBusy, setRemoteBusy] = useState<number | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  /* pass 96 — a loader while the server library is on its way, so the sheet
+   * never opens on an empty grid over a slow network. */
   useEffect(() => {
     if (!visible) return;
+    let on = true;
+    setRemoteLoading(true);
+    setNote(null);
     profileAvatars(gender || undefined)
-      .then((rows) => setRemote(rows && rows.length ? rows : null))
-      .catch(() => setRemote(null));
+      .then((rows) => { if (on) setRemote(rows && rows.length ? rows : null); })
+      .catch(() => { if (on) setRemote(null); })
+      .finally(() => { if (on) setRemoteLoading(false); });
+    myPointsBalance().then((b) => { if (on) setBalance(b); }).catch(() => {});
+    return () => { on = false; };
   }, [visible, gender]);
   const list = useMemo(
     () => (locked ? (isFemale ? FEMALE_AVATARS_ITEMS : MALE_AVATARS_ITEMS) : tab === 'male' ? MALE_AVATARS_ITEMS : FEMALE_AVATARS_ITEMS),
@@ -153,7 +186,24 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
             </View>
           )}
 
+          {note ? (
+            <View style={{ borderRadius: 11, borderWidth: 1, borderColor: '#E8C96A', paddingHorizontal: 11, paddingVertical: 8, marginBottom: 10 }}>
+              <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.text }}>{note}</T>
+            </View>
+          ) : null}
+          {balance !== null ? (
+            <T v="caption" style={{ fontSize: 10, color: d.faint, marginBottom: 8 }}>
+              {balance.toLocaleString()} DeenPoints available
+            </T>
+          ) : null}
+
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+            {remoteLoading && !remote ? (
+              <View style={{ paddingVertical: 34, alignItems: 'center', gap: 10 }}>
+                <ActivityIndicator color="#E8C96A" />
+                <T v="caption" style={{ fontSize: 11, color: d.faint }}>Loading avatars…</T>
+              </View>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {remote
                 ? remote.map((avatar) => {
@@ -165,19 +215,46 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
                         disabled={remoteBusy === avatar.id}
                         onPress={async () => {
                           haptic.selection();
+                          setNote(null);
                           setRemoteBusy(avatar.id);
-                          const result = await selectProfileAvatar(avatar.id);
-                          setRemoteBusy(null);
-                          if (result.ok && result.url) onSelect({ kind: 'server', url: result.url });
-                          else onSelect({ kind: 'server', url: avatar.url });
-                          onClose();
+                          try {
+                            let id = avatar.id;
+                            /* pass 96 — a locked avatar needs the DeenPoints unlock first.
+                             * The old build simply fired the selection call, the server
+                             * answered "This avatar is locked", and the picker repeated
+                             * the same silent failure on every tap. Now it unlocks
+                             * (busy state + points shown) or says exactly why not. */
+                            if (avatar.locked) {
+                              if (balance !== null && avatar.price > 0 && balance < avatar.price) {
+                                setNote(`You need ${avatar.price - balance} more DeenPoints to unlock this avatar.`);
+                                return;
+                              }
+                              const un = await unlockProfileAvatar(Number(id));
+                              if (!un.ok) {
+                                setNote(un.message ?? 'This avatar could not be unlocked.');
+                                return;
+                              }
+                              if (typeof un.balance === 'number') setBalance(un.balance);
+                            }
+                            const result = await selectProfileAvatar(Number(id));
+                            if (result.ok && result.url) onSelect({ kind: 'server', url: result.url });
+                            else onSelect({ kind: 'server', url: avatar.url });
+                            onClose();
+                          } finally {
+                            setRemoteBusy(null);
+                          }
                         }}
                         style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}
                       >
-                        <ExpoImage source={local ? local.src : { uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                        <TileImage local={local} url={avatar.url} />
                         <View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
                           <FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" />
                         </View>
+                        {avatar.locked && avatar.price > 0 ? (
+                          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: 'rgba(184,135,11,0.92)', alignItems: 'center', paddingVertical: 2 }}>
+                            <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#fff' }}>{avatar.price} pts</T>
+                          </View>
+                        ) : null}
                         {remoteBusy === avatar.id ? (
                           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
                             <ActivityIndicator color="#fff" />
@@ -190,7 +267,7 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
                     const on = !!selectedUrl && selectedUrl.includes(item.name);
                     return (
                       <Pressable key={i} onPress={() => { haptic.selection(); onSelect({ kind: 'library', item }); onClose(); }} style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : 'transparent', backgroundColor: d.card }}>
-                        <ExpoImage source={item.src} style={{ width: '100%', height: '100%', backgroundColor: d.card }} contentFit="cover" transition={200} />
+                        <TileImage local={item} url={item.path} />
                       </Pressable>
                     );
                   })}

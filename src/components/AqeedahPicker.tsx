@@ -94,6 +94,8 @@ export function AqeedahPicker({
   setOther,
   nigeria,
   options,
+  showDescriptions = true,
+  lockedUntil = null,
 }: {
   value: string;
   other: string;
@@ -101,10 +103,44 @@ export function AqeedahPicker({
   setOther: (v: string) => void;
   nigeria: boolean;
   options: AqeedahOption[];
+  /** pass 96 — registration shows the explanation under each name; Edit profile
+   *  shows the names only (owner: "the aqeedah section in edit profile remove
+   *  that description that you added"). */
+  showDescriptions?: boolean;
+  /** pass 96 — when the member already changed his aqeedah inside the last
+   *  week, the list is shown but not tappable, and the reason is stated with
+   *  the exact date it opens again. */
+  lockedUntil?: string | null;
 }) {
   const { isDark } = useTheme();
+  const locked = !!lockedUntil;
+  const lockedDate = locked
+    ? new Date(String(lockedUntil).replace(' ', 'T')).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
   return (
     <View style={{ gap: 7 }}>
+      {locked ? (
+        <View
+          style={{
+            borderRadius: 13,
+            borderWidth: 1,
+            borderColor: 'rgba(232,201,106,0.55)',
+            backgroundColor: isDark ? 'rgba(232,201,106,0.08)' : 'rgba(212,175,55,0.08)',
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <FontAwesome5 name="lock" size={11} color="#E8C96A" />
+            <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>
+              Aqeedah changes once a week
+            </T>
+          </View>
+          <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: isDark ? 'rgba(242,247,243,0.7)' : 'rgba(20,36,28,0.7)', marginTop: 4 }}>
+            You changed it recently. You can change it again on {lockedDate}.
+          </T>
+        </View>
+      ) : null}
       {options.map((a) => {
         const on = value === a.name;
         const desc = nigeria && a.description_ng ? a.description_ng : a.description;
@@ -112,6 +148,7 @@ export function AqeedahPicker({
           <View key={`${a.id}-${a.name}`}>
             <Pressable
               accessibilityLabel={`aqeedah ${a.name}`}
+              disabled={locked}
               onPress={() => {
                 haptic.selection();
                 setValue(a.name);
@@ -135,6 +172,7 @@ export function AqeedahPicker({
                     : 'rgba(255,255,255,0.7)',
                 paddingHorizontal: 13,
                 paddingVertical: 10,
+                opacity: locked && !on ? 0.5 : 1,
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -147,7 +185,7 @@ export function AqeedahPicker({
                   {a.name}
                 </T>
               </View>
-              {desc ? (
+              {showDescriptions && desc ? (
                 <T
                   v="caption"
                   style={{
@@ -164,10 +202,11 @@ export function AqeedahPicker({
               {isOtherOption(a.name) && on ? (
                 <TextInput
                   value={other}
-                  onChangeText={(t) => setOther(t.slice(0, 10))}
-                  placeholder="Max 10 characters"
+                  editable={!locked}
+                  onChangeText={(t) => setOther(t.slice(0, 40))}
+                  placeholder="Your own aqeedah — up to 40 characters"
                   placeholderTextColor={isDark ? 'rgba(242,247,243,0.35)' : 'rgba(20,36,28,0.35)'}
-                  maxLength={10}
+                  maxLength={40}
                   style={{
                     marginLeft: 21,
                     marginTop: 8,

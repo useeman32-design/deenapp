@@ -1,9 +1,12 @@
 export type AvatarItem = { src: number; name: string; path: string };
 
-// Auto-generated avatar catalog (from the owner's avatar.zip).
-// pass 94 — each entry carries the FILE NAME so the app can also select the
-// same image from the server library (/img/profile/<gender>/<name>) without
-// re-uploading it. Regenerate with scripts/gen-avatars.py.
+// Auto-generated avatar catalogue (from the owner's avatar.zip — 38 male / 22 female).
+// pass 96 — the files were re-synced byte-for-byte from avatar.zip: the copies that
+// shipped in the app and on the server were unrelated stock photos with the same
+// file names, which is why the picker showed the wrong pictures entirely.
+// Each entry carries the FILE NAME so the app can select the same image from the
+// server library (/img/profile/<gender>/<name>) without re-uploading it.
+// Regenerate with scripts/gen-avatars.py.
 
 export const MALE_AVATARS_ITEMS: AvatarItem[] = [
   { src: require('../../assets/avatars/male/5869356999840042164.jpg'), name: '5869356999840042164.jpg', path: 'img/profile/male/5869356999840042164.jpg' },
@@ -49,11 +52,9 @@ export const MALE_AVATARS_ITEMS: AvatarItem[] = [
 export const FEMALE_AVATARS_ITEMS: AvatarItem[] = [
   { src: require('../../assets/avatars/female/5869353022700326293.jpg'), name: '5869353022700326293.jpg', path: 'img/profile/female/5869353022700326293.jpg' },
   { src: require('../../assets/avatars/female/5869361707124198800.jpg'), name: '5869361707124198800.jpg', path: 'img/profile/female/5869361707124198800.jpg' },
-  { src: require('../../assets/avatars/female/5869383516968127987 (1).jpg'), name: '5869383516968127987 (1).jpg', path: 'img/profile/female/5869383516968127987 (1).jpg' },
   { src: require('../../assets/avatars/female/5869383516968127987.jpg'), name: '5869383516968127987.jpg', path: 'img/profile/female/5869383516968127987.jpg' },
   { src: require('../../assets/avatars/female/5869494400138808480.jpg'), name: '5869494400138808480.jpg', path: 'img/profile/female/5869494400138808480.jpg' },
   { src: require('../../assets/avatars/female/5869531169353829716.jpg'), name: '5869531169353829716.jpg', path: 'img/profile/female/5869531169353829716.jpg' },
-  { src: require('../../assets/avatars/female/5869581295917141341 (1).jpg'), name: '5869581295917141341 (1).jpg', path: 'img/profile/female/5869581295917141341 (1).jpg' },
   { src: require('../../assets/avatars/female/5869581295917141341.jpg'), name: '5869581295917141341.jpg', path: 'img/profile/female/5869581295917141341.jpg' },
   { src: require('../../assets/avatars/female/5869613173164412152.jpg'), name: '5869613173164412152.jpg', path: 'img/profile/female/5869613173164412152.jpg' },
   { src: require('../../assets/avatars/female/5869628119650602197.jpg'), name: '5869628119650602197.jpg', path: 'img/profile/female/5869628119650602197.jpg' },
@@ -73,6 +74,5 @@ export const FEMALE_AVATARS_ITEMS: AvatarItem[] = [
   { src: require('../../assets/avatars/female/5871657672086588583.jpg'), name: '5871657672086588583.jpg', path: 'img/profile/female/5871657672086588583.jpg' },
 ];
 
-/** just the require()d images — kept for older call sites */
 export const MALE_AVATARS = MALE_AVATARS_ITEMS.map((a) => a.src);
 export const FEMALE_AVATARS = FEMALE_AVATARS_ITEMS.map((a) => a.src);
