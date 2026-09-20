@@ -7,6 +7,20 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { MALE_AVATARS_ITEMS, FEMALE_AVATARS_ITEMS, type AvatarItem } from '@/data/avatars';
+
+/* pass 94b — WEB-FIRST: the server library (/img/profile/…) only exists once the
+ * API repo is deployed, so on the web preview every tile was a blank box. The
+ * same images are bundled in the app, so the grid renders the BUNDLED picture
+ * and the tap still records the server path (avatar_path) — nothing looks broken
+ * before the deploy, and the server copy takes over afterwards. */
+const BY_NAME = new Map<string, AvatarItem>(
+  [...MALE_AVATARS_ITEMS, ...FEMALE_AVATARS_ITEMS].map((a) => [a.name, a]),
+);
+function bundledFor(url: string): AvatarItem | undefined {
+  if (!url) return undefined;
+  const name = decodeURIComponent(url.split('?')[0].split('/').pop() ?? '');
+  return BY_NAME.get(name);
+}
 import { profileAvatars, selectProfileAvatar, type ProfileAvatar } from '@/api/client';
 
 /** Gendered default avatars — male silhouette / female hijab (inline SVG, no network).
@@ -144,6 +158,7 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
               {remote
                 ? remote.map((avatar) => {
                     const on = selectedUrl === avatar.url;
+                    const local = bundledFor(avatar.url);
                     return (
                       <Pressable
                         key={avatar.id}
@@ -159,7 +174,7 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
                         }}
                         style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}
                       >
-                        <ExpoImage source={{ uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                        <ExpoImage source={local ? local.src : { uri: avatar.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                         <View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
                           <FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" />
                         </View>

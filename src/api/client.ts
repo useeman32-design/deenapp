@@ -3323,6 +3323,49 @@ export async function publicDonationSummary(
   return { total: 0, count: 0, currency: "USD" };
 }
 
+/**
+ * pass 95 — accept BOTH roster shapes.
+ *
+ * api/questions/scholars.php sends `name` / `image` / `expertise[]` (it is the
+ * endpoint the admin's scholar list is built from), while every screen in this
+ * app reads `display_name` / `photo` / `fields_of_knowledge`. Nothing mapped
+ * the two, so the roster screen filtered every scholar out as soon as a
+ * category was tapped and rendered blank institute lines and no photos. The
+ * payload is normalised here, once, so the fix also holds for the live API
+ * until the enriched PHP is deployed.
+ */
+function scholarFields(s: Scholar): string {
+  const raw = s.expertise ?? s.fields;
+  const arr = Array.isArray(raw)
+    ? raw.map((x) => String(x).trim()).filter(Boolean)
+    : typeof raw === "string"
+      ? raw.split(",").map((x) => x.trim()).filter(Boolean)
+      : [];
+  if (arr.length) return arr.join(", ");
+  return String(s.fields_of_knowledge ?? "").trim();
+}
+
+export function normaliseScholar(s: Scholar): Scholar {
+  const photo = [s.photo, s.image, s.profile_image_url]
+    .map((x) => (typeof x === "string" ? x.trim() : ""))
+    .find((x) => x !== "");
+  const fields = scholarFields(s);
+  return {
+    ...s,
+    name: s.name ?? s.display_name ?? s.title ?? null,
+    display_name: s.display_name ?? s.name ?? s.title ?? null,
+    fields_of_knowledge: fields,
+    expertise: fields ? fields.split(", ") : [],
+    photo: photo ?? null,
+    image: photo ?? null,
+    profile_image_url: photo ?? null,
+    institute: s.institute ?? null,
+    madhhab: s.madhhab ?? null,
+    aqeedah: s.aqeedah ?? null,
+    description: s.description ?? null,
+  };
+}
+
 export async function scholars(): Promise<Scholar[]> {
   const r = await request<{
     status?: string;
@@ -3331,7 +3374,7 @@ export async function scholars(): Promise<Scholar[]> {
   }>("/api/questions/scholars.php");
   if (r.ok) {
     const list = r.data.scholars ?? r.data.data;
-    if (Array.isArray(list)) return list;
+    if (Array.isArray(list)) return list.map(normaliseScholar);
   }
   return []; /* pass 83-38 — admin-registered scholars only */
 }

@@ -3039,3 +3039,92 @@ requires mbstring (a host without it got a 500).
 
 `tsc --noEmit` 0 · `php -l` clean · admin inline JS `node --check` clean · rig (PHP 8.4 + MariaDB 11.8):
 aqeedah CRUD suite, catalogue status/prune suite, avatar suite, check-in suite all green as quoted above.
+
+## PASS 95 — the six reports: view-only application, status badges, missing scholars, the scholar e-mail, half adhkar
+
+### 1. The in-review application is now view-only, with the FULL submission
+
+`src/app/tools/scholar-apply.tsx` used to render the same editable form whether you had never
+applied, were waiting for review, or had already been approved. An applicant could keep
+changing "what he submitted" while the verification team was reading it, and the screen only
+ever showed part of the registration.
+
+Now, while the application is with the team (`pending`/`reviewing`) or approved, the screen is a
+**read-only summary** — nothing editable — of everything sent: scholar name, fields you answer
+in, other field, school/institute, years of study, madhhab, aqeedah, teachers, phone, submitted
+date, reviewer's note, and both documents as **openable links** (certificate/ijāzah and
+recommendation), opened through `src/lib/safeUrl.ts` (http(s)/mailto/tel only). Approved
+applicants get the "Open my scholar desk" button. Only a **rejected** application still falls
+through to the editable form — that is the one case where he must fix and resend.
+
+Two supporting fixes: `loadMine()` restored only four fields into the form (so a rejected
+applicant fixing his application saw a half-empty form — the owner's "the info is half of the
+registration"); every submitted value is restored now. "Other (explain below)" has its own box
+instead of the old behaviour of joining the teacher names into the aqeedah column.
+
+Server side, `api/users/get_scholar_me.php` derives `fields`, `fields_of_knowledge_list`,
+`certificate_url`, `recommendation_url`, `profile_image_url`, `email` and `status` from the row
+(`scholar_doc_url()`), so the client never has to guess a path.
+
+### 2. A status is a badge, never a spinner
+
+`src/app/tools/scholars.tsx` — one `STATUS_META` map (pending/reviewing/processing/to_answer →
+**Under Review**, answered, rejected) drives a `StatusBadge` on both the questions sent to
+scholars and the local "my questions" list; the spinning loader block that used to sit under an
+unanswered question is gone, replaced by a caption saying the question is with the scholars.
+`src/app/(tabs)/profile.tsx` shows the under-review chip and — new — a **"SCHOLAR APPLICATION ·
+REJECTED — TAP TO FIX"** chip, which used to render nothing at all.
+
+### 3. "The scholar I registered doesn't show in the scholars list"
+
+Two independent causes, both fixed, both proven:
+
+* **The app read keys the server never sent.** `api/questions/scholars.php` answers `expertise[]`
+  / `name` / `image`, every screen reads `fields_of_knowledge` / `display_name` / `photo`, and
+  nothing mapped the two: the roster rendered blank institute lines, no photos, and every
+  category tap filtered *all* scholars out. `src/api/client.ts` now normalises once
+  (`normaliseScholar`, `scholarFields`) so both the old and the new payload work — including on
+  the live API, which is still the previous build. The server also ships both key shapes now and
+  filters `u.is_active = 1 AND approval_status = 'approved'`.
+* **An approved scholar could be invisible with nothing saying why.** `is_active` is 0 for every
+  fresh sign-up until the e-mail is verified, so an applicant approved while his mailbox was
+  still unverified passed review and never appeared. Approving now also sets
+  `is_email_verified = 1` (he can log in and answer, which he could not before), and the admin
+  panel reports the verdict per row (`visible_publicly`, `hidden_reason`, "Not in app" chip) plus
+  a one-click **Repair visibility** (`api/admin/scholars/repair_visibility.php`) for rows already
+  stranded — deliberately narrow so it can never undo a suspension: only `approved` rows whose
+  e-mail was never verified and that are not deleted.
+
+### 4. The scholar e-mail is a real e-mail
+
+`api/admin/scholars/review.php` now sends through `email_default_shell()`: DeenLink logo header,
+the decision, a status/level/aqeedah table, a green **Open DeenLink** button to
+app.deenlink.org with a plain-link fallback ("Button not working?"), a reviewer-note box on
+rejection, and the footer. Verified by running the real endpoint on the rig and reading the
+generated message for both approve and reject.
+
+### 5. Half adhkar — "some supplications are still half (salawat etc.)"
+
+The live database was seeded from `api/admin/athkar/seed_items.json` with only the **opening
+phrase** of several adhkar. The file now carries the complete authentic texts (morning/evening
+declaration, Ayat al-Kursi, the full Ibrāhīmī salawat, the salam after salah, Sayyid
+al-Istighfār, the morning/evening duas, dua al-hamm), each tagged `was` with the exact truncated
+string that went live, and `athkar_apply_text_updates()` (in `api/admin/athkar/common.php`,
+called from `athkar_ensure_table`) runs one targeted UPDATE for rows whose Arabic is still
+byte-identical to that truncated text. An admin-written row never matches and is never touched;
+the pass is idempotent and stamped. The stale fragment "As al-Allaha al-Azeem" was replaced by
+Hasbiyallahu (7×, Abu Dawud / Ibn as-Sunni).
+
+App side: `src/lib/liveAthkar.ts` used to **append** the admin rows after the bundled ones, so
+every dhikr appeared twice — one copy short, one long. It now merges by name: a truncated seed
+copy keeps the complete bundled Arabic, anything the admin actually wrote wins, and genuinely new
+rows are appended. `src/data/athkar.ts` and the `zikr-challenge.tsx` cards carry the full texts,
+and the challenge card shows the transliteration line it never had.
+
+### Verified by execution
+
+`tsc --noEmit` 0 · `php -l` 475 files 0 failures · `node --check` on the admin JS · rig (PHP 8.4 +
+MariaDB): fresh sign-up → pending (hidden from the roster) → approve → roster shows him · the
+stranded-account repair (1 repaired, 0 on re-run, a suspended verified scholar untouched) · the
+applicant's own `/api/users/get_scholar_me.php` returning every submitted field plus a working
+certificate link (HTTP 200 image/jpeg) · approve and reject e-mails read back from the mail log.

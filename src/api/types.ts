@@ -24,15 +24,61 @@ export interface User {
   [k: string]: unknown;
 }
 
+/**
+ * A scholar on the Ask-Scholars roster.
+ *
+ * pass 95 — this type only carried the column names of the `scholars` TABLE,
+ * while api/questions/scholars.php sends the roster SHAPE (`name`, `image`,
+ * `expertise[]`, `description`). The browse screen filtered on
+ * `fields_of_knowledge` and read `photo` / `institute` / `madhhab`, so choosing
+ * any category emptied the whole roster and no scholar ever showed a picture —
+ * the owner's "the scholar I registered doesn't show / scholars are not
+ * showing". Both shapes are declared here and normaliseScholar() below maps the
+ * server variant onto the app variant, so the screen works against the current
+ * live API and the enriched one.
+ */
 export interface Scholar {
   id: number;
   user_id?: number;
+  name?: string | null;
   display_name?: string | null;
+  username?: string | null;
   title?: string | null;
   madhhab?: string | null;
   institute?: string | null;
+  aqeedah?: string | null;
+  level?: string | null;
+  level_label?: string | null;
+  country?: string | null;
+  tribe?: string | null;
+  /** Comma string of the fields the scholar answers in. */
   fields_of_knowledge?: string | null;
+  /** Array form sent by the roster endpoint. */
+  expertise?: string[] | string | null;
+  photo?: string | null;
+  image?: string | null;
+  profile_image_url?: string | null;
+  description?: string | null;
+  response_time?: string | null;
+  verification_badge?: string | null;
+  pending_count?: number;
   approval_status?: string | null;
+  /* — the signed-in scholar's own application (get_scholar_me.php) — */
+  phone?: string | null;
+  other_field?: string | null;
+  years_of_study?: number | null;
+  teachers?: string | null;
+  certificate_path?: string | null;
+  certificate_url?: string | null;
+  recommendation_path?: string | null;
+  recommendation_url?: string | null;
+  verification_links?: string | null;
+  approval_notes?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
+  fields?: string[] | null;
+  fields_of_knowledge_list?: string | null;
+  status?: string | null;
   [k: string]: unknown;
 }
 

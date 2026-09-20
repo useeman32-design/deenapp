@@ -35,15 +35,19 @@ const CHALLENGES: Array<{
   id: Mode;
   label: string;
   arabic: string;
+  translit: string;
   sub: string;
   target: number;
   tint: string;
   grad: [string, string];
   icon: string;
 }> = [
-  { id: 'tasbeeh', label: 'After-Prayer Tasbeeh', arabic: 'سُبْحَانَ ٱللَّهِ · ٱلْحَمْدُ لِلَّهِ · ٱللَّهُ أَكْبَرُ', sub: '33 · 33 · 34 — the Prophet’s ﷺ way after every prayer', target: 99, tint: '#4AE38F', grad: ['#0E5E3C', '#127A4C'], icon: 'circle-notch' },
-  { id: 'istighfar', label: 'Istighfar — 100×', arabic: 'أَسْتَغْفِرُ ٱللَّهَ وَأَتُوبُ إِلَيْهِ', sub: 'Seek forgiveness 100 times — wipe the day clean', target: 100, tint: '#5BC8F5', grad: ['#15527A', '#1B77A8'], icon: 'hands-helping' },
-  { id: 'salawat', label: 'Salawat — 100×', arabic: 'ٱللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ', sub: '100 salawat on the Prophet ﷺ — ten mercies for each one', target: 100, tint: '#E8C96A', grad: ['#7A6215', '#96781D'], icon: 'star-and-crescent' },
+  { id: 'tasbeeh', label: 'After-Prayer Tasbeeh', arabic: 'سُبْحَانَ ٱللَّهِ · ٱلْحَمْدُ لِلَّهِ · ٱللَّهُ أَكْبَرُ', translit: 'SubhanAllah · Alhamdulillah · Allahu Akbar', sub: '33 · 33 · 34 — the Prophet’s ﷺ way after every prayer', target: 99, tint: '#4AE38F', grad: ['#0E5E3C', '#127A4C'], icon: 'circle-notch' },
+  { id: 'istighfar', label: 'Istighfar — 100×', arabic: 'أَسْتَغْفِرُ ٱللَّهَ وَأَتُوبُ إِلَيْهِ', translit: 'Astaghfirullaha wa atubu ilayh', sub: 'Seek forgiveness 100 times — wipe the day clean', target: 100, tint: '#5BC8F5', grad: ['#15527A', '#1B77A8'], icon: 'hands-helping' },
+  /* pass 95 — owner: "some supplications are still half (salawat etc.)". The
+   * salawat here stopped after the name; this is the full Ibrahimi salawat
+   * (Bukhari 3370), the form the Prophet ﷺ taught his Companions. */
+  { id: 'salawat', label: 'Salawat — 100×', arabic: 'ٱللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ، كَمَا صَلَّيْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ. ٱللَّهُمَّ بَارِكْ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ، كَمَا بَارَكْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ', translit: 'Allahumma salli ala Muhammadin wa ala ali Muhammad, kama sallayta ala Ibrahima wa ala ali Ibrahim, innaka Hamidun Majid. Allahumma barik ala Muhammadin wa ala ali Muhammad, kama barakta ala Ibrahima wa ala ali Ibrahim, innaka Hamidun Majid', sub: '100 salawat on the Prophet ﷺ — ten mercies for each one', target: 100, tint: '#E8C96A', grad: ['#7A6215', '#96781D'], icon: 'star-and-crescent' },
 ];
 
 const DAY = () => new Date().toISOString().slice(0, 10);
@@ -321,6 +325,12 @@ export default function ZikrChallenge() {
               <View style={{ marginTop: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}>
                 <T v="arabic" style={{ fontSize: 21, lineHeight: 38, color: '#FFFFFF', textAlign: 'center' }}>{ch.arabic}</T>
               </View>
+
+              {/* pass 95 — owner: "complete the full Arabic AND transliteration".
+               * The transliteration was missing on this screen entirely. */}
+              <T v="caption" style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgba(255,255,255,0.85)', textAlign: 'center', marginTop: 8, lineHeight: 15, paddingHorizontal: 18 }}>
+                {ch.translit}
+              </T>
 
               <T v="caption" style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 6, lineHeight: 16, paddingHorizontal: 16, fontWeight: '500' }}>
                 {stage ? `${stage.name} — ${stage.left} to go` : ch.sub}

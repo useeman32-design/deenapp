@@ -643,7 +643,13 @@ function ProfileInner() {
                     (user as { scholar?: { approval_status?: string } | null } | null)?.scholar
                       ?.approval_status ?? "",
                   ).toLowerCase();
-                  if (st === "pending" || st === "reviewing") {
+                  /* pass 95 — the owner's rule: a status is a BADGE, never a
+                   * spinner, and a rejected application must say so. This chip
+                   * was silent for `rejected`, so a refused applicant saw
+                   * nothing at all on his own profile. */
+                  if (st === "pending" || st === "reviewing" || st === "rejected") {
+                    const rejected = st === "rejected";
+                    const tone = rejected ? "#F58FB0" : d.faint;
                     return (
                       <Pressable
                         onPress={() => router.push("/tools/scholar-apply" as never)}
@@ -653,16 +659,16 @@ function ProfileInner() {
                           gap: 5,
                           borderRadius: 9,
                           borderWidth: 1,
-                          borderColor: d.cardBorder,
+                          borderColor: rejected ? "rgba(245,143,176,0.5)" : d.cardBorder,
                           backgroundColor: d.card,
                           paddingHorizontal: 8,
                           paddingVertical: 3,
                           alignSelf: "flex-start",
                         }}
                       >
-                        <FontAwesome5 name="hourglass-half" size={8.5} color={d.faint} />
-                        <T v="caption" style={{ fontSize: 9.5, fontWeight: "800", color: d.faint, letterSpacing: 0.3 }}>
-                          SCHOLAR ACCOUNT · UNDER REVIEW
+                        <FontAwesome5 name={rejected ? "times-circle" : "hourglass-half"} size={8.5} color={tone} />
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: "800", color: tone, letterSpacing: 0.3 }}>
+                          {rejected ? "SCHOLAR APPLICATION · REJECTED — TAP TO FIX" : "SCHOLAR ACCOUNT · UNDER REVIEW"}
                         </T>
                       </Pressable>
                     );

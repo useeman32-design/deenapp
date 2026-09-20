@@ -42,8 +42,40 @@ export function loadAdminAthkar(): Promise<void> {
   return inflight;
 }
 
+/**
+ * pass 95 — this used to be `[...ATHKAR, ...extra]`, which appended the
+ * admin-managed rows AFTER the bundled ones. The admin rows are seeded from the
+ * same list, so every dhikr appeared TWICE — and, before pass 95, one of the two
+ * copies was the truncated half text the owner reported ("some supplications
+ * are still half (salawat etc.)").
+ *
+ * Rule for a name that exists in both lists:
+ *   · if the admin text is a strict prefix of the bundled text, it is our own
+ *     truncated seed copy, not an edit — keep the complete bundled Arabic and
+ *     take the admin row's count/note;
+ *   · otherwise the database wins (owner's rule: DB is the source of truth for
+ *     content he manages).
+ * Genuinely new admin rows are appended as before.
+ */
+function mergeAthkar(bundled: Athar[], admin: Athar[]): Athar[] {
+  if (!admin.length) return bundled;
+  const key = (a: Athar) => a.name.trim().toLowerCase();
+  const mine = new Map(admin.map((a) => [key(a), a]));
+  const out: Athar[] = bundled.map((b) => {
+    const a = mine.get(key(b));
+    if (!a) return b;
+    mine.delete(key(b));
+    const truncated = a.arabic.trim() !== '' && b.arabic.startsWith(a.arabic.trim());
+    if (truncated) {
+      return { ...b, count: a.count || b.count, note: a.note ?? b.note, group: a.group };
+    }
+    return { ...a, id: b.id };
+  });
+  return [...out, ...mine.values()];
+}
+
 export function allAthkar(): Athar[] {
-  return extra.length ? [...ATHKAR, ...extra] : ATHKAR;
+  return extra.length ? mergeAthkar(ATHKAR, extra) : ATHKAR;
 }
 
 export function useAllAthkar(): Athar[] {

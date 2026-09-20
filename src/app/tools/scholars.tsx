@@ -64,9 +64,38 @@ type Question = {
 /* pass 42 — Q&A identity helpers: avatars + info for BOTH sides of every
  * answered exchange (asker row + scholar row with title · madhhab · institute) */
 const scholarPhoto = (s: unknown): string | null => {
-  const o = s as { photo?: unknown; profile_image_url?: unknown } | null;
-  return typeof o?.photo === 'string' ? o.photo : typeof o?.profile_image_url === 'string' ? o.profile_image_url : null;
+  const o = s as { photo?: unknown; profile_image_url?: unknown; image?: unknown } | null;
+  const first = typeof o?.photo === 'string' ? o.photo : typeof o?.profile_image_url === 'string' ? o.profile_image_url : typeof o?.image === 'string' ? o.image : null;
+  return first && first.trim() !== '' ? first : null;
 };
+
+/* pass 95 — owner: "under review on a question currently opens a
+ * spinning-loader screen — make it an Under Review badge; Rejected must show
+ * 'Rejected'; answered also shows a badge".
+ *
+ * A question can sit in review for days: a spinner is not a status, and the
+ * local mirror kept spinning even after the scholar had answered. Every state
+ * is now a badge with the same wording the server uses. */
+const STATUS_META: Record<string, { label: string; color: string; icon: string }> = {
+  pending: { label: 'Under Review', color: '#E8C96A', icon: 'hourglass-half' },
+  reviewing: { label: 'Under Review', color: '#E8C96A', icon: 'hourglass-half' },
+  processing: { label: 'Under Review', color: '#E8C96A', icon: 'hourglass-half' },
+  to_answer: { label: 'Under Review', color: '#E8C96A', icon: 'hourglass-half' },
+  answered: { label: 'Answered', color: '#4AE38F', icon: 'check-circle' },
+  rejected: { label: 'Rejected', color: '#F58FB0', icon: 'times-circle' },
+};
+
+function StatusBadge({ status, isDark, size = 9 }: { status: string; isDark: boolean; size?: number }) {
+  const key = String(status || 'pending').toLowerCase();
+  const meta = STATUS_META[key] ?? STATUS_META.pending;
+  const color = !isDark && meta.color === '#4AE38F' ? '#1D6F42' : meta.color;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: color + '66', backgroundColor: color + '14', paddingHorizontal: 9, paddingVertical: 3.5 }}>
+      <FontAwesome5 name={meta.icon as never} size={Math.max(7, size - 1)} color={color} />
+      <T v="caption" style={{ fontSize: size, fontWeight: '900', letterSpacing: 0.4, color }}>{meta.label.toUpperCase()}</T>
+    </View>
+  );
+}
 /* pass 83-38 — the roster is server-fed (Admin → Scholars); no demo list */
 let SCHOLAR_ROSTER: Scholar[] = [];
 const scholarOf = (id: number) => SCHOLAR_ROSTER.find((m) => m.id === id) ?? null;
@@ -179,11 +208,28 @@ export default function Scholars() {
     const needle = q.trim().toLowerCase();
     return roster.filter((s) => {
       const f = field ?? catScreen;
-      if (f && !(s.fields_of_knowledge ?? '').includes(f)) return false;
+      /* pass 95 — a scholar with no recorded fields stays visible under every
+       * category; before the normalisation landed, `fields_of_knowledge` was
+       * always undefined here and one category tap emptied the whole roster. */
+      if (f && (s.fields_of_knowledge ?? '').trim() !== '' && !(s.fields_of_knowledge ?? '').includes(f)) return false;
       if (!needle) return true;
-      return ((s.display_name ?? '') + (s.institute ?? '') + (s.fields_of_knowledge ?? '') + (s.madhhab ?? '')).toLowerCase().includes(needle);
+      return (
+        (s.display_name ?? '') + (s.institute ?? '') + (s.fields_of_knowledge ?? '') +
+        (s.madhhab ?? '') + (s.level_label ?? '') + (s.country ?? '') + (s.description ?? '')
+      ).toLowerCase().includes(needle);
     });
   }, [q, field, catScreen]);
+
+  /* pass 95 — the SENT TO SCHOLARS block above is the server's copy of these
+   * same questions. Reconcile the phone mirror against it: keep the server's
+   * status/answer and drop the duplicate local card, so one question is one
+   * card with one honest status. */
+  const localQuestions = useMemo(() => {
+    const qs = questions ?? [];
+    if (!liveMine.length) return qs;
+    const onServer = new Set(liveMine.map((m) => m.title.trim().toLowerCase()));
+    return qs.filter((x) => !onServer.has(x.title.trim().toLowerCase()));
+  }, [questions, liveMine]);
 
   const publicQs = useMemo(
     () => (questions ?? []).filter((x) => x.isPublic && x.status === 'answered').sort((a, b) => b.at - a.at),
@@ -344,14 +390,34 @@ export default function Scholars() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <FontAwesome5 name="certificate" size={10} color="#E8C96A" />
                     <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }} numberOfLines={1}>{s.display_name}</T>
+                    {(s.level_label ?? s.level) ? (
+                      <View style={{ borderRadius: 6, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', paddingHorizontal: 6, paddingVertical: 1.5 }}>
+                        <T v="caption" style={{ fontSize: 8, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{String(s.level_label ?? s.level)}</T>
+                      </View>
+                    ) : null}
                   </View>
-                  <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }} numberOfLines={1}>{s.institute} · {s.madhhab}</T>
+                  {/* pass 95 — the scholar's school/law line and his fields come
+                      from the server row now; when only the joined description
+                      is available it is shown verbatim instead of a blank "·". */}
+                  {(() => {
+                    const meta = [s.institute, s.madhhab, s.aqeedah].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
+                    const line = meta || (s.description ?? '') || (s.country ? String(s.country) : '');
+                    return line ? (
+                      <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }} numberOfLines={1}>{line}</T>
+                    ) : null;
+                  })()}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
-                    {(s.fields_of_knowledge ?? '').split(', ').map((f) => (
+                    {(s.fields_of_knowledge ?? '').split(', ').filter((f) => f.trim() !== '').map((f) => (
                       <View key={f} style={{ borderRadius: 7, backgroundColor: isDark ? 'rgba(46,204,113,0.1)' : 'rgba(29,111,66,0.06)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.3)' : 'rgba(29,111,66,0.2)', paddingHorizontal: 7, paddingVertical: 2 }}>
                         <T v="caption" style={{ fontSize: 8.5, fontWeight: '700', color: isDark ? '#4AE38F' : '#1D6F42' }}>{f}</T>
                       </View>
                     ))}
+                    {s.response_time ? (
+                      <View style={{ borderRadius: 7, backgroundColor: isDark ? 'rgba(232,201,106,0.12)' : 'rgba(212,175,55,0.1)', paddingHorizontal: 7, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <FontAwesome5 name="clock" size={7.5} color="#E8C96A" />
+                        <T v="caption" style={{ fontSize: 8.5, fontWeight: '700', color: isDark ? '#E8C96A' : '#8C6D1F' }}>replies in {String(s.response_time)}</T>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
                 <View style={{ borderRadius: 10, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingHorizontal: 11, paddingVertical: 7 }}>
@@ -405,19 +471,21 @@ export default function Scholars() {
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>SENT TO SCHOLARS · {liveMine.length}</T>
               {liveMine.map((x) => (
                 <View key={'srvq' + x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
-                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>
-                    {String(x.status || 'pending').toUpperCase()}{x.scholar?.name ? ' · ' + x.scholar.name : ''}
-                  </T>
-                  <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <StatusBadge status={x.status} isDark={isDark} />
+                    {x.scholar?.name ? (
+                      <T v="caption" style={{ fontSize: 10, color: d.faint }}>to {x.scholar.name}</T>
+                    ) : null}
+                  </View>
+                  <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 7 }}>{x.title}</T>
                   {x.answer ? (
                     <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
                   ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 9 }}>
-                      <ActivityIndicator size="small" color="#E8C96A" />
-                      <T v="caption" style={{ fontSize: 10, color: d.faint }}>
-                        {x.status === 'rejected' ? 'This question could not be answered — see the note from the verification team.' : 'A scholar has the question in their queue. Answers arrive in this list.'}
-                      </T>
-                    </View>
+                    <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.faint, marginTop: 7 }}>
+                      {String(x.status).toLowerCase() === 'rejected'
+                        ? 'This question could not be answered — see the note from the verification team.'
+                        : 'A scholar has the question in their queue. Answers arrive in this list.'}
+                    </T>
                   )}
                 </View>
               ))}
@@ -433,13 +501,16 @@ export default function Scholars() {
             <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
           ) : !questions.length ? (
             <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 40 }}>You haven{"'"}t asked anything yet — pick a scholar and ask your first question.</T>
+          ) : !localQuestions.length ? (
+            <T v="caption" style={{ fontSize: 10.5, color: d.faint, textAlign: 'center', marginTop: 18, lineHeight: 15 }}>
+              Everything you asked is listed above with the scholar{'\u2019'}s live status.
+            </T>
           ) : (
-            questions.map((x) => (
+            localQuestions.map((x) => (
               <View key={x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ borderRadius: 999, backgroundColor: x.status === 'answered' ? 'rgba(74,227,143,0.15)' : x.status === 'rejected' ? 'rgba(224,80,80,0.12)' : 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: x.status === 'answered' ? '#4AE38F' : x.status === 'rejected' ? '#E05050' : '#E8C96A', paddingHorizontal: 9, paddingVertical: 3 }}>
-                    <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 0.4, color: x.status === 'answered' ? '#4AE38F' : x.status === 'rejected' ? '#E05050' : '#E8C96A' }}>{x.status.toUpperCase()}</T>
-                  </View>
+                  {/* pass 95 — a badge, never a spinner (see STATUS_META) */}
+                  <StatusBadge status={x.status} isDark={isDark} />
                   <T v="caption" style={{ flex: 1, fontSize: 9.5, color: d.faint, textAlign: 'right' }}>{timeAgo(x.at)} · {x.isPublic ? 'Public' : 'Private'}</T>
                 </View>
                 <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text, marginTop: 8 }}>{x.title}</T>
@@ -470,11 +541,16 @@ export default function Scholars() {
                     </View>
                   );
                 })() : null}
-                {x.status === 'processing' ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 9 }}>
-                    <ActivityIndicator size="small" color="#E8C96A" />
-                    <T v="caption" style={{ fontSize: 10, color: d.faint }}>The scholar is reviewing your question…</T>
-                  </View>
+                {/* pass 95 — this was a spinner + "The scholar is reviewing your
+                 * question…" that never stopped, because the local mirror was
+                 * never reconciled with the server row. The state is now a
+                 * badge (above) and this line explains what happens next. */}
+                {x.status !== 'answered' && !(x.status === 'rejected' && x.answer) ? (
+                  <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.faint, marginTop: 7 }}>
+                    {x.status === 'rejected'
+                      ? 'Not answered — you can ask again, or send it to another scholar.'
+                      : 'With the scholar. You will see the answer here the moment it is published.'}
+                  </T>
                 ) : null}
               </View>
             ))
