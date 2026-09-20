@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Alert } from '../lib/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';

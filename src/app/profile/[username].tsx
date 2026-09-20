@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { goBack } from "@/lib/navigation";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -13,6 +12,7 @@ import {
   Share,
   View,
 } from "react-native";
+import { Alert } from '../../lib/alert';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ContentShareSheet } from "@/components/ContentShareSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -238,6 +238,23 @@ function PublicProfileScreenInner() {
     /* pass 66-night — real accounts surface from the server even when the
      * bundled demo roster has never heard of them. */
     if (liveP) {
+      /* pass 97 — THE SCHOLAR BLOCK WAS BEING THROWN AWAY HERE.
+       *
+       * Owner: "when checking scholars profile publically to ask him a question
+       * he's appearing like an ordinary user." The API has always returned
+       * `user_type: "scholar"` plus the `scholar` object; this view-model copied
+       * only name/photo/bio/counts, so `isScholar` (which reads
+       * `profile.scholar`) was false for every real account — no scholar chip,
+       * no level, no institute, no fields, and the Ask affordance gated behind
+       * it never rendered. */
+      const sp = liveP.scholar ?? null;
+      const fields = String(sp?.fields_of_knowledge ?? "")
+        .replace(/[\[\]"]/g, "")
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean)
+        .join(" · ");
+      const isScholarAccount = liveP.user_type === "scholar" || !!sp;
       return {
         username: liveP.username,
         full_name: liveP.full_name || liveP.username,
@@ -247,6 +264,16 @@ function PublicProfileScreenInner() {
         posts_count: liveP.posts ?? 0,
         followers: liveP.followers ?? 0,
         following: liveP.following ?? 0,
+        badge: (liveP.verification_badge as MockProfile["badge"]) ?? undefined,
+        scholar: isScholarAccount,
+        scholar_title: sp?.title || (sp?.level ? String(sp.level) : "Scholar"),
+        fields: fields || null,
+        education: sp?.education ?? undefined,
+        experience: sp?.experience ?? undefined,
+        publications: sp?.publications ?? undefined,
+        expertise: sp?.expertise_details ?? undefined,
+        location:
+          [sp?.institute, liveP.country].map((v) => String(v ?? "").trim()).filter(Boolean).join(" · ") || undefined,
       } as MockProfile;
     }
     /* pass 83-38 — no demo roster: only real server profiles resolve */
@@ -280,6 +307,12 @@ function PublicProfileScreenInner() {
   /* live scholar → the server's answered questions win over the demo set */
   const answered =
     liveP?.user_type === "scholar" || profile?.scholar ? (liveQAs ?? []) : [];
+  /* pass 97 — level/institute/madhhab line for the scholar header */
+  const scholarMeta = (() => {
+    const sp = liveP?.scholar ?? null;
+    if (!sp) return "";
+    return [sp.level, sp.institute, sp.madhhab].map((v) => String(v ?? "").trim()).filter(Boolean).join(" · ");
+  })();
 
   if (!profile) {
     if (!ready || liveLoading) {
@@ -741,6 +774,17 @@ function PublicProfileScreenInner() {
                 </View>
               </View>
             </View>
+
+            {/* pass 97 — a scholar's standing, straight from his record: the
+                level the team assigned, his institute and his madhhab. */}
+            {isScholar && scholarMeta ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <FontAwesome5 name="graduation-cap" size={10} color={d.gold} />
+                <T v="caption" style={{ fontSize: 11, fontWeight: "700", color: isDark ? "#E8C96A" : "#8C6D1F" }}>
+                  {scholarMeta}
+                </T>
+              </View>
+            ) : null}
 
             {/* pass 83-3 — real bio, or an honest "No bio" (never a fake one) */}
             <T

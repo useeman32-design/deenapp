@@ -3199,7 +3199,7 @@ The owner: "the ones youre using, they are not mine at all". He was right, and t
 than a display bug: **the workspace copies of his avatars had been replaced by unrelated stock
 photos with the same file names.** Byte comparison against `avatar.zip` in the repo:
 
-* his `avatar.zip` (5.8 MB, in `deenapp@master`) = **38 male + 24 female** JPEGs, 800×800 /
+* his `avatar.zip` (5.8 MB, in `deenapp@master`) = **60** JPEGs (38 male / 22 female), 800×800 /
   1080×1080, stylised Islamic avatars (a turbaned cat, etc.)
 * `deenapp/assets/avatars/**` and `deenlink-api/img/profile/**` held 128×128 **headshots of
   strangers** under those exact names — 62 of 62 images different, zero identical.
@@ -3210,8 +3210,8 @@ the server passed. Only the origin archive disagreed.
 
 Fixed by re-extracting his archive into both trees and regenerating the catalogue
 (`src/data/avatars.ts`, 60 entries, same names so every `require()` still resolves). The two
-byte-identical `(1)` duplicate names in the archive were dropped (38 male + 22 female), so the
-picker no longer shows the same face twice. Byte-for-byte proof: 60/60 images identical in both
+byte-identical `(1)` duplicate names in the archive were dropped, so the picker never shows the
+same face twice. Byte-for-byte proof: 60/60 images identical in both
 trees.
 
 ### 2. Male accounts saw female avatars (and a female could see none at all)
@@ -3279,3 +3279,122 @@ above with the app's exact request shapes. The rig itself had to be rebuilt this
 PHP server and `/tmp` scripts do not survive between sessions — the database came back from the
 `deenlink_db (9).sql` dump on origin (89 tables), which is also why the admin account had to be
 re-created.
+
+**Shipped as** `deenlink-api@main 4f2bd8e` · `deenapp@master 10720e1` · `gh-pages afeb732`
+(new web bundle `entry-c144854fb16757522288889985cc454b.js`, verified live on the preview host and
+byte-compared: workspace avatar → export → live all md5 `89caa25b…`). `app.deenlink.org` still
+serves the pass-95 bundle — a cPanel **Git Version Control → Update from Remote → Deploy HEAD** is
+what publishes this pass to the app.
+
+## PASS 97 — the web-alert trap, feed sync, videos, inbox order, search, scholars
+
+### 1. One root cause behind "unable to delete", "report is not working", "requests report not working"
+
+**`Alert.alert` is a NO-OP on react-native-web.** The app.deenlink.org PWA *is* the web
+build, so every confirmation, reason picker and failure toast built on it did nothing at all
+— no dialog, no error, nothing in the console:
+
+* reporting a comment (the 5-reason picker) and reporting a message request,
+* "Report this account?" and its reason list,
+* deleting a comment / reply / chat message,
+* accepting a message request, blocking and unblocking,
+* every "Could not …" message the user needed to see.
+
+`src/lib/alert.tsx` keeps the exact `Alert.alert(title, message, buttons)` API — native still
+gets the OS dialog — and renders a styled in-app sheet on web (scrollable for the 5-reason
+list, `cancel`/`destructive`/`default` colours, Escape = cancel). 25 files were rewired to it
+and the host is mounted once in the root layout.
+
+### 2. A comment could not be deleted because nothing called the endpoint
+
+`/api/feed/delete_comment.php` and `delete_reply.php` have existed for passes with **zero call
+sites** in the app. Both are now wired (`deleteComment`, `deleteReply`) with the confirm sheet,
+the author/post-owner rule kept server-side, and the row removed locally on success.
+
+### 3. The comment flag also reported to the wrong endpoint
+
+A **reply** is not in `post_comments`, so flagging one asked the feed endpoint and got back
+"Comment not found". Now:
+
+* `comment_reports` has an additive `reply_id` (guarded ALTER; `comment_id` holds the parent so
+  the existing foreign key still holds),
+* `report_comment.php` accepts `reply_id`, resolves the parent and attributes the report to the
+  **reply's** author,
+* `admin/reports/list.php` shows the reply's own text (`Reported reply by …`, `reply_62 (post_91)`).
+
+**Rig proof:** reply flagged → `success`; row `comment_id=62 reply_id=56 reported_user=116`;
+moderation list shows `reply_62 (post_91) | Abuse or harassment | content="Female reply"`.
+Reel comments route to `videos/report_comment.php` instead (new `videosReportComment`), which is
+why the flag under a reel comment looked dead too.
+
+### 4. Videos — dummy rows, own-upload priority, instant display
+
+The live library returned **6 reels of which 4 were seed rows with no file** (`/videos/video_5..8.mp4`
+fall through to the SPA fallback): a third of the feed was a black rectangle and real uploads were
+pushed down the scroll.
+
+* `api/videos/list.php` drops any `local` row whose file is missing (`videos_local_file_missing`),
+* **your own upload is pinned first for you** (+1000 in the reel rank),
+* the app inserts the just-uploaded reel from the server's own response (`url` added to
+  `videosUploadReel`), so it plays immediately instead of after a refetch,
+* the device-local "user posts" bed and the demo reel store are **no longer part of the Videos feed**
+  — every row there is a real server row,
+* **Admin → Videos Management → "Remove demo & broken videos"**: dry-run list with the reason per
+  row, then one confirm; deletes child rows too; nothing playable is touched. Rig: found exactly the
+  3 fileless rows, skipped the rest.
+* the reel → community mirror already existed server-side; verified end to end (reel id 39 → post 92,
+  and the feed returns it as `media:[{type:'video'}]` which the app lifts onto `video_url`).
+
+### 5. "It is not checking for new posts"
+
+Every feed fetched ONCE per mount and Community hydrated from its per-account cache, so a post made
+elsewhere only appeared after the PWA was killed. `src/lib/feedSync.ts` adds an app-wide
+content-change event (`emitContentChanged`) plus a focus / foreground / 45s-while-focused sweep, and
+`mergeNewest()` puts fresh rows on top without yanking the scroll. Wired: Home, Community, Profile,
+Videos. Posting emits the event so the other surfaces are already current when the user swipes over.
+
+### 6. Inbox — arrival, order, and the block rows
+
+* the inbox polled once a **minute**; it now refreshes on open, every **10s** while open, and the
+  instant the PWA tab becomes visible again,
+* conversations sort by the newest activity (`last_at` added to `conversations.php`: the newer of the
+  last message and the last share) and each row **animates** from its old position to the new one
+  (`MoveRow`, a FLIP move — no extra library),
+* **"You blocked this chat" / "You unblocked this chat" no longer float at the bottom**: they are
+  dated system rows merged into the conversation at the moment they happened (per-account ledger in
+  storage), so they stay where they happened like WhatsApp's.
+
+### 7. Groups in search, and real badges
+
+* the search screen has a **Groups** tab, a "Top group" row in the mixed results, and the Community
+  search box now returns groups too (server LIKE on name / bio / description / category).
+  Rig: "hifdh" and "quran" both find the group created for the test.
+* the bell showed a **hard-coded orange dot** and the messages button nothing at all. Both now carry
+  real counts from `notifyCenter` (notifications unread + summed DM unread, polled every 20s while
+  foregrounded), and an **in-app banner** slides in when something arrives — the PWA had no visible
+  arrival at all before.
+
+### 8. Scholars — on the roster and on his own profile
+
+* **the profile of a scholar rendered him as an ordinary user**: `get_user_profile.php` has always
+  returned `user_type:"scholar"` + the `scholar` object, but the screen's view-model copied only
+  name/photo/bio/counts, so `isScholar` was false — no scholar chip, no level, no institute, no
+  fields, and "Ask this scholar a question" never rendered. Fixed (plus the requested
+  level · institute · madhhab line).
+* the browse screen's fetch was fire-and-forget with the failure swallowed and ran once per mount:
+  one flaky request left an **empty roster for the whole visit**. It now retries three times,
+  refetches on focus, and distinguishes "Loading the scholar roster…" / "Could not reach the scholar
+  list." from a genuinely empty roster.
+
+### Already correct — NOT re-fixed
+
+The check-in button already shows an `ActivityIndicator` + "Checking in…" (pass 94), so it was left
+alone apart from locking it (`disabled`) while the server is answering, which stops a double tap
+from firing a second request.
+
+### Verified by execution
+
+`tsc --noEmit` 0 · `php -l` 477 files 0 failures · inline admin JS parsed with `node --check` ·
+a rebuilt rig (MariaDB 11.8 from the origin dump + PHP 8.4; note **apt packages do not survive
+between sessions**, and the dump's `posts` table needs `get_posts.php` to self-heal `repost_of` —
+clear `storage/cache/feed_schema_flags_v2.json` if a stale memo says the column is absent).

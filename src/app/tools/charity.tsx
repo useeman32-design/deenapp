@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
+import { Alert } from '../../lib/alert';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';

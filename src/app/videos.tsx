@@ -3,24 +3,8 @@ import { BASE, chatSendShare, chatStartDMByUsername, feed as fetchFeed, getConne
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
-  FlatList,
-  Image,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  ScrollView,
-  Share,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Easing, FlatList, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Alert } from '../lib/alert';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -46,7 +30,7 @@ import { HeartIcon } from '@/components/Icons';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { useBookmarks } from '@/lib/bookmarks';
-import { subscribeUserReels, userReels } from '@/lib/reelStore';
+import { emitContentChanged, useContentRefresh } from '@/lib/feedSync';
 import { listUserPosts } from '@/lib/userPosts';
 
 const { height: VH, width: VW } = Dimensions.get('window');
@@ -735,7 +719,13 @@ function VideosFeedInner() {
 
   const listRef = useRef<FlatList<MockReel>>(null);
 
-  useEffect(() => subscribeUserReels(() => setStoreTick((t) => t + 1)), []);
+  /* pass 97 — this screen re-reads the server on focus, on foreground and when
+   * anything posts, so a video uploaded elsewhere (or on another device) is
+   * here without restarting the app. */
+  useContentRefresh('video', () => {
+    setLiveTick((t) => t + 1);
+    setStoreTick((t) => t + 1);
+  });
 
   /* pass 42 — UNIVERSAL VIDEOS: community video posts flow INTO the reel feed
    * (only those NOT cross-posted from this composer — those are already here). */
@@ -744,6 +734,11 @@ function VideosFeedInner() {
    * Their reel id IS the post id, so FeedCard's expand → /videos?start=<post id>
    * lands on exactly that video; group posts carry a group chip. */
   const [postReels, setPostReels] = useState<MockReel[]>([]);
+  /* pass 97 — the just-uploaded reel is inserted HERE the moment the server
+   * answers, so it is on screen (and scrollable) before — and independently of
+   * — the list refetch. On a slow network the old code showed "Posted" and
+   * then an unchanged feed, which read as "my video didn't upload". */
+  const [optimistic, setOptimistic] = useState<MockReel[]>([]);
   useEffect(() => {
     if (!isLive()) return;
     let alive = true;
@@ -849,9 +844,15 @@ function VideosFeedInner() {
     void storeTick;
     /* pass 83-35 — a reel uploaded on THIS page is also mirrored to the
      * community feed server-side; drop the duplicate copy (same file name). */
-    const upBase = new Set([...liveReels, ...userReels].map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
+    /* pass 97 — DUMMY BED GONE. The local device store (`userReels`, the old
+     * demo/offline reel store) and `commReels` (posts that only ever existed on
+     * this phone) are no longer part of the feed: the owner asked for "no dummy
+     * videos and data" on this page, and a phone-local row is exactly that —
+     * it plays for him, 404s for everyone else, and hides whether the server
+     * actually has the video. Everything here is now a real server row. */
+    const upBase = new Set(liveReels.map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
     const postClean = postReels.filter((r) => !upBase.has(String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
-    const mine: MockReel[] = [...liveReels, ...userReels, ...commReels, ...postClean];
+    const mine: MockReel[] = [...optimistic, ...liveReels, ...postClean];
     /* pass 83-38 — REAL REELS ONLY: the demo clip bed is gone */
     if (feedTab === 'following') {
       return liveReels;
@@ -860,7 +861,7 @@ function VideosFeedInner() {
       return liveReels.filter((r) => r.repostedBy != null);
     }
     return mine;
-  }, [feedTab, storeTick, commReels, liveReels, userReels, postReels]);
+  }, [feedTab, storeTick, liveReels, postReels, optimistic]);
 
   /* pass 72 — count a view the first time a server reel fills the screen */
   useEffect(() => {
@@ -934,7 +935,7 @@ function VideosFeedInner() {
       storage.setItem(REPOST_KEY, JSON.stringify([...n])).catch(() => {});
       return n;
     });
-    const target = [...liveReels, ...userReels, ...commReels, ...postReels].find((r) => r.id === id);
+    const target = [...optimistic, ...liveReels, ...postReels].find((r) => r.id === id);
     const liveId = target?.liveId;
     /* pass 70 — server-backed reposts for real reels (the owner gets a
      * notification); mock clips keep the local behaviour */
@@ -1789,13 +1790,38 @@ function VideosFeedInner() {
       <CreateReelModal
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
-        onPosted={() => {
+        onPosted={(fresh) => {
           setCreateOpen(false);
+          if (fresh) {
+            /* the reel we just uploaded — id/url straight from the server */
+            setOptimistic((cur) => [
+              {
+                id: 700000 + Number(fresh.id ?? Date.now() % 100000),
+                liveId: Number(fresh.id ?? 0) || undefined,
+                src: { uri: String(fresh.url ?? '') },
+                poster: { uri: String(fresh.url ?? '') },
+                username: String(meUser?.username ?? 'me'),
+                accountName: String(meUser?.full_name ?? meUser?.username ?? 'You'),
+                accountPic: (meUser?.profile_image_url as string | null) ?? null,
+                caption: String(fresh.caption ?? ''),
+                likes: 0,
+                comments: 0,
+                saves: 0,
+                views: 0,
+                music: 'Original audio',
+              },
+              ...cur.filter((r) => r.liveId !== Number(fresh.id ?? 0)),
+            ]);
+          }
           setLiveTick((t) => t + 1);
           setFeedTab('foryou');
           setIndex(0);
           requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: false }));
           showToast('Posted — playing your video');
+          /* pass 97 — tell every other feed (Community, Profile, Home) that a
+           * new video exists, so it is there the moment he swipes back. */
+          emitContentChanged('video');
+          emitContentChanged('post');
         }}
       />
 
@@ -1841,7 +1867,17 @@ function MoreRow({ icon, label, tint, onPress }: { icon: string; label: string; 
 /*  Create studio — caption + pick a video (library/file) or a sample clip     */
 /* -------------------------------------------------------------------------- */
 
-function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted: () => void }) {
+function CreateReelModal({
+  visible,
+  onClose,
+  onPosted,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  /** pass 97 — the server's own row for the reel that was just stored, so the
+   *  feed can show it at once instead of waiting for a refetch. */
+  onPosted: (fresh?: { id?: number; url?: string; caption?: string }) => void;
+}) {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
@@ -1905,7 +1941,7 @@ function CreateReelModal({ visible, onClose, onPosted }: { visible: boolean; onC
         if (r.ok) {
           setPicked(null);
           setCaption('');
-          onPosted();
+          onPosted({ id: r.id, url: r.url, caption: cap });
         } else {
           setUpError(r.message ?? 'Upload failed — please try again.');
         }

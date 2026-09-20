@@ -1,13 +1,13 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Pressable,
   ScrollView,
   View,
 } from "react-native";
+import { Alert } from '../../lib/alert';
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";

@@ -9,6 +9,9 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
 import { LoginModalHost } from '@/components/LoginModal';
+import { AlertHost } from '@/lib/alert';
+import { NotifyBanner } from '@/components/NotifyBanner';
+import { useNotifyWatch } from '@/lib/notifyCenter';
 import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
 import { GlobalConfirmDialog } from '@/components/ConfirmDialog';
@@ -188,6 +191,12 @@ useEffect(() => {
 /* pass 93 — runs once, before anything renders, so nested routes resolve local assets */
 installWebAssetBase();
 
+/* pass 97 — one polling loop for the whole app (badges + arrivals) */
+function NotifyWatch(): null {
+  useNotifyWatch();
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <CrashBoundary>
@@ -196,12 +205,20 @@ export default function RootLayout() {
         <UIScaleProvider>
         <AuthProvider>
           <Root />
+          <NotifyWatch />
           {/* pass 89 — one confirm sheet for every screen; Alert.alert is a no-op
               on web, which silently killed the DeenPoints unlock prompt. */}
           {/* pass 90 — the suspension strip + refusal notices live at the root so
            * they follow the user into every screen (below the dialog layer). */}
           <SuspensionNotice />
           <GlobalConfirmDialog />
+          {/* pass 97 — the in-app replacement for Alert.alert on web (the OS
+              dialog does not exist there, so every confirm/report/reason picker
+              behind it was silently dead in the PWA). */}
+          <AlertHost />
+          {/* pass 97 — live unread badges + an in-app banner when something
+              arrives (the PWA had neither). */}
+          <NotifyBanner />
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>

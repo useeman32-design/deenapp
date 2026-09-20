@@ -11,6 +11,7 @@ import { scholarTagLabel } from "@/lib/blockNotice";
 import { useTheme, type ThemeMode } from "@/context/ThemeContext";
 import { storage } from "@/lib/storage";
 import { consumeProfileDirty } from "@/lib/userPosts";
+import { mergeNewest, useContentRefresh } from "@/lib/feedSync";
 import { markActive, markGoal } from "@/lib/routine";
 import * as api from "@/api/client";
 import type { Post } from "@/api/types";
@@ -187,14 +188,25 @@ function ProfileInner() {
 
   /* pass 83-37 — posting syncs straight into the profile: any screen that
    * committed a post marks the profile dirty and this refetches the moment
-   * the tab regains focus (no pull-to-refresh, no long wait). */
+   * the tab regains focus (no pull-to-refresh, no long wait).
+   * pass 97 — a video posted in the Videos studio never marked the profile
+   * dirty, so the owner had to kill the PWA to see it. The profile now listens
+   * to the same content events as the feeds (any post/video anywhere), and
+   * refetches on focus, on foreground and every 45s as well. */
+  const refreshMine = useCallback(
+    () =>
+      api
+        .userPosts(user?.id != null ? Number(user.id) : undefined)
+        .then((rows) => setPosts((cur) => mergeNewest(rows ?? [], cur, 60)))
+        .catch(() => {})
+        .finally(() => setLoadingPosts(false)),
+    [user?.id],
+  );
+  useContentRefresh('post', refreshMine);
+  useContentRefresh('video', refreshMine, { intervalMs: 0 });
   useFocusEffect(() => {
     if (!consumeProfileDirty()) return;
-    api
-      .userPosts(user?.id != null ? Number(user.id) : undefined)
-      .then(setPosts)
-      .catch(() => {})
-      .finally(() => setLoadingPosts(false));
+    void refreshMine();
     if (user?.id != null) api.profileCounts(Number(user.id)).then(setCounts);
   });
 
@@ -792,6 +804,11 @@ function ProfileInner() {
                 </T>
               </Pressable>
               <Pressable
+                /* pass 97 — while the check-in is with the server the button is
+                 * locked (a second tap used to fire a second request; the loader
+                 * itself is already there from pass 94). */
+                disabled={checkinBusy}
+                accessibilityLabel={checkinBusy ? "Checking in" : "Check in"}
                 onPress={doCheckIn}
                 style={({ pressed }) => ({
                   flex: 1,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, TextInput, ActivityIndicator, Alert, Animated, Easing, Modal, Pressable, Text, View} from 'react-native';
+import { Image, TextInput, ActivityIndicator, Animated, Easing, Modal, Pressable, Text, View } from 'react-native';
+import { Alert } from '../lib/alert';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive } from '@/api/client';

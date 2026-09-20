@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localAsset } from '@/lib/assetUri';
-import { Alert, Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Alert } from '../../lib/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -32,6 +33,7 @@ import { loadSurah } from '@/lib/content';
 import { BeadsIcon } from '@/components/Icons';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { emitPostDeleted, onPostChanged, onPostDeleted } from '@/lib/postEvents';
+import { mergeNewest, useContentRefresh } from '@/lib/feedSync';
 import { LoginRequired } from '@/components/LoginRequired';
 import { FeedCard, YouTubeFrame } from '@/components/FeedCard';
 import { GroupFeedInline } from '@/components/Groups';
@@ -261,6 +263,20 @@ function HomeInner() {
     }
   }, [posts]);
 
+  /* pass 97 — the home feed refreshes on focus/foreground/interval and the
+   * moment anything posts (see feedSync), instead of once per app launch. */
+  const refreshHome = useCallback(
+    () =>
+      api
+        .feed('for-you')
+        .then((r) => {
+          if (r.posts?.length) setPosts((cur) => mergeNewest(r.posts ?? [], cur, 60));
+          return undefined;
+        })
+        .catch(() => {}),
+    [],
+  );
+  useContentRefresh('post', refreshHome);
   useEffect(() => {
     api.scholars().then(setScholars).catch(() => {});
     /* pass 83-36 — consume the login-time prefetch (instant), else fetch */

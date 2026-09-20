@@ -3,13 +3,13 @@ import { localAsset } from '@/lib/assetUri';
 import { askConfirm, dismissConfirm } from '@/components/ConfirmDialog';
 import { goBack } from "@/lib/navigation";
 import {
-  Alert,
   Dimensions,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { Alert } from '../../lib/alert';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

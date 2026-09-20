@@ -3,7 +3,6 @@ import { markProfileDirty } from "@/lib/userPosts";
 import { goBack } from "@/lib/navigation";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Modal,
   Platform,
@@ -14,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Alert } from '../../lib/alert';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

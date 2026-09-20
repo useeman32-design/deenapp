@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   AppState,
   Dimensions,
@@ -19,6 +18,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { Alert } from '../lib/alert';
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useFocusEffect, useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";

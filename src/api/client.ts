@@ -642,6 +642,55 @@ export async function fetchJokes(): Promise<ServerJoke[] | null> {
   return null;
 }
 
+/** pass 97 — reporting a REPLY. Replies live in comment_replies; the endpoint
+ *  resolves the parent comment and records the reply id, so a flag under a reply
+ *  finally reaches the moderation list (it used to answer "Comment not found"). */
+export async function reportReply(replyId: number, reason: string): Promise<boolean> {
+  const r = await request<{ status?: string }>("/api/feed/report_comment.php", {
+    method: "POST",
+    body: { reply_id: replyId, reason },
+    auth: true,
+  });
+  return r.ok && r.data.status === "success";
+}
+
+/** pass 97 — reporting a comment in the REELS thread. The feed endpoint only
+ *  knows post_comments, so a reel-comment report used to come back "Comment not
+ *  found" and the flag looked broken. */
+export async function videosReportComment(
+  videoId: number,
+  commentId: number,
+  reason: string,
+): Promise<boolean> {
+  const r = await request<{ status?: string }>("/api/videos/report_comment.php", {
+    method: "POST",
+    body: { video_id: videoId, comment_id: commentId, reason },
+    auth: true,
+  });
+  return r.ok && r.data.status === "success";
+}
+
+/* pass 97 — deleting a comment / a reply. The endpoints have existed for a
+ * while (the author or the post owner may delete) but NOTHING in the app ever
+ * called them, so a comment could be written and never taken back — the owner's
+ * "unable to delete". */
+export async function deleteComment(commentId: number): Promise<boolean> {
+  const r = await request<{ status?: string }>("/api/feed/delete_comment.php", {
+    method: "POST",
+    body: { comment_id: commentId },
+    auth: true,
+  });
+  return r.ok;
+}
+export async function deleteReply(replyId: number): Promise<boolean> {
+  const r = await request<{ status?: string }>("/api/feed/delete_reply.php", {
+    method: "POST",
+    body: { reply_id: replyId },
+    auth: true,
+  });
+  return r.ok;
+}
+
 /* pass 83-39 — comment reporting (tiny red flag next to comments in the app) */
 export async function reportComment(
   commentId: number,
@@ -1131,7 +1180,7 @@ export async function videosUploadReel(
   file: { uri: string; name?: string; type?: string },
   caption: string,
   onProgress?: (frac: number) => void,
-): Promise<{ ok: boolean; id?: number; message?: string }> {
+): Promise<{ ok: boolean; id?: number; url?: string; message?: string }> {
   const form = new FormData();
   form.append(
     "description",
@@ -1155,10 +1204,16 @@ export async function videosUploadReel(
   const r = await uploadForm<{
     status?: string;
     message?: string;
-    video?: { id?: number };
+    video?: { id?: number; sourceUrl?: string; source_url?: string };
   }>("/api/videos/upload.php", form, onProgress);
   if (r.ok && r.data && r.data.status === "success")
-    return { ok: true, id: r.data.video?.id };
+    return {
+      ok: true,
+      id: r.data.video?.id,
+      /* pass 97 — the caller shows the reel IMMEDIATELY from the server's own
+       * row instead of waiting for the list to come back */
+      url: r.data.video?.sourceUrl ?? r.data.video?.source_url,
+    };
   return {
     ok: false,
     message:
@@ -1265,6 +1320,28 @@ export type PublicProfile = {
   following_by_me?: boolean;
   is_private?: number;
   user_type?: string;
+  /* pass 97 — api/users/get_user_profile.php has always returned the scholar
+   * block (approval_status, level, institute, madhhab, fields_of_knowledge…)
+   * but the type never declared it, and the screen's view-model dropped it, so
+   * "he's appearing like an ordinary user". */
+  verification_badge?: string | null;
+  country?: string | null;
+  aqeedah?: string | null;
+  scholar?: {
+    approval_status?: string | null;
+    title?: string | null;
+    fields_of_knowledge?: string | null;
+    other_field?: string | null;
+    madhhab?: string | null;
+    aqeedah?: string | null;
+    level?: string | null;
+    institute?: string | null;
+    years_of_study?: number | null;
+    education?: string | null;
+    experience?: string | null;
+    publications?: string | null;
+    expertise_details?: string | null;
+  } | null;
 };
 /* pass 67 — the Search screen's Users tab rides the real account search. */
 export type AccountResult = {
@@ -3944,6 +4021,9 @@ export type ChatConversation = {
    * `blocked_by` = they blocked me (their name is masked, my sends are held). */
   blocked?: boolean;
   blocked_by?: boolean;
+  /* pass 97 — when the conversation last moved (message or share); the inbox
+   * orders by this so the newest message is on top. */
+  last_at?: string;
 };
 /* pass 63 contract (client types were never landed with the UI, so replies,
  * quotes and deletes had no types): messages.php returns `deleted` for soft-

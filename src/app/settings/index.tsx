@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Switch, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, Share, Switch, View } from 'react-native';
+import { Alert } from '../../lib/alert';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

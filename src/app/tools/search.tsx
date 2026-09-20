@@ -14,7 +14,8 @@ import * as api from '@/api/client';
 import type { AccountResult } from '@/api/client';
 import type { Post, Video } from '@/api/types';
 
-type Tab = 'top' | 'users' | 'videos' | 'hashtags';
+/* pass 97 — owner: "group should also be displaying in search" */
+type Tab = 'top' | 'users' | 'videos' | 'groups' | 'hashtags';
 
 /** pass 67 — pull #hashtags out of post copy (live + demo alike). */
 export function tagsOf(posts: Post[]): Array<{ tag: string; count: number }> {
@@ -131,7 +132,10 @@ export default function SearchScreen() {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [users, setUsers] = useState<AccountResult[] | null>(null);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ top: false, users: false, videos: false, hashtags: false });
+  /* pass 97 — community groups in search (name / bio / description / category,
+   * LIKE-searched on the server by api/groups/list.php?q=) */
+  const [groups, setGroups] = useState<api.GroupRow[] | null>(null);
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ top: false, users: false, videos: false, groups: false, hashtags: false });
   const [recentMore, setRecentMore] = useState(false);
   /* pass 74 — search history (persisted) with clear + show more/less */
   const [history, setHistory] = useState<string[]>([]);
@@ -222,6 +226,9 @@ export default function SearchScreen() {
     [allTags, query, searching],
   );
 
+  /* pass 97 — the single best group match, shown inside the Top mix */
+  const topGroup = (groups ?? []).find((g) => (g.name ?? '').toLowerCase().includes(query)) ?? groups?.[0] ?? null;
+
   /* Users tab loads from the real account search the first time it opens (or
    * the query changes while it is open). Demo mode filters the mock roster. */
   useEffect(() => {
@@ -231,6 +238,23 @@ export default function SearchScreen() {
     if (!api.isLive()) { setUsers([]); return; } /* pass 83-38 — real accounts only */
     setLoading((l) => ({ ...l, users: true }));
     api.searchAccounts(query).then((r) => setUsers(r ?? [])).finally(() => setLoading((l) => ({ ...l, users: false })));
+  }, [tab, query, searching]);
+
+  /* Groups tab (+ the Top tab's group row) — server search, debounced like the
+   * rest. Loads on first open and on every query change. */
+  useEffect(() => {
+    if (!searching || (tab !== 'groups' && tab !== 'top')) return;
+    if (!api.isLive()) { setGroups([]); return; }
+    let on = true;
+    setLoading((l) => ({ ...l, groups: true }));
+    const t = setTimeout(() => {
+      api
+        .groupsList(query)
+        .then((r) => { if (on) setGroups(r ?? []); })
+        .catch(() => {})
+        .finally(() => { if (on) setLoading((l) => ({ ...l, groups: false })); });
+    }, 300);
+    return () => { on = false; clearTimeout(t); };
   }, [tab, query, searching]);
 
   const pickTab = (t: Tab) => {
@@ -342,6 +366,7 @@ export default function SearchScreen() {
     { id: 'top', label: 'Top', icon: 'fire' },
     { id: 'users', label: 'Users', icon: 'users' },
     { id: 'videos', label: 'Videos', icon: 'play-circle' },
+    { id: 'groups', label: 'Groups', icon: 'users-cog' },
     { id: 'hashtags', label: 'Hashtags', icon: 'hashtag' },
   ];
 
@@ -453,6 +478,21 @@ export default function SearchScreen() {
             ) : null}
             {topMix.topAccs.length ? <RowIn i={0}><SectionLabel>{`Top account${topMix.topAccs.length > 1 ? 's' : ''}`}</SectionLabel>{topMix.topAccs.map((a) => <UserRow key={`${a.id}-${a.username}`} u={a} />)}</RowIn> : null}
             {topMix.bestPost ? <RowIn i={1}><SectionLabel>Top post</SectionLabel><PostRow p={topMix.bestPost} /></RowIn> : null}
+            {topGroup ? (
+              <RowIn i={6}>
+                <SectionLabel>Top group</SectionLabel>
+                <Pressable
+                  onPress={() => { haptic.light(); router.push({ pathname: '/tools/group', params: { id: String(topGroup.id) } } as never); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 9 }}
+                >
+                  <FontAwesome5 name="users" size={15} color="#D4AF37" />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }} numberOfLines={1}>{topGroup.name}</T>
+                    <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2 }} numberOfLines={1}>{Number(topGroup.member_count ?? 0)} members · {topGroup.category || 'Community'}</T>
+                  </View>
+                </Pressable>
+              </RowIn>
+            ) : null}
             {topMix.bestVideo ? <RowIn i={2}><SectionLabel>Top video</SectionLabel><VideoRow v={topMix.bestVideo} /></RowIn> : null}
             {topMix.bestTag ? <RowIn i={3}><SectionLabel>Top hashtag</SectionLabel><TagRow t={topMix.bestTag} /></RowIn> : null}
             {topMix.restTags.length ? <RowIn i={4}><SectionLabel>More hashtags</SectionLabel>{topMix.restTags.map((t) => <TagRow key={t.tag} t={t} />)}</RowIn> : null}
@@ -466,6 +506,35 @@ export default function SearchScreen() {
             users.map((u, i) => <RowIn key={`${u.id}-${u.username}`} i={i}><UserRow u={u} /></RowIn>)
           ) : (
             <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 40 }}>No users found.</T>
+          )
+        ) : tab === 'groups' ? (
+          loading.groups && !groups ? <Skeleton rows={5} shape="user" tint={d.bgSoft} card={d.card} border={d.cardBorder} /> : groups && groups.length ? (
+            groups.map((g, i) => (
+              <RowIn key={g.id} i={i}>
+                <Pressable
+                  onPress={() => { haptic.light(); router.push({ pathname: '/tools/group', params: { id: String(g.id) } } as never); }}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 9, opacity: pressed ? 0.85 : 1 })}
+                >
+                  <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                    <FontAwesome5 name="users" size={15} color="#D4AF37" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }} numberOfLines={1}>{g.name}</T>
+                    <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2 }} numberOfLines={1}>
+                      {[g.category, `${Number(g.member_count ?? 0)} member${Number(g.member_count ?? 0) === 1 ? '' : 's'}`, g.is_member ? "Joined" : null].filter(Boolean).join(' · ')}
+                    </T>
+                    {g.bio || g.desc ? (
+                      <T v="caption" style={{ fontSize: 10, color: d.subtext, marginTop: 3 }} numberOfLines={2}>{g.bio || g.desc}</T>
+                    ) : null}
+                  </View>
+                  <View style={{ borderRadius: 10, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingHorizontal: 11, paddingVertical: 7 }}>
+                    <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>{g.is_member ? "Open" : "View"}</T>
+                  </View>
+                </Pressable>
+              </RowIn>
+            ))
+          ) : (
+            <T v="bodyS" style={{ color: d.subtext, fontSize: 12.5, textAlign: 'center', marginTop: 40 }}>No groups found.</T>
           )
         ) : tab === 'videos' ? (
           !videos ? <Skeleton rows={5} shape="video" tint={d.bgSoft} card={d.card} border={d.cardBorder} /> : matchedVideos.length ? (

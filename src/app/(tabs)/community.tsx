@@ -8,7 +8,6 @@ import {
 } from "react";
 import { addUserPost, listUserPosts, markProfileDirty } from "@/lib/userPosts";
 import {
-  Alert,
   Image,
   Platform,
   Pressable,
@@ -19,6 +18,7 @@ import {
   ActivityIndicator,
   Modal,
 } from "react-native";
+import { Alert } from '../../lib/alert';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,6 +45,9 @@ import {
   onPostChanged,
   onPostDeleted,
 } from "@/lib/postEvents";
+import { mergeNewest, useContentRefresh } from "@/lib/feedSync";
+import { useNotifyCounts } from "@/lib/notifyCenter";
+import { emitContentChanged } from "@/lib/feedSync";
 
 const patternDark = require("../../../assets/img/pattern-dark.png");
 const patternLight = require("../../../assets/img/pattern-light.png");
@@ -86,6 +89,9 @@ type FeedTab = "foryou" | "following" | "scholars";
 function CommunityScreenInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
+  /* pass 97 — real unread numbers for the header badges (the bell used to show
+   * a hard-coded dot that never changed and could never clear). */
+  const unread = useNotifyCounts();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -141,23 +147,35 @@ function CommunityScreenInner() {
   /* pass 66-night — live community feed: server posts lead, mock stays as the
    * gh-pages demo fallback. The tab maps onto the same get_posts.php the home
    * feed uses ('foryou' → for-you). */
-  useEffect(() => {
-    api
-      .feed("for-you")
-      .then((r) => {
-        if (r.posts && r.posts.length) {
-          setPosts(r.posts);
-          if (feedCacheKey) {
-            void storage
-              .setItem(feedCacheKey, JSON.stringify(r.posts.slice(0, 30)))
-              .catch(() => {});
+  /* pass 97 — "it is not checking for new posts": this fetch used to run once
+   * per account, so a post made anywhere else (the Videos studio, another
+   * device, a scholar answering) only appeared after killing the PWA. The same
+   * fetch now runs on focus, on foreground, every 45s while the tab is open,
+   * and the moment anything emits a content change. New rows merge on top
+   * instead of replacing the list, so scrolling is never yanked. */
+  const refreshFeed = useCallback(
+    () =>
+      api
+        .feed("for-you")
+        .then((r) => {
+          if (r.posts && r.posts.length) {
+            setPosts((cur) => mergeNewest(r.posts, cur, 60));
+            if (feedCacheKey) {
+              void storage
+                .setItem(feedCacheKey, JSON.stringify(r.posts.slice(0, 30)))
+                .catch(() => {});
+            }
           }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setFeedLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedCacheKey]);
+          return undefined;
+        })
+        .catch(() => {})
+        .finally(() => setFeedLoading(false)),
+    [feedCacheKey],
+  );
+  useContentRefresh("post", refreshFeed);
+  useEffect(() => {
+    void refreshFeed();
+  }, [refreshFeed]);
   /* pass 83-36 — admin toggle: community video posting (default OFF) */
   useEffect(() => {
     api
@@ -420,6 +438,38 @@ function CommunityScreenInner() {
         : [],
     [q, posts],
   );
+  /* pass 97 — "group should also be displaying in search": the community search
+   * box searched posts and accounts only, so a group could never be found from
+   * here. Groups are LIKE-searched on the server (name / bio / description /
+   * category) with the same 300ms debounce as the accounts call. */
+  const [groupResults, setGroupResults] = useState<Array<{ id: number; name: string; members: number; category: string | null }>>([]);
+  useEffect(() => {
+    if (!q || q.trim().length < 2) {
+      setGroupResults([]);
+      return;
+    }
+    let dead = false;
+    const t = setTimeout(() => {
+      api
+        .groupsList(q.trim())
+        .then((rows) => {
+          if (dead) return;
+          setGroupResults(
+            (rows ?? []).slice(0, 4).map((g) => ({
+              id: Number(g.id),
+              name: String(g.name ?? ""),
+              members: Number(g.member_count ?? 0),
+              category: (g.category as string | null) ?? null,
+            })),
+          );
+        })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      dead = true;
+      clearTimeout(t);
+    };
+  }, [q]);
   const searching = q.length > 0;
 
   /* pass 83-38 — the Following tab follows the REAL follow graph */
@@ -600,6 +650,10 @@ function CommunityScreenInner() {
                * onto the real id, otherwise it disappears on the next reload. */
               if (res.id !== tempId) savedStore.swapId(tempId, Number(res.id));
               markProfileDirty(); /* pass 83-37 — profile refetches on next focus */
+              /* pass 97 — and the OTHER mounted feeds refetch right now, so a
+               * post made here is already on Home / Profile / Videos when the
+               * user swipes over (before: only after a restart). */
+              emitContentChanged("post");
               setPostedPill(true);
               setTimeout(() => setPostedPill(false), 2200);
             } else {
@@ -867,19 +921,28 @@ function CommunityScreenInner() {
               })}
             >
               <FontAwesome5 name="bell" size={15} color={d.text} />
-              <View
-                style={{
-                  position: "absolute",
-                  top: 7,
-                  right: 8,
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: "#E67E22",
-                  borderWidth: 1.5,
-                  borderColor: d.bg,
-                }}
-              />
+              {unread.notifications > 0 ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    minWidth: 18,
+                    height: 18,
+                    paddingHorizontal: 4,
+                    borderRadius: 9,
+                    backgroundColor: "#E67E22",
+                    borderWidth: 1.5,
+                    borderColor: d.bg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: "900", color: "#fff" }}>
+                    {unread.notifications > 99 ? "99+" : unread.notifications}
+                  </T>
+                </View>
+              ) : null}
             </Pressable>
             {/* inbox — shared reels/posts/duas/ayahs (same inbox as videos) */}
             <Pressable
@@ -909,19 +972,29 @@ function CommunityScreenInner() {
                 size={15}
                 color={isDark ? "#4AE38F" : "#1D6F42"}
               />
-              <View
-                style={{
-                  position: "absolute",
-                  top: 7,
-                  right: 8,
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: "#1F8F5C",
-                  borderWidth: 1.5,
-                  borderColor: d.bg,
-                }}
-              />
+              {/* pass 97 — the messages button counts unread DMs */}
+              {unread.messages > 0 ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    minWidth: 18,
+                    height: 18,
+                    paddingHorizontal: 4,
+                    borderRadius: 9,
+                    backgroundColor: "#1F8F5C",
+                    borderWidth: 1.5,
+                    borderColor: d.bg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: "900", color: "#fff" }}>
+                    {unread.messages > 99 ? "99+" : unread.messages}
+                  </T>
+                </View>
+              ) : null}
             </Pressable>
           </View>
         </View>
@@ -945,7 +1018,7 @@ function CommunityScreenInner() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search posts or accounts…"
+              placeholder="Search posts, accounts or groups…"
               placeholderTextColor={d.faint}
               returnKeyType="search"
               style={{
@@ -1197,6 +1270,46 @@ function CommunityScreenInner() {
         {/* Search results */}
         {searching ? (
           <View style={{ marginHorizontal: 16, marginTop: 6, gap: 14 }}>
+            {groupResults.length > 0 ? (
+              <View>
+                <T v="caption" style={{ color: d.faint, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginBottom: 8 }}>
+                  GROUPS
+                </T>
+                <View style={{ backgroundColor: d.card, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, paddingVertical: 4 }}>
+                  {groupResults.map((g, i) => (
+                    <Pressable
+                      key={g.id}
+                      onPress={() => {
+                        haptic.selection();
+                        setQuery("");
+                        router.push({ pathname: "/tools/group", params: { id: String(g.id) } } as never);
+                      }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderTopWidth: i === 0 ? 0 : 1,
+                        borderTopColor: d.cardBorder,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(212,175,55,0.12)", borderWidth: 1, borderColor: "rgba(212,175,55,0.4)", alignItems: "center", justifyContent: "center" }}>
+                        <FontAwesome5 name="users" size={13} color="#D4AF37" />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <T v="body" numberOfLines={1} style={{ color: d.text, fontWeight: "700", fontSize: 13 }}>{g.name}</T>
+                        <T v="caption" numberOfLines={1} style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+                          {[g.category, `${g.members} member${g.members === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
+                        </T>
+                      </View>
+                      <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
             {accResults.length > 0 ? (
               <View>
                 <T

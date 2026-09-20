@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -18,6 +17,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { Alert } from '../lib/alert';
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -87,6 +87,60 @@ type ChatMsg = {
   createdAt?: string;
   readAt?: string | null;
 };
+/** pass 97 — the newest thing in a conversation, used to order the inbox so a
+ *  fresh message climbs to the top. Falls back to the server's preview time and
+ *  finally to the thread's own last timestamp, so a thread never sinks by
+ *  accident. */
+function lastActivityAt(
+  t: Thread,
+  seen: Record<string, string>,
+  previewAt: Record<string, string>,
+): string {
+  /* normalise every stamp to 'YYYY-MM-DD HH:MM:SS' — the server sends chat
+   * messages with a space and `last_at` as ISO-8601, and ' ' < 'T' would
+   * otherwise order two same-second threads by accident */
+  const norm = (v: string) => v.replace('T', ' ').replace(/([+-]\d\d:\d\d|Z)$/, '').trim();
+  const stamps: string[] = [];
+  const lastMsg = t.chat[t.chat.length - 1];
+  if (lastMsg?.at) stamps.push(norm(String(lastMsg.at)));
+  const lastItem = t.items[t.items.length - 1];
+  if (lastItem?.at) stamps.push(norm(String(lastItem.at)));
+  if (seen[t.friend]) stamps.push(norm(String(seen[t.friend])));
+  if (previewAt[t.friend]) stamps.push(norm(String(previewAt[t.friend])));
+  return stamps.sort().slice(-1)[0] ?? "";
+}
+
+/**
+ * pass 97 — FLIP row move. When the inbox reorders, the row animates from where
+ * it was to where it is now instead of teleporting ("he should move smoothly to
+ * the top"). Positions come from onLayout, so it works with any row height, and
+ * it is pure Animated — no reanimated, and identical on web and native.
+ */
+function MoveRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const y = useRef<number | null>(null);
+  const shift = useRef(new Animated.Value(0)).current;
+  return (
+    <Animated.View
+      style={{ transform: [{ translateY: shift }] }}
+      onLayout={(e) => {
+        const next = e.nativeEvent.layout.y;
+        const prev = y.current;
+        y.current = next;
+        if (prev == null || Math.abs(prev - next) < 1) return;
+        shift.setValue(prev - next);
+        Animated.timing(shift, {
+          toValue: 0,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 /* pass 62 — `reactions` are MY emoji per target; `others` is the newest emoji
  * somebody else left, so I can see their reaction and still add my own. */
 type Thread = {
@@ -810,6 +864,30 @@ export function CommunityInbox({
       .catch(() => {});
   }, []);
   const [unblockedFlash, setUnblockedFlash] = useState<string | null>(null);
+  /* pass 97 — WHERE THE BLOCK HAPPENED, NOT AT THE BOTTOM.
+   *
+   * Owner: "You blocked this chat / unblock this chat is moving with chat, its
+   * supposed to stay where it happened, not moving as new messages are coming —
+   * it should stay there just like WhatsApp." The banner was rendered as the
+   * LAST row of the scrolling list, so every new message pushed it down. It is
+   * now a dated system row merged into the conversation at the exact moment it
+   * happened, and the timestamps live in this per-account ledger so it survives
+   * a reload (WhatsApp does the same with its system messages). */
+  const [sysRows, setSysRows] = useState<Record<string, Array<{ id: string; kind: 'block' | 'unblock'; at: string }>>>({});
+  /* pass 97 — the server's own "last message at" per peer, so ordering is right
+   * even when only the preview line came down */
+  const [previewAt, setPreviewAt] = useState<Record<string, string>>({});
+  const sysKey = user?.id != null ? `dl.chat.sys.v1.${user.id}` : null;
+  const sysRow = (who: string, kind: 'block' | 'unblock') => {
+    if (!who) return;
+    const at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    setSysRows((prev) => {
+      const list = [...(prev[who] ?? []), { id: `${kind}-${Date.now()}`, kind, at }];
+      const next = { ...prev, [who]: list };
+      if (sysKey) void storage.setItem(sysKey, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>(
@@ -1462,6 +1540,7 @@ export function CommunityInbox({
           { id?: number; name?: string; photo?: string | null }
         > = {};
         const previews: Record<string, string> = {};
+        const previewAtMap: Record<string, string> = {};
         const mine = new Set<string>();
         const gone = new Set<string>();
         /* pass 83-21 — who blocked whom, per peer */
@@ -1480,6 +1559,9 @@ export function CommunityInbox({
             photo: c.with_photo ?? null,
           };
           if (c.last_body) previews[u] = String(c.last_body);
+          /* pass 97 — when did this conversation last move? */
+          const at = c.last_at;
+          if (at) previewAtMap[u] = String(at);
           flags[u] = { b: !!c.blocked, by: !!c.blocked_by };
           const st = c.conv_status ?? "active";
           if (st === "declined") {
@@ -1522,6 +1604,7 @@ export function CommunityInbox({
         setConvIds(ids);
         setReqMap(reqs);
         setPeerMap(peers);
+        setPreviewAt(previewAtMap);
         setOutRequests(mine);
         setHiddenConvs(gone);
         setBlockFlags(flags);
@@ -1584,15 +1667,43 @@ export function CommunityInbox({
       .catch(() => {});
   };
   useEffect(() => {
+    if (!sysKey) return;
+    void storage
+      .getItem(sysKey)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, Array<{ id: string; kind: 'block' | 'unblock'; at: string }>>;
+        if (parsed && typeof parsed === 'object') setSysRows(parsed);
+      })
+      .catch(() => {});
+  }, [sysKey]);
+
+  /* pass 97 — the inbox used to ask the server once a minute. Owner: "when
+   * someone messes me its not appearing in the message inbox immediately … i
+   * will have to navigate to notifications and click the notification to get
+   * there, so the inbox should also be refreshing." It now refreshes the moment
+   * the sheet opens, every 10 seconds while it is open, and again the instant
+   * this browser tab becomes visible (the PWA case). */
+  useEffect(() => {
     chatPresence().catch(() => {});
     void refreshConvs();
     const iv = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       chatPresence().catch(() => {});
       void refreshConvs();
-    }, 60000);
-    return () => clearInterval(iv);
+    }, 10000);
+    const onVis = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void refreshConvs();
+      }
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(iv);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVis);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
+  }, [live, visible]);
 
   /* pass 74 — arriving via the profile Message button (?u=) for a peer with
    * no conversation yet: start the DM so the thread actually opens (it used
@@ -2949,6 +3060,7 @@ export function CommunityInbox({
   const flow: Array<
     | { kind: "share"; it: ShareItem; at: string }
     | { kind: "msg"; m: ChatMsg; at: string }
+    | { kind: "sys"; ev: { id: string; kind: "block" | "unblock"; at: string }; at: string }
   > = thread
     ? [
         ...thread.items.map((it) => ({
@@ -2960,6 +3072,12 @@ export function CommunityInbox({
           kind: "msg" as const,
           m,
           at: m.at || "9999",
+        })),
+        /* pass 97 — the block / unblock rows sit at the second they happened */
+        ...(sysRows[thread.friend] ?? []).map((ev) => ({
+          kind: "sys" as const,
+          ev,
+          at: ev.at || "9999",
         })),
       ].sort((a, b) => a.at.localeCompare(b.at))
     : [];
@@ -3533,15 +3651,29 @@ export function CommunityInbox({
                 <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
               </Pressable>
             ) : null}
+            {/* pass 97 — MOST RECENT FIRST, AND IT MOVES.
+              *
+              * Owner: "the new messages should be appearing on top not bottom,
+              * and if the person at the bottom or middle sends a new message he
+              * should move smoothly to the top too."
+              *
+              * The list used to be in whatever order threads were created, so a
+              * reply from an old chat sat at the bottom forever. Now it is sorted
+              * by the newest thing in the thread (a message, a shared item, or
+              * the server's last_message_at) and each row animates from its old
+              * position to the new one — a FLIP move that works on web and
+              * native without any extra library. */}
             {threads
               .filter((t) => !hiddenConvs.has(t.friend))
-              .map((t) => {
+              .map((t) => ({ t, key: lastActivityAt(t, seenMap, previewAt) }))
+              .sort((a, b) => b.key.localeCompare(a.key))
+              .map(({ t }) => {
                 const a = acc(t.friend);
                 /* pass 83-14 — unread = what the SERVER says I haven't seen (was: every message they ever sent) */
                 const unread = unreadMap[t.friend] ?? 0;
                 return (
+                  <MoveRow key={t.friend} id={t.friend}>
                   <Pressable
-                    key={t.friend}
                     onPress={() => {
                       haptic.selection();
                       setOpenFriend(t.friend);
@@ -3670,6 +3802,7 @@ export function CommunityInbox({
                       color={d.faint}
                     />
                   </Pressable>
+                  </MoveRow>
                 );
               })}
             {/* pass 83-4 — honest empty state (a bare header looked "blank") */}
@@ -3970,68 +4103,47 @@ export function CommunityInbox({
           {flow.map((row) =>
             row.kind === "share"
               ? renderShare(thread, row.it)
-              : renderMsg(thread, row.m),
+              : row.kind === "msg"
+                ? renderMsg(thread, row.m)
+                : (
+                    <View
+                      key={row.ev.id}
+                      style={{ alignSelf: "center", marginVertical: 10, maxWidth: "86%" }}
+                    >
+                      <View
+                        style={{
+                          borderRadius: 12,
+                          backgroundColor: row.ev.kind === "block"
+                            ? (isDark ? "rgba(224,82,82,0.12)" : "rgba(224,82,82,0.08)")
+                            : (isDark ? "rgba(46,204,113,0.12)" : "rgba(29,111,66,0.08)"),
+                          borderWidth: 1,
+                          borderColor: row.ev.kind === "block"
+                            ? "rgba(224,82,82,0.35)"
+                            : (isDark ? "rgba(74,227,143,0.35)" : "rgba(29,111,66,0.3)"),
+                          paddingHorizontal: 13,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <T
+                          v="caption"
+                          style={{
+                            color: row.ev.kind === "block"
+                              ? "#E05252"
+                              : (isDark ? "#4AE38F" : "#0E7A46"),
+                            fontSize: 10.5,
+                            fontWeight: "700",
+                            textAlign: "center",
+                          }}
+                        >
+                          {row.ev.kind === "block" ? "You blocked this chat" : "You unblocked this chat"}
+                        </T>
+                      </View>
+                      <T v="caption" style={{ fontSize: 9, color: d.faint, textAlign: "center", marginTop: 3 }}>
+                        {row.ev.at.slice(0, 16).replace("T", " ")}
+                      </T>
+                    </View>
+                  ),
           )}
-
-          {/* pass 83-23 — WhatsApp-style system rows for block / unblock */}
-          {thread.blocked ? (
-            <View
-              style={{
-                alignSelf: "center",
-                marginVertical: 10,
-                borderRadius: 12,
-                backgroundColor: isDark
-                  ? "rgba(224,82,82,0.12)"
-                  : "rgba(224,82,82,0.08)",
-                borderWidth: 1,
-                borderColor: "rgba(224,82,82,0.35)",
-                paddingHorizontal: 13,
-                paddingVertical: 6,
-              }}
-            >
-              <T
-                v="caption"
-                style={{
-                  color: "#E05252",
-                  fontSize: 10.5,
-                  fontWeight: "700",
-                  textAlign: "center",
-                }}
-              >
-                You blocked this chat
-              </T>
-            </View>
-          ) : null}
-          {unblockedFlash === thread.friend ? (
-            <View
-              style={{
-                alignSelf: "center",
-                marginVertical: 10,
-                borderRadius: 12,
-                backgroundColor: isDark
-                  ? "rgba(46,204,113,0.12)"
-                  : "rgba(29,111,66,0.08)",
-                borderWidth: 1,
-                borderColor: isDark
-                  ? "rgba(74,227,143,0.35)"
-                  : "rgba(29,111,66,0.3)",
-                paddingHorizontal: 13,
-                paddingVertical: 6,
-              }}
-            >
-              <T
-                v="caption"
-                style={{
-                  color: isDark ? "#4AE38F" : "#0E7A46",
-                  fontSize: 10.5,
-                  fontWeight: "700",
-                  textAlign: "center",
-                }}
-              >
-                You unblocked this chat
-              </T>
-            </View>
-          ) : null}
 
           {/* pass 68 — the peer is typing right now (server flag, ≤3s stale) */}
           {peerTyping ? (
@@ -4373,7 +4485,8 @@ export function CommunityInbox({
                             t.friend === who ? { ...t, blocked: false } : t,
                           ),
                         );
-                        setUnblockedFlash(who); /* pass 83-23 */
+                        sysRow(who, 'unblock'); /* pass 83-97 — anchored row */
+                      setUnblockedFlash(who); /* pass 83-23 */
                         Alert.alert(
                           "Unblocked",
                           `You can message @${who} again.`,
@@ -4695,7 +4808,7 @@ export function CommunityInbox({
                           t.friend === who ? { ...t, blocked: true } : t,
                         ),
                       );
-                      setOpenFriend(null);
+                      sysRow(who, 'block'); /* pass 97 — the row stays put */
                     });
                   }
                   setBlockOpen(false);

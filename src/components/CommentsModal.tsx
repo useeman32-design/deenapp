@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   KeyboardAvoidingView,
@@ -13,12 +12,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Alert } from '../lib/alert';
 import { Image } from "expo-image";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import type { Post } from "@/api/types";
 import type { SampleComment } from "@/api/mocks";
 import * as api from "@/api/client";
+import { videosCommentDelete as videosCommentDeleteApi } from "@/api/client";
 import {
   NAV_LABELS,
   SYSTEM_PROMPT,
@@ -259,6 +260,8 @@ function CommentRow({
   onOpenProfile,
   onClose,
   onReport,
+  onDelete,
+  canDelete,
   highlightId,
   colors,
 }: {
@@ -274,6 +277,9 @@ function CommentRow({
   onOpenProfile: (handle: string) => void;
   onClose?: () => void;
   onReport: (c: SampleComment) => void;
+  /* pass 97 — the author (or the post owner) can delete a comment */
+  onDelete?: (c: SampleComment) => void;
+  canDelete?: (c: SampleComment) => boolean;
   highlightId?: number | null;
   colors: {
     txt: string;
@@ -445,6 +451,17 @@ function CommentRow({
           >
             <FontAwesome5 name="flag" size={9} color="#E74C3C" />
           </Pressable>
+          {/* pass 97 — delete your own comment (or any comment on your post).
+              The endpoint existed; the app simply never offered it. */}
+          {onDelete && canDelete?.(c) ? (
+            <Pressable
+              hitSlop={8}
+              onPress={() => onDelete(c)}
+              accessibilityLabel="Delete comment"
+            >
+              <FontAwesome5 name="trash-alt" size={9} color={colors.faint} />
+            </Pressable>
+          ) : null}
           {nReplies > 0 ? (
             <Pressable
               hitSlop={6}
@@ -537,12 +554,16 @@ export function CommentsModal({
   postId = null,
   videoId = null,
   highlightCommentId = null,
+  onDeleted,
 }: {
   visible: boolean;
   post: Post | null;
   seed: SampleComment[];
   onClose: () => void;
   inline?: boolean;
+  /* pass 97 — the parent surface learns about a successful delete so its
+   * comment counter drops at once */
+  onDeleted?: (id: number, isReply: boolean) => void;
   /** pass 66-night — real post id → the thread reads/writes the server. */
   postId?: number | null;
   /** pass 72 — real video (reel) id → the thread reads/writes the VIDEO
@@ -951,7 +972,19 @@ export function CommentsModal({
       ...reasons.map((rn) => ({
         text: rn,
         onPress: () => {
-          void api.reportComment(c.id, rn).then((okR) => {
+          /* pass 97 — the right endpoint per thread: a reel comment lives in
+           * video_comments, and the feed endpoint answered "Comment not found"
+           * for it (the owner: "the report flag in comment section is not
+           * working"). */
+          const isReplyRow = c.id >= REPLY_OFF;
+          const realId = isReplyRow ? c.id - REPLY_OFF : c.id;
+          const send =
+            liveVideo && videoId
+              ? api.videosReportComment(videoId, realId, rn)
+              : isReplyRow
+                ? api.reportReply(realId, rn)
+                : api.reportComment(realId, rn);
+          void send.then((okR) => {
             if (okR) {
               setReportedIds((prev) => new Set(prev).add(c.id));
               Alert.alert(
@@ -967,6 +1000,67 @@ export function CommentsModal({
           });
         },
       })),
+    ]);
+  };
+
+  /* pass 97 — DELETE. owner: "unable to delete". A comment/reply could be
+   * written but never taken back: /api/feed/delete_comment.php and
+   * delete_reply.php were never called from anywhere in the app. The rules are
+   * the server's (the author, or the owner of the post being commented on), and
+   * the row disappears locally the moment the server confirms. */
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  const myHandle = String(me.handle ?? "").toLowerCase();
+  const postOwnerHandle = String(
+    (post as { user?: { username?: string } } | null)?.user?.username ?? "",
+  ).toLowerCase();
+  const canDeleteComment = (c: SampleComment): boolean => {
+    const h = String(c.handle ?? "").toLowerCase();
+    if (!h) return false;
+    return h === myHandle || (postOwnerHandle !== "" && h === postOwnerHandle);
+  };
+  const handleDeleteComment = (c: SampleComment) => {
+    const isReply = c.id >= REPLY_OFF;
+    const label = isReply ? "reply" : "comment";
+    Alert.alert(`Delete this ${label}?`, "It will be removed for everyone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          const realId = isReply ? c.id - REPLY_OFF : c.id;
+          setDeletingIds((prev) => new Set(prev).add(c.id));
+          const done = (ok: boolean) => {
+            setDeletingIds((prev) => {
+              const n = new Set(prev);
+              n.delete(c.id);
+              return n;
+            });
+            if (!ok) {
+              Alert.alert("Could not delete", "Please try again in a moment.");
+              return;
+            }
+            setItems((prev) =>
+              prev
+                .filter((x) => x.id !== c.id)
+                .map((x) => ({
+                  ...x,
+                  replies: (x.replies ?? []).filter((r) => r.id !== c.id),
+                })),
+            );
+            onDeleted?.(realId, isReply);
+          };
+          if (liveVideo && videoId) {
+            void videosCommentDeleteApi(videoId, realId).then((left) => done(left !== null));
+          } else if (c.id < 0) {
+            /* still an optimistic row — nothing on the server yet */
+            done(true);
+          } else if (isReply) {
+            void api.deleteReply(realId).then(done);
+          } else {
+            void api.deleteComment(realId).then(done);
+          }
+        },
+      },
     ]);
   };
 
@@ -1452,6 +1546,8 @@ export function CommentsModal({
                 onOpenProfile={openProfile}
                 onClose={onClose}
                 onReport={handleReportComment}
+                onDelete={handleDeleteComment}
+                canDelete={canDeleteComment}
                 highlightId={highlightCommentId}
                 colors={colors}
               />

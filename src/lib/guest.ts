@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { Alert } from '@/lib/alert';
 
 /* pass 80 — guest mode. "Skip" on the login screen browses the app as a
  * guest: ONLY the Tools module is available. Every other module renders the
@@ -59,9 +60,8 @@ export function setLoginModalHandler(h: LoginModalHandler | null): void { loginM
 export function guestBlock(message?: string): boolean {
   if (!guest) return false;
   if (loginModalHandler) { loginModalHandler(message); return true; }
-  /* fallback (host not mounted yet — e.g. very early boot): native alert */
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { Alert } = require('react-native') as typeof import('react-native');
+  /* fallback (host not mounted yet — e.g. very early boot): the shared alert,
+   * which is the OS dialog on native and the styled sheet on web (pass 97) */
   Alert.alert(
     'Login required',
     message ?? 'Sign in or create a free account to use this feature.',

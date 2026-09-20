@@ -1,5 +1,5 @@
 import { formatDP } from '@/components/DeenPoints';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ import { storage } from '@/lib/storage';
 import * as api from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useAuth } from '@/context/AuthContext';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import type { Scholar } from '@/api/types';
 import { DPIcon } from '@/components/DeenPoints';
 
@@ -131,14 +131,33 @@ export default function Scholars() {
     storage.getItem('dl.deenpoints').then((r) => { if (r) setPoints(Number(r) || 1250); }).catch(() => {});
   }, []);
 
-  /* pass 83-38 — the scholar roster comes from the server */
+  /* pass 83-38 — the scholar roster comes from the server.
+   * pass 97 — "when i navigate to browse scholars still am not seeing any
+   * scholar, its empty": the fetch was fire-and-forget, its failure was
+   * swallowed, and it ran exactly once per mount. A single flaky request on a
+   * slow network left the roster empty for the whole visit, with the screen
+   * blaming the roster ("No scholars are on the roster yet"). Now it retries,
+   * says plainly when the server could not be reached, refetches on focus, and
+   * never shows a stale empty list over a good one. */
   const [roster, setRoster] = useState<Scholar[]>([]);
-  useEffect(() => {
-    api.scholars().then((rows) => {
-      SCHOLAR_ROSTER = rows;
-      setRoster(rows);
-    }).catch(() => {});
+  const [rosterState, setRosterState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const loadRoster = useCallback(async () => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const rows = await api.scholars();
+        SCHOLAR_ROSTER = rows;
+        setRoster(rows);
+        setRosterState('ready');
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
+    }
+    setRosterState('error');
   }, []);
+  useEffect(() => { void loadRoster(); }, [loadRoster]);
+  /* returning to the screen re-checks — a scholar approved a minute ago shows up */
+  useFocusEffect(useCallback(() => { void loadRoster(); }, [loadRoster]));
 
   /* pass 89 — the server side of Ask Scholars. Three separate gaps made this
    * screen read as “nothing new”, and all three are closed here:
@@ -427,11 +446,21 @@ export default function Scholars() {
             ))}
             {!list.length ? (
               <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginTop: 24 }}>
-                <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{roster.length ? 'No scholar matches that search or field.' : 'No scholars are on the roster yet.'}</T>
+                <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>
+                  {roster.length
+                    ? 'No scholar matches that search or field.'
+                    : rosterState === 'loading'
+                      ? 'Loading the scholar roster…'
+                      : rosterState === 'error'
+                        ? 'Could not reach the scholar list.'
+                        : 'No scholars are on the roster yet.'}
+                </T>
                 <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>
                   {roster.length
                     ? 'Try clearing the search or picking another field — the roster is filtered by the field you chose.'
-                    : 'A scholar applies with one document (a certificate, an ijāzah or a recommendation letter), and appears here once the team approves them in Admin → Scholar Management. Press the button below to apply from your own account.'}
+                    : rosterState === 'error'
+                      ? 'Your connection dropped while loading. Tap Retry below — nothing is wrong with your account.'
+                      : 'A scholar applies with one document (a certificate, an ijāzah or a recommendation letter), and appears here once the team approves them in Admin → Scholar Management. Press the button below to apply from your own account.'}
                 </T>
                 <Pressable onPress={() => { haptic.light(); router.push('/tools/scholar-apply' as never); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', paddingHorizontal: 12, paddingVertical: 8 }}>
                   <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Apply as a scholar</T>
