@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Alert } from '../../lib/alert';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
@@ -65,17 +65,28 @@ function ScholarInboxScreenInner() {
   ).toLowerCase();
   const awaitingApproval = approval === 'pending' || approval === 'reviewing';
 
+  /* pass 98 — a "X asked you a question" notification now opens THAT question
+   * instead of dropping the scholar on the list (it used to open the asker's
+   * profile, which is why questions looked like they never arrived). */
+  const params = useLocalSearchParams<{ id?: string; tab?: string }>();
+  const wantedId = Number(params.id ?? 0) || 0;
   const load = useCallback((t: Tab) => {
     if (!isLive()) { setRows([]); return; }
     if (awaitingApproval) { setRows([]); return; }
     scholarQueue(t).then((r) => {
-      setRows(r?.questions ?? []);
+      const list = r?.questions ?? [];
+      setRows(list);
       setCounts(r?.counts ?? {});
+      if (wantedId > 0) {
+        const hit = list.find((q) => Number(q.id) === wantedId);
+        if (hit) openQuestionRef.current?.(hit);
+      }
     }).catch(() => setRows([]));
-  }, [awaitingApproval]);
+  }, [awaitingApproval, wantedId]);
 
   useEffect(() => { load(tab); }, [tab, load]);
 
+  const openQuestionRef = useRef<((q: ScholarQueueRow) => void) | null>(null);
   const openQuestion = (q: ScholarQueueRow) => {
     haptic.selection();
     setOpen(q);
@@ -86,6 +97,7 @@ function ScholarInboxScreenInner() {
       questionThread(q.id).then((r) => setThread(r?.messages ?? [])).catch(() => setThread([]));
     }
   };
+  openQuestionRef.current = openQuestion;
 
   const act = async (action: 'answer' | 'reject' | 'message') => {
     if (!open || busy) { return; }

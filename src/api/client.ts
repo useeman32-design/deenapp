@@ -1689,6 +1689,10 @@ export type MyQuestion = {
   answered_at?: string | null;
   created_at?: string;
   scholar?: { id?: number; name?: string; username?: string } | null;
+  /* pass 98 — the scholar's account can be switched off after the question was
+   * sent; the server now says so instead of leaving it at "pending" for ever. */
+  scholar_available?: boolean;
+  scholar_note?: string;
 };
 
 export async function myQuestions(): Promise<{
@@ -3474,7 +3478,11 @@ export function normaliseScholar(s: Scholar): Scholar {
   };
 }
 
-export async function scholars(): Promise<Scholar[]> {
+/* pass 98 — `null` means THE REQUEST FAILED and `[]` means the roster is really
+ * empty. Returning `[]` for both is why one flaky fetch left "Browse Scholars"
+ * blank for a whole visit and why the Ask-a-scholar picker sat on "Loading
+ * scholars…" for ever while Send silently did nothing. */
+export async function scholars(): Promise<Scholar[] | null> {
   const r = await request<{
     status?: string;
     scholars?: Scholar[];
@@ -3484,7 +3492,7 @@ export async function scholars(): Promise<Scholar[]> {
     const list = r.data.scholars ?? r.data.data;
     if (Array.isArray(list)) return list.map(normaliseScholar);
   }
-  return []; /* pass 83-38 — admin-registered scholars only */
+  return null;
 }
 
 /** A public question answered by a DeenLink scholar — a "direct fatwa". */

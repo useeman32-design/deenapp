@@ -1,5 +1,5 @@
 import { markGoal } from '@/lib/routine';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { loadFatwas, type Fatwa } from '@/lib/ai';
 import { askUnreadCount, directFatwas, isLive, myQuestions, scholars, submitQuestion, type DirectFatwa, type MyQuestion } from '@/api/client';
 import type { Scholar } from '@/api/types';
 import { storage } from '@/lib/storage';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useBookmarks } from '@/lib/bookmarks';
 
@@ -75,6 +75,10 @@ export default function FatwaBrowser() {
 
   /* ── pass 69 — Ask a Scholar: form state, scholar roster, my questions ── */
   const [scholarList, setScholarList] = useState<Scholar[]>([]);
+  /* pass 98 — loading / failed / ready, so an empty picker is never a lie */
+  const [rosterState, setRosterState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const tab = typeof params.tab === 'string' ? params.tab : '';
   const [myQs, setMyQs] = useState<MyQuestion[]>([]);
   const [askUnread, setAskUnread] = useState(0);
   const [askScholar, setAskScholar] = useState<number | null>(null);
@@ -87,14 +91,54 @@ export default function FatwaBrowser() {
   const [askMsg, setAskMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const live = isLive();
   const { user } = useAuth();
+  /* pass 98 — "the scholar is not getting questions" was, in this screen, a
+   * silent dead end: if the roster did not load, the picker sat on "Loading
+   * scholars…" for ever and Send returned without a word. Every state is now
+   * explicit and every tap answers. */
+  const loadRoster = useCallback(async () => {
+    setRosterState('loading');
+    let rows: Awaited<ReturnType<typeof scholars>> = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      rows = await scholars().catch(() => null);
+      if (rows !== null) break;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+    if (rows === null) {
+      setRosterState('error');
+      return;
+    }
+    setScholarList(rows);
+    setRosterState('ready');
+    setAskScholar((cur) => cur ?? (rows[0]?.id ?? null));
+  }, []);
+
   useEffect(() => {
-    if (!live || source !== 'ask') { return; }
-    scholars().then((r) => { setScholarList(r); setAskScholar((cur) => cur ?? (r[0]?.id ?? null)); }).catch(() => {});
+    if (!live) { return; }
+    if (tab === 'mine' || tab === 'ask') setSource(tab);
     myQuestions().then((r) => { if (r) { setMyQs(r.questions); } }).catch(() => {});
     askUnreadCount().then(setAskUnread).catch(() => {});
-  }, [live, source]);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [live, tab]);
+
+  useEffect(() => {
+    if (!live || source !== 'ask') { return; }
+    void loadRoster();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [live, source, loadRoster]);
   const sendQuestion = async () => {
-    if (askBusy || !askScholar) { return; }
+    if (askBusy) { return; }
+    if (!askScholar) {
+      /* never a silent no-op again */
+      setAskMsg({
+        ok: false,
+        text:
+          rosterState === 'error'
+            ? 'We could not load the scholar list. Tap Retry above, then send your question.'
+            : 'Choose a scholar first — tap a name above.',
+      });
+      haptic.medium();
+      return;
+    }
     if (askTitle.trim().length < 5) { setAskMsg({ ok: false, text: 'Give your question a short title (5+ characters).' }); return; }
     if (askDetails.trim().length < 10) { setAskMsg({ ok: false, text: 'Add a few more details (10+ characters).' }); return; }
     haptic.light();
@@ -259,8 +303,25 @@ export default function FatwaBrowser() {
                         </Pressable>
                       );
                     })}
-                    {scholarList.length === 0 ? <T v="caption" style={{ fontSize: 11, color: d.faint }}>Loading scholars…</T> : null}
+                    {scholarList.length === 0 ? (
+                      <T v="caption" style={{ fontSize: 11, color: d.faint }}>
+                        {rosterState === 'loading' || rosterState === 'idle'
+                          ? 'Loading scholars…'
+                          : rosterState === 'error'
+                            ? 'Could not load the scholar list.'
+                            : 'No scholar is available to answer yet.'}
+                      </T>
+                    ) : null}
                   </ScrollView>
+                  {rosterState === 'error' ? (
+                    <Pressable
+                      onPress={() => { haptic.light(); void loadRoster(); }}
+                      style={{ alignSelf: 'flex-start', borderRadius: 999, borderWidth: 1, borderColor: green, paddingHorizontal: 12, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    >
+                      <FontAwesome5 name="sync" size={10} color={green} />
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '900', color: green }}>Retry</T>
+                    </Pressable>
+                  ) : null}
                   <TextInput
                     value={askTitle}
                     onChangeText={setAskTitle}
@@ -343,6 +404,11 @@ export default function FatwaBrowser() {
                       </View>
                       {answered && mq.answer ? (
                         <T v="bodyS" numberOfLines={4} style={{ fontSize: 11.5, lineHeight: 17, color: d.subtext, marginTop: 7 }}>{mq.answer}</T>
+                      ) : null}
+                      {/* pass 98 — the server's own words when the scholar's account
+                          is no longer answering (no more eternal "pending"). */}
+                      {!answered && mq.scholar_note ? (
+                        <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: '#C9A227', marginTop: 6 }}>{mq.scholar_note}</T>
                       ) : null}
                     </View>
                   );

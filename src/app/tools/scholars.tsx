@@ -142,16 +142,18 @@ export default function Scholars() {
   const [roster, setRoster] = useState<Scholar[]>([]);
   const [rosterState, setRosterState] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadRoster = useCallback(async () => {
+    /* pass 98 — api.scholars() never threw; it answered [] for a failed fetch,
+     * so this retry loop and its error state were dead code and the screen
+     * showed "no scholars" for a network hiccup. null = failed, [] = empty. */
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const rows = await api.scholars();
+      const rows = await api.scholars().catch(() => null);
+      if (rows !== null) {
         SCHOLAR_ROSTER = rows;
         setRoster(rows);
         setRosterState('ready');
         return;
-      } catch {
-        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
     setRosterState('error');
   }, []);
@@ -462,9 +464,18 @@ export default function Scholars() {
                       ? 'Your connection dropped while loading. Tap Retry below — nothing is wrong with your account.'
                       : 'A scholar applies with one document (a certificate, an ijāzah or a recommendation letter), and appears here once the team approves them in Admin → Scholar Management. Press the button below to apply from your own account.'}
                 </T>
-                <Pressable onPress={() => { haptic.light(); router.push('/tools/scholar-apply' as never); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Apply as a scholar</T>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  {/* pass 98 — the copy promised a Retry that did not exist; the
+                      roster fetch retries on focus, this does it on demand. */}
+                  {rosterState === 'error' ? (
+                    <Pressable onPress={() => { haptic.light(); void loadRoster(); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, backgroundColor: isDark ? 'rgba(74,227,143,0.16)' : 'rgba(29,111,66,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Retry</T>
+                    </Pressable>
+                  ) : null}
+                  <Pressable onPress={() => { haptic.light(); router.push('/tools/scholar-apply' as never); }} style={{ marginTop: 11, alignSelf: 'flex-start', borderRadius: 11, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.45)' : 'rgba(29,111,66,0.35)', paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Apply as a scholar</T>
+                  </Pressable>
+                </View>
               </View>
             ) : null}
 

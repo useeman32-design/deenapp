@@ -16,6 +16,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { T } from "@/components/T";
 import { haptic } from "@/lib/haptics";
 import { useIsGuest } from "@/lib/guest";
+import { useAuth } from "@/context/AuthContext";
 import { LoginRequired } from "@/components/LoginRequired";
 
 const DEENLINK_LOGO = require("@/assets/img/logo-badge.png");
@@ -61,6 +62,8 @@ function absPhoto(u: string | null | undefined): string | null {
   if (u.startsWith("/")) return `${BASE}${u}`;
   return `${BASE}/${u}`;
 }
+/* pass 98 — the signed-in account type decides where a question notification
+ * goes (scholar → his desk, asker → My Questions). */
 function mapLive(rows: NotifRow[]): Notif[] {
   return rows.map((r) => {
     const type = String(r.type || "").toLowerCase();
@@ -227,6 +230,12 @@ function NotificationsInner() {
     : []; /* pass 83-38 — real notifications only */
   const isUnread = (x: Notif) =>
     x.id.startsWith("L") ? !x.read : !read.has(x.id);
+  /* pass 98 — scholars read question notifications in their desk, askers in
+   * My Questions; the tap below needs to know which one this account is. */
+  const { user: me } = useAuth();
+  const iAmScholar =
+    String((me as { user_type?: string } | null)?.user_type ?? "").toLowerCase() ===
+    "scholar";
   const newCount = useMemo(() => source.filter(isUnread).length, [source]);
   const tap = (n: Notif) => {
     haptic.selection();
@@ -239,6 +248,21 @@ function NotificationsInner() {
     /* pass 83-26 — a notification opens the thing it is about. Rows from
      * DeenLink itself (actor 0 / no user) tap nowhere — the tap just clears
      * the dot, because there is no profile behind the app talking. */
+    /* pass 98 — a QUESTION notification has to open the question. It used to
+     * fall through to `router.push('/profile/' + n.user)`, so a scholar tapping
+     * "X asked you a question" landed on the asker's profile and the asker
+     * tapping "Sheikh answered your question" landed on the scholar's profile:
+     * the questions were never reachable from the bell. */
+    if (n.entityType === "question") {
+      if (iAmScholar) {
+        router.push(
+          (n.entityId ? `/tools/scholar-inbox?id=${n.entityId}` : "/tools/scholar-inbox") as never,
+        );
+      } else {
+        router.push("/tools/fatwa?tab=mine" as never);
+      }
+      return;
+    }
     if (n.kind === "chat" && n.user) {
       router.push(`/tools/inbox?u=${n.user}`);
       return;

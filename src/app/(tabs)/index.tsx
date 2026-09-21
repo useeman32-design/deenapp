@@ -278,7 +278,8 @@ function HomeInner() {
   );
   useContentRefresh('post', refreshHome);
   useEffect(() => {
-    api.scholars().then(setScholars).catch(() => {});
+    /* pass 98 — null = the request failed (keep whatever we have) */
+    api.scholars().then((list) => { if (list) setScholars(list); }).catch(() => {});
     /* pass 83-36 — consume the login-time prefetch (instant), else fetch */
     const pre = api.consumeFeedPrefetch();
     const apply = (r: import('@/api/types').FeedResponse) => setPosts(r.posts ?? []);

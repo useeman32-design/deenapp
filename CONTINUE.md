@@ -3398,3 +3398,80 @@ from firing a second request.
 a rebuilt rig (MariaDB 11.8 from the origin dump + PHP 8.4; note **apt packages do not survive
 between sessions**, and the dump's `posts` table needs `get_posts.php` to self-heal `repost_of` —
 clear `storage/cache/feed_schema_flags_v2.json` if a stale memo says the column is absent).
+
+**Shipped as** `deenlink-api@main 0aad469` · `deenapp@master b63a73e` · `gh-pages 6871a4c`
+(new web bundle `entry-2c20de0e355b3f16042ea56210b5b470.js`, 4.2 MB, verified live on the preview
+host with this pass's strings inside: "You blocked this chat", "Delete this", "Checking in",
+"NotifyBanner", "Search posts, accounts or groups", "Could not reach the scholar list"; the
+pass-94 helper text "The same list you chose" is gone). The new server endpoint
+`api/admin/videos/cleanup.php` (5267 bytes) and the `reply_id` handling in
+`api/feed/report_comment.php` are confirmed on `origin/main`. **`app.deenlink.org` still serves
+`entry-12364dbb…` (pass 95/96) until cPanel → Git Version Control → Update from Remote →
+Deploy HEAD.**
+
+### The one thing this pass did NOT close
+
+Arrival notifications while the PWA is **closed** still cannot be delivered: `send_web_push_notification()`
+short-circuits on `if (!class_exists('\\Minishlink\\WebPush\\WebPush')) return;` and the library is not
+installed on the host, so `web_push_subscriptions` never receives anything (the VAPID keys in
+`api/config/web_push.php` are present and `web_push_subscribe.php` accepts subscriptions). Until that
+library is vendored/installed, delivery relies on the in-app banner added here. Next step for the owner:
+either allow Composer on the host (`composer require minishlink/web-push`) or ask for a vendored copy in
+the repo.
+
+## PASS 98 — the scholar was never getting questions (and could not reach them)
+
+**Owner's question:** "What about the scholar not getting questions?" Traced end to end on a fresh
+rig; the server pipeline was sound, the app and the admin page were not.
+
+### Proof the server loop IS sound (rig, MariaDB from the production dump)
+
+Ask (public + private) → row in `scholar_questions` → **scholar's desk** (`scholar_list.php` returns
+it) → notification `question_received` ("…asked you a question", entity `question/<id>`) + unread
+count → scholar opens it, `respond.php` with `answer_text` → asker's `my_list.php` shows the answer,
+asker gets `question_answered`, and the answered **public** Q&A appears in `public_list.php` (the
+feed card too). Nothing below changes that.
+
+### The five real breaks
+
+1. **`api.scholars()` returned `[]` when the REQUEST FAILED**, so the app could not tell an empty
+   roster from a dead network. A single flaky fetch left "Browse Scholars" blank for the whole visit
+   and the Ask-a-scholar picker on "Loading scholars…" for ever. The pass-97 retry/error code in
+   `tools/scholars.tsx` could therefore **never run** (nothing ever threw). `scholars()` now returns
+   `null` for failure, `[]` for a genuinely empty roster; retries are real, and the roster screen has
+   the **Retry** button its own copy promised.
+2. **Sending a question with no scholar selected was a silent no-op** (`if (askBusy || !askScholar)
+   return;`). The picker now shows loading / "Could not load the scholar list." + **Retry** /
+   "No scholar is available to answer yet.", and Send always answers: "We could not load the scholar
+   list. Tap Retry above…" or "Choose a scholar first".
+3. **Question notifications opened the wrong screen.** Tapping "X asked you a question" fell through
+   to `/profile/<asker>` and "Sheikh answered your question" to `/profile/<scholar>` — the questions
+   were unreachable from the bell. `entity_type: "question"` now routes a **scholar** to
+   `/tools/scholar-inbox?id=<question>` (the desk opens that question directly) and an **asker** to
+   `/tools/fatwa?tab=mine` (new deep-link support in both screens).
+4. **A question whose scholar was switched off went nowhere and was invisible.** Production's
+   approved scholars hang off `deleted_user_*` accounts with `is_active = 0` (dump: scholars 1/10/11 →
+   users 32/42/43) and **four questions (q17, q20, q21, q22 → user 43) are stranded there**: the
+   scholar cannot sign in, the roster drops him, new asks answer "Scholar not available", the asker
+   stares at "pending" for ever, and `api/admin/scholars/questions.php` listed **answered questions
+   only** — so nothing anywhere showed them. Now:
+   * `my_list.php` returns `scholar_available` + `scholar_note` and the app says it in the asker's own
+     words: "This scholar account is no longer answering. The DeenLink team can pass your question to
+     another scholar — contact support quoting question #N."
+   * `api/admin/scholars/questions.php?scope=pending|answered|all` (default `answered`, so nothing
+     existing changes) returns counts + status + `scholar_active`, pending first.
+   * Admin → Scholar Management → **Questions** now opens on **To answer**, with To answer /
+     Answered / All tabs, a red line on rows whose scholar's account is off, and a **rescue panel**:
+     "Move open questions to <active approved scholar>" → `api/admin/scholars/reassign_questions.php`
+     (new) moves them, notifies the receiving scholar, and writes to `admin_activity_log`.
+   * **Rig proof:** stranded q24 (scholar switched off) → visible under `scope=pending`, `answers`
+     note on the asker side; rescue moved it to an active approved scholar (`moved: 1`), the new
+     scholar saw it in `scholar_list.php` with notification `question_received` entity `question/24`,
+     and the audit log carries `scholar_questions_reassigned | Moved 1 open question(s) from user #116
+     to Sheikh Second`.
+
+### Verified by execution
+
+`tsc --noEmit` 0 · `php -l` 478 files 0 failures · `node --check admin/scholar-management-live.js` ·
+rig: answer flow (`respond.php` wants **`answer_text`**, not `answer`), public Q&A publish, the
+admin scopes, the rescue + notification + audit row.
