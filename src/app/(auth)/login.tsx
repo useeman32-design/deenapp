@@ -9,6 +9,7 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import * as api from '@/api/client';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
+import { useGoogleAuth } from '@/lib/useGoogleAuth';
 import { OtpVerify } from '@/components/OtpVerify';
 import { enterGuest } from '@/lib/guest';
 
@@ -92,14 +93,9 @@ export default function Login() {
     }
   };
 
-  const googleDemo = async () => {
-    if (busy) return;
-    setBusy(true); setErr('');
-    const res = await login('demo@deenlink.org', 'demo1234', true);
-    setBusy(false);
-    if (res.ok) router.replace('/(tabs)');
-    else setErr(res.message || 'Google sign-in is not available yet. Use email and password.');
-  };
+  /* pass 99 — real Google sign-in: existing members are signed straight in,
+   * a Google account that was never completed still gets the modal. */
+  const google = useGoogleAuth();
 
   return (
     <AuthShell>
@@ -148,7 +144,7 @@ export default function Login() {
 
         <AuthOrDivider />
 
-        <AuthGoogleButton onDemo={googleDemo} />
+        <AuthGoogleButton label="Sign in with Google" busy={google.busy} onDemo={() => { void google.start('signin'); }} />
 
         <AuthSwitchLine
           text="Don’t have an account?"

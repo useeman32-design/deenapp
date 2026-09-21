@@ -3475,3 +3475,81 @@ feed card too). Nothing below changes that.
 `tsc --noEmit` 0 · `php -l` 478 files 0 failures · `node --check admin/scholar-management-live.js` ·
 rig: answer flow (`respond.php` wants **`answer_text`**, not `answer`), public Q&A publish, the
 admin scopes, the rescue + notification + audit row.
+
+## PASS 99 — Google sign-up / sign-in (owner: "wire the good signup i will paste the requirements in the admin")
+
+Built so the **credentials live in Admin, not in the bundle** — the owner pastes them whenever he is
+ready and the app picks them up without a rebuild.
+
+### Where he pastes them
+
+**Admin → Settings → "Google sign-in / sign-up"** (new card): Client ID, Client Secret, an on/off
+toggle, an optional App URL, a **Save Google settings** button and a **Test Google sign-in** button
+that asks the server whether it is configured and opens the Google window if it is. The card also
+prints the two values that must be pasted into Google Cloud Console (they must match byte for byte):
+Authorised **JavaScript origin** and Authorised **redirect URI** (`<host>/api/auth/google_callback.php`).
+The status line says LIVE / Client ID saved, secret missing / not configured yet.
+`google.client_secret` is **encrypted at rest** with `DEENLINK_SECRET_MASTER` (same store as the
+Flutterwave keys) and is never sent back to the browser — the page only learns that one is set.
+
+### The flow (api/auth/google/*)
+
+`google_start.php` → authorise URL (state in session, `prompt=select_account`, so a new Google
+account can always be chosen) → `google_callback.php` (state check, code→token exchange
+server-to-server, profile from Google's **userinfo** endpoint over TLS, so the email is Google's and
+never the browser's word) → session issued exactly like a password login (PHP session +
+`deenlink_session` cookie + `user_sessions` row) → browser returns to the app with
+`?google=complete | login | linked | error | cancelled`.
+
+Three outcomes:
+
+* **identity known** → sign in, no modal;
+* **same email already has a password account** → the Google identity is linked to it and the user is
+  signed in ("you can sign in either way");
+* **brand new** → a minimal account: name + email + photo from Google, `profile_complete = 0`, 100
+  DeenPoints like the normal signup, and the **"Complete your information" modal** on top of the app.
+
+### The modal (`src/components/GoogleComplete.tsx`, mounted app-wide)
+
+Username (live availability check with the same endpoint the form uses), gender, **date of birth**
+(Google does NOT give this — the owner's note said otherwise, so it is asked here: real date, 13–120,
+no future), country, tribe (Nigeria), aqeedah, and **a password + confirm** — owner: "even password so
+that he can login even without google". Server-side rules mirror `register.php` exactly (username
+3–20 letters/numbers/underscore, not reserved, not taken; password 8+ with upper, lower, digit,
+symbol). Nothing else in the app is reachable until it is saved; Save adopts the session and lands on
+**Home**. It appears from the redirect **or** from `me.php` reporting `profile_complete: false`, so a
+closed window / another device still brings it back.
+
+### Verified end to end on a rig with a MOCK Google
+
+The rig ran the real endpoints with the OAuth URLs pointed at a local mock (`auto_prepend_file`, no
+production code changed — the endpoint constants are guarded with `if (!defined(...))` for exactly
+this reason):
+
+| step | result |
+|---|---|
+| not configured | 503 + "The Google Client ID has not been pasted in Admin…" |
+| admin save → read back | client id + `ready: true`, secret stored as `enc:v1:…`, page sees only `client_secret_set: true` |
+| start | `client_id`, `redirect_uri`, `response_type=code`, `scope=openid email profile`, `state`, `prompt=select_account` |
+| callback | 302 → `?google=complete`; DB: user `gtest`, `profile_complete=0`, 100 points; `google_identities` row; session cookie honoured by `me.php` |
+| `me.php` | `profile_complete: false`, `google_linked: true` → modal trigger |
+| validation | weak password / reserved `admin` / taken `g2test2` / future DOB all refused with the reason named |
+| the save | `success`; row has username, gender, dob, country, tribe, aqeedah, verified, complete |
+| **login without Google** | `success` by **username** AND by **email** with the password just set |
+| returning user | new state → `?google=login` (no modal) |
+| existing email | `?google=linked`, that account signed in |
+| forged state | refused, `me.php` 401 — no session minted |
+
+### Notes
+
+* `google_identities` + `users.profile_complete` / `users.google_email` are created by a **guarded,
+  additive** ensure (`api/auth/google/common.php`) that also self-heals `date_of_birth` on an older
+  database.
+* `me.php`'s reduced-column fallback used to drop the new columns, which made a brand-new Google
+  account read back as *complete* on an older DB; the fallback now tries the richest column list
+  first.
+* The old demo Google buttons (which signed into a fake `demo@deenlink.org`) are gone from both auth
+  screens; the unreachable "gmail" demo screen in `register.tsx` is left in place but is no longer
+  linked to anything (harmless, dead).
+* `src/lib/countries.ts` — the country list used to live inside `register.tsx`; it is now shared with
+  the modal.

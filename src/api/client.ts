@@ -792,6 +792,79 @@ export async function publicSettings(): Promise<
   return r.ok && r.data.settings ? r.data.settings : {};
 }
 
+/* ─── pass 99 — Google sign-up / sign-in ─────────────────────────────────────
+ * The browser does the Google round trip (server-side OAuth, code flow); the
+ * app only asks for the URL, then sends the user there. Whether Google is
+ * switched on is read from the server at runtime, so the owner can paste the
+ * credentials in Admin without a rebuild. */
+export const GOOGLE_MSG_KEY = "dl.google.message";
+
+export async function googleStart(
+  mode: "signup" | "signin",
+): Promise<{ ok: boolean; configured: boolean; url?: string; message?: string }> {
+  const r = await request<{
+    status?: string;
+    configured?: boolean;
+    url?: string;
+    message?: string;
+  }>(`/api/auth/google_start.php?mode=${mode}&json=1`);
+  if (r.ok && r.data.configured && r.data.url) {
+    return { ok: true, configured: true, url: r.data.url };
+  }
+  return {
+    ok: false,
+    configured: !!r.data.configured,
+    message:
+      r.data.message ||
+      "Google sign-in is not available yet. Please use email and password.",
+  };
+}
+
+/** Step 3: the "Complete your information" modal. Mirrors the normal
+ *  registration rules server-side (username, DOB 13+, password strength). */
+export async function googleComplete(payload: {
+  username: string;
+  gender: string;
+  date_of_birth: string;
+  country?: string;
+  tribe?: string;
+  aqeedah?: string;
+  password: string;
+}): Promise<{ ok: boolean; message?: string; user?: User; errors?: Record<string, string> }> {
+  await fetchCsrf();
+  const r = await request<{
+    status?: string;
+    message?: string;
+    user?: User;
+    errors?: Record<string, string>;
+  }>("/api/auth/google_complete.php", {
+    method: "POST",
+    auth: true,
+    body: { ...payload, confirm_password: payload.password },
+  });
+  if (r.ok && r.data.user) {
+    return { ok: true, user: hydrateUser(r.data.user as unknown as Record<string, unknown>) as unknown as User, message: r.data.message };
+  }
+  return {
+    ok: false,
+    message:
+      r.data.message ||
+      (r.networkError
+        ? "No connection — please check your network and try again."
+        : "Could not save your details."),
+    errors: r.data.errors,
+  };
+}
+
+/** The signed-in account still needs the completion modal (Google sign-up). */
+export async function googleNeedsProfile(): Promise<boolean> {
+  const me = await request<{ user?: { profile_complete?: boolean } }>("/api/auth/me.php", {
+    auth: true,
+  });
+  if (!me.ok) return false;
+  return me.data.user?.profile_complete === false;
+}
+
 /* ─── pass 83-36 — login-time prefetch: feed + groups fire the moment login
  * succeeds (owner: the tabs must show content immediately, not seconds later).
  * The screens consume the cached promise on mount — zero extra requests. ─── */
@@ -4537,4 +4610,9 @@ export const api = {
   unreadNotifications,
   announcement,
   prayerTimesCached,
+  /* pass 99 — Google sign-up / sign-in */
+  googleStart,
+  googleComplete,
+  googleNeedsProfile,
+  checkUsernameAvailable,
 };

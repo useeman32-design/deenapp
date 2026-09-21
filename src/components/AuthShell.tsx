@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -228,10 +228,22 @@ function GoogleG({ size = 18 }: { size?: number }) {
   );
 }
 
-export function AuthGoogleButton({ onDemo }: { onDemo: () => void }) {
+/* pass 99 — the pill is real now: it asks the server for the Google URL and
+ * sends the browser there. `busy` covers the round trip to the server so a tap
+ * on a slow network answers immediately instead of looking dead. */
+export function AuthGoogleButton({
+  onDemo,
+  label = 'Continue with Google',
+  busy = false,
+}: {
+  onDemo: () => void;
+  label?: string;
+  busy?: boolean;
+}) {
   const { isDark } = useTheme();
   return (
     <Pressable
+      disabled={busy}
       onPress={() => { haptic.light(); onDemo(); }}
       style={({ pressed }) => ({
         height: 50,
@@ -246,9 +258,13 @@ export function AuthGoogleButton({ onDemo }: { onDemo: () => void }) {
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      <GoogleG size={18} />
+      {busy ? (
+        <ActivityIndicator size="small" color="#1F2937" />
+      ) : (
+        <GoogleG size={18} />
+      )}
       <T v="body" style={{ color: '#1F2937', fontWeight: '700', fontSize: 13.5 }}>
-        Sign in with Google
+        {busy ? 'Opening Google…' : label}
       </T>
     </Pressable>
   );

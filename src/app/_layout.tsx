@@ -11,6 +11,7 @@ import { NetPill } from '@/lib/net';
 import { LoginModalHost } from '@/components/LoginModal';
 import { AlertHost } from '@/lib/alert';
 import { NotifyBanner } from '@/components/NotifyBanner';
+import { GoogleCompleteModal } from '@/components/GoogleComplete';
 import { useNotifyWatch } from '@/lib/notifyCenter';
 import { SplashGate } from '@/components/SplashGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
@@ -219,6 +220,9 @@ export default function RootLayout() {
           {/* pass 97 — live unread badges + an in-app banner when something
               arrives (the PWA had neither). */}
           <NotifyBanner />
+          {/* pass 99 — a Google sign-up must be finished before the app is usable;
+              the modal appears wherever the user lands, on any device. */}
+          <GoogleCompleteModal />
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>
