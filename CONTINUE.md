@@ -3553,3 +3553,62 @@ this reason):
   linked to anything (harmless, dead).
 * `src/lib/countries.ts` — the country list used to live inside `register.tsx`; it is now shared with
   the modal.
+
+# ══ 2026-09-22 — PASS 100: "VIDEOS CRASHES / COMMENT CRASHES / SHARE NAV / NO SCHOLARS" ══
+# OWNER, verbatim: (1) "the videos page is crashing, taking time to boot and the video takes time to
+# play, but the post that appears in normal community or profile of the video is playing well"
+# (2) "anytime Comment is clicked the app will show error deenlink hit a problem"
+# (3) "when shared a post to fellow user when the am navigating their will get deenlink hit a
+#     problem"  (4) "Browse scholar is not showing the scholar so that i can ask questions".
+#
+# HOW EACH WAS PROVEN (this pass finally drove the REAL bundle in a REAL browser):
+#  • Headless Chromium now works in the sandbox: `~/.cache/ms-playwright/chromium_headless_shell-1187/`
+#    + the missing shared libs unpacked with `apt-get download` + `dpkg-deb -x` into a dir that is
+#    passed as LD_LIBRARY_PATH (no root needed for that part).
+#  • A local rig that mirrors production: PHP serves the app AND the API from one origin
+#    (`/tmp/docroot` = dist-app + symlinked api/, router.php SPA fallback) so cookies/session behave
+#    exactly like app.deenlink.org. Scripts: `scripts/repro100-rig.mjs` (repro) and
+#    `scripts/verify100.mjs` (pass/fail verification suite).
+#  • **The web bundle refuses to talk to any API unless the origin is exactly app.deenlink.org**
+#    (`src/api/client.ts`: `FORCE_DEMO = !IS_APP_DOMAIN`). Everything hosted elsewhere (GitHub Pages
+#    preview, localhost) silently runs on bundled demo data — which is why earlier local attempts
+#    showed hollow screens. For rig testing the built entry bundle is patched in place:
+#    `/^https?:\/\/(app\.deenlink\.org|127\.0\.0\.1:8099)$/` (test artifact only, never shipped).
+#
+# (1) VIDEOS PAGE — FIXED
+#   Cause: `videos.tsx` passed an INLINE arrow to `useContentRefresh('video', () => {…})`. In
+#   `feedSync.ts` `run` was `useCallback(…, [refetch])` and the focus effect keyed on `[run]`, so a
+#   new `run` identity arrived on EVERY render → useFocusEffect re-invoked → setLiveTick/setStoreTick
+#   → render → … Measured on the rig: **1,625 `videos/list.php` + 1,625 `feed/get_posts.php` calls in
+#   20 s**, which saturated the server and killed the reel (Chrome: "no supported source was found").
+#   Fix: `useContentRefresh` keeps `refetch` in a ref (stable `run`, empty deps) so no caller can
+#   cause this again, and the videos screen now passes a `useCallback`.
+#   After: **2 + 2 calls in 15 s**, no crash screen, reels render.
+# (2) COMMENT CRASH — FIXED
+#   Cause: `CommentsModal.tsx` had `const [deletingIds, setDeletingIds] = useState(…)` BELOW the
+#   `if (!post) return null;` guard (added by pass 97's delete feature, right under the pass-88
+#   comment that warns about exactly this). Opening a thread rendered one more hook than the previous
+#   render → **React #310** → CrashBoundary "DeenLink hit a problem". Reproduced verbatim in the
+#   browser (both an inline `&&` of the error text and the component stack were captured).
+#   Fix: the state moved above the guard. Verified: feed comments open AND the reels comment rail
+#   opens the sheet, no CrashBoundary, no #310. A whole-repo scan for hooks after an early `return`
+#   finds no other instance.
+# (4) BROWSE SCHOLARS — FIXED
+#   Cause: `tools/scholars.tsx`'s `list` useMemo was keyed `[q, field, catScreen]` — the roster
+#   arrives asynchronously, so the list stayed computed from the EMPTY first array and the screen
+#   claimed "No scholar matches that search or field". Repro on the LIVE site: default "All fields"
+#   showed that message while `/api/questions/scholars.php` returns Sheikh Ahmad Yusuf; tapping any
+#   category chip changed `catScreen`, re-ran the memo and the scholar appeared.
+#   Fix: `roster` added to the deps. Verified on the rig with a seeded approved scholar: the roster
+#   lists him on first paint, no chip tap needed.
+# (3) SHARE → NAVIGATE — NOT REPRODUCED YET (open)
+#   Everything tried is clean on the current source: share a post to another user from the community
+#   feed (share sheet → SEND TO → Send), then the sender's inbox list, the inbox thread, the shared
+#   card, the recipient's inbox, the recipient's chat thread with the shared-post card, the sender
+#   viewing the recipient's profile, and notifications — no crash screen, no page error. Ruled out:
+#   the #310 class (single instance in the repo, in CommentsModal, fixed). Still open: a screenshot or
+#   the exact screen he was on would pinpoint it.
+#
+# RIG NOTES: the two sample mp4s in `deenlink-api/uploads/videos/` carry no decodable stream
+# (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS` even in a bare <video>), so reel "does it play" can only be
+# judged on live media; the loop/crash findings above are independent of the fixture.

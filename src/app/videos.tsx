@@ -721,11 +721,15 @@ function VideosFeedInner() {
 
   /* pass 97 — this screen re-reads the server on focus, on foreground and when
    * anything posts, so a video uploaded elsewhere (or on another device) is
-   * here without restarting the app. */
-  useContentRefresh('video', () => {
+   * here without restarting the app.
+   * pass 100 — the callback below MUST be stable: an inline arrow made the
+   * refresh effect re-run on every render, which turned this screen into an
+   * infinite refetch loop (the owner: "crashing, taking time to boot"). */
+  const refreshFromServer = useCallback(() => {
     setLiveTick((t) => t + 1);
     setStoreTick((t) => t + 1);
-  });
+  }, []);
+  useContentRefresh('video', refreshFromServer);
 
   /* pass 42 — UNIVERSAL VIDEOS: community video posts flow INTO the reel feed
    * (only those NOT cross-posted from this composer — those are already here). */

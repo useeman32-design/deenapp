@@ -743,6 +743,10 @@ export function CommentsModal({
   const [gifOpen, setGifOpen] = useState(false);
   /* pass 54 — tagging DeenLink AI is now an explicit chip, NOT injected text. */
   const [aiTagged, setAiTagged] = useState(false);
+  /* pass 100 — moved here from below the `if (!post) return null;` guard (see
+   * the delete handler further down): a hook after that guard changes the hook
+   * count between renders → React #310 whenever a comment thread is opened. */
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   /* pass 28: LIVE drag-to-resize via pointer events (PanResponder was dead on
    * iOS Safari web). The sheet follows the finger; release snaps. */
   const vh = Dimensions.get("window").height;
@@ -1007,8 +1011,14 @@ export function CommentsModal({
    * written but never taken back: /api/feed/delete_comment.php and
    * delete_reply.php were never called from anywhere in the app. The rules are
    * the server's (the author, or the owner of the post being commented on), and
-   * the row disappears locally the moment the server confirms. */
-  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+   * the row disappears locally the moment the server confirms.
+   * pass 100 — this useState MUST stay ABOVE the `if (!post) return null` guard
+   * a few lines up (exactly like the pass-88 comment above says): pass 97 added
+   * it below the guard, so opening any comment thread rendered one more hook
+   * than the previous render → React #310 ("rendered more hooks than during the
+   * previous render") → CrashBoundary: "DeenLink hit a problem" — the owner's
+   * "anytime Comment is clicked the app will show error deenlink hit a
+   * problem". Reproduced on the rig, then verified fixed. */
   const myHandle = String(me.handle ?? "").toLowerCase();
   const postOwnerHandle = String(
     (post as { user?: { username?: string } } | null)?.user?.username ?? "",

@@ -239,7 +239,14 @@ export default function Scholars() {
         (s.madhhab ?? '') + (s.level_label ?? '') + (s.country ?? '') + (s.description ?? '')
       ).toLowerCase().includes(needle);
     });
-  }, [q, field, catScreen]);
+    /* pass 100 — `roster` MUST be a dependency: it arrives from the server
+     * AFTER the first render, so a memo keyed only on q/field/catScreen kept the
+     * list computed from the empty initial array for ever — the owner saw "No
+     * scholar matches that search or field" on an account whose roster has one
+     * approved scholar ("Browse scholar is not showing the scholar so that i can
+     * ask questions"). Verified on the live site: tapping any category chip
+     * changed catScreen, re-ran this memo, and the scholar appeared. */
+  }, [q, field, catScreen, roster]);
 
   /* pass 95 — the SENT TO SCHOLARS block above is the server's copy of these
    * same questions. Reconcile the phone mirror against it: keep the server's

@@ -65,7 +65,8 @@ export function onContentChanged(kind: FeedKind, fn: (at: number) => void): () =
  *   · the server tells us something changed (`kind`),
  *   · every `intervalMs` while focused (0 disables).
  *
- * `refetch` must be stable (useCallback) or the hook re-subscribes each render.
+ * `refetch` does NOT need to be stable: it is kept in a ref, so a caller may
+ * pass an inline arrow without breaking anything (see pass 100 below).
  */
 export function useContentRefresh(
   kind: FeedKind,
@@ -74,11 +75,24 @@ export function useContentRefresh(
 ): void {
   const { intervalMs = 45000 } = options;
   const busy = useRef(false);
+  /* pass 100 — owner: "the videos page is crashing, taking time to boot and the
+   * video takes time to play". The videos screen passed an INLINE arrow as
+   * `refetch`, so `run` (useCallback [refetch]) — and therefore the useFocusEffect
+   * callback above it — got a new identity on EVERY render. React Navigation
+   * re-invokes useFocusEffect whenever its callback identity changes, so each
+   * render called run() → setState (setLiveTick/setStoreTick) → render → … an
+   * unbounded refetch storm: measured 1,625 `videos/list.php` + 1,625
+   * `feed/get_posts.php` calls in 20 seconds on the rig, which starved the media
+   * request and killed the reel ("no supported source was found").
+   * The ref keeps `run` (and every subscription below) stable no matter how the
+   * caller writes its refetch. */
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
   const run = useCallback(() => {
     if (busy.current) return; /* never stack overlapping refetches */
     busy.current = true;
     try {
-      const r = refetch();
+      const r = refetchRef.current();
       if (r && typeof (r as Promise<void>).then === 'function') {
         void (r as Promise<void>).finally(() => {
           busy.current = false;
@@ -89,7 +103,7 @@ export function useContentRefresh(
     } catch {
       busy.current = false;
     }
-  }, [refetch]);
+  }, []);
 
   /* focus + interval */
   useFocusEffect(
