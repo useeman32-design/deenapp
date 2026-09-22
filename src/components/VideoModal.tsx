@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Image, Linking, Modal, Platform, Pressable, Share, View } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -18,6 +19,13 @@ export function fmtViews(n?: number | null) {
  * Web: real YouTube iframe. Native (Expo Go): player-style preview with the
  * actual thumbnail + explicit "Watch on YouTube" handoff — Expo Go cannot
  * embed a live YouTube player (would need a dev build + webview library).
+ *
+ * pass 101 — an UPLOADED daily video now plays HERE. It used to show a poster
+ * with a play button whose handler was Linking.openURL(source_url): it handed
+ * the file to a browser tab (and, before the API started sending `source_url`,
+ * it had no URL at all — the owner's own daily videos could not be watched in
+ * the app). The inline player below is the same expo-video component the reels
+ * feed uses, so an admin-uploaded daily plays exactly like a reel.
  */
 export function VideoModal({
   video,
@@ -32,6 +40,24 @@ export function VideoModal({
 }) {
   const { theme } = useTheme();
   const d = theme.dash;
+
+  /* pass 101 — inline playback for uploaded (local) daily videos; a YouTube
+   * daily keeps the embed. `null` source = no media, so the hook order is
+   * constant whether or not a video is open. */
+  const isEmbed = !!video?.embed_url;
+  const localSrc = typeof video?.source_url === 'string' ? String(video.source_url) : '';
+  const canPlayInline = !isEmbed && localSrc !== '';
+  const player = useVideoPlayer(canPlayInline ? localSrc : null, (p) => {
+    p.loop = false;
+  });
+  /* strict stop rule: closing the viewer stops the video */
+  useEffect(() => {
+    if (!video) {
+      try {
+        player.pause();
+      } catch {}
+    }
+  }, [video, player]);
 
   /* pass 90 — closing the viewer must free the speaker so nothing is left
    * running underneath it. */
@@ -64,79 +90,83 @@ export function VideoModal({
             </View>
           ) : (
             <View style={{ width: 302 }}>
-              {/* Player-style preview: real thumbnail + play */}
+              {/* pass 101 — uploaded daily: THE REAL PLAYER (it used to be a
+                  poster whose play button opened the file in a browser tab) */}
               <View style={{ width: 302, height: 170, borderRadius: 14, overflow: 'hidden', backgroundColor: '#07100C', marginBottom: 12 }}>
-                {(() => {
-                  const th = (video?.thumb as number | string | null | undefined) ?? (video?.poster_url as string | null | undefined);
-                  return th ? (
-                    <Image
-                      source={typeof th === 'number' ? th : { uri: String(th) }}
-                      style={{ width: 302, height: 170 }}
-                      resizeMode="cover"
-                    />
-                  ) : null;
-                })()}
-                <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,10,8,0.42)' }} />
-                <Pressable
-                  onPress={() => video?.source_url && Linking.openURL(video.source_url).catch(() => {})}
-                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <View
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 28,
-                      backgroundColor: d.emerald,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      shadowColor: d.emerald,
-                      shadowOpacity: 0.55,
-                      shadowRadius: 14,
-                      shadowOffset: { width: 0, height: 5 },
-                      elevation: 8,
-                    }}
-                  >
-                    <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
-                  </View>
-                  <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10.5, marginTop: 10, fontWeight: '600' }}>
-                    Tap to play
-                  </T>
-                  {video?.duration ? (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        right: 10,
-                        bottom: 10,
-                        backgroundColor: 'rgba(0,0,0,0.65)',
-                        borderRadius: 7,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                      }}
+                {canPlayInline ? (
+                  <VideoView
+                    style={{ width: 302, height: 170 }}
+                    player={player}
+                    nativeControls
+                    contentFit="cover"
+                  />
+                ) : (
+                  <>
+                    {(() => {
+                      const th = (video?.thumb as number | string | null | undefined) ?? (video?.poster_url as string | null | undefined);
+                      return th ? (
+                        <Image
+                          source={typeof th === 'number' ? th : { uri: String(th) }}
+                          style={{ width: 302, height: 170 }}
+                          resizeMode="cover"
+                        />
+                      ) : null;
+                    })()}
+                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,10,8,0.42)' }} />
+                    <Pressable
+                      onPress={() => localSrc && Linking.openURL(localSrc).catch(() => {})}
+                      style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <T v="caption" style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                        {String(video.duration)}
+                      <View
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 28,
+                          backgroundColor: d.emerald,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          shadowColor: d.emerald,
+                          shadowOpacity: 0.55,
+                          shadowRadius: 14,
+                          shadowOffset: { width: 0, height: 5 },
+                          elevation: 8,
+                        }}
+                      >
+                        <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
+                      </View>
+                      <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10.5, marginTop: 10, fontWeight: '600' }}>
+                        Tap to play
                       </T>
-                    </View>
-                  ) : null}
-                </Pressable>
+                      {video?.duration ? (
+                        <View style={{ position: 'absolute', right: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <T v="caption" style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                            {String(video.duration)}
+                          </T>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  </>
+                )}
               </View>
-              <Pressable
-                onPress={() => video?.source_url && Linking.openURL(video.source_url).catch(() => {})}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  backgroundColor: d.gold,
-                  borderRadius: 12,
-                  paddingVertical: 11,
-                }}
-              >
-                <FontAwesome5 name="youtube" size={14} color="#0B1512" />
-                <T v="body" style={{ color: '#0B1512', fontSize: 13, fontWeight: '700' }}>
-                  Watch on YouTube
-                </T>
-              </Pressable>
+              {canPlayInline ? null : (
+                <Pressable
+                  onPress={() => localSrc && Linking.openURL(localSrc).catch(() => {})}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: d.gold,
+                    borderRadius: 12,
+                    paddingVertical: 11,
+                  }}
+                >
+                  <FontAwesome5 name="youtube" size={14} color="#0B1512" />
+                  <T v="body" style={{ color: '#0B1512', fontSize: 13, fontWeight: '700' }}>
+                    {isEmbed ? 'Watch on YouTube' : 'Open video file'}
+                  </T>
+                </Pressable>
+              )}
             </View>
           )}
           <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 10 }}>

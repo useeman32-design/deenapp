@@ -3612,3 +3612,61 @@ this reason):
 # RIG NOTES: the two sample mp4s in `deenlink-api/uploads/videos/` carry no decodable stream
 # (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS` even in a bare <video>), so reel "does it play" can only be
 # judged on live media; the loop/crash findings above are independent of the fixture.
+
+## PASS 101 — daily videos wired end to end in the admin (and playable in the app)
+
+OWNER ASK: "before i test this make sure the daily videos is wired in the admin so that i can be
+uploading my videos or youtube videos as daily videos in the app". Executing his exact workflow on
+the rig (rebuilt rig → admin page → app) exposed three API defects and one app defect. All fixed.
+
+# (1) ADMIN COULD NOT ADD A DAILY AT ALL — `api/admin/videos/list.php` WAS THE PUBLIC FEED
+#   The endpoint returned the app's feed shape `{status,type,source,items,meta}` while
+#   `admin/video-management.html`'s loader needs
+#   `categories · classifications · accounts · videos.{daily,reels} · settings · dailyQueue`.
+#   Consequence on the real page: the Add Daily Video modal opened, but the Account and Category
+#   selects (both `required`) had **0 options** — the form could not be submitted — the Daily/Reels
+#   grids showed nothing and the queue chips fell back to hard-coded numbers.
+#   Fix: rewritten to the admin contract. Rig counts after: 12 categories / 10 accounts /
+#   7 dailies / 10 reels; settings {5,30,5,0}; dailyQueue {pending 0, active 2, expired 5}.
+
+# (2) HIS YOUTUBE DAILIES NEVER REACHED THE APP — the homepage daily feed filtered `sourceType === 'local'`
+#   So a YouTube daily was saved, listed in the admin, and then invisible in the app; meanwhile four
+#   file-less seed rows (`/videos/video_1..4.mp4`, which are not files — the server answers the SPA
+#   shell) were still being served. Fix (shared `$videos_servable` in `api/videos/list.php`):
+#   youtube allowed only where the client can embed it (daily feeds), local only when the file
+#   actually exists on disk, tiktok/instagram/unsupported never. Applied to the fast homepage-daily
+#   path, its reel fallback, and the main path (`$allowEmbeds = !$includeAll && $type === 'daily'`,
+#   so the REELS page stays local-only — it has no YouTube player).
+
+# (3) THE APP HAD NO URL FOR AN UPLOADED DAILY — `videos_format_row` now emits the aliases the app reads
+#   `embed_url` (YouTube embed), `thumb` + `poster_url` (YouTube thumbnail fallback when no poster was
+#   uploaded) plus snake_case `source_url` / `video_type` / counts.
+
+# (4) AN UPLOADED DAILY COULD NOT BE WATCHED IN THE APP — `VideoModal` only had a browser hand-off
+#   The local branch was a poster + "Tap to play" whose handler was `Linking.openURL(source_url)`:
+#   it threw the viewer out to a browser tab (and, before (3), had no URL at all). An admin's own
+#   uploaded daily video was effectively unplayable in the app.
+#   Fix: `src/components/VideoModal.tsx` mounts the SAME `expo-video` player the reels feed uses
+#   (`useVideoPlayer` + `VideoView`, native controls) for uploaded dailies; the poster preview and
+#   the hand-off button remain only as the fallback when there is no URL. The player's hook is above
+#   every early return, so the hook order is constant; closing the viewer pauses it (strict stop rule).
+
+# RIG PROOF — `scripts/verify101-daily.mjs` (out: /tmp/pwtest/out/verify101.txt + screenshots)
+#   PART A (admin, real page, real form): A0 login · A1 page loads · A2 tab + Add button · A3 modal
+#   opens · A4 dropdowns POPULATED (10 accounts / 12 categories — they were empty before) · A5 YouTube
+#   daily added through the page · A6 uploaded daily added · A6b a REAL (decodable) uploaded daily
+#   added · A7 both listed in the Daily grid · A8 queue counters.
+#   PART B (app, same origin): B1 home shows the Daily Videos strip with both · B2 YouTube daily opens
+#   the embed (`iframe = https://www.youtube.com/embed/dQw4w9WgXcQ`, "Now playing on YouTube") ·
+#   B3 the uploaded daily opens the real inline player on its own file
+#   (`video src = /uploads/videos/video_….webm`) · B3b that file came back **200** · B3c it actually
+#   plays (currentTime 1.42 s, readyState 4, decoded 320×240) · B3d closing the viewer stops it ·
+#   B4 no page errors.
+#   Two traps worth remembering: `document.querySelector('video')` finds the app's hidden 2×2 AUDIO
+#   engine, not the viewer (pick the video wider than 100 px), and the old 40 KB fixture in
+#   /tmp/test_daily.mp4 is junk — Chromium fails it with DEMUXER_ERROR, and this Chromium build has no
+#   H.264, so a VP8/WebM file is what proves playback.
+
+# LIVE AUDIT (unchanged by this pass, for the record): the live daily feed serves four file-less
+#   dummies (/videos/video_1..4.mp4 → the SPA shell) and the live reels feed serves 2 local files.
+#   After the deploy the dummies drop out of the daily feed and the YouTube dailies surface.
