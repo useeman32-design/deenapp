@@ -260,6 +260,8 @@ function CommentRow({
   onOpenProfile,
   onClose,
   onReport,
+  reportedIds,
+  reportingIds,
   onDelete,
   canDelete,
   highlightId,
@@ -277,6 +279,8 @@ function CommentRow({
   onOpenProfile: (handle: string) => void;
   onClose?: () => void;
   onReport: (c: SampleComment) => void;
+  reportedIds: Set<number>;
+  reportingIds: Set<number>;
   /* pass 97 — the author (or the post owner) can delete a comment */
   onDelete?: (c: SampleComment) => void;
   canDelete?: (c: SampleComment) => boolean;
@@ -446,10 +450,11 @@ function CommentRow({
           {/* pass 83-39 — tiny red flag: tap to report this comment */}
           <Pressable
             hitSlop={8}
-            onPress={() => onReport(c)}
-            accessibilityLabel="Report comment"
+            onPress={() => { if (!reportedIds.has(c.id) && !reportingIds.has(c.id)) onReport(c); }}
+            accessibilityLabel={reportedIds.has(c.id) ? "Comment reported" : "Report comment"}
+            disabled={reportedIds.has(c.id) || reportingIds.has(c.id)}
           >
-            <FontAwesome5 name="flag" size={9} color="#E74C3C" />
+            {reportingIds.has(c.id) ? <ActivityIndicator size="small" color="#E8C96A" /> : <FontAwesome5 name={reportedIds.has(c.id) ? "check" : "flag"} size={9} color={reportedIds.has(c.id) ? colors.emerald : "#E74C3C"} />}
           </Pressable>
           {/* pass 97 — delete your own comment (or any comment on your post).
               The endpoint existed; the app simply never offered it. */}
@@ -524,6 +529,10 @@ function CommentRow({
                 onOpenProfile={onOpenProfile}
                 onClose={onClose}
                 onReport={onReport}
+                reportedIds={reportedIds}
+                reportingIds={reportingIds}
+                onDelete={onDelete}
+                canDelete={canDelete}
                 highlightId={highlightId}
                 colors={colors}
               />
@@ -589,6 +598,7 @@ export function CommentsModal({
   const [likedMap, setLikedMap] = useState<Record<number, boolean>>({});
   const [openReplies, setOpenReplies] = useState<Set<number>>(new Set());
   const [reportedIds, setReportedIds] = useState<Set<number>>(new Set());
+  const [reportingIds, setReportingIds] = useState<Set<number>>(new Set());
   const [draft, setDraft] = useState("");
   /* pass 40 — @DeenLink AI: mentions get an in-thread AI reply (like Grok on X) */
   const [aiTyping, setAiTyping] = useState(false);
@@ -613,6 +623,7 @@ export function CommentsModal({
     name: c.user?.name || c.user?.username || "DeenLink",
     handle: c.user?.username || "deenlink",
     avatar: c.user?.profile_image_url ?? null,
+    badge: (c.user?.verification_badge as SampleComment["badge"]) ?? null,
     text: c.text,
     time: c.time_ago || "",
     likes: c.like_count,
@@ -630,6 +641,7 @@ export function CommentsModal({
             name: r.user?.name || r.user?.username || "DeenLink",
             handle: r.user?.username || "deenlink",
             avatar: r.user?.profile_image_url ?? null,
+            badge: (r.user?.verification_badge as SampleComment["badge"]) ?? null,
             text: r.text,
             time: r.time_ago || "",
             likes: r.like_count,
@@ -982,13 +994,15 @@ export function CommentsModal({
            * working"). */
           const isReplyRow = c.id >= REPLY_OFF;
           const realId = isReplyRow ? c.id - REPLY_OFF : c.id;
+          setReportingIds((prev) => new Set(prev).add(c.id));
           const send =
             liveVideo && videoId
               ? api.videosReportComment(videoId, realId, rn)
               : isReplyRow
                 ? api.reportReply(realId, rn)
                 : api.reportComment(realId, rn);
-          void send.then((okR) => {
+          void send.catch(() => false).then((okR) => {
+            setReportingIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
             if (okR) {
               setReportedIds((prev) => new Set(prev).add(c.id));
               Alert.alert(
@@ -1039,6 +1053,13 @@ export function CommentsModal({
         onPress: () => {
           const realId = isReply ? c.id - REPLY_OFF : c.id;
           setDeletingIds((prev) => new Set(prev).add(c.id));
+          /* Remove immediately so the thread behaves like a live conversation.
+           * Keep a snapshot only to restore the row if the server rejects it. */
+          const snapshot = items;
+          const removeLocal = (prev: SampleComment[]) => prev
+            .filter((x) => x.id !== c.id)
+            .map((x) => ({ ...x, replies: (x.replies ?? []).filter((r) => r.id !== c.id) }));
+          setItems(removeLocal);
           const done = (ok: boolean) => {
             setDeletingIds((prev) => {
               const n = new Set(prev);
@@ -1046,17 +1067,10 @@ export function CommentsModal({
               return n;
             });
             if (!ok) {
+              setItems(snapshot);
               Alert.alert("Could not delete", "Please try again in a moment.");
               return;
             }
-            setItems((prev) =>
-              prev
-                .filter((x) => x.id !== c.id)
-                .map((x) => ({
-                  ...x,
-                  replies: (x.replies ?? []).filter((r) => r.id !== c.id),
-                })),
-            );
             onDeleted?.(realId, isReply);
           };
           if (liveVideo && videoId) {
@@ -1556,6 +1570,8 @@ export function CommentsModal({
                 onOpenProfile={openProfile}
                 onClose={onClose}
                 onReport={handleReportComment}
+                reportedIds={reportedIds}
+                reportingIds={reportingIds}
                 onDelete={handleDeleteComment}
                 canDelete={canDeleteComment}
                 highlightId={highlightCommentId}

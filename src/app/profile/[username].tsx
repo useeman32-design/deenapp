@@ -62,6 +62,7 @@ function PublicProfileScreenInner() {
   const params = useLocalSearchParams<{
     username?: string | string[];
     tab?: string | string[];
+    question_id?: string | string[];
   }>();
   const username = (
     Array.isArray(params.username)
@@ -71,7 +72,9 @@ function PublicProfileScreenInner() {
     .replace(/^@/, "")
     .trim();
   const initialTab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
+  const selectedQuestionId = Number(Array.isArray(params.question_id) ? params.question_id[0] : (params.question_id ?? 0)) || 0;
   const router = useRouter();
+  const profileScrollRef = useRef<ScrollView>(null);
   const { theme, isDark } = useTheme();
   /* pass 89 — the profile feed rendered FeedCard without an onComments handler, so the
    * speech bubble was a dead tap. The comments modal is mounted by the screen, the way
@@ -191,6 +194,7 @@ function PublicProfileScreenInner() {
   >(null);
   /* pass 75 — a real scholar's answered questions come from the server */
   const [liveQAs, setLiveQAs] = useState<Array<{
+    id: number;
     q: string;
     a: string;
   }> | null>(null);
@@ -229,7 +233,7 @@ function PublicProfileScreenInner() {
     void directFatwas(30, liveP.id).then((rows) => {
       if (rows.length)
         setLiveQAs(
-          rows.map((r) => ({ q: r.question || r.title, a: r.answer })),
+          rows.map((r) => ({ id: Number(r.id), q: r.question || r.title, a: r.answer })),
         );
     });
   }, [liveP]);
@@ -540,6 +544,7 @@ function PublicProfileScreenInner() {
         </View>
       ) : null}
       <ScrollView
+        ref={profileScrollRef}
         contentContainerStyle={{ paddingBottom: 160 }}
         showsVerticalScrollIndicator={false}
       >
@@ -1170,7 +1175,7 @@ function PublicProfileScreenInner() {
         {/* Questions (scholars) */}
         {tab === "questions" && isScholar ? (
           <View style={{ marginHorizontal: 16, gap: 12 }}>
-            <View
+            <Pressable
               style={{
                 borderRadius: 16,
                 borderWidth: 1,
@@ -1185,6 +1190,7 @@ function PublicProfileScreenInner() {
                 gap: 10,
                 alignItems: "center",
               }}
+              onPress={() => router.push({ pathname: '/tools/fatwa', params: { tab: 'ask', scholar_id: String(liveP?.id ?? '') } } as never)}
             >
               <View
                 style={{
@@ -1218,7 +1224,7 @@ function PublicProfileScreenInner() {
                   Browse their answered questions below.
                 </T>
               </View>
-            </View>
+            </Pressable>
 
             {answered.length === 0 ? (
               <T
@@ -1235,9 +1241,9 @@ function PublicProfileScreenInner() {
             ) : (
               answered.map((qa, i) => (
                 <View
-                  key={i}
+                  key={qa.id || i}
                   style={{
-                    backgroundColor: d.card,
+                    backgroundColor: selectedQuestionId > 0 && qa.id === selectedQuestionId ? (isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.08)') : d.card,
                     borderRadius: 16,
                     borderWidth: 1,
                     borderColor: d.cardBorder,
@@ -1697,6 +1703,9 @@ function PublicProfileScreenInner() {
       post={commentPost}
       seed={[]}
       postId={commentPost?.id ?? null}
+      onDeleted={(_id, _isReply) => {
+        if (commentPost) setLivePosts((prev) => (prev ?? []).map((p) => p.id === commentPost.id ? { ...p, comment_count: Math.max(0, Number(p.comment_count ?? 0) - 1) } : p));
+      }}
       onClose={() => setCommentPost(null)}
     />
     </View>

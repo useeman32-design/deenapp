@@ -471,6 +471,7 @@ export type ServerReply = {
     id: number;
     name: string;
     username: string;
+    verification_badge?: string | null;
     profile_image_url?: string | null;
   };
   replies?: ServerReply[];
@@ -1079,6 +1080,22 @@ function absMedia(u: string): string {
  * and absolute urls. Applied to group AND profile post lists. */
 function normalizePostShapes(posts: Post[]): void {
   for (const p of posts) {
+    /* Public Q&A posts are also stored as a marker for server migrations.
+     * Never leak that transport JSON into the normal post body. */
+    const marker = typeof p.content_text === "string" ? p.content_text.match(/^__DL_QA__:?\s*([\s\S]*)$/) : null;
+    const rawQa = marker ? parseLooseJson<Record<string, unknown>>(marker[1]) : null;
+    const serverQa = typeof p.public_qa === "string" ? parseLooseJson<Record<string, unknown>>(p.public_qa) : p.public_qa;
+    if (rawQa && (rawQa.type === "public_qa" || rawQa.question != null || rawQa.answer != null)) {
+      p.is_public_qa = true;
+      p.public_qa = { ...rawQa, question: String(rawQa.question ?? ""), answer: String(rawQa.answer ?? "") };
+      p.content_text = "";
+    } else if (p.is_public_qa && serverQa && typeof serverQa === "object") {
+      p.public_qa = serverQa as Post["public_qa"];
+      p.content_text = "";
+    } else if (p.is_public_qa && marker) {
+      /* A legacy marker without a join is still transport data, never prose. */
+      p.content_text = "";
+    }
     const sp = mapServerPoll((p as { poll?: unknown }).poll);
     if (sp) (p as { poll?: unknown }).poll = sp;
     if (Array.isArray(p.media)) {
@@ -1757,11 +1774,14 @@ export type MyQuestion = {
   id: number;
   title: string;
   question?: string;
+  question_text?: string;
   status: string;
   answer?: string | null;
+  rejection_reason?: string | null;
   answered_at?: string | null;
   created_at?: string;
-  scholar?: { id?: number; name?: string; username?: string } | null;
+  attachment_url?: string | null;
+  scholar?: { id?: number; name?: string; username?: string; verification_badge?: string | null; profile_image_url?: string | null } | null;
   /* pass 98 — the scholar's account can be switched off after the question was
    * sent; the server now says so instead of leaving it at "pending" for ever. */
   scholar_available?: boolean;
@@ -1796,6 +1816,8 @@ export type ScholarQueueRow = {
   id: number;
   title: string;
   question_text?: string;
+  question?: string;
+  attachment_url?: string | null;
   category?: string | null;
   privacy?: string;
   priority_level?: string;
@@ -1808,6 +1830,7 @@ export type ScholarQueueRow = {
   asker_name: string;
   asker_username: string;
   asker_profile_image_url?: string | null;
+  asker_verification_badge?: string | null;
 };
 
 /** The signed-in scholar's question queue (403 for everyone else). */
@@ -1899,6 +1922,24 @@ export async function questionThread(
     return { viewer_role: r.data.viewer_role ?? "", messages: r.data.messages };
   }
   return null;
+}
+
+/** Send a follow-up in the scholar question thread. */
+export async function questionMessage(
+  questionId: number,
+  messageText: string,
+): Promise<QuestionThreadMessage | null> {
+  const r = await request<{
+    status?: string;
+    message_data?: QuestionThreadMessage;
+  }>("/api/questions/message.php", {
+    method: "POST",
+    body: { question_id: questionId, message_text: messageText },
+    auth: true,
+  });
+  return r.ok && r.data.status === "success" && r.data.message_data
+    ? { ...r.data.message_data, sender_name: r.data.message_data.sender_name || "You", sender_username: r.data.message_data.sender_username || "", sender_role: r.data.message_data.sender_role || "asker" }
+    : null;
 }
 
 /* ─────────────── pass 78 — DeenLink Shop (e-commerce) ─────────────── */
@@ -2848,6 +2889,7 @@ export type VideoComment = {
     id?: number;
     name?: string;
     username?: string;
+    verification_badge?: string | null;
     profile_image_url?: string | null;
   } | null;
   replies?: VideoComment[] | null;
@@ -3583,6 +3625,7 @@ export type DirectFatwa = {
     name: string;
     username: string;
     profile_image_url: string | null;
+    verification_badge?: string | null;
     country?: string;
   };
 };
@@ -3624,16 +3667,40 @@ export async function submitQuestion(payload: {
   privacy?: "public" | "private";
   category?: string;
   additional_deenpoints?: number;
-}): Promise<{ ok: boolean; demo?: boolean }> {
-  const r = await request<{ status?: string; message?: string }>(
-    "/api/questions/submit.php",
-    {
-      method: "POST",
-      body: { privacy: "public", ...payload },
-    },
-  );
-  if (r.ok) return { ok: true };
-  return { ok: false, demo: true };
+  attachment?: { uri: string; name?: string; type?: string; size?: number } | null;
+}): Promise<{ ok: boolean; demo?: boolean; question_id?: number; attachment_url?: string | null; message?: string }> {
+  const attachment = payload.attachment;
+  let r;
+  if (attachment) {
+    const form = new FormData();
+    form.append("privacy", payload.privacy ?? "public");
+    form.append("scholar_id", String(payload.scholar_id));
+    form.append("title", payload.title);
+    form.append("details", payload.details);
+    if (payload.category) form.append("category", payload.category);
+    if (payload.additional_deenpoints) form.append("additional_deenpoints", String(payload.additional_deenpoints));
+    if (Platform.OS === "web") {
+      const blob = await fetch(attachment.uri).then((x) => x.blob());
+      form.append("attachment", blob, attachment.name ?? "question-photo.jpg");
+    } else {
+      form.append("attachment", {
+        uri: attachment.uri,
+        name: attachment.name ?? "question-photo.jpg",
+        type: attachment.type ?? "image/jpeg",
+      } as unknown as Blob);
+    }
+    r = await request<{ status?: string; message?: string; question?: { id?: number; attachment_url?: string | null } }>(
+      "/api/questions/submit.php",
+      { method: "POST", form, auth: true },
+    );
+  } else {
+    r = await request<{ status?: string; message?: string; question?: { id?: number; attachment_url?: string | null } }>(
+      "/api/questions/submit.php",
+      { method: "POST", body: { privacy: "public", ...payload }, auth: true },
+    );
+  }
+  if (r.ok) return { ok: true, question_id: Number(r.data.question?.id ?? 0) || undefined, attachment_url: r.data.question?.attachment_url ?? null, message: r.data.message };
+  return { ok: false, demo: false, message: r.data?.message };
 }
 
 export async function updateProfile(payload: {

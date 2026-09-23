@@ -1,6 +1,7 @@
 import { formatDP } from '@/components/DeenPoints';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -12,9 +13,11 @@ import { storage } from '@/lib/storage';
 import * as api from '@/api/client';
 import { AvatarImage } from '@/components/FeedCard';
 import { useAuth } from '@/context/AuthContext';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import type { Scholar } from '@/api/types';
 import { DPIcon } from '@/components/DeenPoints';
+import { QuestionThreadModal } from '@/components/QuestionThreadModal';
+import { VerificationBadge } from '@/components/VerificationBadge';
 
 /**
  * Ask Scholars (pass 34):
@@ -52,7 +55,7 @@ type Question = {
   cat: string;
   urgency: number; /* deenpoints pledged */
   isPublic: boolean;
-  photo?: string;
+  photo?: { uri: string; name?: string; type?: string; size?: number };
   at: number;
   status: 'processing' | 'answered' | 'rejected';
   answer?: string;
@@ -121,8 +124,18 @@ export default function Scholars() {
   const [field, setField] = useState<string | null>(null);
   const [catScreen, setCatScreen] = useState<string | null>(null);
   const [asking, setAsking] = useState<number | null>(null); /* scholar id */
+  const [threadQuestion, setThreadQuestion] = useState<api.MyQuestion | null>(null);
+  const routeParams = useLocalSearchParams<{ tab?: string; question_id?: string }>();
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [points, setPoints] = useState(1250);
+
+  useEffect(() => {
+    if (routeParams.tab === 'mine' || routeParams.tab === 'public' || routeParams.tab === 'browse') {
+      const next = routeParams.tab as 'browse' | 'mine' | 'public';
+      setTab(next);
+      setPicked(next);
+    }
+  }, [routeParams.tab]);
 
   useEffect(() => {
     storage.getItem('dl.scholars.questions.v1').then((r) => {
@@ -174,6 +187,14 @@ export default function Scholars() {
    * rows — the DB is what the user is shown first. */
   const [liveFatwas, setLiveFatwas] = useState<api.DirectFatwa[]>([]);
   const [liveMine, setLiveMine] = useState<api.MyQuestion[]>([]);
+
+  useEffect(() => {
+    const wanted = Number(routeParams.question_id ?? 0);
+    if (wanted > 0) {
+      const found = liveMine.find((x) => Number(x.id) === wanted);
+      if (found) setThreadQuestion(found);
+    }
+  }, [routeParams.question_id, liveMine]);
   const [scholarBusy, setScholarBusy] = useState(false);
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
   const refreshScholarData = async () => {
@@ -410,14 +431,14 @@ export default function Scholars() {
               <Pressable
                 key={s.id}
                 accessibilityLabel={`ask ${s.display_name}`}
-                onPress={() => { haptic.selection(); setAsking(s.id); }}
+                onPress={() => { haptic.selection(); router.push({ pathname: '/profile/[username]', params: { username: String(s.username ?? s.display_name ?? s.id), tab: 'questions' } } as never); }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9, opacity: pressed ? 0.85 : 1 })}
               >
                 <AvatarImage source={scholarPhoto(s)} name={s.display_name || 'Scholar'} size={46} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.5)" />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <FontAwesome5 name="certificate" size={10} color="#E8C96A" />
-                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }} numberOfLines={1}>{s.display_name}</T>
+                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, flexShrink: 1 }} numberOfLines={1}>{s.display_name}</T>
+                    {s.verification_badge && s.verification_badge !== 'none' ? <VerificationBadge type={s.verification_badge as import('@/api/types').BadgeType} size={11} /> : null}
                     {(s.level_label ?? s.level) ? (
                       <View style={{ borderRadius: 6, backgroundColor: 'rgba(212,175,55,0.14)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', paddingHorizontal: 6, paddingVertical: 1.5 }}>
                         <T v="caption" style={{ fontSize: 8, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{String(s.level_label ?? s.level)}</T>
@@ -428,10 +449,9 @@ export default function Scholars() {
                       from the server row now; when only the joined description
                       is available it is shown verbatim instead of a blank "·". */}
                   {(() => {
-                    const meta = [s.institute, s.madhhab, s.aqeedah].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
-                    const line = meta || (s.description ?? '') || (s.country ? String(s.country) : '');
+                    const line = String(s.aqeedah ?? '').trim();
                     return line ? (
-                      <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }} numberOfLines={1}>{line}</T>
+                      <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }} numberOfLines={1}>Aqeedah: {line}</T>
                     ) : null;
                   })()}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
@@ -448,9 +468,13 @@ export default function Scholars() {
                     ) : null}
                   </View>
                 </View>
-                <View style={{ borderRadius: 10, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingHorizontal: 11, paddingVertical: 7 }}>
+                <Pressable
+                  accessibilityLabel={`Ask ${s.display_name}`}
+                  onPress={(event) => { event.stopPropagation(); haptic.selection(); setAsking(s.id); }}
+                  style={({ pressed }) => ({ borderRadius: 10, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingHorizontal: 11, paddingVertical: 7, opacity: pressed ? 0.8 : 1 })}
+                >
                   <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Ask</T>
-                </View>
+                </Pressable>
               </Pressable>
             ))}
             {!list.length ? (
@@ -517,7 +541,7 @@ export default function Scholars() {
             <View style={{ marginBottom: 8 }}>
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>SENT TO SCHOLARS · {liveMine.length}</T>
               {liveMine.map((x) => (
-                <View key={'srvq' + x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
+                <Pressable key={'srvq' + x.id} onPress={() => setThreadQuestion(x)} style={{ borderRadius: 17, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <StatusBadge status={x.status} isDark={isDark} />
                     {x.scholar?.name ? (
@@ -525,6 +549,8 @@ export default function Scholars() {
                     ) : null}
                   </View>
                   <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 7 }}>{x.title}</T>
+                  <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>{x.question ?? x.question_text ?? 'Question details unavailable.'}</T>
+                  {x.attachment_url ? <Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(x.attachment_url) ? x.attachment_url : `${api.API_ORIGIN}${x.attachment_url.startsWith('/') ? '' : '/'}${x.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 8 }} resizeMode="contain" /> : null}
                   {x.answer ? (
                     <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
                   ) : (
@@ -534,7 +560,7 @@ export default function Scholars() {
                         : 'A scholar has the question in their queue. Answers arrive in this list.'}
                     </T>
                   )}
-                </View>
+                </Pressable>
               ))}
             </View>
           ) : scholarBusy && !(questions?.length) ? (
@@ -621,7 +647,10 @@ export default function Scholars() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <AvatarImage source={f.scholar?.profile_image_url ?? null} name={f.scholar?.name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
                       <View style={{ flex: 1 }}>
-                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{f.scholar?.name || 'DeenLink scholar'}</T>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{f.scholar?.name || 'DeenLink scholar'}</T>
+                          {f.scholar?.verification_badge && f.scholar.verification_badge !== 'none' ? <VerificationBadge type={f.scholar.verification_badge as import('@/api/types').BadgeType} size={10} /> : null}
+                        </View>
                         <T v="caption" style={{ fontSize: 9, color: d.faint }}>answered publicly · {f.tags?.length ? f.tags.slice(0, 3).join(', ') : 'fatwa'}</T>
                       </View>
                     </View>
@@ -680,6 +709,8 @@ export default function Scholars() {
         ) : null}
       </ScrollView>
 
+      <QuestionThreadModal visible={threadQuestion != null} question={threadQuestion} onClose={() => setThreadQuestion(null)} />
+
       {/* ── ASK SHEET ── */}
       <Modal visible={asking != null} transparent animationType="slide" onRequestClose={() => setAsking(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)' }} onPress={() => setAsking(null)} />
@@ -711,6 +742,7 @@ export default function Scholars() {
                 privacy: payload.isPublic ? 'public' : 'private',
                 category: payload.cat,
                 additional_deenpoints: payload.urgency > 0 ? payload.urgency : undefined,
+                attachment: payload.photo ?? null,
               }).catch(() => ({ ok: false }));
               if (r.ok) {
                 setFlash({ ok: true, text: 'Sent — the scholar has it in their queue. Answers show up in My Questions, and in Public if you allowed it. JazakAllahu khairan.' });
@@ -736,7 +768,17 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
   const [cats, setCats] = useState<string[]>([]);
   const [urgency, setUrgency] = useState('0');
   const [isPublic, setIsPublic] = useState(true);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Question['photo']>(undefined);
+  const pickPhoto = async () => {
+    haptic.selection();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.82,
+    }).catch(() => null);
+    const asset = result && !result.canceled ? result.assets?.[0] : null;
+    if (asset?.uri) setPhoto({ uri: asset.uri, name: asset.fileName ?? 'question-photo.jpg', type: asset.mimeType ?? 'image/jpeg', size: asset.fileSize });
+  };
 
   const pledged = Math.min(Number(urgency) || 0, points);
   const valid = title.trim().length > 4 && body.trim().length > 9;
@@ -806,11 +848,12 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
         </View>
       </Pressable>
 
-      {/* attach photo (simulated) */}
-      <Pressable onPress={() => { haptic.selection(); setPhoto((p) => (p ? null : 'attached')); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: photo ? 'rgba(74,227,143,0.4)' : d.cardBorder, backgroundColor: d.bg, padding: 12, marginBottom: 16 }}>
+      {/* real image picker; the selected URI is sent as multipart FormData */}
+      <Pressable onPress={photo ? () => setPhoto(undefined) : pickPhoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: photo ? 'rgba(74,227,143,0.4)' : d.cardBorder, backgroundColor: d.bg, padding: 12, marginBottom: 8 }}>
         <FontAwesome5 name={photo ? 'check-circle' : 'camera'} size={13} color={photo ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint} />
-        <T v="bodyS" style={{ flex: 1, fontSize: 12, fontWeight: '700', color: photo ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{photo ? 'Photo attached' : 'Attach a photo (optional)'}</T>
+        <T v="bodyS" style={{ flex: 1, fontSize: 12, fontWeight: '700', color: photo ? (isDark ? '#4AE38F' : '#1D6F42') : d.subtext }}>{photo ? 'Photo attached — tap to remove' : 'Attach a photo (optional)'}</T>
       </Pressable>
+      {photo ? <Image source={{ uri: photo.uri }} style={{ width: 110, height: 82, borderRadius: 10, marginBottom: 12 }} resizeMode="contain" /> : null}
 
       <Pressable
         accessibilityLabel="send question"

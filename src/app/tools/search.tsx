@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { VerificationBadge } from '@/components/VerificationBadge';
 import { AvatarImage } from '@/components/FeedCard';
 import { VideoModal } from '@/components/VideoModal';
 import { goBack } from '@/lib/navigation';
@@ -285,7 +286,10 @@ export default function SearchScreen() {
       >
         <AvatarImage source={u.profile_image_url ?? null} name={u.full_name} size={44} tint={d.bgSoft} border={d.cardBorder} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T v="bodyS" numberOfLines={2} style={{ fontWeight: '700', fontSize: 13, color: d.text }}>{u.full_name}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <T v="bodyS" numberOfLines={2} style={{ fontWeight: '700', fontSize: 13, color: d.text, flexShrink: 1 }}>{u.full_name}</T>
+            {u.verification_badge ? <VerificationBadge type={u.verification_badge as import('@/api/types').BadgeType} size={12} /> : null}
+          </View>
           <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>@{u.username}{u.followers_count ? ` · ${fmt(u.followers_count)} followers` : ''}</T>
         </View>
         <Pressable
@@ -310,7 +314,10 @@ export default function SearchScreen() {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 7 }}>
         <AvatarImage source={(p.user as { profile_image_url?: string | number | null }).profile_image_url ?? null} name={p.user?.full_name ?? p.user?.username ?? ''} size={30} tint={d.bgSoft} border={d.cardBorder} />
-        <T v="caption" numberOfLines={1} style={{ flex: 1, fontWeight: '800', fontSize: 11.5, color: d.text }}>{p.user?.full_name ?? p.user?.username}</T>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <T v="caption" numberOfLines={1} style={{ flexShrink: 1, fontWeight: '800', fontSize: 11.5, color: d.text }}>{p.user?.full_name ?? p.user?.username}</T>
+          {(p.user as { verification_badge?: import('@/api/types').BadgeType }).verification_badge ? <VerificationBadge type={(p.user as { verification_badge: import('@/api/types').BadgeType }).verification_badge} size={10} /> : null}
+        </View>
         <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{p.time_ago ?? ''}</T>
       </View>
       <T v="bodyS" numberOfLines={3} style={{ fontSize: 12.5, lineHeight: 18, color: d.subtext }}>{p.content_text}</T>

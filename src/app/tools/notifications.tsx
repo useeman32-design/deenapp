@@ -14,6 +14,7 @@ import {
 import { AvatarImage } from "@/components/FeedCard";
 import { useTheme } from "@/context/ThemeContext";
 import { T } from "@/components/T";
+import { VerificationBadge } from "@/components/VerificationBadge";
 import { haptic } from "@/lib/haptics";
 import { useIsGuest } from "@/lib/guest";
 import { useAuth } from "@/context/AuthContext";
@@ -39,6 +40,7 @@ type Notif = {
   photo?: string | null;
   /* pass 83-26 — where the tap goes: actor 0 / deenlink / missing actor sinks */
   actorId?: number;
+  badge?: string | null;
   entityType?: string | null;
   entityId?: number | null;
   postId?: number | null;
@@ -99,6 +101,7 @@ function mapLive(rows: NotifRow[]): Notif[] {
       read: !!r.is_read,
       photo: sysActor ? null : absPhoto(r.actor?.profile_image_url),
       actorId,
+      badge: sysActor ? null : (r.actor?.verification_badge ?? null),
       entityType: r.entity_type ?? null,
       entityId: r.entity_id ?? null,
       postId: r.metadata?.post_id ?? null,
@@ -259,7 +262,7 @@ function NotificationsInner() {
           (n.entityId ? `/tools/scholar-inbox?id=${n.entityId}` : "/tools/scholar-inbox") as never,
         );
       } else {
-        router.push("/tools/fatwa?tab=mine" as never);
+        router.push((n.entityId ? `/tools/scholars?tab=mine&question_id=${n.entityId}` : "/tools/scholars?tab=mine") as never);
       }
       return;
     }
@@ -492,6 +495,7 @@ function NotificationsInner() {
                   </View>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
+                  {n.badge ? <VerificationBadge type={n.badge as import('@/api/types').BadgeType} size={11} /> : null}
                   <T
                     v="bodyS"
                     style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}

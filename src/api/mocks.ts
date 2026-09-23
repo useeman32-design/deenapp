@@ -70,6 +70,7 @@ export interface MockReel {
   accountName?: string;
   accountPic?: string | null;
   reposts?: number;
+  accountBadge?: import('@/api/types').BadgeType;
   groupId?: number;
   groupName?: string;
 }

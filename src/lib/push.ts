@@ -20,6 +20,8 @@ function routeFromData(data: Record<string, unknown> | undefined): string {
   const type = (data?.type as string) ?? '';
   const entityType = (data?.entityType as string) ?? '';
   const entityId = data?.entityId as string | number | undefined;
+  if (type === 'question_received') return entityId ? `/tools/scholar-inbox?id=${entityId}` : '/tools/scholar-inbox';
+  if (type === 'question_answered' || type === 'question_rejected' || type === 'question_message') return entityId ? `/tools/scholars?tab=mine&question_id=${entityId}` : '/tools/scholars?tab=mine';
   if (type === 'video' || entityType === 'video') return '/videos';
   if (type === 'article' || entityType === 'article') return entityId ? `/tools/article/${entityId}` : '/tools/articles';
   if (entityType === 'post' || type === 'post' || type === 'comment') return '/community';

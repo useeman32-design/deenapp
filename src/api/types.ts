@@ -172,6 +172,8 @@ export interface Video {
   accountName?: string | null;
   accountUsername?: string | null;
   accountPic?: string | null;
+  accountVerificationBadge?: BadgeType;
+  account_verification_badge?: BadgeType;
   likes?: number;
   comments?: number;
   views?: number;

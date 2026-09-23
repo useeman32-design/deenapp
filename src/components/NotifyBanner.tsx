@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, View } from 'react-native';
+import { Animated, PanResponder, Pressable, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { T } from '@/components/T';
 import { useTheme } from '@/context/ThemeContext';
@@ -18,8 +18,26 @@ import { setBannerHost } from '@/lib/notifyCenter';
 export function NotifyBanner(): React.ReactElement | null {
   const { isDark } = useTheme();
   const [item, setItem] = useState<{ title: string; body: string; go?: () => void } | null>(null);
-  const slide = useRef(new Animated.Value(-120)).current;
+  const slide = useRef(new Animated.ValueXY({ x: 0, y: -120 })).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismiss = (x = 0, y = -140) => {
+    if (timer.current) clearTimeout(timer.current);
+    Animated.timing(x === 0 ? slide.y : slide.x, { toValue: x === 0 ? y : x, duration: 220, useNativeDriver: true }).start(() => setItem(null));
+  };
+  const responder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
+    onPanResponderGrant: () => { slide.stopAnimation(); },
+    onPanResponderMove: (_, g) => slide.setValue({ x: g.dx, y: g.dy }),
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dx) > 70 || Math.abs(g.dy) > 70) {
+        const x = Math.abs(g.dx) > Math.abs(g.dy) ? (g.dx > 0 ? 420 : -420) : 0;
+        const y = x === 0 ? (g.dy > 0 ? 180 : -180) : 0;
+        dismiss(x, y);
+      } else {
+        Animated.spring(slide, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 5 }).start();
+      }
+    },
+  })).current;
 
   useEffect(() => {
     setBannerHost((b) => setItem(b));
@@ -28,11 +46,11 @@ export function NotifyBanner(): React.ReactElement | null {
 
   useEffect(() => {
     if (!item) return;
-    slide.setValue(-120);
-    Animated.timing(slide, { toValue: 0, duration: 260, useNativeDriver: true }).start();
+    slide.setValue({ x: 0, y: -120 });
+    Animated.timing(slide.y, { toValue: 0, duration: 260, useNativeDriver: true }).start();
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      Animated.timing(slide, { toValue: -120, duration: 220, useNativeDriver: true }).start(() => setItem(null));
+      dismiss(0, -140);
     }, 5200);
     return () => {
       if (timer.current) clearTimeout(timer.current);
@@ -47,9 +65,10 @@ export function NotifyBanner(): React.ReactElement | null {
   return (
     <Animated.View
       pointerEvents="box-none"
-      style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 9999, transform: [{ translateY: slide }] }}
+      style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 9999, transform: [{ translateX: slide.x }, { translateY: slide.y }] }}
     >
       <Pressable
+        {...responder.panHandlers}
         onPress={() => {
           haptic.selection();
           const go = item.go;

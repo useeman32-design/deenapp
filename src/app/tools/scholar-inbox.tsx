@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Alert } from '../../lib/alert';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { TopBar } from '@/components/TopBar';
 import { AvatarImage } from '@/components/FeedCard';
 import { haptic } from '@/lib/haptics';
 import {
+  BASE,
   isLive,
   questionThread,
   scholarQueue,
@@ -19,6 +20,7 @@ import {
 import { useIsGuest } from '@/lib/guest';
 import { useAuth } from '@/context/AuthContext';
 import { LoginRequired } from '@/components/LoginRequired';
+import { VerificationBadge } from '@/components/VerificationBadge';
 
 /* pass 75 (Tier 2) — the SCHOLAR side of Ask Scholars: the queue of questions
  * addressed to the signed-in scholar, with answer / reject / clarify-message
@@ -31,6 +33,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'answered', label: 'Answered' },
   { id: 'rejected', label: 'Rejected' },
 ];
+
+const attachmentUri = (raw?: string | null) => raw ? (/^(https?:|blob:|file:|data:)/i.test(raw) ? raw : `${BASE}${raw.startsWith('/') ? '' : '/'}${raw}`) : null;
 
 const PRIO: Record<string, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: '#E05252' },
@@ -191,9 +195,12 @@ function ScholarInboxScreenInner() {
                 <AvatarImage source={q.asker_profile_image_url ?? null} name={q.asker_name} size={36} tint={d.bgSoft} border={d.cardBorder} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T v="bodyS" numberOfLines={1} style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{q.title}</T>
-                  <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
-                    {q.asker_name} · @{q.asker_username}{q.category ? ` · ${q.category}` : ''}
-                  </T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <T v="caption" numberOfLines={1} style={{ fontSize: 10.5, color: d.faint, marginTop: 1 }}>
+                      {q.asker_name} · @{q.asker_username}{q.category ? ` · ${q.category}` : ''}
+                    </T>
+                    {q.asker_verification_badge && q.asker_verification_badge !== 'none' ? <VerificationBadge type={q.asker_verification_badge as import('@/api/types').BadgeType} size={10} /> : null}
+                  </View>
                 </View>
                 {q.status === 'to_answer' || q.status === 'pending' ? (
                   <View style={{ borderRadius: 999, borderWidth: 1, borderColor: `${prio.color}66`, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -204,8 +211,9 @@ function ScholarInboxScreenInner() {
                 {q.status === 'rejected' ? <FontAwesome5 name="times" size={12} color="#E05252" /> : null}
               </View>
               {!!q.question_text ? (
-                <T v="bodyS" numberOfLines={2} style={{ fontSize: 11.5, color: d.subtext, marginTop: 8, lineHeight: 16 }}>{q.question_text}</T>
+                <T v="bodyS" style={{ fontSize: 11.5, color: d.subtext, marginTop: 8, lineHeight: 16 }}>{q.question_text}</T>
               ) : null}
+              {attachmentUri(q.attachment_url) ? <Image source={{ uri: attachmentUri(q.attachment_url) ?? undefined }} style={{ width: 92, height: 64, borderRadius: 9, marginTop: 7 }} resizeMode="contain" /> : null}
             </Pressable>
           );
         })}
@@ -227,6 +235,7 @@ function ScholarInboxScreenInner() {
                 <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
                   <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 10 }}>
                     <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.question_text || open.title}</T>
+                    {attachmentUri(open.attachment_url) ? <Image source={{ uri: attachmentUri(open.attachment_url) ?? undefined }} style={{ width: 210, height: 145, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /> : null}
                   </View>
                   {!!open.answer_text ? (
                     <View style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(74,227,143,0.35)', backgroundColor: isDark ? 'rgba(74,227,143,0.07)' : 'rgba(29,111,66,0.05)', padding: 12, marginBottom: 10 }}>

@@ -77,8 +77,9 @@ export default function FatwaBrowser() {
   const [scholarList, setScholarList] = useState<Scholar[]>([]);
   /* pass 98 — loading / failed / ready, so an empty picker is never a lie */
   const [rosterState, setRosterState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const params = useLocalSearchParams<{ tab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; scholar_id?: string; question_id?: string }>();
   const tab = typeof params.tab === 'string' ? params.tab : '';
+  const selectedQuestionId = typeof params.question_id === 'string' ? Number(params.question_id) : 0;
   const [myQs, setMyQs] = useState<MyQuestion[]>([]);
   const [askUnread, setAskUnread] = useState(0);
   const [askScholar, setAskScholar] = useState<number | null>(null);
@@ -109,12 +110,12 @@ export default function FatwaBrowser() {
     }
     setScholarList(rows);
     setRosterState('ready');
-    setAskScholar((cur) => cur ?? (rows[0]?.id ?? null));
+    setAskScholar((cur) => { const requested = Number(params.scholar_id ?? 0); return requested > 0 ? requested : (cur ?? (rows[0]?.id ?? null)); });
   }, []);
 
   useEffect(() => {
     if (!live) { return; }
-    if (tab === 'mine' || tab === 'ask') setSource(tab);
+    if (tab === 'mine' || tab === 'ask') setSource('ask');
     myQuestions().then((r) => { if (r) { setMyQs(r.questions); } }).catch(() => {});
     askUnreadCount().then(setAskUnread).catch(() => {});
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
@@ -278,6 +279,7 @@ export default function FatwaBrowser() {
         {source === 'ask' ? (
           /* ── pass 69 — ASK A SCHOLAR: form + my questions (live API) ── */
           <View style={{ marginBottom: 16 }}>
+            {tab === 'mine' ? <T v="h3" style={{ fontSize: 15, fontWeight: '900', marginBottom: 10 }}>My Questions</T> : null}
             {!live ? (
               <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16 }}>
                 <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.subtext }}>Ask a Scholar is available on the live app — sign in at app.deenlink.org to send your question to a verified scholar.</T>
@@ -431,7 +433,7 @@ export default function FatwaBrowser() {
               </Pressable>
             ) : (
               direct.map((f) => (
-                <Pressable key={`d${f.id}`} onPress={() => openUrl('https://app.deenlink.org')} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 9 }}>
+                <Pressable key={`d${f.id}`} onPress={() => { haptic.selection(); router.push({ pathname: '/profile/[username]', params: { username: f.scholar?.username || String(f.scholar?.id ?? ''), tab: 'questions', question_id: String(f.id) } } as never); }} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     {f.scholar?.profile_image_url ? (
                       <Image source={{ uri: f.scholar.profile_image_url }} style={{ width: 26, height: 26, borderRadius: 13 }} />

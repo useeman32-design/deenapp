@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { claimMedia, releaseMedia, useMediaHolds } from '@/lib/mediaBus';
 import { VideoLoader } from '@/components/VideoLoader';
+import { CrescentLoader } from '@/components/CrescentLoader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { guestBlock, useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
@@ -49,6 +50,11 @@ const timeAgoShort = (sqlTime: string): string => {
   if (hrs < 24) return `${hrs}h`;
   return `${Math.round(hrs / 24)}d`;
 };
+
+function mediaUrl(raw: string): string {
+  if (!raw || /^(https?:|blob:|file:|data:)/i.test(raw)) return raw;
+  return `${BASE}${raw.startsWith('/') ? '' : '/'}${raw}`;
+}
 
 const fmtTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -137,10 +143,10 @@ function ReelItem({
         username: reel.username,
         full_name: reel.accountName ?? reel.username,
         photo: (reel.accountPic ?? null) as number | null,
-        badge: undefined,
+        badge: reel.accountBadge ?? null,
         fields: null as string | null,
       }),
-    [reel.username],
+    [reel.username, reel.accountName, reel.accountBadge, reel.accountPic],
   );
   const player = useVideoPlayer(reel.src, (p) => {
     /* pass 83-35 — owner: a finished video STOPS (it used to loop forever) */
@@ -380,7 +386,7 @@ function ReelItem({
         <View pointerEvents="none" style={{ position: 'absolute', inset: 0 }}>
           <VideoView
             player={player}
-            contentFit="cover"
+            contentFit="contain"
             nativeControls={false}
             playsInline
             style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
@@ -388,7 +394,7 @@ function ReelItem({
           <VideoLoader player={player} />
         </View>
       ) : (
-        <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
+        <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="contain" />
       )}
 
       {/* soft scrims — small, dissolving into the video at both ends */}
@@ -636,6 +642,39 @@ function PosterTile({ reel, size, onOpen }: { reel: MockReel; size: number; onOp
 type FeedTab = 'foryou' | 'following' | 'friends';
 type LibraryTab = 'saved' | 'liked' | 'reposts';
 
+type EndPagerItem = { kind: 'end'; id: string };
+const END_PAGER_ID = '__deenlink_end_of_videos__';
+
+function EndOfVideosCard({ hasWatched, onQuran, onHadith, onLearning }: { hasWatched: boolean; onQuran: () => void; onHadith: () => void; onLearning: () => void }) {
+  return (
+    <View style={{ width: VW, height: VH, backgroundColor: '#07110B', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
+      <View style={{ width: 82, height: 82, borderRadius: 41, backgroundColor: 'rgba(212,175,55,0.12)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.42)', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+        <FontAwesome5 name="moon" size={33} color="#E8C96A" />
+      </View>
+      <T v="h2" style={{ color: '#F2F7F3', fontSize: 22, fontWeight: '900', textAlign: 'center' }}>
+        {hasWatched ? 'You have watched enough for today' : 'No videos here yet'}
+      </T>
+      <T v="bodyS" style={{ color: 'rgba(242,247,243,0.68)', fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 9, maxWidth: 330 }}>
+        {hasWatched ? 'Take a beneficial next step — explore the Qur’an, Hadith, or a lesson in the Learning Hub.' : 'Try For you, or come back after more videos are added.'}
+      </T>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 9, marginTop: 22 }}>
+        <Pressable onPress={onQuran} style={{ borderRadius: 13, backgroundColor: '#1F8F5C', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <FontAwesome5 name="book-open" size={11} color="#fff" />
+          <T v="caption" style={{ color: '#fff', fontWeight: '900', fontSize: 11 }}>Qur’an</T>
+        </Pressable>
+        <Pressable onPress={onHadith} style={{ borderRadius: 13, borderWidth: 1, borderColor: 'rgba(74,227,143,0.55)', backgroundColor: 'rgba(74,227,143,0.1)', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <FontAwesome5 name="scroll" size={11} color="#4AE38F" />
+          <T v="caption" style={{ color: '#4AE38F', fontWeight: '900', fontSize: 11 }}>Hadith</T>
+        </Pressable>
+        <Pressable onPress={onLearning} style={{ borderRadius: 13, borderWidth: 1, borderColor: 'rgba(232,201,106,0.55)', backgroundColor: 'rgba(232,201,106,0.1)', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <FontAwesome5 name="graduation-cap" size={11} color="#E8C96A" />
+          <T v="caption" style={{ color: '#E8C96A', fontWeight: '900', fontSize: 11 }}>Learning Hub</T>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function VideosFeedInner() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
@@ -659,6 +698,17 @@ function VideosFeedInner() {
   const [reposted, setReposted] = useState<Set<number>>(new Set());
   /* pass 70 — real server reels + live repost counts (id = 500000 + server id) */
   const [liveReels, setLiveReels] = useState<MockReel[]>([]);
+  /* Slow boots get the branded crescent; fast boots never flash a spinner. */
+  const [initialFeedLoading, setInitialFeedLoading] = useState(() => isLive());
+  const [showBootLoader, setShowBootLoader] = useState(false);
+  useEffect(() => {
+    if (!initialFeedLoading) return;
+    const t = setTimeout(() => setShowBootLoader(true), 180);
+    return () => clearTimeout(t);
+  }, [initialFeedLoading]);
+  useEffect(() => {
+    if (!initialFeedLoading) setShowBootLoader(false);
+  }, [initialFeedLoading]);
   /* pass 83-25 — bumped after a server upload so the new reel jumps in */
   const [liveTick, setLiveTick] = useState(0);
   const [liveReposts, setLiveReposts] = useState<Record<number, number>>({});
@@ -667,6 +717,7 @@ function VideosFeedInner() {
   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
   const viewedRef = useRef<Set<number>>(new Set());
   const [commentReel, setCommentReel] = useState<MockReel | null>(null);
+  const [videoCommentCounts, setVideoCommentCounts] = useState<Record<number, number>>({});
   const [shareReel, setShareReel] = useState<MockReel | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<{ img: number | null; name: string } | null>(null);
@@ -717,7 +768,7 @@ function VideosFeedInner() {
   const SEG_W = 72;
   const thumbX = useRef(new Animated.Value(feedTab === 'following' ? 0 : feedTab === 'foryou' ? SEG_W : SEG_W * 2)).current;
 
-  const listRef = useRef<FlatList<MockReel>>(null);
+  const listRef = useRef<FlatList<MockReel | EndPagerItem>>(null);
 
   /* pass 97 — this screen re-reads the server on focus, on foreground and when
    * anything posts, so a video uploaded elsewhere (or on another device) is
@@ -751,8 +802,8 @@ function VideosFeedInner() {
       const vids = (res.posts ?? []).filter((pp) => pp.id > 0 && !!pp.video_url);
       setPostReels(vids.map((pp) => ({
         id: pp.id,
-        src: { uri: String(pp.video_url) },
-        poster: { uri: (typeof pp.video_poster === 'object' && pp.video_poster && 'uri' in pp.video_poster ? String(pp.video_poster.uri) : String(pp.video_url)) },
+        src: { uri: mediaUrl(String(pp.video_url)) },
+        poster: { uri: (typeof pp.video_poster === 'object' && pp.video_poster && 'uri' in pp.video_poster ? mediaUrl(String(pp.video_poster.uri)) : mediaUrl(String(pp.video_url)) ) },
         username: String(pp.user?.username ?? 'deenlink'),
         accountName: String(pp.user?.full_name || pp.user?.username || 'DeenLink'),
         accountPic: (pp.user?.profile_image_url as string | null) ?? null,
@@ -811,11 +862,12 @@ function VideosFeedInner() {
       const mapped: MockReel[] = rows.map((v: Video) => ({
         id: 500000 + Number(v.id),
         liveId: Number(v.id),
-        src: { uri: String(v.sourceUrl ?? v.source_url ?? '') },
-        poster: { uri: String(v.posterUrl ?? v.poster_url ?? '') },
+        src: { uri: mediaUrl(String(v.sourceUrl ?? v.source_url ?? '')) },
+        poster: { uri: mediaUrl(String(v.posterUrl ?? v.poster_url ?? '')) },
         username: String(v.accountUsername ?? 'deenlink'),
         accountName: String(v.accountName ?? v.accountUsername ?? 'DeenLink'),
         accountPic: (v.accountPic as string | null) ?? null,
+        accountBadge: ((v.accountVerificationBadge ?? v.account_verification_badge) as MockReel['accountBadge']) ?? null,
         caption: String(v.title ?? v.description ?? ''),
         likes: Number(v.likes ?? 0),
         comments: Number(v.comments ?? 0),
@@ -824,7 +876,15 @@ function VideosFeedInner() {
         music: 'Original audio',
         reposts: Number(v.reposts ?? 0),
       }));
-      setLiveReels(mapped);
+      /* For-you should not keep presenting the API's insertion order. Shuffle
+       * once per server refresh, then keep that order stable while the user
+       * watches so playback never jumps during a render. */
+      const shuffled = [...mapped];
+      for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setLiveReels(shuffled);
       const already = rows.filter((v) => v.repostedByMe).map((v) => 500000 + Number(v.id));
       if (already.length) setReposted((prev) => new Set([...prev, ...already]));
       const likedInit = rows.filter((v) => v.likedByMe).map((v) => 500000 + Number(v.id));
@@ -837,7 +897,7 @@ function VideosFeedInner() {
       }
       setLiveReposts((prev) => ({ ...prev, ...counts }));
       setLikeCounts((prev) => ({ ...prev, ...likes }));
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setInitialFeedLoading(false));
   }, [liveTick]);
 
   useEffect(() => {
@@ -856,7 +916,15 @@ function VideosFeedInner() {
      * actually has the video. Everything here is now a real server row. */
     const upBase = new Set(liveReels.map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
     const postClean = postReels.filter((r) => !upBase.has(String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
-    const mine: MockReel[] = [...optimistic, ...liveReels, ...postClean];
+    const seen = new Set<string>();
+    const unique = (rows: MockReel[]) => rows.filter((r) => {
+      const uri = typeof r.src === 'object' && r.src && 'uri' in r.src ? String(r.src.uri) : String(r.src);
+      const key = r.liveId != null ? `video:${r.liveId}` : `file:${uri.split('/').pop() ?? uri}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const mine: MockReel[] = unique([...optimistic, ...liveReels, ...postClean]);
     /* pass 83-38 — REAL REELS ONLY: the demo clip bed is gone */
     if (feedTab === 'following') {
       return liveReels;
@@ -866,6 +934,10 @@ function VideosFeedInner() {
     }
     return mine;
   }, [feedTab, storeTick, liveReels, postReels, optimistic]);
+
+  const pagerItems: Array<MockReel | EndPagerItem> = reels.length
+    ? [...reels, { kind: 'end', id: END_PAGER_ID }]
+    : [{ kind: 'end', id: END_PAGER_ID }];
 
   /* pass 72 — count a view the first time a server reel fills the screen */
   useEffect(() => {
@@ -1096,7 +1168,7 @@ function VideosFeedInner() {
     ? reelAsPost(
         commentReel,
         /* pass 83-38 — account comes from the reel row itself */
-        { full_name: commentReel.accountName ?? commentReel.username, photo: commentReel.accountPic ?? null, badge: null },
+        { full_name: commentReel.accountName ?? commentReel.username, photo: commentReel.accountPic ?? null, badge: commentReel.accountBadge ?? null },
       )
     : null;
 
@@ -1229,11 +1301,18 @@ function VideosFeedInner() {
       {/* pager */}
       <FlatList
         ref={listRef}
-        data={reels}
+        data={pagerItems}
         keyExtractor={(r) => String(r.id)}
-        renderItem={({ item, index: i }) => (
+        renderItem={({ item, index: i }) => 'kind' in item ? (
+          <EndOfVideosCard
+            hasWatched={reels.length > 0}
+            onQuran={() => router.push('/quran' as never)}
+            onHadith={() => router.push('/tools/hadith' as never)}
+            onLearning={() => router.push('/tools/learning' as never)}
+          />
+        ) : (
           <ReelItem
-            reel={item}
+            reel={{ ...item, comments: videoCommentCounts[item.id] ?? item.comments }}
             active={screenFocused && i === index}
             zen={zen}
             onZenChange={setZen}
@@ -1273,7 +1352,7 @@ function VideosFeedInner() {
         /* pass 41 — scroll-driven active index too: on Expo Go viewability alone
          * can lag, leaving two reels playing at once (user report) */
         onScroll={(e) => {
-          const i = Math.max(0, Math.min(reels.length - 1, Math.round(e.nativeEvent.contentOffset.y / VH)));
+          const i = Math.max(0, Math.min(pagerItems.length - 1, Math.round(e.nativeEvent.contentOffset.y / VH)));
           setIndex((cur) => (cur === i ? cur : i));
         }}
         scrollEventThrottle={64}
@@ -1282,6 +1361,12 @@ function VideosFeedInner() {
         maxToRenderPerBatch={2}
         extraData={storeTick}
       />
+
+      {showBootLoader ? (
+        <View pointerEvents="none" style={{ position: 'absolute', inset: 0, zIndex: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(4,12,8,0.88)' }}>
+          <CrescentLoader size={52} label="Loading videos…" color="#E8C96A" dark />
+        </View>
+      ) : null}
 
       {/* bottom menu — labels pill + plus fully outside, level */}
       {!zen ? (<View style={{ position: 'absolute', alignSelf: 'center', bottom: 16 + insets.bottom * 0.4, flexDirection: 'row', alignItems: 'center' }}>
@@ -1748,8 +1833,13 @@ function VideosFeedInner() {
                 <MoreRow icon="flag" label="Report" tint="#FF7B7B" onPress={() => {
                   const lid = moreReel?.liveId;
                   setMoreReel(null);
-                  if (lid != null && isLive()) void videosReport(lid, 'Reported from reel viewer');
-                  Alert.alert('Report submitted', 'JazakAllah khair — our moderation team will review this video.');
+                  if (lid == null || !isLive()) {
+                    Alert.alert('Report unavailable', 'Please sign in on the live app to report this video.');
+                    return;
+                  }
+                  void videosReport(lid, 'Reported from reel viewer').then((ok) => {
+                    Alert.alert(ok ? 'Report submitted' : 'Report failed', ok ? 'JazakAllah khair — our moderation team will review this video.' : 'Could not submit the report right now. Please try again.');
+                  });
                 }} />
                 <MoreRow icon="eye-slash" label="Not interested" tint="rgba(242,247,243,0.7)" onPress={() => {
                   const lid = moreReel?.liveId;
@@ -1802,11 +1892,12 @@ function VideosFeedInner() {
               {
                 id: 700000 + Number(fresh.id ?? Date.now() % 100000),
                 liveId: Number(fresh.id ?? 0) || undefined,
-                src: { uri: String(fresh.url ?? '') },
-                poster: { uri: String(fresh.url ?? '') },
+                src: { uri: mediaUrl(String(fresh.url ?? '')) },
+                poster: { uri: mediaUrl(String(fresh.url ?? '')) },
                 username: String(meUser?.username ?? 'me'),
                 accountName: String(meUser?.full_name ?? meUser?.username ?? 'You'),
                 accountPic: (meUser?.profile_image_url as string | null) ?? null,
+                accountBadge: (meUser?.verification_badge as MockReel['accountBadge']) ?? null,
                 caption: String(fresh.caption ?? ''),
                 likes: 0,
                 comments: 0,
@@ -1837,6 +1928,15 @@ function VideosFeedInner() {
         post={commentPost}
         videoId={commentReel?.liveId ?? null}
         seed={[]}
+        onDeleted={(_id, _isReply) => {
+          if (commentReel?.liveId != null) {
+            /* The video delete endpoint returns the authoritative remaining
+             * count, so nested-reply deletion updates the parent too. */
+            void import('@/api/client').then(({ videosComments }) => videosComments(commentReel.liveId!).then((rows) => {
+              if (rows) setVideoCommentCounts((prev) => ({ ...prev, [commentReel.id]: rows.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0) }));
+            }));
+          }
+        }}
         onClose={() => setCommentReel(null)}
       />
     </View>

@@ -2530,6 +2530,9 @@ function CommunityScreenInner() {
         post={commentPost}
         seed={[]}
         postId={commentPost?.id ?? null}
+        onDeleted={(_id, _isReply) => {
+          if (commentPost) setPosts((prev) => prev.map((p) => p.id === commentPost.id ? { ...p, comment_count: Math.max(0, Number(p.comment_count ?? 0) - 1) } : p));
+        }}
         onClose={() => setCommentPost(null)}
       />
     </View>
