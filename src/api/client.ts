@@ -479,6 +479,9 @@ export type ServerReply = {
   parent_reply_id?: number | null;
   /* pass 77 — videos list_comments.php returns parent_id (comment OR reply) */
   parent_id?: number | null;
+  /** persisted DeenLink AI answer, rendered as a system-authored reply */
+  is_ai?: boolean;
+  nav?: string | null;
 };
 export type ServerComment = ServerReply & {
   is_post_creator?: boolean;
@@ -531,6 +534,32 @@ export async function addReply(
   );
   return r.ok && r.data.reply_id ? { id: r.data.reply_id as number } : null;
 }
+/** Persist a DeenLink AI answer as a system-authored threaded reply. The server
+ * stores it separately from user comments, so it never impersonates the asker. */
+export async function saveAiCommentReply(
+  surface: "post" | "video",
+  contentId: number,
+  parentCommentId: number,
+  text: string,
+  nav?: string,
+): Promise<{ id: number } | null> {
+  const r = await request<{ status?: string; reply_id?: number }>(
+    "/api/deenai/comment_reply.php",
+    {
+      method: "POST",
+      body: {
+        surface,
+        content_id: contentId,
+        parent_comment_id: parentCommentId,
+        text,
+        nav: nav ?? "",
+      },
+      auth: true,
+    },
+  );
+  return r.ok && r.data.reply_id ? { id: Number(r.data.reply_id) } : null;
+}
+
 export async function toggleCommentLike(
   commentId: number,
   desired: boolean,
@@ -1837,6 +1866,8 @@ export type ScholarQueueRow = {
 export async function scholarQueue(
   tab:
     "to_answer" | "reviewing" | "answered" | "rejected" | "all" = "to_answer",
+  search = "",
+  priority: "all" | "urgent" | "priority" | "normal" = "all",
 ): Promise<{
   questions: ScholarQueueRow[];
   counts: Record<string, number>;
@@ -1845,7 +1876,7 @@ export async function scholarQueue(
     status?: string;
     questions?: ScholarQueueRow[];
     counts?: Record<string, number>;
-  }>(`/api/questions/scholar_list.php?tab=${tab}`, { auth: true });
+  }>(`/api/questions/scholar_list.php?tab=${tab}&priority=${priority}${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ""}`, { auth: true });
   if (r.ok && Array.isArray(r.data.questions)) {
     return { questions: r.data.questions, counts: r.data.counts ?? {} };
   }
@@ -1912,14 +1943,15 @@ export type QuestionThreadMessage = {
 /** The Q&A message thread — works for BOTH the asker and the scholar. */
 export async function questionThread(
   questionId: number,
-): Promise<{ viewer_role: string; messages: QuestionThreadMessage[] } | null> {
+): Promise<{ viewer_role: string; messages: QuestionThreadMessage[]; can_send?: boolean } | null> {
   const r = await request<{
     status?: string;
     viewer_role?: string;
     messages?: QuestionThreadMessage[];
+    can_send?: boolean;
   }>(`/api/questions/thread.php?question_id=${questionId}`, { auth: true });
   if (r.ok && Array.isArray(r.data.messages)) {
-    return { viewer_role: r.data.viewer_role ?? "", messages: r.data.messages };
+    return { viewer_role: r.data.viewer_role ?? "", messages: r.data.messages, can_send: r.data.can_send };
   }
   return null;
 }
@@ -3619,7 +3651,16 @@ export type DirectFatwa = {
   answer: string;
   category: string;
   tags: string[];
+  priority?: string;
+  priority_label?: string;
+  attachment_url?: string | null;
   answered_time_ago: string;
+  user?: {
+    id?: number;
+    name?: string;
+    username?: string;
+    profile_image_url?: string | null;
+  } | null;
   scholar: {
     id: number;
     name: string;
@@ -3651,10 +3692,14 @@ export async function scholarStatus(): Promise<{
 export async function directFatwas(
   limit = 30,
   scholarUserId?: number,
+  search?: string,
+  category?: string,
 ): Promise<DirectFatwa[]> {
   const byScholar = scholarUserId ? `&scholar_user_id=${scholarUserId}` : "";
+  const bySearch = search?.trim() ? `&q=${encodeURIComponent(search.trim())}` : "";
+  const byCategory = category?.trim() ? `&category=${encodeURIComponent(category.trim())}` : "";
   const r = await request<{ status?: string; questions?: DirectFatwa[] }>(
-    `/api/questions/public_list.php?limit=${limit}&sort=newest${byScholar}`,
+    `/api/questions/public_list.php?limit=${limit}&sort=priority${byScholar}${bySearch}${byCategory}`,
   );
   if (r.ok && Array.isArray(r.data.questions)) return r.data.questions;
   return [];

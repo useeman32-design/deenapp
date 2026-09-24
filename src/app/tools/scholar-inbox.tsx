@@ -56,6 +56,9 @@ function ScholarInboxScreenInner() {
   const [mode, setMode] = useState<'answer' | 'message' | 'reject'>('answer');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [priority, setPriority] = useState<'all' | 'urgent' | 'priority' | 'normal'>('all');
+  const [preview, setPreview] = useState<string | null>(null);
 
   /* pass 92 — owner: "scholars can have their page to manage questions". The
    * page exists for every scholar account from the moment he registers; while
@@ -77,7 +80,7 @@ function ScholarInboxScreenInner() {
   const load = useCallback((t: Tab) => {
     if (!isLive()) { setRows([]); return; }
     if (awaitingApproval) { setRows([]); return; }
-    scholarQueue(t).then((r) => {
+    scholarQueue(t, search, priority).then((r) => {
       const list = r?.questions ?? [];
       setRows(list);
       setCounts(r?.counts ?? {});
@@ -86,7 +89,7 @@ function ScholarInboxScreenInner() {
         if (hit) openQuestionRef.current?.(hit);
       }
     }).catch(() => setRows([]));
-  }, [awaitingApproval, wantedId]);
+  }, [awaitingApproval, wantedId, search, priority]);
 
   useEffect(() => { load(tab); }, [tab, load]);
 
@@ -97,11 +100,17 @@ function ScholarInboxScreenInner() {
     setDraft('');
     setMode('answer');
     setThread(null);
-    if (isLive()) {
-      questionThread(q.id).then((r) => setThread(r?.messages ?? [])).catch(() => setThread([]));
-    }
   };
   openQuestionRef.current = openQuestion;
+  /* Keep an opened question live while a scholar is reading/responding. */
+  useEffect(() => {
+    if (!open || !isLive()) return;
+    let dead = false;
+    const refresh = () => void questionThread(open.id).then((r) => { if (!dead) setThread(r?.messages ?? []); }).catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 2800);
+    return () => { dead = true; clearInterval(timer); };
+  }, [open?.id]);
 
   const act = async (action: 'answer' | 'reject' | 'message') => {
     if (!open || busy) { return; }
@@ -160,6 +169,16 @@ function ScholarInboxScreenInner() {
         })}
       </View>
 
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 10 }}>
+          <FontAwesome5 name="search" size={12} color={d.faint} />
+          <TextInput value={search} onChangeText={setSearch} placeholder="Search asker or question…" placeholderTextColor={d.faint} style={{ flex: 1, paddingVertical: 10, fontSize: 16, fontFamily: 'Poppins-Medium', color: d.text }} />
+          {search ? <Pressable onPress={() => setSearch('')} hitSlop={8}><FontAwesome5 name="times-circle" size={13} color={d.faint} /></Pressable> : null}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
+          {(['all', 'urgent', 'priority', 'normal'] as const).map((p) => <Pressable key={p} onPress={() => setPriority(p)} style={{ borderRadius: 999, borderWidth: 1, borderColor: priority === p ? (p === 'urgent' ? '#D4AF37' : green) : d.cardBorder, backgroundColor: priority === p ? (p === 'urgent' ? 'rgba(212,175,55,0.14)' : 'rgba(74,227,143,0.1)') : d.card, paddingHorizontal: 10, paddingVertical: 6 }}><T v="caption" style={{ fontSize: 10, fontWeight: '800', color: priority === p ? (p === 'urgent' ? '#D4AF37' : green) : d.faint }}>{p === 'all' ? 'All priority' : p[0].toUpperCase() + p.slice(1)}</T></Pressable>)}
+        </ScrollView>
+      </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {awaitingApproval ? (
           <View style={{ borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.33)', backgroundColor: 'rgba(212,175,55,0.06)', padding: 16, gap: 7 }}>
@@ -213,7 +232,7 @@ function ScholarInboxScreenInner() {
               {!!q.question_text ? (
                 <T v="bodyS" style={{ fontSize: 11.5, color: d.subtext, marginTop: 8, lineHeight: 16 }}>{q.question_text}</T>
               ) : null}
-              {attachmentUri(q.attachment_url) ? <Image source={{ uri: attachmentUri(q.attachment_url) ?? undefined }} style={{ width: 92, height: 64, borderRadius: 9, marginTop: 7 }} resizeMode="contain" /> : null}
+              {attachmentUri(q.attachment_url) ? <Pressable onPress={() => setPreview(attachmentUri(q.attachment_url))}><Image source={{ uri: attachmentUri(q.attachment_url) ?? undefined }} style={{ width: 92, height: 64, borderRadius: 9, marginTop: 7 }} resizeMode="contain" /></Pressable> : null}
             </Pressable>
           );
         })}
@@ -222,20 +241,23 @@ function ScholarInboxScreenInner() {
       {/* question detail + composer */}
       <Modal visible={!!open} transparent animationType="slide" onRequestClose={() => setOpen(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setOpen(null)} />
           <View style={{ backgroundColor: d.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%', paddingTop: 12 }}>
             <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, marginBottom: 10 }} />
             {open ? (
               <>
                 <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
                   <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text }}>{open.title}</T>
-                  <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2 }}>
-                    {open.asker_name} · @{open.asker_username}{open.category ? ` · ${open.category}` : ''} · {open.privacy === 'private' ? 'Private' : 'Public'}
-                  </T>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                    <Pressable onPress={() => { const u = open.asker_username; setOpen(null); if (u) router.push(`/profile/${u}` as never); }}>
+                      <T v="caption" style={{ fontSize: 10.5, color: green, fontWeight: '800' }}>{open.asker_name} · @{open.asker_username}</T>
+                    </Pressable>
+                    <T v="caption" style={{ fontSize: 10.5, color: d.faint }}>{open.category ? ` · ${open.category}` : ''} · {open.privacy === 'private' ? 'Private' : 'Public'}</T>
+                  </View>
                 </View>
                 <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
                   <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 10 }}>
                     <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.question_text || open.title}</T>
-                    {attachmentUri(open.attachment_url) ? <Image source={{ uri: attachmentUri(open.attachment_url) ?? undefined }} style={{ width: 210, height: 145, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /> : null}
                   </View>
                   {!!open.answer_text ? (
                     <View style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(74,227,143,0.35)', backgroundColor: isDark ? 'rgba(74,227,143,0.07)' : 'rgba(29,111,66,0.05)', padding: 12, marginBottom: 10 }}>
@@ -243,6 +265,7 @@ function ScholarInboxScreenInner() {
                       <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.answer_text}</T>
                     </View>
                   ) : null}
+                  {attachmentUri(open.attachment_url) ? <Pressable onPress={() => setPreview(attachmentUri(open.attachment_url))}><Image source={{ uri: attachmentUri(open.attachment_url) ?? undefined }} style={{ width: 210, height: 145, borderRadius: 10, marginBottom: 10 }} resizeMode="contain" /></Pressable> : null}
                   {thread === null ? (
                     <View style={{ alignItems: 'center', paddingVertical: 14 }}><ActivityIndicator color={green} /></View>
                   ) : thread.length ? (
@@ -308,6 +331,13 @@ function ScholarInboxScreenInner() {
             ) : null}
           </View>
         </View>
+      </Modal>
+      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setPreview(null)}>
+          <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
+            {preview ? <Image source={{ uri: preview }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+          </ScrollView>
+        </Pressable>
       </Modal>
     </View>
   );

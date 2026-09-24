@@ -8,7 +8,7 @@ import { netBus } from '@/lib/net';
  * Polls player.status: shows the crescent+star loader ("Loading video…") while the media
  * buffers and reports the global slow-network pill. Renders null when idle.
  */
-export function VideoLoader({ player, label = 'Loading video…' }: { player: any; label?: string }) {
+export function VideoLoader({ player, label = 'Loading video…', active = true }: { player: any; label?: string; active?: boolean }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -16,9 +16,13 @@ export function VideoLoader({ player, label = 'Loading video…' }: { player: an
     let netOn = false;
     let visibleFor = 0;
     const iv = setInterval(() => {
+      if (!active) { setLoading(false); if (netOn) { netOn = false; netBus.slow(false); } return; }
       let st = 'idle';
       try { st = player.status ?? 'idle'; } catch { /* disposed */ }
-      const buffering = st === 'loading' || (st === 'readyToPlay' && !player.isPlaying && player.currentTime === 0 && wantPlay(player));
+      /* Once playback has been requested, keep the crescent alive through the
+       * idle/loading/ready transition. It must not animate once, disappear,
+       * and leave a black frame while the source is still preparing. */
+      const buffering = st === 'idle' || st === 'loading' || (st === 'readyToPlay' && !player.isPlaying && player.currentTime === 0 && wantPlay(player));
       setLoading(buffering);
       if (buffering) {
         visibleFor += 0.3;
@@ -29,7 +33,7 @@ export function VideoLoader({ player, label = 'Loading video…' }: { player: an
       }
     }, 300);
     return () => { clearInterval(iv); if (netOn) netBus.slow(false); };
-  }, [player]);
+  }, [player, active]);
 
   if (!loading || !player) return null;
   /* pass 40 — animated crescent + star replaces the plain spinner */

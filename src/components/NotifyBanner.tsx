@@ -22,9 +22,14 @@ export function NotifyBanner(): React.ReactElement | null {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismiss = (x = 0, y = -140) => {
     if (timer.current) clearTimeout(timer.current);
-    Animated.timing(x === 0 ? slide.y : slide.x, { toValue: x === 0 ? y : x, duration: 220, useNativeDriver: true }).start(() => setItem(null));
+    /* Animate the whole vector so a diagonal/vertical swipe cannot leave the
+     * other axis parked off-screen. PanResponder capture below makes this work
+     * on web and native in all four directions. */
+    Animated.timing(slide, { toValue: { x, y }, duration: 220, useNativeDriver: true }).start(() => setItem(null));
   };
   const responder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
     onPanResponderGrant: () => { slide.stopAnimation(); },
     onPanResponderMove: (_, g) => slide.setValue({ x: g.dx, y: g.dy }),

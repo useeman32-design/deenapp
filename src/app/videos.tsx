@@ -113,6 +113,8 @@ function ReelItem({
   onMore,
   onShare,
   onAvatar,
+  isSelf,
+  safeBottom,
 }: {
   reel: MockReel;
   active: boolean;
@@ -134,6 +136,8 @@ function ReelItem({
   onMore: (r: MockReel) => void;
   onShare: (r: MockReel) => void;
   onAvatar: (img: number | null, name: string) => void;
+  isSelf: boolean;
+  safeBottom: number;
 }) {
   const { isDark } = useTheme();
   const account = useMemo(
@@ -391,7 +395,7 @@ function ReelItem({
             playsInline
             style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
           />
-          <VideoLoader player={player} />
+          <VideoLoader player={player} active={active && !paused && screenFocused} />
         </View>
       ) : (
         <Image source={reel.poster as never} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="contain" />
@@ -525,7 +529,7 @@ function ReelItem({
               {account.badge ? <VerificationBadge type={account.badge} size={13} /> : null}
             </View>
           </Pressable>
-          <Pressable
+          {!isSelf ? <Pressable
             onPress={() => { haptic.light(); setFollowed((f) => !f); }}
             style={{
               borderWidth: 1,
@@ -539,7 +543,7 @@ function ReelItem({
             <T v="caption" style={{ color: followed ? '#4AE38F' : '#FFFFFF', fontWeight: '800', fontSize: 11 }}>
               {followed ? 'Following' : 'Follow'}
             </T>
-          </Pressable>
+          </Pressable> : null}
         </View>
         <T v="bodyS" numberOfLines={2} style={{ color: 'rgba(255,255,255,0.94)', fontSize: 13, lineHeight: 18.5, marginTop: 10 }}>
           {reel.caption}
@@ -565,7 +569,7 @@ function ReelItem({
       {/* seek line — draggable scrubber (hidden in zen) */}
       {!zen ? <View
         {...pan.panHandlers}
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 30, justifyContent: 'flex-end' }}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: Math.max(8, safeBottom + 6), height: 30, justifyContent: 'flex-end' }}
       >
         <SeekTrack progress={progress} scrub={scrub} duration={durSafe(player)} />
       </View> : null}
@@ -1330,9 +1334,12 @@ function VideosFeedInner() {
             onComments={(r) => { if (guestBlock('Sign in to comment on videos.')) return; setCommentReel(r); }}
             onShare={(r) => setShareReel(r)}
             onAvatar={(img, nm) => setAvatarPreview({ img, name: nm })}
+            isSelf={!!meUser && String(item.username).replace(/^@/, '').toLowerCase() === String(meUser.username ?? '').replace(/^@/, '').toLowerCase()}
+            safeBottom={insets.bottom}
             onOpenProfile={(u) => {
               /* pass 83-36 — your own reel/profile: no navigation */
-              if (meUser && (u === meUser.username || (meUser.username && `@${meUser.username}` === u))) return;
+              const cleanU = String(u).replace(/^@/, '').toLowerCase();
+              if (meUser && cleanU === String(meUser.username ?? '').replace(/^@/, '').toLowerCase()) return;
               router.push({ pathname: '/profile/[username]', params: { username: String(u), tab: 'videos' } } as never);
             }}
             onMore={(r) => setMoreReel(r)}
@@ -1356,9 +1363,12 @@ function VideosFeedInner() {
           setIndex((cur) => (cur === i ? cur : i));
         }}
         scrollEventThrottle={64}
-        windowSize={3}
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
+        /* Keep the current item plus the next 2–3 players mounted so their
+         * native sources can prepare before the swipe reaches them. */
+        windowSize={5}
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={80}
         extraData={storeTick}
       />
 

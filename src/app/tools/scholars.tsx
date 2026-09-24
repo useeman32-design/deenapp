@@ -44,7 +44,6 @@ const CAT_META: Record<string, { icon: string; tint: string }> = {
   Other: { icon: 'ellipsis-h', tint: '#9AA8A0' },
 };
 const QCATS = ['Aqeedah', 'Fiqh', 'Hadith', 'Tafsir', 'Zakah', 'Marriage', 'Inheritance', 'Youth', 'Other'];
-const POINTS_KEY = 'dl.scholars.questions.v1';
 
 type Question = {
   id: string;
@@ -125,9 +124,8 @@ export default function Scholars() {
   const [catScreen, setCatScreen] = useState<string | null>(null);
   const [asking, setAsking] = useState<number | null>(null); /* scholar id */
   const [threadQuestion, setThreadQuestion] = useState<api.MyQuestion | null>(null);
-  const routeParams = useLocalSearchParams<{ tab?: string; question_id?: string }>();
-  const [questions, setQuestions] = useState<Question[] | null>(null);
-  const [points, setPoints] = useState(1250);
+  const routeParams = useLocalSearchParams<{ tab?: string; question_id?: string; scholar_id?: string }>();
+  const [points, setPoints] = useState<number | null>(null);
 
   useEffect(() => {
     if (routeParams.tab === 'mine' || routeParams.tab === 'public' || routeParams.tab === 'browse') {
@@ -137,12 +135,24 @@ export default function Scholars() {
     }
   }, [routeParams.tab]);
 
-  useEffect(() => {
-    storage.getItem('dl.scholars.questions.v1').then((r) => {
-      try { setQuestions(JSON.parse(r ?? '[]') as Question[]); } catch { setQuestions([]); }
-    }).catch(() => setQuestions([]));
-    storage.getItem('dl.deenpoints').then((r) => { if (r) setPoints(Number(r) || 1250); }).catch(() => {});
+  const refreshPoints = useCallback(async () => {
+    /* Live accounts must use the ledger. Local storage is only a preview/demo
+     * mirror and is never used as a production balance or spending decision. */
+    if (api.isLive()) {
+      const wallet = await api.deenpointsHistory(1).catch(() => null);
+      if (wallet && Number.isFinite(wallet.balance)) {
+        setPoints(wallet.balance);
+        return;
+      }
+      setPoints(null);
+      return;
+    }
+    if (api.FORCE_DEMO) {
+      const saved = await storage.getItem('dl.deenpoints').catch(() => null);
+      setPoints(saved ? Number(saved) || 1250 : 1250);
+    }
   }, []);
+  useEffect(() => { void refreshPoints(); }, [refreshPoints]);
 
   /* pass 83-38 — the scholar roster comes from the server.
    * pass 97 — "when i navigate to browse scholars still am not seeing any
@@ -164,27 +174,31 @@ export default function Scholars() {
         SCHOLAR_ROSTER = rows;
         setRoster(rows);
         setRosterState('ready');
+        void refreshPoints();
         return;
       }
       await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
     setRosterState('error');
-  }, []);
+  }, [refreshPoints]);
   useEffect(() => { void loadRoster(); }, [loadRoster]);
   /* returning to the screen re-checks — a scholar approved a minute ago shows up */
   useFocusEffect(useCallback(() => { void loadRoster(); }, [loadRoster]));
+  /* Profile → Ask lands here. Select the requested scholar only after the live
+   * roster exists, and never open an ask target for the signed-in account. */
+  useEffect(() => {
+    const wanted = Number(routeParams.scholar_id ?? 0);
+    if (!wanted || !roster.length) return;
+    const target = roster.find((x) => x.id === wanted);
+    const self = !!me && (Number(me.id) === Number(target?.id) || String(me.username ?? '').replace(/^@/, '').toLowerCase() === String(target?.username ?? '').replace(/^@/, '').toLowerCase());
+    setTab('browse');
+    setPicked('browse');
+    if (target && !self) setAsking(target.id);
+  }, [routeParams.scholar_id, roster, me?.id, me?.username]);
 
-  /* pass 89 — the server side of Ask Scholars. Three separate gaps made this
-   * screen read as “nothing new”, and all three are closed here:
-   *   · the ask sheet never contacted the API: it wrote the question into this
-   *     phone's storage and then FABRICATED a scholar's reply after nine
-   *     seconds, so nothing reached a scholar's inbox and nothing could be
-   *     published;
-   *   · the MY QUESTIONS and PUBLIC tabs rendered that same local storage, so a
-   *     real answer written by a scholar on the server could never appear;
-   *   · an empty roster said “No scholars match that search”.
-   * The local list is still kept, as the offline mirror underneath the server
-   * rows — the DB is what the user is shown first. */
+  /* pass 89 — the server side of Ask Scholars. Questions, public answers, and
+   * statuses are read from the live API; no phone-only question mirror is used
+   * as a source of truth. */
   const [liveFatwas, setLiveFatwas] = useState<api.DirectFatwa[]>([]);
   const [liveMine, setLiveMine] = useState<api.MyQuestion[]>([]);
 
@@ -238,12 +252,6 @@ export default function Scholars() {
   useEffect(() => { void refreshScholarData(); }, []);
   useEffect(() => { if (tab === 'public' || tab === 'mine') { void refreshScholarData(); } }, [tab]);
 
-  const save = (list: Question[]) => {
-    setQuestions(list);
-    storage.setItem('dl.scholars.questions.v1', JSON.stringify(list)).catch(() => {});
-    storage.setItem('dl.deenpoints', String(points)).catch(() => {});
-  };
-
   const scholar = roster.find((s) => s.id === asking) ?? null;
 
   const list = useMemo(() => {
@@ -269,21 +277,43 @@ export default function Scholars() {
      * changed catScreen, re-ran this memo, and the scholar appeared. */
   }, [q, field, catScreen, roster]);
 
-  /* pass 95 — the SENT TO SCHOLARS block above is the server's copy of these
-   * same questions. Reconcile the phone mirror against it: keep the server's
-   * status/answer and drop the duplicate local card, so one question is one
-   * card with one honest status. */
-  const localQuestions = useMemo(() => {
-    const qs = questions ?? [];
-    if (!liveMine.length) return qs;
-    const onServer = new Set(liveMine.map((m) => m.title.trim().toLowerCase()));
-    return qs.filter((x) => !onServer.has(x.title.trim().toLowerCase()));
-  }, [questions, liveMine]);
+  /* The SENT TO SCHOLARS block is rendered directly from the server response,
+   * so one question has one authoritative status and answer. */
+  const [publicQuery, setPublicQuery] = useState('');
+  const [publicCategory, setPublicCategory] = useState<string | null>(null);
+  const publicRows = useMemo(() => {
+    const needle = publicQuery.trim().toLowerCase();
+    return [...liveFatwas]
+      .filter((f) => !publicCategory || String(f.category ?? '').toLowerCase() === publicCategory.toLowerCase())
+      .filter((f) => !needle || `${f.title} ${f.question} ${f.scholar?.name ?? ''} ${f.scholar?.username ?? ''}`.toLowerCase().includes(needle))
+      .sort((a, b) => {
+        const weight = (f: api.DirectFatwa) => { const p = String((f as api.DirectFatwa & { priority?: string }).priority ?? 'normal'); return p === 'urgent' ? 0 : p === 'priority' ? 1 : 2; };
+        return weight(a) - weight(b);
+      });
+  }, [liveFatwas, publicQuery, publicCategory]);
 
-  const publicQs = useMemo(
-    () => (questions ?? []).filter((x) => x.isPublic && x.status === 'answered').sort((a, b) => b.at - a.at),
-    [questions],
-  );
+  /* Search/filtering must query the live public-list endpoint rather than
+   * searching only the first phone-sized page. The local filter remains as an
+   * instant response while the authoritative server result arrives. */
+  useEffect(() => {
+    if (tab !== 'public' || (!publicQuery.trim() && !publicCategory)) return;
+    const timer = setTimeout(() => {
+      void api.directFatwas(100, undefined, publicQuery, publicCategory ?? undefined)
+        .then((rows) => {
+          if (rows.length || !publicQuery.trim()) {
+            setLiveFatwas(rows);
+            return;
+          }
+          /* Older API deployments returned 500 for the repeated-placeholder
+           * search query. Fetch the same live source without q and filter the
+           * returned rows locally, so public search remains usable immediately
+           * while the corrected endpoint is being deployed. */
+          return api.directFatwas(100, undefined, undefined, publicCategory ?? undefined).then(setLiveFatwas);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [tab, publicQuery, publicCategory]);
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
@@ -427,11 +457,12 @@ export default function Scholars() {
               </View>
             )}
 
-            {list.map((s) => (
-              <Pressable
+            {list.map((s) => {
+              const isSelf = !!me && (Number(me.id) === Number(s.id) || String(me.username ?? '').replace(/^@/, '').toLowerCase() === String(s.username ?? '').replace(/^@/, '').toLowerCase());
+              return <Pressable
                 key={s.id}
-                accessibilityLabel={`ask ${s.display_name}`}
-                onPress={() => { haptic.selection(); router.push({ pathname: '/profile/[username]', params: { username: String(s.username ?? s.display_name ?? s.id), tab: 'questions' } } as never); }}
+                accessibilityLabel={isSelf ? `${s.display_name} — your account` : `ask ${s.display_name}`}
+                onPress={() => { haptic.selection(); if (!isSelf) router.push({ pathname: '/profile/[username]', params: { username: String(s.username ?? s.display_name ?? s.id), tab: 'questions' } } as never); }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9, opacity: pressed ? 0.85 : 1 })}
               >
                 <AvatarImage source={scholarPhoto(s)} name={s.display_name || 'Scholar'} size={46} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.5)" />
@@ -468,15 +499,15 @@ export default function Scholars() {
                     ) : null}
                   </View>
                 </View>
-                <Pressable
+                {!isSelf ? <Pressable
                   accessibilityLabel={`Ask ${s.display_name}`}
                   onPress={(event) => { event.stopPropagation(); haptic.selection(); setAsking(s.id); }}
                   style={({ pressed }) => ({ borderRadius: 10, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', paddingHorizontal: 11, paddingVertical: 7, opacity: pressed ? 0.8 : 1 })}
                 >
                   <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Ask</T>
-                </Pressable>
-              </Pressable>
-            ))}
+                </Pressable> : <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: d.faint }}>You</T>}
+              </Pressable>; 
+            })}
             {!list.length ? (
               <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginTop: 24 }}>
                 <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>
@@ -550,9 +581,11 @@ export default function Scholars() {
                   </View>
                   <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 7 }}>{x.title}</T>
                   <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>{x.question ?? x.question_text ?? 'Question details unavailable.'}</T>
-                  {x.attachment_url ? <Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(x.attachment_url) ? x.attachment_url : `${api.API_ORIGIN}${x.attachment_url.startsWith('/') ? '' : '/'}${x.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 8 }} resizeMode="contain" /> : null}
                   {x.answer ? (
-                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
+                    <View style={{ marginTop: 7 }}>
+                      <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: d.faint, letterSpacing: 0.7 }}>ANSWER</T>
+                      <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 3 }}>{x.answer}</T>
+                    </View>
                   ) : (
                     <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.faint, marginTop: 7 }}>
                       {String(x.status).toLowerCase() === 'rejected'
@@ -560,89 +593,57 @@ export default function Scholars() {
                         : 'A scholar has the question in their queue. Answers arrive in this list.'}
                     </T>
                   )}
+                  {x.attachment_url ? <Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(x.attachment_url) ? x.attachment_url : `${api.API_ORIGIN}${x.attachment_url.startsWith('/') ? '' : '/'}${x.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 8 }} resizeMode="contain" /> : null}
                 </Pressable>
               ))}
             </View>
-          ) : scholarBusy && !(questions?.length) ? (
+          ) : scholarBusy ? (
             <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginVertical: 16 }} />
           ) : null
-        ) : null}
-
-        {/* ── MY QUESTIONS ── */}
-        {picked != null && tab === 'mine' ? (
-          questions == null ? (
-            <ActivityIndicator color={isDark ? '#4AE38F' : '#1D6F42'} style={{ marginTop: 30 }} />
-          ) : !questions.length ? (
-            <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 40 }}>You haven{"'"}t asked anything yet — pick a scholar and ask your first question.</T>
-          ) : !localQuestions.length ? (
-            <T v="caption" style={{ fontSize: 10.5, color: d.faint, textAlign: 'center', marginTop: 18, lineHeight: 15 }}>
-              Everything you asked is listed above with the scholar{'\u2019'}s live status.
-            </T>
-          ) : (
-            localQuestions.map((x) => (
-              <View key={x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  {/* pass 95 — a badge, never a spinner (see STATUS_META) */}
-                  <StatusBadge status={x.status} isDark={isDark} />
-                  <T v="caption" style={{ flex: 1, fontSize: 9.5, color: d.faint, textAlign: 'right' }}>{timeAgo(x.at)} · {x.isPublic ? 'Public' : 'Private'}</T>
-                </View>
-                <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text, marginTop: 8 }}>{x.title}</T>
-                <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 2 }}>to {x.scholarName} · {x.cat}{x.urgency ? ` · ⚡ ${x.urgency} DP priority` : ''}</T>
-                {x.status === 'answered' && x.answer ? (() => {
-                  const sc = scholarOf(x.scholarId);
-                  return (
-                    <View style={{ marginTop: 10, gap: 8 }}>
-                      {/* pass 42 — asker (you): avatar + info */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <AvatarImage source={(me?.profile_image_url as string | null) ?? null} name="You" size={28} tint={d.bgSoft} border={d.cardBorder} />
-                        <View style={{ flex: 1 }}>
-                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>You</T>
-                          <T v="caption" style={{ fontSize: 9, color: d.faint }}>{x.isPublic ? 'asked publicly' : 'asked privately'} · {timeAgo(x.at)}</T>
-                        </View>
-                      </View>
-                      {/* pass 42 — scholar: avatar + credentials + the answer */}
-                      <View style={{ borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <AvatarImage source={scholarPhoto(scholarOf(x.scholarId))} name={scholarOf(x.scholarId)?.display_name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
-                          <View style={{ flex: 1 }}>
-                            <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
-                            <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>
-                          </View>
-                        </View>
-                        <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
-                      </View>
-                    </View>
-                  );
-                })() : null}
-                {/* pass 95 — this was a spinner + "The scholar is reviewing your
-                 * question…" that never stopped, because the local mirror was
-                 * never reconciled with the server row. The state is now a
-                 * badge (above) and this line explains what happens next. */}
-                {x.status !== 'answered' && !(x.status === 'rejected' && x.answer) ? (
-                  <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.faint, marginTop: 7 }}>
-                    {x.status === 'rejected'
-                      ? 'Not answered — you can ask again, or send it to another scholar.'
-                      : 'With the scholar. You will see the answer here the moment it is published.'}
-                  </T>
-                ) : null}
-              </View>
-            ))
-          )
         ) : null}
 
         {/* pass 89 — answers PUBLISHED ON THE SERVER. This tab used to read only
             this phone's storage, so a scholar's public answer could never appear. */}
         {picked != null && tab === 'public' ? (
-          liveFatwas.length ? (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, paddingHorizontal: 10, marginBottom: 9 }}>
+              <FontAwesome5 name="search" size={12} color={d.faint} />
+              <TextInput value={publicQuery} onChangeText={setPublicQuery} placeholder="Search question or scholar…" placeholderTextColor={d.faint} style={{ flex: 1, paddingVertical: 11, fontSize: 16, fontFamily: 'Poppins-Medium', color: d.text }} />
+              {publicQuery ? <Pressable onPress={() => setPublicQuery('')} hitSlop={8}><FontAwesome5 name="times-circle" size={13} color={d.faint} /></Pressable> : null}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingBottom: 9 }}>
+              {[null, ...Array.from(new Set(liveFatwas.map((f) => f.category).filter(Boolean)))].map((c) => (
+                <Pressable key={c ?? 'all'} onPress={() => setPublicCategory(c)} style={{ borderRadius: 999, borderWidth: 1, borderColor: publicCategory === c ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, backgroundColor: publicCategory === c ? (isDark ? 'rgba(74,227,143,0.12)' : 'rgba(29,111,66,0.07)') : d.card, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: publicCategory === c ? (isDark ? '#4AE38F' : '#1D6F42') : d.faint }}>{c ?? 'All topics'}</T>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {publicRows.length ? (
             <View style={{ marginBottom: 8 }}>
-              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>ANSWERED IN PUBLIC · {liveFatwas.length}</T>
-              {liveFatwas.map((f) => (
-                <View key={'pf' + f.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
-                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>
-                    {(f.category || 'GENERAL').toUpperCase()} · {f.answered_time_ago}
+              <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: d.faint, marginBottom: 7 }}>ANSWERED IN PUBLIC · {publicRows.length} · PRIORITY FIRST</T>
+              {publicRows.map((f) => (
+                <View key={'pf' + f.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: (f.priority === 'urgent' || f.priority === 'priority') ? '#D4AF37' : d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
+                  <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: (f.priority === 'urgent' || f.priority === 'priority') ? '#D4AF37' : (isDark ? '#4AE38F' : '#1D6F42') }}>
+                    {(f.category || 'GENERAL').toUpperCase()} · {f.priority_label ?? (f.priority === 'urgent' ? 'Urgent' : f.priority === 'priority' ? 'Priority' : '')} · {f.answered_time_ago}
                   </T>
                   <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{f.title}</T>
-                  <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{f.question}</T>
+                  <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: d.faint, letterSpacing: 0.7, marginTop: 7 }}>QUESTION</T>
+                  <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 3 }}>{f.question}</T>
+                  {f.user?.username ? (
+                    <Pressable
+                      accessibilityLabel={`Question asker ${f.user.name ?? f.user.username}`}
+                      onPress={() => {
+                        const asker = String(f.user?.username ?? '').replace(/^@/, '').toLowerCase();
+                        const mine = String(me?.username ?? '').replace(/^@/, '').toLowerCase();
+                        if (!asker || (mine && asker === mine)) return;
+                        router.push({ pathname: '/profile/[username]', params: { username: f.user?.username } } as never);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8, alignSelf: 'flex-start' }}
+                    >
+                      <AvatarImage source={f.user.profile_image_url ?? null} name={f.user.name || f.user.username} size={23} tint="rgba(74,227,143,0.12)" border={d.cardBorder} />
+                      <T v="caption" style={{ fontSize: 9.5, color: d.faint }}>asked by @{f.user.username}</T>
+                    </Pressable>
+                  ) : null}
                   <View style={{ marginTop: 9, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <AvatarImage source={f.scholar?.profile_image_url ?? null} name={f.scholar?.name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
@@ -654,12 +655,14 @@ export default function Scholars() {
                         <T v="caption" style={{ fontSize: 9, color: d.faint }}>answered publicly · {f.tags?.length ? f.tags.slice(0, 3).join(', ') : 'fatwa'}</T>
                       </View>
                     </View>
-                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.text, marginTop: 7 }}>{f.answer}</T>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: d.faint, letterSpacing: 0.7, marginTop: 7 }}>ANSWER</T>
+                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.text, marginTop: 3 }}>{f.answer}</T>
+                    {f.attachment_url ? <Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(f.attachment_url) ? f.attachment_url : `${api.API_ORIGIN}${f.attachment_url.startsWith('/') ? '' : '/'}${f.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /> : null}
                   </View>
                 </View>
               ))}
             </View>
-          ) : !publicQs.length ? (
+            ) : (
             <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginBottom: 10 }}>
               <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>{scholarBusy ? 'Loading public answers…' : 'Nothing published yet'}</T>
               <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>
@@ -669,44 +672,10 @@ export default function Scholars() {
                 <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>Refresh</T>
               </Pressable>
             </View>
-          ) : null
+          )}
+          </>
         ) : null}
 
-        {/* ── PUBLIC ── */}
-        {picked != null && tab === 'public' ? (
-          publicQs.map((x) => (
-            <View key={x.id} style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14, marginBottom: 9 }}>
-              {(() => {
-                const sc = scholarOf(x.scholarId);
-                return (
-                  <View>
-                    <T v="caption" style={{ fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, color: isDark ? '#4AE38F' : '#1D6F42' }}>{x.cat.toUpperCase()} · {timeAgo(x.at)}</T>
-                    <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 5 }}>{x.title}</T>
-                    {/* pass 42 — asker: avatar + info */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <AvatarImage source={(x.asker?.av as string | undefined) ?? null} name={x.asker?.name ?? 'Community member'} size={28} tint={d.bgSoft} border={d.cardBorder} />
-                      <View style={{ flex: 1 }}>
-                        <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.asker?.name ?? 'Community member'}</T>
-                        <T v="caption" style={{ fontSize: 9, color: d.faint }}>asked · {x.isPublic ? 'public question' : 'private question'}</T>
-                      </View>
-                    </View>
-                    {/* pass 42 — scholar: avatar + credentials + the answer */}
-                    <View style={{ marginTop: 8, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <AvatarImage source={scholarPhoto(scholarOf(x.scholarId))} name={scholarOf(x.scholarId)?.display_name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
-                        <View style={{ flex: 1 }}>
-                          <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: d.text }}>{x.scholarName}</T>
-                          <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: isDark ? '#4AE38F' : '#1D6F42' }}>{sc ? `${sc.title} · ${sc.madhhab} · ${sc.institute}` : 'Verified scholar'}</T>
-                        </View>
-                      </View>
-                      <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 7 }}>{x.answer}</T>
-                    </View>
-                  </View>
-                );
-              })()}
-            </View>
-          ))
-        ) : null}
       </ScrollView>
 
       <QuestionThreadModal visible={threadQuestion != null} question={threadQuestion} onClose={() => setThreadQuestion(null)} />
@@ -721,8 +690,7 @@ export default function Scholars() {
             points={points}
             onClose={() => setAsking(null)}
             onSubmit={async (payload) => {
-              const entry: Question = { ...payload, id: `q${Date.now()}`, scholarId: asking ?? 0, at: Date.now(), status: 'processing' };
-              save([entry, ...(questions ?? [])]);
+              const entry = { ...payload, scholarId: asking ?? 0 };
               setAsking(null);
               setTab('mine');
               /* pass 89 — this is what “scholar: nothing new” actually was: the
@@ -732,7 +700,7 @@ export default function Scholars() {
                * the answer (if the scholar shares it publicly) on the public
                * page. The local entry above stays as the offline mirror. */
               if (!api.isLive()) {
-                setFlash({ ok: false, text: 'Offline — your question is saved on this phone and will be sent when the connection returns.' });
+                setFlash({ ok: false, text: 'You are offline — connect to the live app before sending this question.' });
                 return;
               }
               const r = await api.submitQuestion({
@@ -745,11 +713,12 @@ export default function Scholars() {
                 attachment: payload.photo ?? null,
               }).catch(() => ({ ok: false }));
               if (r.ok) {
+                await refreshPoints();
                 setFlash({ ok: true, text: 'Sent — the scholar has it in their queue. Answers show up in My Questions, and in Public if you allowed it. JazakAllahu khairan.' });
                 const fresh = await api.myQuestions().catch(() => null);
                 if (fresh) { setLiveMine(fresh.questions); }
               } else {
-                setFlash({ ok: false, text: 'Could not reach the server. The question is on your phone — try sending it again in a moment.' });
+                setFlash({ ok: false, text: 'Could not reach the server. Nothing was saved — please try sending again when you are connected.' });
               }
             }}
           />
@@ -759,7 +728,7 @@ export default function Scholars() {
   );
 }
 
-function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarName: string; fields: string; points: number; onClose: () => void; onSubmit: (p: Omit<Question, 'id' | 'scholarId' | 'at' | 'status'>) => void }) {
+function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarName: string; fields: string; points: number | null; onClose: () => void; onSubmit: (p: Omit<Question, 'id' | 'scholarId' | 'at' | 'status'>) => void }) {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
@@ -780,7 +749,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
     if (asset?.uri) setPhoto({ uri: asset.uri, name: asset.fileName ?? 'question-photo.jpg', type: asset.mimeType ?? 'image/jpeg', size: asset.fileSize });
   };
 
-  const pledged = Math.min(Number(urgency) || 0, points);
+  const pledged = Math.min(Number(urgency) || 0, points ?? 0);
   const valid = title.trim().length > 4 && body.trim().length > 9;
 
   return (
@@ -798,7 +767,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
       {/* deenpoints balance */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: isDark ? 'rgba(212,175,55,0.07)' : 'rgba(212,175,55,0.05)', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
         <DPIcon size={13} />
-        <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>{formatDP(points)} DeenPoints</T>
+        <T v="bodyS" style={{ flex: 1, fontWeight: '800', fontSize: 12.5, color: d.text }}>{points == null ? 'Loading balance…' : `${formatDP(points)} DeenPoints`}</T>
         <T v="caption" style={{ fontSize: 9, color: d.faint }}>balance</T>
       </View>
 
@@ -830,9 +799,8 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
 
       <T v="caption" style={{ fontWeight: '800', fontSize: 9.5, letterSpacing: 0.5, color: d.faint, marginBottom: 6 }}>URGENCY — PAY DEENPOINTS TO PRIORITIZE</T>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 12, marginBottom: 4 }}>
-        <FontAwesome5 name="bolt" size={12} color="#E8C96A" />
-        <TextInput value={urgency} onChangeText={(t) => setUrgency(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={{ flex: 1, paddingVertical: 11, fontSize: 14, fontWeight: '700', fontFamily: 'Poppins-Medium', color: d.text }} placeholder="0" placeholderTextColor={d.faint} />
-        <DPIcon size={10} color="#E8C96A" /><T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {formatDP(points)}</T>
+        <TextInput editable={points != null} value={urgency} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); const n = raw === '' ? 0 : Math.min(Number(raw), Math.max(0, points ?? 0)); setUrgency(String(n)); }} keyboardType="numeric" style={{ flex: 1, paddingVertical: 11, fontSize: 14, fontWeight: '700', fontFamily: 'Poppins-Medium', color: d.text }} placeholder="0" placeholderTextColor={d.faint} />
+        <DPIcon size={10} color="#E8C96A" /><T v="caption" style={{ fontSize: 9.5, color: d.faint }}>max {points == null ? '—' : formatDP(points)}</T>
       </View>
       <T v="caption" style={{ fontSize: 9, color: d.faint, marginBottom: 12 }}>Paying DeenPoints only moves your question up the queue — it never changes the answer. {pledged ? `${pledged.toLocaleString()} DP will be pledged.` : ''}</T>
 
@@ -861,7 +829,7 @@ function AskSheet({ scholarName, fields, points, onClose, onSubmit }: { scholarN
         disabled={!valid}
         style={({ pressed }) => ({ borderRadius: 14, backgroundColor: valid ? (isDark ? '#4AE38F' : '#1D6F42') : d.cardBorder, alignItems: 'center', paddingVertical: 14, opacity: pressed ? 0.85 : 1 })}
       >
-        <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: valid ? '#06140D' : d.faint }}>Send question{pledged ? ` · ⚡ ${pledged.toLocaleString()} DP` : ''}</T>
+        <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: valid ? '#06140D' : d.faint }}>Send question{pledged ? ` · ${pledged.toLocaleString()} DP` : ''}</T>
       </Pressable>
       <T v="caption" style={{ fontSize: 9, color: d.faint, textAlign: 'center', marginTop: 10, lineHeight: 14 }}>
         Scholars answer according to the Qur{"'"}an and Sunnah. DeenPoints never buy fatwas — they only set priority.

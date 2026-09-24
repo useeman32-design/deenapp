@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import { Alert } from '../lib/alert';
-import { Image } from "expo-image";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import type { Post } from "@/api/types";
@@ -45,6 +44,7 @@ import {
   addReply as srvAddReply,
   getComments,
   isLive,
+  saveAiCommentReply,
   toggleCommentLike,
   toggleReplyLike,
   videosCommentAdd,
@@ -55,6 +55,13 @@ import {
 } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
 const REPLY_OFF = 1_000_000_000;
+/* The visible name is “@DeenLink AI”; accept that spelling as well as the
+ * compact handle inserted by the picker.  The old regex only accepted
+ * @deenlinkai, so a user typing the displayed name got no answer. */
+const AI_MENTION_RE = /@deenlink\s*ai\b|@deenlinkai\b|@ai\b/i;
+const hasAiMention = (text: string): boolean => AI_MENTION_RE.test(text);
+const withoutAiMention = (text: string): string =>
+  text.replace(AI_MENTION_RE, "").replace(/\s{2,}/g, " ").trim();
 
 /* pass 83-38 — no demo persona */
 const ME = { name: "You", handle: "me" };
@@ -76,19 +83,6 @@ const EMOJIS = [
   "🔥",
   "🕋",
 ];
-
-/* pass 20: bundled animated stickers for comments */
-const GIFS = {
-  mashallah: require("../../assets/img/gifs/mashallah.gif"),
-  subhanallah: require("../../assets/img/gifs/subhanallah.gif"),
-  alhamdulillah: require("../../assets/img/gifs/alhamdulillah.gif"),
-  allahuakbar: require("../../assets/img/gifs/allahuakbar.gif"),
-  jazakallah: require("../../assets/img/gifs/jazakallah.gif"),
-  heart: require("../../assets/img/gifs/heart.gif"),
-  ameen: require("../../assets/img/gifs/ameen.gif"),
-  mosque: require("../../assets/img/gifs/mosque.gif"),
-  dua: require("../../assets/img/gifs/dua.gif"),
-} as const;
 
 /** Renders @mentions in comment text as colored + bold (IG-style). */
 /** pass 41 — [Quran 2:255] / [Bukhari · #12] / [Dua · …] references in AI
@@ -260,6 +254,7 @@ function CommentRow({
   onOpenProfile,
   onClose,
   onReport,
+  canReport,
   reportedIds,
   reportingIds,
   onDelete,
@@ -279,6 +274,7 @@ function CommentRow({
   onOpenProfile: (handle: string) => void;
   onClose?: () => void;
   onReport: (c: SampleComment) => void;
+  canReport: (c: SampleComment) => boolean;
   reportedIds: Set<number>;
   reportingIds: Set<number>;
   /* pass 97 — the author (or the post owner) can delete a comment */
@@ -297,6 +293,7 @@ function CommentRow({
 }) {
   const cImg = c.avatar != null ? c.avatar : null;
   const cName = c.name ?? c.handle;
+  const isAI = !!c.isAI || c.handle.toLowerCase() === "deenlinkai";
   const rowLiked = isLiked(c.id);
   const likeCount = (c.likes ?? 0) + (rowLiked && !c.liked ? 1 : 0);
   const nReplies = c.replies?.length ?? 0;
@@ -307,15 +304,32 @@ function CommentRow({
         onPress={() => onOpenProfile(c.handle)}
         style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
       >
-        <AvatarImage
-          source={cImg}
-          name={cName}
-          size={isReply ? 27 : 32}
-          tint={
-            colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(20,36,28,0.08)"
-          }
-          border={colors.hairline}
-        />
+        {isAI ? (
+          <View
+            style={{
+              width: isReply ? 27 : 32,
+              height: isReply ? 27 : 32,
+              borderRadius: isReply ? 9 : 11,
+              backgroundColor: "rgba(212,175,55,0.16)",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: "rgba(212,175,55,0.4)",
+            }}
+          >
+            <FontAwesome5 name="robot" size={isReply ? 11 : 13} color="#D4AF37" />
+          </View>
+        ) : (
+          <AvatarImage
+            source={cImg}
+            name={cName}
+            size={isReply ? 27 : 32}
+            tint={
+              colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(20,36,28,0.08)"
+            }
+            border={colors.hairline}
+          />
+        )}
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         <View
@@ -389,13 +403,6 @@ function CommentRow({
               }}
             />
           ) : null}
-          {c.gif ? (
-            <Image
-              source={c.gif}
-              style={{ width: 96, height: 96, marginTop: 6, borderRadius: 12 }}
-              contentFit="contain"
-            />
-          ) : null}
           {/* pass 42 — AI answers get a DIRECT open button for the place it described */}
           {c.nav ? <NavChip route={c.nav} onClose={onClose} /> : null}
         </View>
@@ -413,52 +420,56 @@ function CommentRow({
           >
             {c.time}
           </T>
-          <Pressable
-            hitSlop={6}
-            onPress={() => {
-              haptic.light();
-              onToggleLike(c.id);
-            }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-          >
-            <HeartIcon
-              size={11}
-              filled={rowLiked}
-              color={rowLiked ? "#E74C3C" : colors.faint}
-            />
-            {likeCount > 0 ? (
+          {!isAI ? (
+            <Pressable
+              hitSlop={6}
+              onPress={() => {
+                haptic.light();
+                onToggleLike(c.id);
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <HeartIcon
+                size={11}
+                filled={rowLiked}
+                color={rowLiked ? "#E74C3C" : colors.faint}
+              />
+              {likeCount > 0 ? (
+                <T
+                  v="caption"
+                  style={{
+                    fontSize: 9.5,
+                    color: rowLiked ? "#E74C3C" : colors.faint,
+                    fontWeight: "700",
+                  }}
+                >
+                  {likeCount}
+                </T>
+              ) : null}
+            </Pressable>
+          ) : null}
+          {!isAI ? (
+            <Pressable hitSlop={6} onPress={() => onReply(c)}>
               <T
                 v="caption"
-                style={{
-                  fontSize: 9.5,
-                  color: rowLiked ? "#E74C3C" : colors.faint,
-                  fontWeight: "700",
-                }}
+                style={{ fontSize: 9.5, color: colors.sub, fontWeight: "700" }}
               >
-                {likeCount}
+                Reply
               </T>
-            ) : null}
-          </Pressable>
-          <Pressable hitSlop={6} onPress={() => onReply(c)}>
-            <T
-              v="caption"
-              style={{ fontSize: 9.5, color: colors.sub, fontWeight: "700" }}
-            >
-              Reply
-            </T>
-          </Pressable>
-          {/* pass 83-39 — tiny red flag: tap to report this comment */}
-          <Pressable
+            </Pressable>
+          ) : null}
+          {/* Never offer a report action on the signed-in user's own row. */}
+          {!isAI && canReport(c) ? <Pressable
             hitSlop={8}
             onPress={() => { if (!reportedIds.has(c.id) && !reportingIds.has(c.id)) onReport(c); }}
             accessibilityLabel={reportedIds.has(c.id) ? "Comment reported" : "Report comment"}
             disabled={reportedIds.has(c.id) || reportingIds.has(c.id)}
           >
             {reportingIds.has(c.id) ? <ActivityIndicator size="small" color="#E8C96A" /> : <FontAwesome5 name={reportedIds.has(c.id) ? "check" : "flag"} size={9} color={reportedIds.has(c.id) ? colors.emerald : "#E74C3C"} />}
-          </Pressable>
+          </Pressable> : null}
           {/* pass 97 — delete your own comment (or any comment on your post).
               The endpoint existed; the app simply never offered it. */}
-          {onDelete && canDelete?.(c) ? (
+          {!isAI && onDelete && canDelete?.(c) ? (
             <Pressable
               hitSlop={8}
               onPress={() => onDelete(c)}
@@ -529,6 +540,7 @@ function CommentRow({
                 onOpenProfile={onOpenProfile}
                 onClose={onClose}
                 onReport={onReport}
+                canReport={canReport}
                 reportedIds={reportedIds}
                 reportingIds={reportingIds}
                 onDelete={onDelete}
@@ -611,13 +623,9 @@ export function CommentsModal({
   const { user: authUser } = useAuth();
   const liveVideo = videoId != null && videoId > 0 && isLive();
   const live = (postId != null && postId > 0 && isLive()) || liveVideo;
-  const me =
-    live && authUser
-      ? {
-          name: authUser.full_name || authUser.username,
-          handle: authUser.username,
-        }
-      : ME;
+  const me = authUser
+    ? { name: authUser.full_name || authUser.username, handle: authUser.username }
+    : ME;
   const mapServer = (c: ServerComment): SampleComment => ({
     id: c.id,
     name: c.user?.name || c.user?.username || "DeenLink",
@@ -625,6 +633,8 @@ export function CommentsModal({
     avatar: c.user?.profile_image_url ?? null,
     badge: (c.user?.verification_badge as SampleComment["badge"]) ?? null,
     text: c.text,
+    nav: c.nav ?? undefined,
+    isAI: !!c.is_ai,
     time: c.time_ago || "",
     likes: c.like_count,
     liked: c.liked_by_me,
@@ -643,6 +653,8 @@ export function CommentsModal({
             avatar: r.user?.profile_image_url ?? null,
             badge: (r.user?.verification_badge as SampleComment["badge"]) ?? null,
             text: r.text,
+            nav: r.nav ?? undefined,
+            isAI: !!r.is_ai,
             time: r.time_ago || "",
             likes: r.like_count,
             liked: r.liked_by_me,
@@ -752,7 +764,6 @@ export function CommentsModal({
     haptic.light();
   };
   const inputRef = useRef<TextInput>(null);
-  const [gifOpen, setGifOpen] = useState(false);
   /* pass 54 — tagging DeenLink AI is now an explicit chip, NOT injected text. */
   const [aiTagged, setAiTagged] = useState(false);
   /* pass 100 — moved here from below the `if (!post) return null;` guard (see
@@ -965,9 +976,12 @@ export function CommentsModal({
 
   /** Opens a public profile — closes this sheet first so it never lingers. */
   const openProfile = (handle: string) => {
+    const clean = String(handle).replace(/^@/, '').toLowerCase();
+    const mine = String(authUser?.username ?? '').replace(/^@/, '').toLowerCase();
+    if (mine && clean === mine) return;
     haptic.selection();
     onClose?.();
-    setTimeout(() => router.push(`/profile/${handle}`), 140);
+    setTimeout(() => router.push(clean === "deenlinkai" ? "/tools/ai" : `/profile/${handle}`), 140);
   };
 
   /* pass 83-39 — comment reporting: reason picker → /api/feed/report_comment.php
@@ -1042,6 +1056,10 @@ export function CommentsModal({
     if (!h) return false;
     return h === myHandle || (postOwnerHandle !== "" && h === postOwnerHandle);
   };
+  const canReportComment = (c: SampleComment): boolean => {
+    const h = String(c.handle ?? "").toLowerCase();
+    return h !== myHandle;
+  };
   const handleDeleteComment = (c: SampleComment) => {
     const isReply = c.id >= REPLY_OFF;
     const label = isReply ? "reply" : "comment";
@@ -1088,44 +1106,34 @@ export function CommentsModal({
     ]);
   };
 
-  const pushComment = (nc: SampleComment) => {
+  const pushComment = (nc: SampleComment, explicitParentId?: number) => {
     setItems((prev) => {
-      if (replyingTo) {
+      const parentTarget = explicitParentId != null ? explicitParentId : replyingTo?.id;
+      if (parentTarget != null) {
         /* pass 74 — a reply-to-a-reply carries the direct parent for the label */
         const child =
-          replyingTo.id >= REPLY_OFF
-            ? { ...nc, parentId: replyingTo.id - REPLY_OFF }
+          parentTarget >= REPLY_OFF
+            ? { ...nc, parentId: parentTarget - REPLY_OFF }
             : nc;
         return prev.map((c) => {
-          if (c.id === replyingTo.id)
+          if (c.id === parentTarget)
             return { ...c, replies: [...(c.replies ?? []), child] };
-          const ri = (c.replies ?? []).find((r) => r.id === replyingTo.id);
+          const ri = (c.replies ?? []).find((r) => r.id === parentTarget);
           if (ri) return { ...c, replies: [...(c.replies ?? []), child] };
           return c;
         });
       }
       return [...prev, nc];
     });
-    if (replyingTo) setOpenReplies((s) => new Set(s).add(replyingTo.id));
-    setReplyingTo(null);
+    const openId = explicitParentId ?? replyingTo?.id;
+    if (openId != null) {
+      const rootId = openId >= REPLY_OFF ? items.find((c) => (c.replies ?? []).some((r) => r.id === openId))?.id : openId;
+      if (rootId != null) setOpenReplies((v) => new Set(v).add(rootId));
+    }
+    if (explicitParentId == null) setReplyingTo(null);
   };
 
-  const sendGif = (g: number) => {
-    haptic.success();
-    pushComment({
-      id: Date.now(),
-      name: ME.name,
-      handle: ME.handle,
-      avatar: null,
-      text: "",
-      gif: g,
-      time: "now",
-      likes: 0,
-    });
-    setGifOpen(false);
-  };
-
-  const addComment = () => {
+  const addComment = async () => {
     const t = draft.trim();
     if (!t) return;
     haptic.light();
@@ -1134,13 +1142,14 @@ export function CommentsModal({
       id: tempId,
       name: me.name,
       handle: me.handle,
-      avatar: null,
+      avatar: (authUser?.profile_image_url ?? authUser?.profile_image ?? null) as string | number | null,
       text: t,
       time: "now",
       likes: 0,
     };
     /* pass 66-night — optimistic push; the server id swaps in when it answers. */
     const target = replyingTo;
+    let aiParentId = target?.id ?? tempId;
     pushComment(nc);
     setDraft("");
     if (liveVideo && videoId) {
@@ -1150,16 +1159,17 @@ export function CommentsModal({
           ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
           : items.find((c) => c.id === target.id)
         : null;
-      /* pass 77 — reply-to-reply on a video: parent_id = the reply being
-       * answered (server resolves "replying to" from it), not the root comment */
+      /* pass 77 — reply-to-reply on a video: parent_id = the comment/reply
+       * being answered, not the root comment. */
       const vParentId =
         vIsReply && target && target.id < 100_000_000_000
           ? target.id - REPLY_OFF
           : parent
             ? parent.id
             : undefined;
-      void videosCommentAdd(videoId, t, vParentId).then((res) => {
-        if (!res) return;
+      const res = await videosCommentAdd(videoId, t, vParentId);
+      if (res) {
+        if (!target) aiParentId = res.comment_id;
         setItems((prev) =>
           prev.map((c) =>
             (c.replies ?? []).some((r) => r.id === tempId)
@@ -1176,20 +1186,20 @@ export function CommentsModal({
                 : c,
           ),
         );
-      });
+      }
     } else if (live && postId) {
       if (target) {
         const isReply = target.id >= REPLY_OFF;
         const parent = isReply
           ? items.find((c) => (c.replies ?? []).some((r) => r.id === target.id))
           : items.find((c) => c.id === target.id);
-        void srvAddReply(
+        const res = await srvAddReply(
           postId,
           parent ? parent.id : target.id,
           t,
           isReply && target.id < 100_000_000_000 ? target.id - REPLY_OFF : 0,
-        ).then((res) => {
-          if (!res) return;
+        );
+        if (res) {
           setItems((prev) =>
             prev.map((c) =>
               (c.replies ?? []).some((r) => r.id === tempId)
@@ -1202,43 +1212,50 @@ export function CommentsModal({
                 : c,
             ),
           );
-        });
+        }
       } else {
-        void srvAddComment(postId, t).then((res) => {
-          if (!res) return;
+        const res = await srvAddComment(postId, t);
+        if (res) {
+          aiParentId = res.id;
           setItems((prev) =>
             prev.map((c) => (c.id === tempId ? { ...c, id: res.id } : c)),
           );
-        });
+        }
       }
     }
-    /* pass 40 — mention @DeenLink (or @deenlink ai / @ai) → the AI answers
-     * in-thread: it VERIFIES the post's claims against our library and
-     * answers the question, grounded in what it can actually retrieve. */
-    if (aiTagged || /@deenlink(ai)?\b/i.test(t) || /^@ai\b/i.test(t))
-      void answerAsDeenLinkAI(t, post);
+    /* pass 40 — mention @DeenLink AI (including the displayed spaced name)
+     * → answer in-thread. Waiting for a live comment id first prevents the AI
+     * reply from becoming orphaned when the optimistic id is replaced. */
+    if (aiTagged || hasAiMention(t))
+      void answerAsDeenLinkAI(t, post, aiParentId);
     setAiTagged(false);
   };
 
-  const answerAsDeenLinkAI = async (question: string, forPost: Post | null) => {
+  const answerAsDeenLinkAI = async (question: string, forPost: Post | null, parentCommentId: number) => {
     setAiTyping(true);
-    const postText = (forPost?.content_text ?? "").slice(0, 500);
-    const q =
-      question
-        .replace(/@deenlink(ai)?\b/i, "")
-        .replace(/^@ai\b/i, "")
-        .trim() || "Is this post accurate?";
+    const postText = (forPost?.content_text ?? "").slice(0, 700);
+    const hasVisualMedia = !!(forPost?.image_url || forPost?.video_url || forPost?.media?.length);
+    const mediaLimit = hasVisualMedia
+      ? "The post has image/video media. You cannot inspect pixels, audio, or video here. Use only the supplied text; explicitly say you cannot read/watch the media if the question depends on it. Never identify a person or infer facts from the media."
+      : "Use only the supplied post and comment text; do not invent missing context.";
+    const q = withoutAiMention(question) || "Is this post accurate?";
+    /* Include the actual thread text, not merely the post caption. This keeps a
+     * reply grounded in the asking user's words when the caption is unrelated. */
+    const threadRow = parentCommentId >= REPLY_OFF
+      ? items.flatMap((c) => c.replies ?? []).find((r) => r.id === parentCommentId)
+      : items.find((c) => c.id === parentCommentId);
+    const threadContext = threadRow?.text ? `\nAsking comment context: "${threadRow.text.slice(0, 700)}"` : "";
     let answer = "";
     try {
       const key = await getApiKey();
       if (key && detectProvider(key)) {
         /* keyed mode — full reasoning, then a single inserted reply */
         const sources = await retrieveLocal(
-          `${q} ${postText.slice(0, 160)}`,
+          `${q} ${postText.slice(0, 220)}`,
         ).catch(() => []);
         const ctx = sources
           .slice(0, 5)
-          .map((x) => `[${x.label}] ${x.excerpt.slice(0, 220)}`)
+          .map((x) => `[${x.label}] ${x.excerpt.slice(0, 260)}`)
           .join("\n");
         const model = await getModel();
         answer = await new Promise<string>((resolve) => {
@@ -1249,35 +1266,34 @@ export function CommentsModal({
             [
               {
                 role: "system",
-                content: `${SYSTEM_PROMPT}\nYou are replying INLINE as a comment under a community post. In at most 90 words: (1) one line on whether the post's claims are supported by the provided context — cite what matches, flag what you cannot verify; (2) answer the user's question. No markdown headings. If the user asks WHERE something is in the app or how to do it in DeenLink, give short numbered steps and end with a final line exactly: NAV: /route (one of the routes you know).`,
+                content: `${SYSTEM_PROMPT}\nYou are replying INLINE as DeenLink AI beneath the user's asking comment. Keep it under 110 words. First state what the supplied text/context does or does not establish; then answer cautiously. Never claim a post is true merely because it has a caption. For religious questions, distinguish a verified source from general guidance and advise a qualified scholar for a personal ruling. ${mediaLimit} No markdown headings. If the user asks WHERE something is in the app or how to do it in DeenLink, give short numbered steps and end with a final line exactly: NAV: /route (one of the routes you know).`,
               },
               {
                 role: "user",
-                content: `Post: "${postText}"\nUser asked: "${q}"\n\nLibrary context:\n${ctx || "(nothing directly on-topic retrieved)"}`,
+                content: `Post text: "${postText || "(no readable post text supplied)"}"${threadContext}\nUser asked: "${q}"\n\nVerified library context:\n${ctx || "(nothing directly on-topic retrieved)"}`,
               },
             ],
             false,
             (e: { delta?: string; done?: boolean; error?: string }) => {
               if (e.delta) acc += e.delta;
               if (e.done || e.error)
-                resolve(
-                  acc.trim() ||
-                    "I could not complete that check — please try again.",
-                );
+                resolve(acc.trim());
             },
           ).catch(() => resolve(""));
         });
       }
       if (!answer) {
-        /* on-device fallback — grounded in the offline library */
+        /* On-device fallback — never guesses about the post or media. */
         const sources = await retrieveLocal(
-          `${q} ${postText.slice(0, 160)}`,
+          `${q} ${postText.slice(0, 220)}`,
         ).catch(() => [] as never[]);
-        answer = composeLocalAnswer(q, sources);
+        answer = hasVisualMedia && !postText
+          ? "I cannot read or watch the image/video from this comment context, so I cannot verify the claim. Please provide the visible text or a description, and ask a qualified scholar for a personal ruling."
+          : composeLocalAnswer(q, sources);
       }
     } catch {
       answer =
-        "I could not check this right now — please try again in a moment.";
+        "I could not verify this safely right now, so I will not guess. Please try again or ask a qualified scholar for a personal ruling.";
     }
     /* let the typing dots breathe, then post the reply */
     await new Promise((r) => setTimeout(r, Math.max(0, 1100)));
@@ -1306,18 +1322,34 @@ export function CommentsModal({
         clean = `${clean}\n\n${nav.text}`.trim();
       }
     }
+    const aiText = `✅ ${clean}`;
     const ai: SampleComment = {
       id: Date.now() + 1,
       name: "DeenLink AI",
       handle: "deenlinkai",
       avatar: null,
       badge: "green",
-      text: `✅ ${clean}`,
+      isAI: true,
+      text: aiText,
       nav: navRoute,
       time: "now",
       likes: 0,
     };
-    pushComment(ai);
+    /* The AI response is a real threaded child of the asker’s comment, not a
+     * new root. This keeps the question and answer together in both normal and
+     * reel comments. In live mode also write a system-authored row to the
+     * database; it must never be saved as the asking user's own reply. */
+    pushComment(ai, parentCommentId);
+    const aiRootId = parentCommentId >= REPLY_OFF
+      ? items.find((c) => (c.replies ?? []).some((r) => r.id === parentCommentId))?.id ?? 0
+      : parentCommentId;
+    if (live && aiRootId > 0) {
+      const surface = liveVideo ? "video" : "post";
+      const contentId = liveVideo ? videoId : postId;
+      if (contentId) {
+        void saveAiCommentReply(surface, contentId, aiRootId, aiText, navRoute).catch(() => null);
+      }
+    }
     haptic.success();
   };
 
@@ -1570,6 +1602,7 @@ export function CommentsModal({
                 onOpenProfile={openProfile}
                 onClose={onClose}
                 onReport={handleReportComment}
+                canReport={canReportComment}
                 reportedIds={reportedIds}
                 reportingIds={reportingIds}
                 onDelete={handleDeleteComment}
@@ -1685,7 +1718,7 @@ export function CommentsModal({
         </View>
       ) : null}
 
-      {/* Emoji row (IG-style) + GIF picker (pass 20) */}
+      {/* Emoji row (IG-style) */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1728,44 +1761,6 @@ export function CommentsModal({
           );
         })}
       </ScrollView>
-
-      {/* GIF picker — bundled animated stickers */}
-      {gifOpen ? (
-        <View
-          style={{ paddingHorizontal: 12, paddingBottom: 8, maxHeight: 240 }}
-        >
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            {Object.entries(GIFS).map(([name, g]) => (
-              <Pressable
-                key={name}
-                onPress={() => sendGif(g)}
-                style={({ pressed }) => ({
-                  width: 96,
-                  height: 96,
-                  borderRadius: 13,
-                  overflow: "hidden",
-                  borderWidth: 1,
-                  borderColor: pressed ? emerald : hairline,
-                  opacity: pressed ? 0.75 : 1,
-                })}
-              >
-                <Image
-                  source={g}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                />
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
 
       {/* pass 41 — mention picker (DeenLink AI first, then friends/search) */}
       {mentionMatch ? (
@@ -1888,28 +1883,14 @@ export function CommentsModal({
           borderTopColor: hairline,
         }}
       >
-        <Text
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            backgroundColor: isDark
-              ? "rgba(46,204,113,0.16)"
-              : "rgba(14,122,70,0.12)",
-            borderWidth: 1,
-            borderColor: isDark
-              ? "rgba(46,204,113,0.4)"
-              : "rgba(14,122,70,0.35)",
-            textAlign: "center",
-            textAlignVertical: "center",
-            fontFamily: "Poppins-Bold",
-            fontSize: 12,
-            fontWeight: "700",
-            color: emerald,
-          }}
-        >
-          A
-        </Text>
+        <AvatarImage
+          source={(authUser?.profile_image_url ?? authUser?.profile_image ?? null) as string | number | null}
+          name={authUser?.full_name || authUser?.username || "You"}
+          gender={authUser?.gender}
+          size={34}
+          tint={isDark ? "rgba(46,204,113,0.16)" : "rgba(14,122,70,0.12)"}
+          border={isDark ? "rgba(46,204,113,0.4)" : "rgba(14,122,70,0.35)"}
+        />
         <View style={{ flex: 1 }}>
           <TextInput
             ref={inputRef}
@@ -1964,40 +1945,6 @@ export function CommentsModal({
             </Text>
           ) : null}
         </View>
-        <Pressable
-          onPress={() => {
-            haptic.selection();
-            setGifOpen((o) => !o);
-          }}
-          accessibilityLabel="toggle gif picker"
-          hitSlop={6}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 11,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: gifOpen
-              ? "rgba(46,204,113,0.14)"
-              : isDark
-                ? "rgba(255,255,255,0.06)"
-                : "rgba(20,36,28,0.06)",
-            borderWidth: 1,
-            borderColor: gifOpen ? "rgba(74,227,143,0.6)" : hairline,
-          }}
-        >
-          <T
-            v="caption"
-            style={{
-              fontSize: 11,
-              fontWeight: "900",
-              letterSpacing: 0.4,
-              color: gifOpen ? emerald : (faint as string),
-            }}
-          >
-            GIF
-          </T>
-        </Pressable>
         <Pressable
           onPress={addComment}
           style={({ pressed }) => ({

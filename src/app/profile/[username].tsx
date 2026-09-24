@@ -27,6 +27,7 @@ import {
   blockUser,
   deletePost as srvDeletePost,
   directFatwas,
+  API_ORIGIN,
   getUserProfile,
   isLive,
   reportAccount,
@@ -195,8 +196,10 @@ function PublicProfileScreenInner() {
   /* pass 75 — a real scholar's answered questions come from the server */
   const [liveQAs, setLiveQAs] = useState<Array<{
     id: number;
+    title: string;
     q: string;
     a: string;
+    attachment_url?: string | null;
   }> | null>(null);
   /* pass 75 — account tools: report this account (server account_reports) */
   const [reportOpen, setReportOpen] = useState(false);
@@ -233,7 +236,7 @@ function PublicProfileScreenInner() {
     void directFatwas(30, liveP.id).then((rows) => {
       if (rows.length)
         setLiveQAs(
-          rows.map((r) => ({ id: Number(r.id), q: r.question || r.title, a: r.answer })),
+            rows.map((r) => ({ id: Number(r.id), title: r.title, q: r.question || r.title, a: r.answer, attachment_url: r.attachment_url ?? null })), 
         );
     });
   }, [liveP]);
@@ -928,7 +931,7 @@ function PublicProfileScreenInner() {
 
             {/* actions */}
             <View style={{ flexDirection: "row", gap: 9 }}>
-              <Pressable
+              {!isOwnProfile ? <Pressable
                 onPress={toggleFollow}
                 style={({ pressed }) => ({
                   flex: 1.4,
@@ -973,9 +976,9 @@ function PublicProfileScreenInner() {
                 >
                   {following ? "Following" : "Follow"}
                 </T>
-              </Pressable>
+              </Pressable> : null}
               {/* pass 59 — message this user straight from their profile */}
-              <Pressable
+              {!isOwnProfile ? <Pressable
                 onPress={() => {
                   haptic.light();
                   router.push(`/tools/inbox?u=${profile.username}` as never);
@@ -1009,7 +1012,7 @@ function PublicProfileScreenInner() {
                 >
                   Message
                 </T>
-              </Pressable>
+              </Pressable> : null}
               <Pressable
                 onPress={shareProfile}
                 style={({ pressed }) => ({
@@ -1175,7 +1178,7 @@ function PublicProfileScreenInner() {
         {/* Questions (scholars) */}
         {tab === "questions" && isScholar ? (
           <View style={{ marginHorizontal: 16, gap: 12 }}>
-            <Pressable
+            {!isOwnProfile ? <Pressable
               style={{
                 borderRadius: 16,
                 borderWidth: 1,
@@ -1190,7 +1193,7 @@ function PublicProfileScreenInner() {
                 gap: 10,
                 alignItems: "center",
               }}
-              onPress={() => router.push({ pathname: '/tools/fatwa', params: { tab: 'ask', scholar_id: String(liveP?.id ?? '') } } as never)}
+              onPress={() => router.push({ pathname: '/tools/scholars', params: { tab: 'browse', scholar_id: String(liveP?.id ?? '') } } as never)}
             >
               <View
                 style={{
@@ -1224,7 +1227,7 @@ function PublicProfileScreenInner() {
                   Browse their answered questions below.
                 </T>
               </View>
-            </Pressable>
+            </Pressable> : null}
 
             {answered.length === 0 ? (
               <T
@@ -1251,56 +1254,29 @@ function PublicProfileScreenInner() {
                     gap: 8,
                   }}
                 >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      gap: 8,
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <FontAwesome5
-                      name="question"
-                      size={11}
-                      color={d.emerald}
-                      style={{ marginTop: 3 }}
-                    />
-                    <T
-                      v="bodyS"
-                      style={{
-                        color: d.text,
-                        fontWeight: "700",
-                        fontSize: 12.5,
-                        flex: 1,
-                        lineHeight: 18,
-                      }}
-                    >
-                      {qa.q}
+                  <T v="caption" style={{ fontSize: 9, fontWeight: "900", letterSpacing: 0.7, color: d.faint }}>
+                    QUESTION
+                  </T>
+                  <T v="bodyS" style={{ color: d.text, fontWeight: "800", fontSize: 12.5, lineHeight: 18 }}>
+                    {qa.title}
+                  </T>
+                  <T v="bodyS" style={{ color: d.subtext, fontSize: 12, lineHeight: 17.5 }}>
+                    {qa.q}
+                  </T>
+                  <View style={{ marginTop: 2, borderRadius: 12, borderTopLeftRadius: 4, backgroundColor: isDark ? "rgba(46,204,113,0.07)" : "rgba(29,111,66,0.05)", borderWidth: 1, borderColor: isDark ? "rgba(74,227,143,0.25)" : "rgba(29,111,66,0.15)", padding: 10 }}>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: "900", letterSpacing: 0.7, color: d.faint }}>
+                      ANSWER
                     </T>
-                  </View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      gap: 8,
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <FontAwesome5
-                      name="check-circle"
-                      size={11}
-                      color={d.gold}
-                      style={{ marginTop: 3 }}
-                    />
-                    <T
-                      v="bodyS"
-                      style={{
-                        color: d.subtext,
-                        fontSize: 12,
-                        lineHeight: 17.5,
-                        flex: 1,
-                      }}
-                    >
+                    <T v="bodyS" style={{ color: d.text, fontSize: 12, lineHeight: 17.5, marginTop: 3 }}>
                       {qa.a}
                     </T>
+                    {qa.attachment_url ? (
+                      <Image
+                        source={{ uri: /^(https?:|blob:|file:|data:)/i.test(qa.attachment_url) ? qa.attachment_url : `${API_ORIGIN}${qa.attachment_url.startsWith('/') ? '' : '/'}${qa.attachment_url}` }}
+                        style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }}
+                        resizeMode="contain"
+                      />
+                    ) : null}
                   </View>
                 </View>
               ))

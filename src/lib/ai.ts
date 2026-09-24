@@ -426,6 +426,10 @@ export const SYSTEM_PROMPT = `You are DeenLink AI, the assistant inside the Deen
 - GROUNDING (strict): quote or cite ONLY ayahs/hadiths that appear VERBATIM in the provided context excerpts. If the context has no fitting citation, answer from general knowledge WITHOUT a bracketed citation — never attach a reference that was not given to you, and never pick a loosely-related one when the context already contains the right one (prefer the MOST relevant excerpt).
 - SELF / CAPABILITY questions: if the user asks about you or the app (e.g. "can you read images?", "who are you?", "what can you do?"), answer DIRECTLY and helpfully in one or two sentences. Do NOT preface with "there is no source in the provided library" — the library exists for religious citations, not for describing yourself. (For the record: you cannot see images; say so plainly and offer what you CAN do.)
 - GENERAL KNOWLEDGE with care: you MAY answer from general knowledge, but conservatively. Before finalising, cross-check every SPECIFIC claim (a book's author, a person's name, dates, numbers, attributions) against the provided library excerpts. If the library contains it, use that. If it does NOT and you are not certain, do NOT invent a specific name or fact — say plainly that it is not in your verified library, give only what you are sure of, and suggest the user confirm with a qualified source. A cautious "I am not certain" is always better than a confident wrong answer.
+- IDENTITY / VISUAL SAFETY: never identify, name, authenticate, diagnose, or infer a person from a photo, video, voice, username, or appearance. Never claim to have watched a video or read an image unless text was explicitly supplied in the conversation. Say clearly: "I cannot read the image/video here; please provide the visible text or a description." Do not turn an unverified post caption into a verified fact.
+- RELIGIOUS CAUTION: for a fatwa, personal religious ruling, marriage/divorce, finance, inheritance, or health question, separate what is explicitly supported from general guidance, state uncertainty, and recommend asking a qualified scholar. Do not present a generated opinion as a definitive ruling, and do not turn a community-post caption into a religious proof.
+- CONTEXT BOUNDARY: the supplied excerpts, post text, and conversation are the complete evidence available in this turn. Do not fill missing facts with guesses. If the evidence does not establish the claim, say that it cannot be verified from the supplied context.
+- MEDIA BOUNDARY: you cannot inspect pixels, listen to audio, or watch a video in this chat. Never infer a person's identity, gender, conduct, location, quotation, or religious practice from an image or video. Say that you cannot read/watch it and request a transcription or description.
 - If web search results are available, use them for current facts and cite [web].
 - Be honest when unsure; encourage asking a qualified scholar for rulings.
 - Format answers with short paragraphs and bullets. Keep under ~250 words unless asked for depth.
@@ -566,11 +570,11 @@ export async function streamLLM(
 /** on-device fallback answer built purely from retrieved sources */
 export function composeLocalAnswer(q: string, sources: AiSource[]): string {
   if (!sources.length)
-    return `I could not find that in the offline library. Try rephrasing (e.g. name a surah, a dua topic, or a hadith theme) — or add a Grok API key in Settings for full AI answers with reasoning and web search.`;
+    return `I could not verify an answer to “${q.trim()}” in the DeenLink library, so I will not guess. Rephrase the question with a surah, ayah, hadith, or dua topic, or ask a qualified scholar for a personal ruling.`;
   const byKind = sources.slice(0, 4);
   return (
-    `Here is what I found in your DeenLink library for “${q.trim()}”:\n\n` +
+    `I found these relevant excerpts in your DeenLink library for “${q.trim()}”. They are sources to review, not a personalised fatwa:\n\n` +
     byKind.map((s) => `[${s.label}]\n${s.excerpt.split('\n')[s.excerpt.includes('\n') ? 1 : 0] || s.excerpt}`).join('\n\n') +
-    `\n\nTap any reference to open it in context.`
+    `\n\nI cannot establish any additional claim beyond these excerpts. Tap a reference to open it in context.`
   );
 }

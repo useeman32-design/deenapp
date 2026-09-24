@@ -310,6 +310,9 @@ function VideoPostPlayer({
   /* pass 90 — the feed's inline player now shares the global media bus: it may
    * only make sound while it holds the speaker (so a reel or a YouTube card
    * can't play over it), and losing the speaker pauses it immediately. */
+  const outRef = useRef(false);
+  const [inView, setInView] = useState(true);
+  const screenFocusedRef = useRef(true);
   const mediaKey = `inline:${post?.id ?? src}`;
   const holdsMedia = useMediaHolds(mediaKey);
   useEffect(() => {
@@ -320,11 +323,11 @@ function VideoPostPlayer({
     }
   }, [holdsMedia, player]);
   useEffect(() => {
-    if (started && !paused && !outRef.current && screenFocusedRef.current) claimMedia(mediaKey);
+    if (started && !paused && screenFocusedRef.current) claimMedia(mediaKey);
     else releaseMedia(mediaKey);
   }, [started, paused, mediaKey]);
   useEffect(() => {
-    if (started && !paused && !outRef.current && screenFocusedRef.current) {
+    if (started && !paused && screenFocusedRef.current) {
       if (endedRef.current) {
         try {
           player.currentTime = 0;
@@ -338,7 +341,6 @@ function VideoPostPlayer({
   /* pass 83-28 — three hard stops so audio never leaks: the card UNMOUNTS,
    * the SCREEN loses focus (user opened another module — the poll above only
    * catches scroll, coordinates can stay stale), or the APP is backgrounded. */
-  const screenFocusedRef = useRef(true);
   useFocusEffect(
     useCallback(() => {
       screenFocusedRef.current = true;
@@ -371,27 +373,30 @@ function VideoPostPlayer({
 
   /* pass 41 — PAUSE when scrolled out of view, resume when back (user request).
    * measureInWindow works on native AND web, so the poll catches both. */
-  const outRef = useRef(false);
   useEffect(() => {
     if (!started) return;
     const iv = setInterval(() => {
       try {
         boxRef.current?.measureInWindow(
-          (y: number, _x: number, h: number, _w: number) => {
+          (_x: number, y: number, _w: number, h: number) => {
             const vh = Dimensions.get("window").height;
-            /* stop as soon as the card is mostly scrolled past (not only fully off) */
+            /* RN measureInWindow is x,y,width,height. The old callback read x
+             * as y, so normal videos kept playing after leaving the viewport. */
             const out = y + h < vh * 0.28 || y > vh * 0.72;
             if (out !== outRef.current) {
               outRef.current = out;
-              if (out) player.pause();
-              else if (!paused) player.play();
+              setInView(!out);
+              /* Uploaded feed videos intentionally continue while the card is
+               * out of view; only YouTube embeds are hard-stopped by their
+               * visibility observer. Resume explicitly when the card returns. */
+              if (!out && !paused) player.play();
             }
           },
         );
       } catch {}
     }, 220);
     return () => clearInterval(iv);
-  }, [started, paused, player]);
+  }, [started, paused, player, inView]);
 
   useEffect(() => {
     const t = player.addListener(
@@ -583,7 +588,7 @@ function VideoPostPlayer({
               playsInline
               style={{ width: "100%", height: "100%", backgroundColor: "#000" }}
             />
-            <VideoLoader player={player} />
+            <VideoLoader player={player} active={started && !paused && inView && screenFocusedRef.current} />
           </View>
         ) : poster != null && !started ? (
           <Image
@@ -824,7 +829,7 @@ export function FeedCard({
       String(post.user.id) === String(meUser.id)) ||
       (!!post.user?.username &&
         !!meUser.username &&
-        post.user.username === meUser.username));
+        post.user.username.replace(/^@/, '').toLowerCase() === meUser.username.replace(/^@/, '').toLowerCase()));
   /* pass 83-19 — Instagram-style multi-photo carousel state */
   const [carouselPage, setCarouselPage] = useState(0);
   const [carouselW, setCarouselW] = useState(0);

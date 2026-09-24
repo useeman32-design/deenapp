@@ -3670,3 +3670,13 @@ the rig (rebuilt rig → admin page → app) exposed three API defects and one a
 # LIVE AUDIT (unchanged by this pass, for the record): the live daily feed serves four file-less
 #   dummies (/videos/video_1..4.mp4 → the SPA shell) and the live reels feed serves 2 local files.
 #   After the deploy the dummies drop out of the daily feed and the YouTube dailies surface.
+
+## PASS 104 — grounded DeenLink AI comment replies + public-question search hardening
+
+- Comments now accept the displayed `@DeenLink AI` spelling as well as `@deenlinkai` and `@ai`.
+- AI comment prompts include the actual post text and asking-comment context, explicitly refuse image/video identity or unreadable-media claims, and use cautious scholar guidance for religious rulings.
+- AI replies are inserted beneath the asking comment and, on live surfaces, are persisted through `api/deenai/comment_reply.php` as system-authored rows rather than impersonating the asker. Feed/video comment readers merge those rows with `is_ai`, `nav`, and the DeenLink AI virtual author; AI rows are read-only and open `/tools/ai`.
+- `public_list.php` now uses unique PDO placeholders for title/question/answer/asker/scholar search. The client also falls back to the same live list without `q` and filters locally while older production API code is waiting for deployment.
+- Gates: TypeScript PASS; PHP lint PASS for 483 files; RAW and GitHub Pages exports PASS; final web smoke PASS with HTTP 200 and zero browser/page errors on scholars, fatwa, scholar-inbox, videos, reels, and profile routes.
+- Production public search still needs the API source deployed: current app.deenlink.org returns HTTP 500 for `q=Ahmad`; no GH_TOKEN is available in this workspace.
+# Additional web smoke: `/tools/ai` loaded, `/tools/scholars` public-search input accepted `Ahmad`, and browser/page errors remained 0.

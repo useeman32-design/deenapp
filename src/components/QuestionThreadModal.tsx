@@ -28,30 +28,39 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<string | null>(null);
+  const [canSend, setCanSend] = useState(true);
 
   useEffect(() => {
     if (!visible || !question || question.id <= 0) return;
     setMessages(null);
     setDraft('');
     setError('');
-    void questionThread(question.id).then((r) => setMessages(r?.messages ?? [])).catch(() => setMessages([]));
+    setCanSend(true);
+    let dead = false;
+    const refresh = () => void questionThread(question.id).then((r) => { if (!dead) { setMessages(r?.messages ?? []); setCanSend(r?.can_send !== false); } }).catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 2800);
+    return () => { dead = true; clearInterval(timer); };
   }, [visible, question?.id]);
 
   const send = async () => {
-    if (!question || busy || draft.trim().length < 2) return;
+    if (!question || busy || !canSend || draft.trim().length < 2) return;
     setBusy(true);
     setError('');
     haptic.light();
     const sent = await questionMessage(question.id, draft.trim()).catch(() => null);
     setBusy(false);
-    if (!sent) { setError('Could not send this message. Please try again.'); return; }
+    if (!sent) { setError('Could not send this message. Please wait for the scholar to reply before sending another follow-up.'); return; }
     setMessages((cur) => [...(cur ?? []), sent]);
     setDraft('');
   };
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' }}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={{ maxHeight: '92%', backgroundColor: d.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 12 }}>
           <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, marginBottom: 10 }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, gap: 9 }}>
@@ -66,7 +75,6 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
             <View style={{ alignSelf: 'flex-end', maxWidth: '92%', borderRadius: 15, borderTopRightRadius: 4, backgroundColor: isDark ? '#16452D' : '#E7F5EC', padding: 12, marginBottom: 9 }}>
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: green, marginBottom: 4 }}>YOUR QUESTION</T>
               <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{question?.question ?? question?.question_text ?? 'Question details unavailable.'}</T>
-              {question?.attachment_url ? <Image source={{ uri: absolute(question.attachment_url) ?? undefined }} style={{ width: 180, height: 130, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /> : null}
             </View>
             {question?.answer ? (
               <View style={{ alignSelf: 'flex-start', maxWidth: '92%', borderRadius: 15, borderTopLeftRadius: 4, borderWidth: 1, borderColor: 'rgba(232,201,106,0.35)', backgroundColor: isDark ? 'rgba(232,201,106,0.09)' : 'rgba(232,201,106,0.11)', padding: 12, marginBottom: 10 }}>
@@ -74,6 +82,7 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
                 <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{question.answer}</T>
             </View>
             ) : null}
+            {question?.attachment_url ? <Pressable onPress={() => setPreview(absolute(question.attachment_url))}><Image source={{ uri: absolute(question.attachment_url) ?? undefined }} style={{ width: 180, height: 130, borderRadius: 10, marginBottom: 10 }} resizeMode="contain" /></Pressable> : null}
             {messages === null ? <ActivityIndicator color={green} style={{ marginVertical: 18 }} /> : messages.length === 0 ? (
               <T v="caption" style={{ color: d.faint, textAlign: 'center', paddingVertical: 16 }}>No follow-up messages yet. If the scholar asks for more detail, reply here.</T>
             ) : messages.map((m) => (
@@ -88,13 +97,21 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
             {error ? <T v="caption" style={{ color: '#E05252', textAlign: 'center', marginVertical: 5 }}>{error}</T> : null}
           </ScrollView>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderTopWidth: 1, borderTopColor: d.cardBorder, padding: 12 }}>
-            <TextInput value={draft} onChangeText={setDraft} multiline placeholder="Reply in this question thread…" placeholderTextColor={d.faint} style={{ flex: 1, maxHeight: 90, minHeight: 42, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, color: d.text, paddingHorizontal: 12, paddingVertical: 10, fontSize: 12.5 }} />
-            <Pressable accessibilityLabel="Send thread reply" disabled={busy || draft.trim().length < 2} onPress={send} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: busy || draft.trim().length < 2 ? d.cardBorder : green, alignItems: 'center', justifyContent: 'center' }}>
-              {busy ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={13} color={draft.trim().length < 2 ? d.faint : '#fff'} />}
+            <TextInput value={draft} onChangeText={setDraft} editable={canSend && !busy} multiline placeholder={canSend ? "Reply once here while waiting for the scholar…" : "Follow-up sent — waiting for the scholar’s reply"} placeholderTextColor={d.faint} style={{ flex: 1, maxHeight: 90, minHeight: 42, borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, color: d.text, paddingHorizontal: 12, paddingVertical: 10, fontSize: 12.5 }} />
+            <Pressable accessibilityLabel="Send thread reply" disabled={busy || !canSend || draft.trim().length < 2} onPress={send} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: busy || !canSend || draft.trim().length < 2 ? d.cardBorder : green, alignItems: 'center', justifyContent: 'center' }}>
+              {busy ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="paper-plane" size={13} color={!canSend || draft.trim().length < 2 ? d.faint : '#fff'} />}
             </Pressable>
           </View>
         </View>
       </View>
     </Modal>
+      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setPreview(null)}>
+          <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
+            {preview ? <Image source={{ uri: preview }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+          </ScrollView>
+        </Pressable>
+      </Modal>
+    </>
   );
 }

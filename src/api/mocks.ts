@@ -19,10 +19,10 @@ export type SampleComment = {
   avatar?: number | string | null;
   badge?: 'blue' | 'green' | 'gold' | null;
   text: string;
-  /** bundled animated sticker (pass 20 GIF comments) */
-  gif?: number;
   /** pass 42 — in-app route for AI comment answers ("Open" button) */
   nav?: string;
+  /** AI replies are system-authored rows, not a user persona. */
+  isAI?: boolean;
   time: string;
   likes: number;
   liked?: boolean;
