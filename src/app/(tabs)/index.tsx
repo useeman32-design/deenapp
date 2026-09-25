@@ -311,13 +311,16 @@ function HomeInner() {
     getStreak().then(setStreak);
     fetchGoal().then((g) => {
       setGoal({ done: g.done, total: g.total, demo: g.demo, items: g.items });
-      /* pass 44 — celebrate a freshly completed goal (flagged by markGoal elsewhere) */
-      consumeGoalPending().then((labels) => {
-        if (!labels.length) return;
-        const all = g.done >= g.total;
-        setGoalCelebrate({ open: true, all, labels });
-        if (all) claimGoalReward().then((first) => { if (first) addPoints(10); });
-      });
+      /* Daily tasks are quiet until the whole set is complete. Pending keys
+       * accumulate while the user works through the day, then Home consumes
+       * them once and shows one success modal — never one banner per task. */
+      if (g.total > 0 && g.done >= g.total) {
+        consumeGoalPending().then((labels) => {
+          if (!labels.length) return;
+          setGoalCelebrate({ open: true, all: true, labels });
+          claimGoalReward().then((first) => { if (first) addPoints(10); });
+        });
+      }
     });
   }, [addPoints]);
 

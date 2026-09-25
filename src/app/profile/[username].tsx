@@ -90,6 +90,7 @@ function PublicProfileScreenInner() {
       : "posts",
   );
   const [photoPreview, setPhotoPreview] = useState(false);
+  const [answerPreview, setAnswerPreview] = useState<string | null>(null);
   // the account's reels — shown in the Videos tab (server reels only, pass 83-38)
   const [userReels, setUserReels] = useState<MockReel[]>([]);
   useEffect(() => {
@@ -234,10 +235,7 @@ function PublicProfileScreenInner() {
   useEffect(() => {
     if (!liveP || liveP.user_type !== "scholar") return;
     void directFatwas(30, liveP.id).then((rows) => {
-      if (rows.length)
-        setLiveQAs(
-            rows.map((r) => ({ id: Number(r.id), title: r.title, q: r.question || r.title, a: r.answer, attachment_url: r.attachment_url ?? null })), 
-        );
+      setLiveQAs(rows.map((r) => ({ id: Number(r.id), title: r.title, q: r.question || r.title, a: r.answer, attachment_url: r.attachment_url ?? null })));
     });
   }, [liveP]);
 
@@ -1267,15 +1265,18 @@ function PublicProfileScreenInner() {
                     <T v="caption" style={{ fontSize: 9, fontWeight: "900", letterSpacing: 0.7, color: d.faint }}>
                       ANSWER
                     </T>
-                    <T v="bodyS" style={{ color: d.text, fontSize: 12, lineHeight: 17.5, marginTop: 3 }}>
+                    <T v="bodyS" style={{ color: d.text, fontSize: 14, lineHeight: 22, fontWeight: '800', marginTop: 3 }}>
                       {qa.a}
                     </T>
                     {qa.attachment_url ? (
-                      <Image
-                        source={{ uri: /^(https?:|blob:|file:|data:)/i.test(qa.attachment_url) ? qa.attachment_url : `${API_ORIGIN}${qa.attachment_url.startsWith('/') ? '' : '/'}${qa.attachment_url}` }}
-                        style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }}
-                        resizeMode="contain"
-                      />
+                      <Pressable onPress={() => setAnswerPreview(/^(https?:|blob:|file:|data:)/i.test(qa.attachment_url!) ? qa.attachment_url! : `${API_ORIGIN}${qa.attachment_url!.startsWith('/') ? '' : '/'}${qa.attachment_url!}`)} accessibilityLabel="Preview answer attachment">
+                        <Image
+                          source={{ uri: /^(https?:|blob:|file:|data:)/i.test(qa.attachment_url) ? qa.attachment_url : `${API_ORIGIN}${qa.attachment_url.startsWith('/') ? '' : '/'}${qa.attachment_url}` }}
+                          style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }}
+                          resizeMode="contain"
+                        />
+                        <T v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 3 }}>Tap to zoom</T>
+                      </Pressable>
                     ) : null}
                   </View>
                 </View>
@@ -1545,6 +1546,15 @@ function PublicProfileScreenInner() {
             Tap anywhere to close
           </T>
         </Pressable>
+      </Modal>
+
+      <Modal visible={!!answerPreview} transparent animationType="fade" onRequestClose={() => setAnswerPreview(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setAnswerPreview(null)} />
+          <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
+            {answerPreview ? <Image source={{ uri: answerPreview }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+          </ScrollView>
+        </View>
       </Modal>
       <ContentShareSheet
         visible={shareOpen}

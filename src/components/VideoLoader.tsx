@@ -1,22 +1,19 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { CrescentLoader } from '@/components/CrescentLoader';
-import { netBus } from '@/lib/net';
-
 /**
- * pass 28 — buffering overlay for expo-video players (web).
- * Polls player.status: shows the crescent+star loader ("Loading video…") while the media
- * buffers and reports the global slow-network pill. Renders null when idle.
+ * pass 28 — buffering overlay for expo-video players.
+ * Polls player.status and shows the crescent+star loader only while the active
+ * player is actually preparing. Video buffering is intentionally local to the
+ * player: it must not raise the global "Slow network" pill on a fast connection.
  */
 export function VideoLoader({ player, label = 'Loading video…', active = true }: { player: any; label?: string; active?: boolean }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!player) return;
-    let netOn = false;
-    let visibleFor = 0;
     const iv = setInterval(() => {
-      if (!active) { setLoading(false); if (netOn) { netOn = false; netBus.slow(false); } return; }
+      if (!active) { setLoading(false); return; }
       let st = 'idle';
       try { st = player.status ?? 'idle'; } catch { /* disposed */ }
       /* Once playback has been requested, keep the crescent alive through the
@@ -24,15 +21,8 @@ export function VideoLoader({ player, label = 'Loading video…', active = true 
        * and leave a black frame while the source is still preparing. */
       const buffering = st === 'idle' || st === 'loading' || (st === 'readyToPlay' && !player.isPlaying && player.currentTime === 0 && wantPlay(player));
       setLoading(buffering);
-      if (buffering) {
-        visibleFor += 0.3;
-        if (!netOn && visibleFor > 1.2) { netOn = true; netBus.slow(true); }
-      } else {
-        visibleFor = 0;
-        if (netOn) { netOn = false; netBus.slow(false); }
-      }
     }, 300);
-    return () => { clearInterval(iv); if (netOn) netBus.slow(false); };
+    return () => clearInterval(iv);
   }, [player, active]);
 
   if (!loading || !player) return null;

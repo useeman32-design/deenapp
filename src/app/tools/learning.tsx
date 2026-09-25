@@ -85,16 +85,40 @@ const ICONS: Record<string, ComponentType<IconProps>> = {
   scale: ScaleIcon, smile: SmileIcon,
 };
 
-/* pass 44 — turn an admin LearningSection row into the local Section shape */
+/* pass 44 — turn an admin LearningSection row into the local Section shape.
+ * Known destinations are canonicalised here so the shuffled discovery banner
+ * cannot inherit a stale/typoed admin URL (especially Dua & Adhkar). */
+const CANONICAL_HUB_ROUTES: Record<string, string> = {
+  'islamic quiz': '/tools/quiz',
+  riddles: '/tools/riddles',
+  jokes: '/tools/jokes',
+  'courses & lectures': '/tools/courses',
+  'tafsir library': '/tools/tafsir',
+  'short lessons': '/tools/lessons',
+  'seerah timeline': '/tools/seerah',
+  'stories of the prophets': '/tools/prophets',
+  articles: '/tools/articles',
+  'fatwa & rulings': '/tools/fatwa',
+  'ruqyah shariah': '/tools/ruqyah',
+  'hadith library': '/tools/hadith',
+  'duas & adhkar': '/tools/dua',
+  'dua & adhkar': '/tools/dua',
+  'dua and adhkar': '/tools/dua',
+  'duas and adhkar': '/tools/dua',
+  'daily zikr challenge': '/tools/zikr-challenge',
+  'names of allah': '/tools/names',
+};
 function toSection(s: LearningSection): Section {
+  const title = String(s.title || '').trim();
+  const canonical = CANONICAL_HUB_ROUTES[title.toLowerCase()];
   return {
-    title: s.title,
+    title,
     desc: s.subtitle || '',
     icon: ICONS[s.iconKey || ''] || BookIcon,
     grad: [s.gradFrom || '#00796B', s.gradTo || '#26A69A'],
     chip: s.chip || '',
     cta: s.cta || 'Open',
-    href: s.href || undefined,
+    href: canonical || s.href || undefined,
   };
 }
 

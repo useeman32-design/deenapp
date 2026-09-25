@@ -211,6 +211,8 @@ export default function Scholars() {
   }, [routeParams.question_id, liveMine]);
   const [scholarBusy, setScholarBusy] = useState(false);
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewScholar, setPreviewScholar] = useState<api.DirectFatwa['scholar'] | null>(null);
   const refreshScholarData = async () => {
     setScholarBusy(true);
     const [pub, mine] = await Promise.all([
@@ -249,8 +251,19 @@ export default function Scholars() {
     void refreshDesk();
   }, [isScholarMe]);
 
-  useEffect(() => { void refreshScholarData(); }, []);
-  useEffect(() => { if (tab === 'public' || tab === 'mine') { void refreshScholarData(); } }, [tab]);
+  useEffect(() => {
+    void refreshScholarData();
+  }, []);
+  /* Public answered questions are the live Fatwa source. Refresh while the tab
+   * is open so a scholar's newly published answer appears without navigating
+   * away or relying on bundled data. */
+  useEffect(() => {
+    if (tab !== 'public' && tab !== 'mine') return;
+    void refreshScholarData();
+    if (tab !== 'public') return;
+    const timer = setInterval(() => { void refreshScholarData(); }, 15000);
+    return () => clearInterval(timer);
+  }, [tab]);
 
   const scholar = roster.find((s) => s.id === asking) ?? null;
 
@@ -645,7 +658,7 @@ export default function Scholars() {
                     </Pressable>
                   ) : null}
                   <View style={{ marginTop: 9, borderRadius: 13, borderTopLeftRadius: 4, marginLeft: 18, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 11 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Pressable onPress={() => setPreviewScholar(f.scholar)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} accessibilityLabel={`View scholar details for ${f.scholar?.name || 'scholar'}`}>
                       <AvatarImage source={f.scholar?.profile_image_url ?? null} name={f.scholar?.name || 'Scholar'} size={30} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -653,11 +666,15 @@ export default function Scholars() {
                           {f.scholar?.verification_badge && f.scholar.verification_badge !== 'none' ? <VerificationBadge type={f.scholar.verification_badge as import('@/api/types').BadgeType} size={10} /> : null}
                         </View>
                         <T v="caption" style={{ fontSize: 9, color: d.faint }}>answered publicly · {f.tags?.length ? f.tags.slice(0, 3).join(', ') : 'fatwa'}</T>
+                        <T v="caption" numberOfLines={1} style={{ fontSize: 8.8, color: d.subtext, marginTop: 2 }}>
+                          {[f.scholar?.title || f.scholar?.display_name, f.scholar?.aqeedah ? `Aqeedah: ${f.scholar.aqeedah}` : '', f.scholar?.level_label || f.scholar?.level ? `Level: ${f.scholar.level_label || f.scholar.level}` : ''].filter(Boolean).join(' · ') || 'Verified scholar'}
+                        </T>
                       </View>
-                    </View>
+                      <FontAwesome5 name="info-circle" size={12} color={d.faint} />
+                    </Pressable>
                     <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: d.faint, letterSpacing: 0.7, marginTop: 7 }}>ANSWER</T>
-                    <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.text, marginTop: 3 }}>{f.answer}</T>
-                    {f.attachment_url ? <Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(f.attachment_url) ? f.attachment_url : `${api.API_ORIGIN}${f.attachment_url.startsWith('/') ? '' : '/'}${f.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /> : null}
+                    <T v="bodyS" style={{ fontSize: 14, lineHeight: 22, fontWeight: '800', color: d.text, marginTop: 3 }}>{f.answer}</T>
+                    {f.attachment_url ? <Pressable onPress={() => setPreviewImage(/^(https?:|blob:|file:|data:)/i.test(f.attachment_url!) ? f.attachment_url! : `${api.API_ORIGIN}${f.attachment_url!.startsWith('/') ? '' : '/'}${f.attachment_url!}`)}><Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(f.attachment_url) ? f.attachment_url : `${api.API_ORIGIN}${f.attachment_url.startsWith('/') ? '' : '/'}${f.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /></Pressable> : null}
                   </View>
                 </View>
               ))}
@@ -679,6 +696,43 @@ export default function Scholars() {
       </ScrollView>
 
       <QuestionThreadModal visible={threadQuestion != null} question={threadQuestion} onClose={() => setThreadQuestion(null)} />
+
+      <Modal visible={!!previewScholar} transparent animationType="fade" onRequestClose={() => setPreviewScholar(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.68)', justifyContent: 'flex-end' }} onPress={() => setPreviewScholar(null)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: d.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: d.cardBorder, padding: 20, paddingBottom: insets.bottom + 22 }}>
+            <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: d.cardBorder, marginBottom: 15 }} />
+            {previewScholar ? (
+              <>
+                <View style={{ alignItems: 'center' }}>
+                  <AvatarImage source={previewScholar.profile_image_url ?? null} name={previewScholar.name || 'Scholar'} size={76} tint="rgba(212,175,55,0.14)" border="rgba(212,175,55,0.55)" />
+                  <T v="h3" style={{ color: d.text, fontSize: 17, fontWeight: '900', marginTop: 10 }}>{previewScholar.name || 'DeenLink Scholar'}</T>
+                  <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 2 }}>@{String(previewScholar.username || '').replace(/^@/, '')}</T>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 15 }}>
+                  {[['Title', previewScholar.title || previewScholar.display_name], ['Aqeedah', previewScholar.aqeedah], ['Level', previewScholar.level_label || previewScholar.level], ['Madhhab', previewScholar.madhhab], ['Institute', previewScholar.institute]].filter(([, value]) => String(value || '').trim()).map(([label, value]) => (
+                    <View key={String(label)} style={{ borderRadius: 10, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.bg, paddingHorizontal: 10, paddingVertical: 7 }}>
+                      <T v="caption" style={{ color: d.faint, fontSize: 8.5 }}>{label}</T>
+                      <T v="caption" style={{ color: d.text, fontSize: 10.5, fontWeight: '800', marginTop: 2 }}>{String(value)}</T>
+                    </View>
+                  ))}
+                </View>
+                <Pressable onPress={() => { const u = String(previewScholar.username || '').replace(/^@/, ''); setPreviewScholar(null); if (u) router.push({ pathname: '/profile/[username]', params: { username: u, tab: 'questions' } } as never); }} style={{ marginTop: 18, borderRadius: 13, backgroundColor: isDark ? '#4AE38F' : '#1D6F42', alignItems: 'center', paddingVertical: 13 }}>
+                  <T v="button" style={{ color: '#fff', fontWeight: '800' }}>View scholar profile</T>
+                </Pressable>
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setPreviewImage(null)} />
+          <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
+            {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* ── ASK SHEET ── */}
       <Modal visible={asking != null} transparent animationType="slide" onRequestClose={() => setAsking(null)}>

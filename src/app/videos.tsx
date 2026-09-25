@@ -152,7 +152,16 @@ function ReelItem({
       }),
     [reel.username, reel.accountName, reel.accountBadge, reel.accountPic],
   );
-  const player = useVideoPlayer(reel.src, (p) => {
+  /* Native expo-video caching keeps a reel that has already been prepared from
+   * downloading again when the user scrolls back. Browsers still use their
+   * normal HTTP media cache; `useCaching` is ignored there by expo-video. */
+  const playerSource = useMemo(() => {
+    if (typeof reel.src === 'object' && reel.src && 'uri' in reel.src) {
+      return { ...reel.src, useCaching: true };
+    }
+    return reel.src;
+  }, [reel.src]);
+  const player = useVideoPlayer(playerSource, (p) => {
     /* pass 83-35 — owner: a finished video STOPS (it used to loop forever) */
     p.loop = false;
     p.muted = false;
@@ -200,7 +209,11 @@ function ReelItem({
   useEffect(() => {
     if (active && !paused && screenFocused) claimMedia(mediaKey);
     else releaseMedia(mediaKey);
-  }, [active, paused, screenFocused, mediaKey]);
+    return () => {
+      releaseMedia(mediaKey);
+      try { player.pause(); } catch {}
+    };
+  }, [active, paused, screenFocused, mediaKey, player]);
   useEffect(() => {
     if (!holdsMedia) {
       try {
@@ -315,6 +328,7 @@ function ReelItem({
 
   /* ------- draggable seek line ------- */
   const grantX = useRef(0);
+  const seekWidth = useRef(1);
   const seekTo = (fraction: number) => {
     try {
       player.currentTime = fraction * Math.max(0.001, player.duration);
@@ -330,10 +344,10 @@ function ReelItem({
       onPanResponderGrant: (e) => {
         haptic.selection();
         grantX.current = e.nativeEvent.locationX;
-        setScrub(Math.max(0, Math.min(1, grantX.current / VW)));
+        setScrub(Math.max(0, Math.min(1, grantX.current / seekWidth.current)));
       },
       onPanResponderMove: (_e, g) => {
-        setScrub(Math.max(0, Math.min(1, (grantX.current + g.dx) / VW)));
+        setScrub(Math.max(0, Math.min(1, (grantX.current + g.dx) / seekWidth.current)));
       },
       onPanResponderRelease: () => {
         setScrub((final) => {
@@ -569,7 +583,10 @@ function ReelItem({
       {/* seek line — draggable scrubber (hidden in zen) */}
       {!zen ? <View
         {...pan.panHandlers}
-        style={{ position: 'absolute', left: 0, right: 0, bottom: Math.max(8, safeBottom + 6), height: 30, justifyContent: 'flex-end' }}
+        /* TikTok-style dock: sit just above the reel controls, with the plus
+         * button's 50px circle kept outside the track's right edge. */
+        onLayout={(e) => { seekWidth.current = Math.max(1, e.nativeEvent.layout.width); }}
+        style={{ position: 'absolute', left: 20, right: 108, bottom: Math.max(70, safeBottom + 70), height: 24, justifyContent: 'flex-end', zIndex: 24 }}
       >
         <SeekTrack progress={progress} scrub={scrub} duration={durSafe(player)} />
       </View> : null}
@@ -588,14 +605,16 @@ const durSafe = (player: { duration: number }) => {
 /** visual track + thumb + time bubble */
 function SeekTrack({ progress, scrub, duration }: { progress: number; scrub: number | null; duration: number }) {
   const shown = scrub ?? progress;
+  const [trackWidth, setTrackWidth] = useState(VW);
+  const innerWidth = Math.max(0, trackWidth - 16);
   return (
-    <View style={{ height: 22, justifyContent: 'center' }}>
+    <View onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)} style={{ height: 22, justifyContent: 'center' }}>
       <View style={{ height: scrub != null ? 5 : 3, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 8 }}>
         <View style={{ width: `${shown * 100}%`, height: '100%', borderRadius: 2.5, backgroundColor: '#2ECC71' }} />
       </View>
       {scrub != null ? (
         <>
-          <View style={{ position: 'absolute', left: 8 + shown * (VW - 16) - 6.5, width: 13, height: 13, borderRadius: 7, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5 }} />
+          <View style={{ position: 'absolute', left: 8 + shown * innerWidth - 6.5, width: 13, height: 13, borderRadius: 7, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5 }} />
           <View style={{ position: 'absolute', right: 14, bottom: 20, backgroundColor: 'rgba(8,16,11,0.9)', borderWidth: 1, borderColor: 'rgba(74,227,143,0.4)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
             <T v="caption" style={{ color: '#EAF7EE', fontSize: 10.5, fontWeight: '800' }}>
               {fmtTime(shown * duration)} / {fmtTime(duration)}
@@ -1363,12 +1382,16 @@ function VideosFeedInner() {
           setIndex((cur) => (cur === i ? cur : i));
         }}
         scrollEventThrottle={64}
-        /* Keep the current item plus the next 2–3 players mounted so their
-         * native sources can prepare before the swipe reaches them. */
-        windowSize={5}
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
-        updateCellsBatchingPeriod={80}
+        /* Keep the current item plus the next three players mounted so their
+         * native sources can prepare before the swipe reaches them. A larger
+         * window also keeps nearby players alive when the user scrolls back;
+         * useCaching covers reels that eventually leave the virtualization
+         * window. */
+        windowSize={9}
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={40}
+        removeClippedSubviews={false}
         extraData={storeTick}
       />
 

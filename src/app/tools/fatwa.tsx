@@ -1,6 +1,6 @@
 import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
@@ -8,7 +8,7 @@ import { T } from '@/components/T';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { loadFatwas, type Fatwa } from '@/lib/ai';
-import { directFatwas, isLive, type DirectFatwa } from '@/api/client';
+import { API_ORIGIN, directFatwas, isLive, type DirectFatwa } from '@/api/client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useBookmarks } from '@/lib/bookmarks';
@@ -59,6 +59,7 @@ export default function FatwaBrowser() {
   const [cat, setCat] = useState<string | null>(null);
   const [catOpen, setCatOpen] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   /* pass 69 — saved rulings live in the unified server-synced bookmark store
    * with STABLE keys (d<id> for live rulings, i<index> for bundled ones) */
   const bmFatwa = useBookmarks('fatwa');
@@ -67,7 +68,15 @@ export default function FatwaBrowser() {
   const [more, setMore] = useState(false);
 
   useEffect(() => { loadFatwas().then(setAll).catch(() => setAll([])); }, []);
-  useEffect(() => { directFatwas(30).then(setDirect).catch(() => setDirect([])); }, []);
+  /* Fatwa & Rulings is also the public answered-question destination. Keep the
+   * live scholar answers fresh while this screen is open. */
+  useEffect(() => {
+    let alive = true;
+    const pull = () => directFatwas(30).then((rows) => { if (alive) setDirect(rows); }).catch(() => {});
+    pull();
+    const timer = setInterval(pull, 15000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
   const live = isLive();
   const { user } = useAuth();
 
@@ -211,11 +220,20 @@ export default function FatwaBrowser() {
                     <View style={{ flex: 1 }}>
                       <T v="caption" style={{ fontSize: 10.5, fontWeight: '800' }}>{f.scholar?.name || 'DeenLink Scholar'}</T>
                       <T v="caption" style={{ fontSize: 9, color: d.faint }}>answered {f.answered_time_ago}{f.category ? ` · ${f.category}` : ''}</T>
+                      <T v="caption" numberOfLines={1} style={{ fontSize: 8.8, color: d.subtext, marginTop: 2 }}>
+                        {[f.scholar?.title || f.scholar?.display_name, f.scholar?.aqeedah ? `Aqeedah: ${f.scholar.aqeedah}` : '', f.scholar?.level_label || f.scholar?.level ? `Level: ${f.scholar.level_label || f.scholar.level}` : ''].filter(Boolean).join(' · ') || 'Verified scholar'}
+                      </T>
                     </View>
                     <FontAwesome5 name="check-circle" size={12} color={green} />
                   </View>
-                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '700', lineHeight: 18 }}>{f.title}</T>
-                  {!!f.preview && <T v="caption" style={{ fontSize: 10.5, lineHeight: 16, color: d.subtext, marginTop: 4 }}>{f.preview.slice(0, 160)}…</T>}
+                  <T v="body" style={{ fontSize: 13.5, fontWeight: '900', lineHeight: 20, color: d.text }}>{f.title}</T>
+                  <T v="caption" style={{ fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: d.faint, marginTop: 7 }}>QUESTION</T>
+                  <T v="bodyS" style={{ fontSize: 12, lineHeight: 19, color: d.subtext, marginTop: 3 }}>{f.question}</T>
+                  <View style={{ marginTop: 9, borderRadius: 12, borderTopLeftRadius: 4, backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(29,111,66,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.15)', padding: 10 }}>
+                    <T v="caption" style={{ fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: d.faint }}>ANSWER</T>
+                    <T v="bodyS" style={{ fontSize: 14, lineHeight: 22, fontWeight: '800', color: d.text, marginTop: 3 }}>{f.answer}</T>
+                    {f.attachment_url ? <Pressable onPress={() => setPreviewImage(/^(https?:|blob:|file:|data:)/i.test(f.attachment_url!) ? f.attachment_url! : `${API_ORIGIN}${f.attachment_url!.startsWith('/') ? '' : '/'}${f.attachment_url!}`)}><Image source={{ uri: /^(https?:|blob:|file:|data:)/i.test(f.attachment_url) ? f.attachment_url : `${API_ORIGIN}${f.attachment_url.startsWith('/') ? '' : '/'}${f.attachment_url}` }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }} resizeMode="contain" /></Pressable> : null}
+                  </View>
                 </Pressable>
               ))
             )}
@@ -345,6 +363,14 @@ export default function FatwaBrowser() {
 
 
       </ScrollView>
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
+          <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setPreviewImage(null)} />
+          <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
+            {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }

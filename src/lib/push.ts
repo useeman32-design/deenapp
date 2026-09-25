@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { registerPushToken } from '@/api/client';
+import { registerPushToken, registerWebPushSubscription, webPushPublicKey } from '@/api/client';
 
 /**
  * pass 51 — Expo mobile push, FULLY ISOLATED.
@@ -41,13 +41,47 @@ function openTarget(data: Record<string, unknown> | undefined): void {
   }
 }
 
+/** Convert the URL-safe base64 VAPID key returned by the API to the bytes
+ * required by PushManager.subscribe(). */
+function vapidBytes(raw: string): Uint8Array {
+  const padded = raw.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((raw.length + 3) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function initWebPush(): Promise<void> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  const key = await webPushPublicKey();
+  if (!key) return; // The server explicitly reports web push as unconfigured.
+
+  const path = window.location.pathname;
+  const scope = path.startsWith('/deenapp/') || path === '/deenapp' ? '/deenapp/' : '/';
+  const registration = await navigator.serviceWorker.register(`${scope}sw.js`, { scope });
+  let permission = Notification.permission;
+  if (permission === 'default') permission = await Notification.requestPermission();
+  if (permission !== 'granted') return;
+
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: vapidBytes(key) as unknown as BufferSource,
+    });
+  }
+  await registerWebPushSubscription(subscription.toJSON());
+}
+
 /**
- * Ask permission, fetch this device's Expo push token and register it with the
- * backend. Safe to call on every sign-in; no-ops on web/emulators and on any
- * error.
+ * Ask permission, fetch this device's push token and register it with the
+ * backend. On the PWA this registers the service worker and the authenticated
+ * Web Push subscription; on native it registers the Expo token. Safe to call on
+ * every sign-in and never blocks app startup on a push failure.
  */
 export async function initPushNotifications(): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') {
+    try { await initWebPush(); } catch { /* push remains optional */ }
+    return;
+  }
   try {
     const [{ default: Device }, Notifications, Constants] = await Promise.all([
       import('expo-device'),

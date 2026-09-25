@@ -3667,7 +3667,16 @@ export type DirectFatwa = {
     username: string;
     profile_image_url: string | null;
     verification_badge?: string | null;
+    title?: string | null;
+    display_name?: string | null;
+    aqeedah?: string | null;
+    level?: string | null;
+    level_label?: string | null;
+    madhhab?: string | null;
+    institute?: string | null;
+    fields_of_knowledge?: string | null;
     country?: string;
+    tribe?: string;
   };
 };
 
@@ -3965,6 +3974,24 @@ export async function registerPushToken(
     },
   );
   return { ok: r.ok };
+}
+
+/** Browser push registration is intentionally separate from Expo tokens. */
+export async function webPushPublicKey(): Promise<string | null> {
+  if (FORCE_DEMO) return null;
+  const r = await request<{ status?: string; enabled?: boolean; public_key?: string }>(
+    "/api/notifications/web_push_public_key.php",
+  );
+  return r.ok && r.data.enabled && r.data.public_key ? r.data.public_key : null;
+}
+
+export async function registerWebPushSubscription(subscription: PushSubscriptionJSON): Promise<boolean> {
+  if (FORCE_DEMO) return false;
+  const r = await request<{ status?: string }>(
+    "/api/notifications/web_push_subscribe.php",
+    { method: "POST", body: { subscription } },
+  );
+  return r.ok;
 }
 
 export async function events(): Promise<EventItem[]> {

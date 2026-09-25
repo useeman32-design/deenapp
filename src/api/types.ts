@@ -95,8 +95,12 @@ export interface PostMedia {
 }
 
 export interface PublicQA {
+  title?: string;
+  question_title?: string;
   question?: string;
+  question_body?: string;
   answer?: string;
+  attachment_url?: string | null;
   [k: string]: unknown;
 }
 

@@ -840,6 +840,7 @@ export function FeedCard({
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [imgPreview, setImgPreview] = useState(false);
+  const [qaPreviewUri, setQaPreviewUri] = useState<string | null>(null);
   /* pass 83-28 — the preview opens on the image you TAPPED (it always showed the first slide) */
   const [previewIdx, setPreviewIdx] = useState(0);
   const [pollState, setPollState] = useState<{
@@ -2107,31 +2108,48 @@ export function FeedCard({
             marginBottom: 12,
           }}
         >
+          {[(post.user as any)?.scholar_title, (post.user as any)?.scholar_aqeedah ? `Aqeedah: ${(post.user as any).scholar_aqeedah}` : '', (post.user as any)?.scholar_level ? `Level: ${(post.user as any).scholar_level}` : ''].filter(Boolean).length ? (
+            <T v="caption" numberOfLines={1} style={{ fontSize: 9, color: sub, marginBottom: 5 }}>
+              {[(post.user as any)?.scholar_title, (post.user as any)?.scholar_aqeedah ? `Aqeedah: ${(post.user as any).scholar_aqeedah}` : '', (post.user as any)?.scholar_level ? `Level: ${(post.user as any).scholar_level}` : ''].filter(Boolean).join(' · ')}
+            </T>
+          ) : null}
           <T
-            v="bodyS"
+            v="body"
             style={{
-              fontWeight: "700",
-              fontSize: 13.5,
-              lineHeight: 19,
+              fontWeight: "900",
+              fontSize: 14,
+              lineHeight: 20,
               color: txt,
             }}
           >
-            {post.public_qa.question ?? "Question"}
+            {String(post.public_qa.title ?? post.public_qa.question_title ?? "Question")}
+          </T>
+          <T v="caption" style={{ marginTop: 7, fontSize: 9, fontWeight: "900", letterSpacing: 0.7, color: sub }}>
+            QUESTION
+          </T>
+          <T
+            v="bodyS"
+            style={{ fontSize: 12.5, lineHeight: 19, color: sub, marginTop: 3 }}
+          >
+            {String(post.public_qa.question_body ?? post.public_qa.question ?? "Question details unavailable.")}
           </T>
           {post.public_qa.answer ? (
-            <T
-              v="bodyS"
-              style={{
-                marginTop: 9,
-                paddingTop: 9,
-                borderTopWidth: 1,
-                borderTopColor: hairline,
-                lineHeight: 19.5,
-                color: sub,
-              }}
-            >
-              {post.public_qa.answer}
-            </T>
+            <View style={{ marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: hairline }}>
+              <T v="caption" style={{ fontSize: 9, fontWeight: "900", letterSpacing: 0.7, color: sub }}>
+                ANSWER
+              </T>
+              <T
+                v="bodyS"
+                style={{ marginTop: 3, fontSize: 14, fontWeight: "800", lineHeight: 22, color: txt }}
+              >
+                {post.public_qa.answer}
+              </T>
+              {post.public_qa.attachment_url ? (
+                <Pressable onPress={() => { setQaPreviewUri(String(post.public_qa?.attachment_url)); setPreviewIdx(0); setImgPreview(true); }}>
+                  <Image source={{ uri: String(post.public_qa.attachment_url) }} style={{ width: 150, height: 105, borderRadius: 10, marginTop: 9 }} resizeMode="contain" />
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -2294,7 +2312,7 @@ export function FeedCard({
         visible={imgPreview}
         transparent
         animationType="fade"
-        onRequestClose={() => setImgPreview(false)}
+        onRequestClose={() => { setImgPreview(false); setQaPreviewUri(null); }}
       >
         <View
           style={{
@@ -2312,11 +2330,13 @@ export function FeedCard({
               bottom: 0,
               zIndex: 0,
             }}
-            onPress={() => setImgPreview(false)}
+            onPress={() => { setImgPreview(false); setQaPreviewUri(null); }}
           />
           {/* pass 83-28 — multi-photo posts get a swipeable gallery that
               STARTS on the slide you tapped; single images unchanged. */}
-          {mediaImgs.length > 1 ? (
+          {qaPreviewUri ? (
+            <Image source={{ uri: qaPreviewUri }} style={{ width: '100%', height: 560, borderRadius: 4 }} resizeMode="contain" />
+          ) : mediaImgs.length > 1 ? (
             <FlatList
               horizontal
               pagingEnabled
@@ -2362,7 +2382,7 @@ export function FeedCard({
             />
           ) : null}
           <Pressable
-            onPress={() => setImgPreview(false)}
+            onPress={() => { setImgPreview(false); setQaPreviewUri(null); }}
             hitSlop={12}
             style={{
               position: "absolute",

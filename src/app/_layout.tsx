@@ -70,7 +70,10 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !user) return;
+    if (!user) return;
+    /* Web and native registration both run after authentication. The helper
+     * asks the browser/OS for permission, registers the subscription/token,
+     * and is fully best-effort. */
     initPushNotifications().catch(() => {});
   }, [user?.id]);
 

@@ -79,7 +79,7 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
             {question?.answer ? (
               <View style={{ alignSelf: 'flex-start', maxWidth: '92%', borderRadius: 15, borderTopLeftRadius: 4, borderWidth: 1, borderColor: 'rgba(232,201,106,0.35)', backgroundColor: isDark ? 'rgba(232,201,106,0.09)' : 'rgba(232,201,106,0.11)', padding: 12, marginBottom: 10 }}>
                 <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: '#B08B1B', marginBottom: 4 }}>SCHOLAR ANSWER</T>
-                <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{question.answer}</T>
+                <T v="bodyS" style={{ fontSize: 14, lineHeight: 22, fontWeight: '800', color: d.text }}>{question.answer}</T>
             </View>
             ) : null}
             {question?.attachment_url ? <Pressable onPress={() => setPreview(absolute(question.attachment_url))}><Image source={{ uri: absolute(question.attachment_url) ?? undefined }} style={{ width: 180, height: 130, borderRadius: 10, marginBottom: 10 }} resizeMode="contain" /></Pressable> : null}
