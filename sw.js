@@ -36,21 +36,24 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || '/';
+  const rawTarget = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     (async () => {
+      const targetUrl = new URL(rawTarget, self.location.origin);
+      const target = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
       const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clientList) {
         try {
           const u = new URL(client.url);
-          if (u.pathname === target || u.pathname === '/') {
+          const current = `${u.pathname}${u.search}${u.hash}`;
+          if (current === target || u.pathname === '/') {
             await client.focus();
-            if (u.pathname !== target) client.navigate && client.navigate(target);
+            if (current !== target && client.navigate) await client.navigate(targetUrl.href);
             return;
           }
         } catch (e) { /* keep looking */ }
       }
-      if (self.clients.openWindow) await self.clients.openWindow(target);
+      if (self.clients.openWindow) await self.clients.openWindow(targetUrl.href);
     })(),
   );
 });
