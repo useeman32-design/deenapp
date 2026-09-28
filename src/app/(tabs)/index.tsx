@@ -61,10 +61,6 @@ function Glow({ size, color, id, opacity = 0.35 }: { size: number; color: string
 const mecca = require('../../../assets/img/mecca.jpg');
 const patternDark = require('../../../assets/img/pattern-dark.png');
 const patternLight = require('../../../assets/img/pattern-light.png');
-const campaignQuran = require('../../../assets/img/campaign-quran.jpg');
-const campaignRamadan = require('../../../assets/img/campaign-ramadan.jpg');
-const campaignScholars = require('../../../assets/img/campaign-scholars.jpg');
-const campaignLearning = require('../../../assets/img/campaign-learning.jpg');
 const scholarAvatar1 = require('../../../assets/img/scholar-1.jpg');
 const scholarAvatar2 = require('../../../assets/img/scholar-2.jpg');
 const scholarAvatar3 = require('../../../assets/img/scholar-3.jpg');
@@ -96,49 +92,9 @@ function useQuickAccess(): QuickItem[] {
 
 /* ------------------------------ Campaigns ------------------------------ */
 
-/* pass 44 — campaign order per user: Learning Hub NEW and first,
- * Finish the Qur'an SECOND, then Ramadan, then scholars. Videos removed. */
-const CAMPAIGNS = [
-  {
-    key: 'learning',
-    image: campaignLearning,
-    title: 'Learning Hub',
-    sub: 'Courses, tafsir and short lessons — grow your deen.',
-    href: '/tools/learning',
-  },
-  {
-    key: 'quran',
-    image: campaignQuran,
-    title: 'Finish the Qur’an',
-    sub: 'One surah a day — keep the chain alive.',
-    href: '/(tabs)/quran',
-  },
-  {
-    key: 'ramadan',
-    image: campaignRamadan,
-    title: 'Ramadan Countdown',
-    titleSmall: true,
-    sub: 'Start your preparation streak today.',
-    href: '/tools/calendar',
-  },
-  {
-    key: 'scholars',
-    image: campaignScholars,
-    title: 'Ask a Scholar',
-    sub: 'Verified answers from the scholars.',
-    href: '/tools/scholars',
-  },
-];
-
-/* pass 44 — campaigns come from the admin API when reachable. `key` maps to a
- * bundled artwork so native keeps working offline; an admin-set imageUrl wins
- * when the key has no bundled art. */
-const BUNDLED_CAMPAIGN_ART: Record<string, ReturnType<typeof require>> = {
-  learning: campaignLearning,
-  quran: campaignQuran,
-  ramadan: campaignRamadan,
-  scholars: campaignScholars,
-};
+/* Campaigns are real rows from the admin/public API. There is deliberately no
+ * bundled artwork or demo row here: an authoritative empty response hides the
+ * rail, and a failed refresh leaves the last successful rail intact. */
 
 const POST_FIELDS: Record<number, string> = { 101: 'Sunni · Mufti', 102: 'Sunni', 103: 'Sunni · Sheikh', 104: 'Sufi', 105: 'Sufi', 106: 'Sunni · Sheikh', 107: 'Sunni · Mufti', 108: 'Sufi', 109: 'Sunni' };
 const SCHOLAR_AVATARS: Record<number, number> = { 1: scholarAvatar1, 2: scholarAvatar2, 3: scholarAvatar3 };
@@ -190,7 +146,9 @@ function HomeInner() {
   /* pass 44 — goal-completion celebration */
   const [goalCelebrate, setGoalCelebrate] = useState<{ open: boolean; all: boolean; labels: string[] }>({ open: false, all: false, labels: [] });
   const { add: addPoints } = useDeenPoints();
-  /* pass 44 — admin-managed home campaigns (falls back to bundled CAMPAIGNS) */
+  /* Admin-managed home campaigns. null means not loaded yet; it is never a
+   * reason to paint bundled/demo campaigns. A failed refresh also preserves the
+   * last successful response so banners do not disappear on focus changes. */
   const [liveCampaigns, setLiveCampaigns] = useState<api.Campaign[] | null>(null);
   useFocusEffect(useCallback(() => {
     let alive = true;
@@ -203,9 +161,9 @@ function HomeInner() {
         title: c.title,
         sub: c.subtitle ?? '',
         href: c.href,
-        image: BUNDLED_CAMPAIGN_ART[c.key] ?? (c.imageUrl ? { uri: c.imageUrl } : campaignLearning),
+        image: c.imageUrl ? { uri: c.imageUrl } : null,
       }))
-    : CAMPAIGNS;
+    : [];
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   /* pass 83-35 — the daily-videos LIBRARY strip keeps its modal; POST videos
@@ -686,10 +644,8 @@ function HomeInner() {
         </View>
 
         {/* pass 42 — TODAY'S GOAL modal: full goals list with live progress */}
-        {/* pass 88 — the admin campaigns list is the source of truth. When it
-             * answers and is EMPTY the rail is hidden entirely instead of
-             * repainting the bundled demo banners (owner: “those were just
-             * demos”). A failed request (null) still keeps the offline set. */}
+        {/* Admin response is authoritative. Empty means no campaign rail; a
+             * failed refresh leaves the last successful rail mounted. */}
         {campaignList.length === 0 ? null : (
           <View style={{ marginHorizontal: 16, marginTop: 26 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -701,7 +657,7 @@ function HomeInner() {
               {campaignList.map((c) => (
                 <Pressable
                   key={c.key}
-                  onPress={() => router.push(c.href as never)}
+                  onPress={() => { if (c.href) router.push(c.href as never); }}
                   style={({ pressed }) => ({
                     width: 358,
                     borderRadius: 20,
@@ -711,7 +667,11 @@ function HomeInner() {
                     opacity: pressed ? 0.92 : 1,
                   })}
                 >
-                  <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
+                  {c.image ? (
+                    <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ width: 358, height: 150, backgroundColor: isDark ? '#10251B' : '#DDEDE4' }} />
+                  )}
                   <LinearGradient
                     colors={['rgba(4,9,7,0.88)', 'rgba(4,9,7,0.55)', 'rgba(4,9,7,0)']}
                     locations={[0, 0.5, 0.92]}
@@ -1103,92 +1063,7 @@ function HomeInner() {
           })}
         </View>
 
-                {/* 11 ─ Accounts to follow (with photos) */}
-        <View style={{ marginHorizontal: 16, marginTop: 26, marginBottom: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
-              Accounts to Follow
-            </T>
-            <Pressable onPress={() => router.push('/tools/suggestions')} hitSlop={8}>
-              <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
-                View more <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
-              </T>
-            </Pressable>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 4 }}>
-            {scholars.map((sc) => {
-              const name = sc.display_name ?? 'Scholar';
-              const isF = followed.includes(sc.id);
-              const photo = SCHOLAR_AVATARS[sc.id];
-              return (
-                <View
-                  key={sc.id}
-                  style={{
-                    width: 122,
-                    borderRadius: 18,
-                    backgroundColor: d.card,
-                    borderWidth: 1,
-                    borderColor: d.cardBorder,
-                    padding: 14,
-                    alignItems: 'center',
-                    gap: 7,
-                  }}
-                >
-                  {photo ? (
-                    <Image
-                      source={localAsset(photo) as never}
-                      style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: d.greenBorder }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: isDark ? `${d.emerald}24` : `${d.emerald}16`,
-                        borderWidth: 1,
-                        borderColor: d.greenBorder,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <T v="bodyS" style={{ color: d.emerald, fontSize: 13, fontWeight: '700' }}>
-                        {initialsOf(name)}
-                      </T>
-                    </View>
-                  )}
-                  <View style={{ alignItems: 'center' }}>
-                    <T v="bodyS" style={{ color: d.text, fontSize: 11, fontWeight: '600', textAlign: 'center', lineHeight: 13, width: 104 }}>
-                      {name}
-                    </T>
-                    <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: d.faint, fontSize: 9, marginTop: 2, textAlign: 'center' }}>
-                      {sc.institute || sc.title || 'Scholar'}
-                    </T>
-                  </View>
-                  <Pressable
-                    onPress={() => toggleFollow(sc.id)}
-                    style={({ pressed }) => ({
-                      paddingHorizontal: 14,
-                      paddingVertical: 6,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: isF ? 'transparent' : d.greenBorder,
-                      backgroundColor: isF ? d.emerald : 'transparent',
-                      opacity: pressed ? 0.8 : 1,
-                    })}
-                  >
-                    <T v="caption" style={{ color: isF ? '#fff' : d.emerald, fontSize: 10, fontWeight: '700' }}>
-                      {isF ? 'Following' : 'Follow'}
-                    </T>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-            </ScrollView>
+        </ScrollView>
 
       {/* pass 67 — the old inline account-search overlay is gone: the home 🔍
        * now opens the full Search screen (/tools/search) with Top / Users /

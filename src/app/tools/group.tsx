@@ -295,6 +295,20 @@ function GroupScreenInner() {
   };
   /* pass 83-10c — audio FILE picker: web hidden input, native expo-document-picker
      (lazy import — never loaded on web, correction 61) */
+  const audioMime = (name: string): string => {
+    const ext = (name.split(".").pop() ?? "").toLowerCase().split("?")[0];
+    const map: Record<string, string> = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/opus", webm: "audio/webm", mka: "audio/x-matroska" };
+    return map[ext] ?? "audio/*";
+  };
+  const audioExtFromMime = (mime: string): string => {
+    if (mime.includes("wav")) return "wav";
+    if (mime.includes("ogg")) return "ogg";
+    if (mime.includes("mp4") || mime.includes("m4a")) return "m4a";
+    if (mime.includes("aac")) return "aac";
+    if (mime.includes("opus")) return "opus";
+    if (mime.includes("webm")) return "webm";
+    return "mp3";
+  };
   const pickAudio = async () => {
     haptic.light();
     try {
@@ -303,24 +317,15 @@ function GroupScreenInner() {
         return;
       }
       const docPicker = await import("expo-document-picker");
-      /* ── pass 94 — WHY THE OWNER'S AUDIO WAS GREYED OUT ──────────────────
-       * expo-document-picker does NOT accept UTIs here. In its iOS module
-       * (DocumentPickerModule.swift, v57) every entry of `type` goes through
-       *     case AUDIO-WILDCARD: return UTType.audio      <- the one that works
-       *     default:             return UTType(mimeType: entry)
-       * so the old pair ("public.audio", "public.data") was read as two MIME
-       * types, both returned nil, and createDocumentPicker() ran
-       *     options.type.compactMap { … }   ->   []   (empty)
-       * An EMPTY content-type list makes UIDocumentPickerViewController grey
-       * out every file — exactly what he saw, on every audio, on iOS, twice
-       * already. The audio wildcard below is the documented value and maps to
-       * UTType.audio, the whole audio tree (mp3, m4a, aac, wav, caf, opus…).
-       * Android takes MIME types as-is; the everything-wildcard is used there
-       * because some Android document providers ignore a narrower filter.
-       * validateAudio() still rejects a non-audio pick with a clear message. */
-      const audioTypes = Platform.OS === "ios" ? "audio/*" : "*/*";
+      /* Use an unrestricted document provider filter, then validate the
+       * selected file ourselves. Some Android providers and iOS Files versions
+       * treat `audio/*` as an empty UTI list and show no selectable files;
+       * the unrestricted filter keeps the picker open while the MIME/extension check below still
+       * prevents non-audio uploads. */
       const res = await docPicker.getDocumentAsync({
-        type: audioTypes as never,
+        type: "*/*",
+        copyToCacheDirectory: true,
+        multiple: false,
       });
       const asset = (
         Array.isArray(res.assets) ? res.assets[0] : (res as unknown)
@@ -328,18 +333,24 @@ function GroupScreenInner() {
         | { uri?: string; name?: string; mimeType?: string; size?: number }
         | undefined;
       if (res.canceled !== true && asset?.uri) {
-        /* pass 83-25 — validate BEFORE attach (the server silently drops bad
-         * files, which read as "nothing happened" / "audio not playing") */
-        const err = validateAudio(asset.name ?? "audio.mp3", asset.size);
+        /* pass 83-25 — validate BEFORE attach. Providers sometimes return a
+         * generic name such as "document"; the MIME is therefore part of the
+         * validation and gives the upload a usable extension when needed. */
+        const pickedType = (asset.mimeType ?? "").toLowerCase();
+        const inferredName = asset.name || `audio.${pickedType.includes("wav") ? "wav" : pickedType.includes("mp4") || pickedType.includes("m4a") ? "m4a" : pickedType.includes("ogg") ? "ogg" : "mp3"}`;
+        const err = validateAudio(inferredName, asset.size, pickedType);
         if (err) {
           setPostError(err);
           return;
         }
+        const pickedName = /\.[a-z0-9]{2,5}$/i.test(inferredName)
+          ? inferredName
+          : `${inferredName}.${audioExtFromMime(pickedType)}`;
         setPostError(null);
         setAudioAttach({
           uri: asset.uri,
-          name: asset.name ?? "audio.mp3",
-          type: asset.mimeType,
+          name: pickedName,
+          type: asset.mimeType || audioMime(pickedName),
         });
       }
     } catch {
@@ -351,20 +362,12 @@ function GroupScreenInner() {
    * Photos ride the same compression as the feed composer. */
   const extOf = (name: string) =>
     (name.split(".").pop() ?? "").toLowerCase().split("?")[0];
-  const validateAudio = (name: string, size?: number): string | null => {
-    if (
-      ![
-        "mp3",
-        "m4a",
-        "aac",
-        "wav",
-        "ogg",
-        "oga",
-        "opus",
-        "webm",
-        "mka",
-      ].includes(extOf(name))
-    )
+  const validateAudio = (name: string, size?: number, mime = ""): string | null => {
+    const extOk = [
+      "mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "webm", "mka",
+    ].includes(extOf(name));
+    const mimeOk = mime.startsWith("audio/") || ["video/mp4", "application/octet-stream"].includes(mime);
+    if (!extOk && !mimeOk)
       return `“${name}” is not a supported audio file (mp3, m4a, aac, wav, ogg, webm).`;
     if (size != null && size > 25 * 1024 * 1024)
       return `“${name}” is over the 25 MB audio limit.`;
@@ -2435,7 +2438,7 @@ function GroupScreenInner() {
                       (e as React.ChangeEvent<HTMLInputElement>).target.value =
                         "";
                       if (!file) return;
-                      const err = validateAudio(file.name, file.size);
+                      const err = validateAudio(file.name, file.size, (file.type || "").toLowerCase());
                       if (err) {
                         setPostError(err);
                         return;

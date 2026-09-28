@@ -30,6 +30,7 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
   const [canSend, setCanSend] = useState(true);
+  const [liveAnswer, setLiveAnswer] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible || !question || question.id <= 0) return;
@@ -37,8 +38,9 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
     setDraft('');
     setError('');
     setCanSend(true);
+    setLiveAnswer(question.answer ?? question.answer_text ?? null);
     let dead = false;
-    const refresh = () => void questionThread(question.id).then((r) => { if (!dead) { setMessages(r?.messages ?? []); setCanSend(r?.can_send !== false); } }).catch(() => {});
+    const refresh = () => void questionThread(question.id).then((r) => { if (!dead) { setMessages(r?.messages ?? []); setCanSend(r?.can_send !== false); setLiveAnswer(r?.question?.answer ?? null); } }).catch(() => {});
     refresh();
     const timer = setInterval(refresh, 2800);
     return () => { dead = true; clearInterval(timer); };
@@ -76,12 +78,6 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
               <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: green, marginBottom: 4 }}>YOUR QUESTION</T>
               <T v="bodyS" style={{ fontSize: 12.5, lineHeight: 18, color: d.text }}>{question?.question ?? question?.question_text ?? 'Question details unavailable.'}</T>
             </View>
-            {question?.answer ? (
-              <View style={{ alignSelf: 'flex-start', maxWidth: '92%', borderRadius: 15, borderTopLeftRadius: 4, borderWidth: 1, borderColor: 'rgba(232,201,106,0.35)', backgroundColor: isDark ? 'rgba(232,201,106,0.09)' : 'rgba(232,201,106,0.11)', padding: 12, marginBottom: 10 }}>
-                <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: '#B08B1B', marginBottom: 4 }}>SCHOLAR ANSWER</T>
-                <T v="bodyS" style={{ fontSize: 14, lineHeight: 22, fontWeight: '800', color: d.text }}>{question.answer}</T>
-            </View>
-            ) : null}
             {question?.attachment_url ? <Pressable onPress={() => setPreview(absolute(question.attachment_url))}><Image source={{ uri: absolute(question.attachment_url) ?? undefined }} style={{ width: 180, height: 130, borderRadius: 10, marginBottom: 10 }} resizeMode="contain" /></Pressable> : null}
             {messages === null ? <ActivityIndicator color={green} style={{ marginVertical: 18 }} /> : messages.length === 0 ? (
               <T v="caption" style={{ color: d.faint, textAlign: 'center', paddingVertical: 16 }}>No follow-up messages yet. If the scholar asks for more detail, reply here.</T>
@@ -94,6 +90,12 @@ export function QuestionThreadModal({ visible, question, onClose }: Props) {
                 </View>
               </View>
             ))}
+            {liveAnswer ? (
+              <View style={{ alignSelf: 'flex-start', maxWidth: '92%', borderRadius: 15, borderTopLeftRadius: 4, borderWidth: 1, borderColor: 'rgba(232,201,106,0.35)', backgroundColor: isDark ? 'rgba(232,201,106,0.09)' : 'rgba(232,201,106,0.11)', padding: 12, marginBottom: 10 }}>
+                <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: '#B08B1B', marginBottom: 4 }}>SCHOLAR ANSWER</T>
+                <T v="bodyS" style={{ fontSize: 14, lineHeight: 22, fontWeight: '800', color: d.text }}>{liveAnswer}</T>
+              </View>
+            ) : null}
             {error ? <T v="caption" style={{ color: '#E05252', textAlign: 'center', marginVertical: 5 }}>{error}</T> : null}
           </ScrollView>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderTopWidth: 1, borderTopColor: d.cardBorder, padding: 12 }}>

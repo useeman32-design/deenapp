@@ -1,6 +1,6 @@
 import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveLocation, type Loc } from '@/lib/location';
@@ -24,12 +24,13 @@ import { BackButton } from '@/components/BackButton';
 import { SunPath } from '@/components/SunPath';
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptic } from '@/lib/haptics';
-import { ADHAN_VOICES, playAdhan, stopAdhan } from '@/lib/adhanPlayer';
+import { playAdhan, stopAdhan } from '@/lib/adhanPlayer';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { fetchPrayerDay, PRAYER_METHODS } from '@/lib/islamicApi';
-import { useRouter } from 'expo-router';
-import { stopBubble } from '@/lib/press';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { storage } from '@/lib/storage';
+import { stopBubble } from '@/lib/press';
+import { disableAdhanSchedule, requestAdhanPermissions, syncAdhanSchedule } from '@/lib/adhanNotify';
 
 /**
  * Prayer times (pass 23 — full redesign):
@@ -54,8 +55,10 @@ const ADHAN_DESIGNS: Array<{ id: AdhanDesign; label: string; img: number; accent
 const ADHAN_DESIGN_KEY = 'dl.adhan.design';
 
 export default function PrayerTimes() {
-  useEffect(() => { markGoal('prayer').catch(() => {}); }, []);
+  const params = useLocalSearchParams<{ adhan?: string | string[] }>();
   const { theme, isDark } = useTheme();
+  const adhanParam = Array.isArray(params.adhan) ? params.adhan[0] : params.adhan;
+  useEffect(() => { markGoal('prayer').catch(() => {}); return () => stopAdhan(); }, []);
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -65,10 +68,6 @@ export default function PrayerTimes() {
   const [now, setNow] = useState(new Date());
   const [sheet, setSheet] = useState(false);
   const [methodPicker, setMethodPicker] = useState(false);
-  const [adhanLoading, setAdhanLoading] = useState(false);
-  /* pass 36 — exclusive preview: only the voice actually playing shows
-   * "playing" (before, every button lit because isAdhanPlaying() is global) */
-  const [preview, setPreview] = useState<'v1' | 'v2' | 'v3' | null>(null);
   /* pass 33: adhan — plays when a prayer time arrives while the app is open */
   const [adhanFor, setAdhanFor] = useState<string | null>(null);
   /* pass 41 — adhan alert design (5 selectable, persisted) + picker */
@@ -97,11 +96,11 @@ export default function PrayerTimes() {
       const key = `${dd.toDateString()}:${i}`;
       if (now >= t[i] && now.getTime() - t[i].getTime() < 90_000 && playedRef.current !== key) {
         playedRef.current = key;
-        if (playAdhan(settings.adhanVoice)) { setPreview(null); setAdhanFor(`${PRAYER_NAMES[i]}·${key}`); }
+        if (playAdhan('v1')) setAdhanFor(`${PRAYER_NAMES[i]}·${key}`);
         break;
       }
     }
-  }, [now, loc, settings.adhan, settings.adhanVoice, offset]);
+  }, [now, loc, settings.adhan, offset]);
 
   useEffect(() => {
     /* Use the shared location already resolved on the Home screen —
@@ -111,6 +110,29 @@ export default function PrayerTimes() {
     loadPrayerSettings().then(setSettings);
   }, []);
 
+  /* Native local alerts are rebuilt whenever a location/calculation/audio
+   * setting changes. The override avoids racing AsyncStorage after a picker
+   * tap; the scheduler still persists the same selected voice in each
+   * notification's sound field. */
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (!settings.adhan) {
+      void disableAdhanSchedule();
+      return;
+    }
+    void requestAdhanPermissions().then((granted) => {
+      if (granted) void syncAdhanSchedule(settings);
+    });
+  }, [loc, settings.adhan, settings.method, settings.apiMethod, settings.madhab, settings.adjustments.join(',')]);
+
+  /* A tapped native adhan notification deep-links here. Show the same chosen
+   * visual design and start the selected in-app recitation, rather than merely
+   * landing on an ordinary prayer-times page. */
+  useEffect(() => {
+    if (!adhanParam) return;
+    setAdhanFor(adhanParam);
+    if (settings.adhan) playAdhan('v1');
+  }, [adhanParam, settings.adhan]);
 
 
   useEffect(() => {
@@ -382,7 +404,7 @@ export default function PrayerTimes() {
               const D = ADHAN_DESIGNS.find((x) => x.id === adhanDesign) ?? ADHAN_DESIGNS[0];
               const name = adhanFor ? adhanFor.split('·')[0] : '';
               const arName = adhanFor ? AR_NAMES[name] : '';
-              const reciter = ADHAN_VOICES.find((v) => v.id === settings.adhanVoice)?.label;
+              const reciter = 'Default adhan';
               const cancel = () => { haptic.light(); stopAdhan(); setAdhanFor(null); };
               const go = () => { haptic.medium(); stopAdhan(); setAdhanFor(null); scroller.current?.scrollTo({ y: 0, animated: true }); };
               const StyleBtns = ({ tint }: { tint: string }) => (
@@ -694,47 +716,7 @@ export default function PrayerTimes() {
                 <FontAwesome5 name="chevron-right" size={11} color={d.faint} />
               </Pressable>
 
-              {/* pass 33: adhan voice picker with preview */}
-              {settings.adhan ? (
-                <View>
-                  <T v="caption" style={{ fontWeight: '800', fontSize: 10.5, letterSpacing: 0.6, marginBottom: 8 }}>ADHAN RECITATION</T>
-                  {ADHAN_VOICES.map((v) => {
-                    const on = settings.adhanVoice === v.id;
-                    return (
-                      <Pressable
-                        key={v.id}
-                        accessibilityLabel={`adhan ${v.label}`}
-                        onPress={() => { haptic.selection(); const nx = { ...settings, adhanVoice: v.id }; setSettings(nx); savePrayerSettings(nx); }}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 11, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: on ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(212,175,55,0.10)' : 'rgba(212,175,55,0.06)') : 'transparent' }}
-                      >
-                        <FontAwesome5 name="speaker" size={12} color={on ? '#E8C96A' : d.faint} />
-                        <T v="bodyS" style={{ flex: 1, fontWeight: '700', fontSize: 12.5, color: d.text }}>{v.label}</T>
-                        <Pressable
-                          accessibilityLabel={`preview adhan ${v.label}`}
-                          onPress={(e) => {
-                            stopBubble(e); haptic.selection();
-                            if (preview === v.id) { stopAdhan(); setPreview(null); setAdhanFor(null); return; }
-                            setAdhanLoading(true);
-                            if (playAdhan(v.id)) { setPreview(v.id); setAdhanFor(null); }
-                            setTimeout(() => setAdhanLoading(false), 900);
-                          }}
-                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: preview === v.id ? 'rgba(212,175,55,0.18)' : (isDark ? 'rgba(242,247,243,0.08)' : 'rgba(20,36,28,0.05)'), alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          {adhanLoading && preview !== v.id && !preview ? (
-                            <ActivityIndicator size="small" color="#E8C96A" />
-                          ) : preview === v.id ? (
-                            <FontAwesome5 name="pause" size={9} color="#E8C96A" />
-                          ) : (
-                            <FontAwesome5 name="play" size={9} color={d.subtext} />
-                          )}
-                        </Pressable>
-                        {on ? <FontAwesome5 name="check-circle" size={15} color="#E8C96A" /> : null}
-                      </Pressable>
-                    );
-                  })}
-                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>The adhan plays from your device when a prayer time enters while the app is open.</T>
-                </View>
-              ) : null}
+              <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 2 }}>The default adhan plays with this selected alert design.</T>
             </ScrollView>
           </View>
         </View>

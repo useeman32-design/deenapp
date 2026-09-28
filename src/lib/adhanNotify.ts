@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { storage } from '@/lib/storage';
 import { resolveLocation } from '@/lib/location';
-import { computePrayerTimesWith, loadPrayerSettings, PRAYER_NAMES } from '@/lib/prayer';
+import { computePrayerTimesWith, loadPrayerSettings, PRAYER_NAMES, type PrayerSettings } from '@/lib/prayer';
 
 /**
  * pass 83-30 — ADHAN WHEN THE APP IS CLOSED.
@@ -70,6 +70,18 @@ export async function scheduleAdhanTest(seconds = 5): Promise<boolean> {
   }
 }
 
+export async function requestAdhanPermissions(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  try {
+    const Notifications = await import('expo-notifications');
+    let perm = await Notifications.getPermissionsAsync();
+    if (perm.status !== 'granted') perm = await Notifications.requestPermissionsAsync();
+    return perm.status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
 export async function disableAdhanSchedule(): Promise<void> {
   if (Platform.OS === 'web') return;
   try { await cancelScheduled(); } catch { /* ignore */ }
@@ -79,11 +91,21 @@ export async function disableAdhanSchedule(): Promise<void> {
  * Rebuild the schedule from the saved prayer settings + location.
  * Call after permission is granted and whenever settings.adhan flips.
  */
-export async function syncAdhanSchedule(): Promise<void> {
+export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     const Notifications = await import('expo-notifications');
-    const settings = await loadPrayerSettings();
+    const settings = settingsOverride ?? await loadPrayerSettings();
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    } catch { /* foreground presentation is optional */ }
     await cancelScheduled();
     if (!settings.adhan) return;
 
@@ -92,6 +114,9 @@ export async function syncAdhanSchedule(): Promise<void> {
 
     if (Platform.OS === 'android') {
       try {
+        /* Recreate the channel so devices that previously received a custom
+         * channel sound return to the platform's default notification sound. */
+        await Notifications.deleteNotificationChannelAsync(CHANNEL).catch(() => {});
         await Notifications.setNotificationChannelAsync(CHANNEL, {
           name: 'Adhan / prayer alerts',
           importance: Notifications.AndroidImportance.MAX,
@@ -119,7 +144,7 @@ export async function syncAdhanSchedule(): Promise<void> {
               title: `${name} — it's time 🕌`,
               body: `The time for ${name} has entered. ${loc.name ? `(${loc.name}) ` : ''}Tap to respond.`,
               sound: 'default',
-              data: { type: 'adhan', prayer: name },
+              data: { type: 'adhan', prayer: name, adhanVoice: 'v1' },
             },
             trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId: CHANNEL },
           });

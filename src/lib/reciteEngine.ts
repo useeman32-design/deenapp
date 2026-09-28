@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { normalizeArabic } from '@/lib/quranSearch';
 import { getRecognition, speechSupported } from '@/lib/speech';
+import { align, isReciteRunCurrent, keepMarks, mergeFinal, type WordState } from '@/lib/reciteAlignment';
+export type { WordState } from '@/lib/reciteAlignment';
 
 /**
  * Recite engine (pass 27) — shared by the ReciteMode screen AND inline mushaf
@@ -23,131 +25,6 @@ import { getRecognition, speechSupported } from '@/lib/speech';
 const DIA = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640\u06E5\u06E6]/g;
 export const bare = (t: string) => normalizeArabic(t).replace(DIA, '').replace(/\s+/g, ' ').trim();
 const BASM_NORM = 'بسم الله الرحمن الرحيم';
-
-export type WordState = 'hidden' | 'ok' | 'wrong';
-
-/** strict equality: exact, or one substitution of equal length */
-/* pass 27: light normalizer that PRESERVES harakat — used to catch vowel/wasl
- * slips (aamanu→aaminu, kafaru→kufiru) that bare() makes invisible. */
-const MARK = /[\u064B-\u065F\u0670\u06D6-\u06ED]/;
-const PUNCT = /[\u061F\u061B\u060C.,;:!?\u0640\u06E5\u06E6]/g;
-export function keepMarks(t: string): string {
-  return t.replace(PUNCT, ' ').replace(/\s+/g, ' ').trim();
-}
-/** letters + attached marks, e.g. "كَفَرُوا" → [["ك","َ"],["ف","َ"],["ر","ُ"],["و",""],["ا",""]] */
-function markPairs(w: string): Array<[string, string]> {
-  const out: Array<[string, string]> = [];
-  let letter = '';
-  let marks = '';
-  for (const ch of w) {
-    if (MARK.test(ch)) { marks += ch; continue; }
-    if (letter) out.push([letter, marks]);
-    letter = ch; marks = '';
-  }
-  if (letter) out.push([letter, marks]);
-  return out;
-}
-/** true when the spoken word's marks CONFLICT with the expected word's marks.
- * Only positions the speaker actually vocalized (marked in the transcript)
- * are checked; the final letter's marks are ignored (case-ending tolerance). */
-function marksConflict(expected: string, spoken: string): boolean {
-  if (!expected || !spoken) return false;
-  const E = markPairs(keepMarks(expected));
-  const S = markPairs(keepMarks(spoken));
-  if (E.length !== S.length) return false; /* letter shift — be lenient here */
-  let marked = 0;
-  let bad = 0;
-  for (let i = 0; i < E.length; i++) {
-    if (i === E.length - 1) continue; /* ending i'rab tolerated */
-    const sm = S[i][1];
-    if (!sm) continue; /* speaker didn't vocalize this letter */
-    marked++;
-    if (E[i][0] !== S[i][0]) continue; /* letter-level handled elsewhere */
-    if (E[i][1] !== sm) bad++;
-  }
-  /* only judge richly-marked transcripts; single-mark noise is ignored */
-  return marked >= 2 && bad >= 1;
-}
-
-export function strictEq(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  let sub = 0;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) sub++;
-  return sub <= 1;
-}
-
-/** loose equality — for SEARCH only (recognition noise tolerance) */
-export function looseEq(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const budget = a.length <= 3 ? 1 : a.length <= 6 ? 2 : 3;
-  if (Math.abs(a.length - b.length) > budget) return false;
-  let i = 0, j = 0, edits = 0;
-  while (i < a.length && j < b.length && edits <= budget) {
-    if (a[i] === b[j]) { i++; j++; }
-    else { edits++; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } }
-  }
-  return edits + (a.length - i) + (b.length - j) <= budget;
-}
-
-export type AlignResult = { states: WordState[]; reached: number };
-
-/** strict alignment of expected words against everything spoken */
-export function align(E: string[], S: string[], EM?: string[], SM?: string[]): AlignResult {
-  const n = E.length;
-  const states: WordState[] = new Array(n).fill('hidden');
-  const used = new Array(S.length).fill(false);
-  const pairs: Array<[number, number]> = [];
-  let ei = 0;
-
-  for (let si = 0; si < S.length && ei < n; si++) {
-    const tok = S[si];
-    if (!tok) continue;
-    if (strictEq(E[ei], tok)) { states[ei] = 'ok'; used[si] = true; pairs.push([ei, si]); ei++; continue; }
-    /* wasl — this token is 2-4 expected words said joined */
-    let joinHit = 0;
-    for (let k = 2; k <= 4 && ei + k <= n; k++) {
-      if (strictEq(E.slice(ei, ei + k).join(''), tok)) { joinHit = k; break; }
-    }
-    if (joinHit) { for (let q = 0; q < joinHit; q++) states[ei + q] = 'ok'; ei += joinHit; used[si] = true; continue; }
-    /* skip-ahead — the NEXT word was said: the current one is a mistake */
-    if (ei + 1 < n && strictEq(E[ei + 1], tok)) { states[ei] = 'wrong'; states[ei + 1] = 'ok'; pairs.push([ei + 1, si]); ei += 2; used[si] = true; continue; }
-    /* else: insertion noise — ignore */
-  }
-
-  /* split — the frontier word equals two unused tokens glued */
-  let front = 0;
-  while (front < n && states[front] !== 'hidden') front++;
-  if (front < n) {
-    for (let si = 0; si < S.length - 1; si++) {
-      if (!used[si] && !used[si + 1] && strictEq(E[front], (S[si] ?? '') + (S[si + 1] ?? ''))) {
-        states[front] = 'ok'; used[si] = true; used[si + 1] = true; break;
-      }
-    }
-  }
-
-  /* pass 27: harakat check — a letter-perfect word said with the WRONG vowels
-   * (aamanu→aaminu) is wrong when the transcript carries the marks */
-  if (EM && SM) {
-    for (const [pei, psi] of pairs) {
-      if (states[pei] === 'ok' && marksConflict(EM[pei] ?? '', SM[psi] ?? '')) states[pei] = 'wrong';
-    }
-  }
-
-  /* corrections — a red word re-said correctly turns green */
-  for (let i = 0; i < n; i++) {
-    if (states[i] !== 'wrong') continue;
-    for (let si = 0; si < S.length; si++) {
-      if (!used[si] && strictEq(E[i], S[si] ?? '')) { states[i] = 'ok'; used[si] = true; pairs.push([i, si]); break; }
-    }
-  }
-
-  let reached = 0;
-  for (let i = n - 1; i >= 0; i--) if (states[i] !== 'hidden') { reached = i + 1; break; }
-  return { states, reached };
-}
 
 /* ───────────────────── per-word audio ───────────────────── */
 const pad3 = (x: number) => String(x).padStart(3, '0');
@@ -192,17 +69,7 @@ function ttsWord(word: string, fallback: () => void) {
  * of them (112: …اللَّهُ أَحَدٌ then 112:2 اللَّهُ الصَّمَدُ — the second اللَّهُ
  * vanished and every later word mis-aligned). Only a genuine re-delivery of
  * the same multi-word segment is skipped. */
-const mergeFinal = (cur: string, t: string): string => {
-  const c = cur.trim();
-  const x = t.trim();
-  if (!x) return c;
-  if (!c) return x;
-  if (c === x) return c; /* identical segment re-delivered */
-  if (x.split(/\s+/).length > 1 && c.endsWith(x)) return c; /* growing re-delivery */
-  return `${c} ${x}`;
-};
-
-/** tail-overlap merge for INTERIM buffers: "بسم" + "بسم الله" → "بسم الله".
+export /** tail-overlap merge for INTERIM buffers: "بسم" + "بسم الله" → "بسم الله".
  * (Chrome/iOS re-deliver the growing utterance; naive append duplicated words
  * and naive replace lost the FIRST word of the next partial segment — iOS
  * delivers partial interims, so overwriting was eating the first word.) */
@@ -391,10 +258,6 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
   const realignRef = useRef(realign);
   realignRef.current = realign;
 
-  /* keep latest states for stop() without re-creating it every realign */
-  const statesRef = useRef<WordState[]>([]);
-  statesRef.current = states;
-
   /* ── lifecycle ──
    * pass 31: `halt` is the ONE true way to stop — keepAlive=false FIRST, kill
    * the restart timers, THEN abort+stop the session. The old code stopped the
@@ -402,9 +265,11 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
    * the mic stayed hot after "stop" and blocked other apps. */
   const keepAlive = useRef(false);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runId = useRef(0);
   const haltRef = useRef<() => void>(() => {});
 
   const start = useCallback(() => {
+    const thisRun = ++runId.current;
     setError(null);
     /* kill any zombie session from a previous run before creating a fresh one */
     keepAlive.current = false;
@@ -416,6 +281,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
     keepAlive.current = true;
     settled.current = false;
     r.onresult = (e: any) => {
+      if (!isReciteRunCurrent(runId.current, thisRun) || recRef.current !== r) return;
       let interSeg = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
@@ -432,6 +298,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
       realignRef.current();
     };
     r.onerror = (e: any) => {
+      if (!isReciteRunCurrent(runId.current, thisRun) || recRef.current !== r) return;
       const code = e?.error ?? 'error';
       if (code === 'not-allowed' || code === 'service-not-allowed') {
         keepAlive.current = false;
@@ -442,13 +309,14 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
       if (code === 'network') setError('Speech recognition needs an internet connection.');
     };
     r.onend = () => {
+      if (!isReciteRunCurrent(runId.current, thisRun) || recRef.current !== r) return;
       if (!keepAlive.current) { setListening(false); return; }
       if (restartTimer.current) clearTimeout(restartTimer.current);
       restartTimer.current = setTimeout(() => {
-        if (!keepAlive.current) return;
+        if (!keepAlive.current || !isReciteRunCurrent(runId.current, thisRun) || recRef.current !== r) return;
         let tries = 0;
         const attempt = () => {
-          if (!keepAlive.current) return;
+          if (!keepAlive.current || !isReciteRunCurrent(runId.current, thisRun) || recRef.current !== r) return;
           try { recRef.current?.start(); }
           catch {
             /* keep retrying (up to ~12) with a growing gap — giving up after 4
@@ -473,23 +341,24 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
   }, []);
 
   const stop = useCallback(() => {
-    /* settle the score from everything heard so far, then REALLY release */
+    /* Align the last partial buffer before releasing the mic. The old path
+     * only scored when `reached > 0`, so an interim first word disappeared on
+     * Stop and repeated short attempts looked like a reset failure. */
     if (!settled.current) {
-      if (continuous) {
-        settle(statesRef.current);
-      } else if (reached > 0 && reached < words.length) {
-        const rawToks = (finals.current + ' ' + interim.current).split(/\s+/).filter((x) => x.trim().length > 0);
-        let pairs = rawToks.map((t) => [bare(t), keepMarks(t)] as const).filter(([b]) => b.length > 0);
-        pairs = stripOptionalBasm(pairs);
-        const spoken = pairs.map(([b]) => b);
-        const { states: st } = align(words, spoken);
+      const rawToks = (finals.current + ' ' + interim.current).split(/\s+/).filter((x) => x.trim().length > 0);
+      let pairs = rawToks.map((t) => [bare(t), keepMarks(t)] as const).filter(([b]) => b.length > 0);
+      pairs = stripOptionalBasm(pairs);
+      const spoken = pairs.map(([b]) => b);
+      if (spoken.length > 0) {
+        const { states: st } = align(continuous ? flatWords : words, spoken);
         settle(st);
       }
     }
     haltRef.current();
-  }, [reached, words, settle, continuous]);
+  }, [words, flatWords, settle, continuous]);
 
   haltRef.current = useCallback(() => {
+    runId.current += 1;
     keepAlive.current = false;
     if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
     try { recRef.current?.abort(); } catch {}
@@ -512,7 +381,12 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
     setError(null);
   }, [continuous, flatWords.length, words.length]);
 
-  useEffect(() => () => { keepAlive.current = false; if (restartTimer.current) clearTimeout(restartTimer.current); try { recRef.current?.abort(); } catch {} }, []);
+  useEffect(() => () => {
+    runId.current += 1;
+    keepAlive.current = false;
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    try { recRef.current?.abort(); } catch {}
+  }, []);
 
   /* per-ayah word states for continuous mode (map the flat stream back) */
   const ayahStates = useMemo(() => {

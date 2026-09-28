@@ -6,6 +6,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { Breathe } from '@/components/Skeletons';
 import { TopBar } from '@/components/TopBar';
 import { DeenPointsPill } from '@/components/DeenPoints';
 import { haptic } from '@/lib/haptics';
@@ -86,6 +87,24 @@ const STATUS_META: Record<string, { label: string; color: string; icon: string }
   answered: { label: 'Answered', color: '#4AE38F', icon: 'check-circle' },
   rejected: { label: 'Rejected', color: '#F58FB0', icon: 'times-circle' },
 };
+
+function ScholarSkeleton({ d }: { d: ReturnType<typeof useTheme>['theme']['dash'] }) {
+  return (
+    <View accessibilityLabel="Loading scholars" style={{ gap: 9, marginBottom: 16 }}>
+      {[0, 1, 2, 3].map((i) => (
+        <Breathe key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 14 }}>
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: d.cardBorder }} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ width: i % 2 ? '62%' : '48%', height: 12, borderRadius: 6, backgroundColor: d.cardBorder }} />
+            <View style={{ width: '78%', height: 9, borderRadius: 5, backgroundColor: d.cardBorder }} />
+            <View style={{ width: '55%', height: 9, borderRadius: 5, backgroundColor: d.cardBorder }} />
+          </View>
+          <View style={{ width: 42, height: 28, borderRadius: 10, backgroundColor: d.cardBorder }} />
+        </Breathe>
+      ))}
+    </View>
+  );
+}
 
 function StatusBadge({ status, isDark, size = 9 }: { status: string; isDark: boolean; size?: number }) {
   const key = String(status || 'pending').toLowerCase();
@@ -470,7 +489,8 @@ export default function Scholars() {
               </View>
             )}
 
-            {list.map((s) => {
+            {rosterState === 'loading' && !roster.length ? <ScholarSkeleton d={d} /> : null}
+            {rosterState !== 'loading' ? list.map((s) => {
               const isSelf = !!me && (Number(me.id) === Number(s.id) || String(me.username ?? '').replace(/^@/, '').toLowerCase() === String(s.username ?? '').replace(/^@/, '').toLowerCase());
               return <Pressable
                 key={s.id}
@@ -520,17 +540,15 @@ export default function Scholars() {
                   <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Ask</T>
                 </Pressable> : <T v="caption" style={{ fontSize: 10, fontWeight: '900', color: d.faint }}>You</T>}
               </Pressable>; 
-            })}
-            {!list.length ? (
+            }) : null}
+            {!list.length && rosterState !== 'loading' ? (
               <View style={{ borderRadius: 17, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, marginTop: 24 }}>
                 <T v="body" style={{ fontWeight: '800', fontSize: 13, color: d.text }}>
                   {roster.length
                     ? 'No scholar matches that search or field.'
-                    : rosterState === 'loading'
-                      ? 'Loading the scholar roster…'
-                      : rosterState === 'error'
-                        ? 'Could not reach the scholar list.'
-                        : 'No scholars are on the roster yet.'}
+                    : rosterState === 'error'
+                      ? 'Could not reach the scholar list.'
+                      : 'No scholars are on the roster yet.'}
                 </T>
                 <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>
                   {roster.length
@@ -594,10 +612,10 @@ export default function Scholars() {
                   </View>
                   <T v="body" style={{ fontWeight: '800', fontSize: 13.5, color: d.text, marginTop: 7 }}>{x.title}</T>
                   <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 6 }}>{x.question ?? x.question_text ?? 'Question details unavailable.'}</T>
-                  {x.answer ? (
+                  {(x.answer ?? x.answer_text) ? (
                     <View style={{ marginTop: 7 }}>
                       <T v="caption" style={{ fontSize: 9, fontWeight: '900', color: d.faint, letterSpacing: 0.7 }}>ANSWER</T>
-                      <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 3 }}>{x.answer}</T>
+                      <T v="bodyS" style={{ fontSize: 11.5, lineHeight: 18, color: d.subtext, marginTop: 3 }}>{x.answer ?? x.answer_text}</T>
                     </View>
                   ) : (
                     <T v="caption" style={{ fontSize: 10.5, lineHeight: 15, color: d.faint, marginTop: 7 }}>
@@ -726,12 +744,13 @@ export default function Scholars() {
       </Modal>
 
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
-          <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setPreviewImage(null)} />
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }} onPress={() => setPreviewImage(null)}>
           <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
-            {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+            </Pressable>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* ── ASK SHEET ── */}

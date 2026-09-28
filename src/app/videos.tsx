@@ -1,5 +1,5 @@
 import { buildShareUrl } from '@/lib/share';
-import { BASE, chatSendShare, chatStartDMByUsername, feed as fetchFeed, getConnections as apiGetConnections, isLive, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
+import { BASE, chatSendShare, chatStartDMByUsername, feed as fetchFeed, getConnections as apiGetConnections, isLive, videosPostingStatus, videos as fetchLiveVideos, videosLike, videosNotInterested, videosReport, videosRepost, videosSave, videosUploadReel, videosView } from '@/api/client';
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -775,12 +775,22 @@ function VideosFeedInner() {
   const [screenFocused, setScreenFocused] = useState(true);
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
-    return () => { setScreenFocused(false); };
+    let alive = true;
+    if (isLive()) {
+      setPostingStatusBusy(true);
+      videosPostingStatus().then((status) => { if (alive) setPostingStatus(status ?? { enabled: false, canPost: false, message: 'Video posting status is unavailable right now.' }); }).finally(() => { if (alive) setPostingStatusBusy(false); });
+    } else {
+      setPostingStatus({ enabled: false, canPost: false, message: 'Connect to the live app to check video posting availability.' });
+      setPostingStatusBusy(false);
+    }
+    return () => { alive = false; setScreenFocused(false); };
   }, []));
   const [query, setQuery] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('saved');
   const [createOpen, setCreateOpen] = useState(false);
+  const [postingStatus, setPostingStatus] = useState<{ enabled: boolean; canPost: boolean; message?: string } | null>(null);
+  const [postingStatusBusy, setPostingStatusBusy] = useState(() => isLive());
   const [moreReel, setMoreReel] = useState<MockReel | null>(null);
   /* pass 83-26 — watermarked-download progress (0..1) for server reels */
   const [dlProg, setDlProg] = useState<number | null>(null);
@@ -924,8 +934,10 @@ function VideosFeedInner() {
   }, [liveTick]);
 
   useEffect(() => {
-    if (params.create === '1') setCreateOpen(true);
-  }, [params.create]);
+    if (params.create !== '1' || postingStatusBusy || !postingStatus) return;
+    if (postingStatus.enabled && postingStatus.canPost) setCreateOpen(true);
+    else showToast(postingStatus.message || (!postingStatus.enabled ? 'Videos are under maintenance and will be available soon.' : 'Video posting is available only to accounts enabled by an admin.'));
+  }, [params.create, postingStatus, postingStatusBusy]);
 
   const reels = useMemo(() => {
     void storeTick;
@@ -1401,6 +1413,26 @@ function VideosFeedInner() {
         </View>
       ) : null}
 
+      {postingStatusBusy ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: 22, right: 22, bottom: 88 + insets.bottom, alignItems: 'center' }}>
+          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(8,14,11,0.84)', borderWidth: 1, borderColor: 'rgba(232,201,106,0.35)' }}>
+            <T v="caption" style={{ color: '#E8C96A', fontWeight: '700', fontSize: 11 }}>Checking video posting availability…</T>
+          </View>
+        </View>
+      ) : postingStatus && !postingStatus.enabled ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: 22, right: 22, bottom: 88 + insets.bottom, alignItems: 'center' }}>
+          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(8,14,11,0.88)', borderWidth: 1, borderColor: 'rgba(255,123,123,0.45)' }}>
+            <T v="caption" style={{ color: '#FFB0B0', fontWeight: '800', fontSize: 11, textAlign: 'center' }}>Videos are under maintenance and will be available soon.</T>
+          </View>
+        </View>
+      ) : postingStatus && !postingStatus.canPost ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: 22, right: 22, bottom: 88 + insets.bottom, alignItems: 'center' }}>
+          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(8,14,11,0.88)', borderWidth: 1, borderColor: 'rgba(232,201,106,0.4)' }}>
+            <T v="caption" style={{ color: '#E8C96A', fontWeight: '800', fontSize: 11, textAlign: 'center' }}>Upload access is available only to accounts enabled by an admin.</T>
+          </View>
+        </View>
+      ) : null}
+
       {/* bottom menu — labels pill + plus fully outside, level */}
       {!zen ? (<View style={{ position: 'absolute', alignSelf: 'center', bottom: 16 + insets.bottom * 0.4, flexDirection: 'row', alignItems: 'center' }}>
         <View
@@ -1458,7 +1490,13 @@ function VideosFeedInner() {
 
         {/* plus — fully OUTSIDE the pill, level with it (pass 18) */}
         <Pressable
-          onPress={() => { haptic.light(); setCreateOpen(true); }}
+          onPress={() => {
+            haptic.light();
+            if (postingStatusBusy || !postingStatus) { showToast('Checking video posting availability…'); return; }
+            if (!postingStatus.enabled) { showToast(postingStatus.message || 'Videos are under maintenance and will be available soon.'); return; }
+            if (!postingStatus.canPost) { showToast(postingStatus.message || 'Video posting is available only to accounts enabled by an admin.'); return; }
+            setCreateOpen(true);
+          }}
           style={({ pressed }) => ({
             marginLeft: 14,
             alignSelf: 'center',

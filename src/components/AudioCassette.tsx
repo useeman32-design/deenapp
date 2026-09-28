@@ -32,6 +32,17 @@ export function AudioCassette({ url }: { url: string }) {
     return undefined;
   }, [playing, spin]);
 
+  /* Keep the cassette animation tied to the media engine's actual state. This
+   * prevents a failed Android/iOS source from leaving the reels falsely
+   * spinning, and also stops the audio when the group row unmounts. */
+  useEffect(() => {
+    const sub = player.addListener('playingChange', ({ isPlaying }) => setPlaying(isPlaying));
+    return () => {
+      try { sub.remove(); } catch {}
+      try { player.pause(); } catch {}
+    };
+  }, [player]);
+
   /* progress poll — same trick as the Qur'an player: web engines don't
    * always emit timeUpdate, and this also detects the end of the clip. */
   useEffect(() => {

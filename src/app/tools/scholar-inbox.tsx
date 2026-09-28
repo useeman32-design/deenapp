@@ -106,7 +106,7 @@ function ScholarInboxScreenInner() {
   useEffect(() => {
     if (!open || !isLive()) return;
     let dead = false;
-    const refresh = () => void questionThread(open.id).then((r) => { if (!dead) setThread(r?.messages ?? []); }).catch(() => {});
+    const refresh = () => void questionThread(open.id).then((r) => { if (!dead) { setThread(r?.messages ?? []); if (r?.question) setOpen((cur) => cur ? { ...cur, answer_text: r.question?.answer ?? null, status: (r.question?.status as ScholarQueueRow['status']) ?? cur.status } : cur); } }).catch(() => {});
     refresh();
     const timer = setInterval(refresh, 2800);
     return () => { dead = true; clearInterval(timer); };
@@ -232,6 +232,12 @@ function ScholarInboxScreenInner() {
               {!!q.question_text ? (
                 <T v="bodyS" style={{ fontSize: 11.5, color: d.subtext, marginTop: 8, lineHeight: 16 }}>{q.question_text}</T>
               ) : null}
+              {!!q.answer_text ? (
+                <View style={{ marginTop: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(74,227,143,0.28)', backgroundColor: isDark ? 'rgba(74,227,143,0.07)' : 'rgba(29,111,66,0.05)', padding: 9 }}>
+                  <T v="caption" style={{ fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: green }}>YOUR ANSWER</T>
+                  <T v="bodyS" style={{ fontSize: 11.5, color: d.text, marginTop: 3, lineHeight: 17 }}>{q.answer_text}</T>
+                </View>
+              ) : null}
               {attachmentUri(q.attachment_url) ? <Pressable onPress={() => setPreview(attachmentUri(q.attachment_url))}><Image source={{ uri: attachmentUri(q.attachment_url) ?? undefined }} style={{ width: 92, height: 64, borderRadius: 9, marginTop: 7 }} resizeMode="contain" /></Pressable> : null}
             </Pressable>
           );
@@ -259,12 +265,6 @@ function ScholarInboxScreenInner() {
                   <View style={{ borderRadius: 14, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 12, marginBottom: 10 }}>
                     <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.question_text || open.title}</T>
                   </View>
-                  {!!open.answer_text ? (
-                    <View style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(74,227,143,0.35)', backgroundColor: isDark ? 'rgba(74,227,143,0.07)' : 'rgba(29,111,66,0.05)', padding: 12, marginBottom: 10 }}>
-                      <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: green, marginBottom: 4 }}>YOUR ANSWER</T>
-                      <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.answer_text}</T>
-                    </View>
-                  ) : null}
                   {attachmentUri(open.attachment_url) ? <Pressable onPress={() => setPreview(attachmentUri(open.attachment_url))}><Image source={{ uri: attachmentUri(open.attachment_url) ?? undefined }} style={{ width: 210, height: 145, borderRadius: 10, marginBottom: 10 }} resizeMode="contain" /></Pressable> : null}
                   {thread === null ? (
                     <View style={{ alignItems: 'center', paddingVertical: 14 }}><ActivityIndicator color={green} /></View>
@@ -281,6 +281,12 @@ function ScholarInboxScreenInner() {
                           </View>
                         </View>
                       ))}
+                    </View>
+                  ) : null}
+                  {!!open.answer_text ? (
+                    <View style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(74,227,143,0.35)', backgroundColor: isDark ? 'rgba(74,227,143,0.07)' : 'rgba(29,111,66,0.05)', padding: 12, marginBottom: 10 }}>
+                      <T v="caption" style={{ fontWeight: '900', fontSize: 10, letterSpacing: 1, color: green, marginBottom: 4 }}>YOUR ANSWER</T>
+                      <T v="bodyS" style={{ fontSize: 12.5, color: d.text, lineHeight: 18 }}>{open.answer_text}</T>
                     </View>
                   ) : null}
                 </ScrollView>

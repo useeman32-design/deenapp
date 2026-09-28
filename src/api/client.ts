@@ -26,6 +26,7 @@ import type {
   Scholar,
   User,
   Video,
+  BadgeType,
 } from "@/api/types";
 
 /* pass 44 — when the web app is self-hosted on app.deenlink.org it talks to its
@@ -250,7 +251,7 @@ export async function restoreSession(): Promise<{
 
   // Offline → demo mode with the stored profile.
   const u = await storage.getItem("dl.user");
-  return { user: u ? (JSON.parse(u) as User) : null, ok: false };
+  return { user: u ? hydrateUser(JSON.parse(u) as User) : null, ok: false };
 }
 
 export function setSession(s: string | null, c?: string | null) {
@@ -269,6 +270,14 @@ export async function fetchCsrf(): Promise<string | null> {
     return csrf;
   }
   return csrf;
+}
+
+/** Keep every profile header on the same effective badge contract. The API
+ * deliberately uses `none` for an absent/expired badge, while React screens
+ * should receive null so they cannot render a phantom badge beside a name. */
+export function normalizeVerificationBadge(value: unknown): BadgeType {
+  const badge = String(value ?? '').trim().toLowerCase();
+  return badge === 'blue' || badge === 'green' || badge === 'gold' ? badge : null;
 }
 
 /* pass 73 — auth/me + login only return the raw `profile_image` FILENAME while
@@ -296,6 +305,7 @@ export function hydrateUser<T extends Record<string, unknown>>(u: T): T {
           : `${BASE}/uploads/profile/${raw}`;
   }
   out.profile_image_url = url;
+  (out as T & { verification_badge?: BadgeType }).verification_badge = normalizeVerificationBadge(out.verification_badge);
   return out;
 }
 
@@ -1292,6 +1302,15 @@ export async function groupCreatePost(
     : { id: null, message: r.data?.message };
 }
 
+export async function videosPostingStatus(): Promise<{ enabled: boolean; canPost: boolean; message?: string } | null> {
+  const r = await request<{ status?: string; posting_enabled?: boolean; can_post?: boolean; message?: string }>(
+    "/api/videos/status.php",
+    { auth: true },
+  );
+  if (!r.ok || typeof r.data.posting_enabled !== "boolean") return null;
+  return { enabled: r.data.posting_enabled, canPost: !!r.data.can_post, message: r.data.message };
+}
+
 /* pass 83-25 — videos-page uploads hit the server (single-shot upload.php path:
  * multipart {description, video_file}; the chunked protocol stays for huge
  * files). XHR transport so the studio can show real progress. */
@@ -1806,6 +1825,7 @@ export type MyQuestion = {
   question_text?: string;
   status: string;
   answer?: string | null;
+  answer_text?: string | null;
   rejection_reason?: string | null;
   answered_at?: string | null;
   created_at?: string;
@@ -1943,15 +1963,21 @@ export type QuestionThreadMessage = {
 /** The Q&A message thread — works for BOTH the asker and the scholar. */
 export async function questionThread(
   questionId: number,
-): Promise<{ viewer_role: string; messages: QuestionThreadMessage[]; can_send?: boolean } | null> {
+): Promise<{
+  viewer_role: string;
+  messages: QuestionThreadMessage[];
+  question?: { id?: number; title?: string; question?: string; answer?: string | null; status?: string; answered_at?: string | null };
+  can_send?: boolean;
+} | null> {
   const r = await request<{
     status?: string;
     viewer_role?: string;
     messages?: QuestionThreadMessage[];
+    question?: { id?: number; title?: string; question?: string; answer?: string | null; status?: string; answered_at?: string | null };
     can_send?: boolean;
   }>(`/api/questions/thread.php?question_id=${questionId}`, { auth: true });
   if (r.ok && Array.isArray(r.data.messages)) {
-    return { viewer_role: r.data.viewer_role ?? "", messages: r.data.messages, can_send: r.data.can_send };
+    return { viewer_role: r.data.viewer_role ?? "", messages: r.data.messages, question: r.data.question, can_send: r.data.can_send };
   }
   return null;
 }
@@ -2635,7 +2661,11 @@ export async function getUserProfile(
     `/api/users/get_user_profile.php?u=${encodeURIComponent(username)}`,
     { auth: true },
   );
-  return r.ok && r.data.user ? r.data.user : null;
+  if (!r.ok || !r.data.user) return null;
+  return {
+    ...r.data.user,
+    verification_badge: normalizeVerificationBadge(r.data.user.verification_badge),
+  };
 }
 
 export async function toggleLike(
@@ -4164,13 +4194,10 @@ export async function campaigns(): Promise<Campaign[] | null> {
   const r = await request<{ status?: string; campaigns?: Campaign[] }>(
     "/api/campaigns/list.php",
   );
-  /* pass 88 — two separate bugs met here. (1) The home strip paints the bundled
-   * campaigns first and swaps in the admin list; a request that FAILED was
-   * reported as an empty list, so every banner vanished a second after load.
-   * (2) The server list really IS empty when the owner has configured none — and
-   * then the demos must NOT come back (owner: “those were just demos”).
-   * So: array (even empty) = what the admin says · null = unreachable, keep the
-   * bundled rail for offline. */
+  /* pass 88 — the server response is authoritative. An array (including an
+   * empty array) is the admin's live source of truth; null means the refresh
+   * failed, allowing the Home screen to preserve its last successful rail. No
+   * bundled campaign rows or offline demo banners are returned here. */
   if (r.ok && r.data.status === "success" && Array.isArray(r.data.campaigns))
     return r.data.campaigns.map((campaign) => ({
       ...campaign,

@@ -5,6 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { Breathe } from '@/components/Skeletons';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { loadFatwas, type Fatwa } from '@/lib/ai';
@@ -47,6 +48,21 @@ function categoryOf(f: Fatwa): string | null {
 /** Learning — Fatwa & Rulings: hero + count, source cards (Direct Fatwa +
  * IslamQA), a category FILTER DROPDOWN, a mixed "Recent" section, and a
  * searchable rulings list with correct icons. */
+function FatwaSkeleton({ d }: { d: ReturnType<typeof useTheme>['theme']['dash'] }) {
+  return (
+    <View style={{ gap: 9, marginBottom: 16 }} accessibilityLabel="Loading rulings">
+      {[0, 1, 2, 3].map((i) => (
+        <Breathe key={i} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, gap: 9 }}>
+          <View style={{ width: '42%', height: 10, borderRadius: 5, backgroundColor: d.cardBorder }} />
+          <View style={{ width: '86%', height: 15, borderRadius: 6, backgroundColor: d.cardBorder }} />
+          <View style={{ width: '96%', height: 11, borderRadius: 5, backgroundColor: d.cardBorder }} />
+          <View style={{ width: '70%', height: 11, borderRadius: 5, backgroundColor: d.cardBorder }} />
+        </Breathe>
+      ))}
+    </View>
+  );
+}
+
 export default function FatwaBrowser() {
   useEffect(() => { markGoal('fatwa').catch(() => {}); }, []);
   const { theme, isDark } = useTheme();
@@ -200,7 +216,9 @@ export default function FatwaBrowser() {
               <FontAwesome5 name="user-graduate" size={11} color={green} />
               <T v="h3" style={{ fontSize: 13, fontWeight: '800' }}>Direct Fatwas · DeenLink Scholars</T>
             </View>
-            {direct.length === 0 ? (
+            {all === null ? (
+              <FatwaSkeleton d={d} />
+            ) : direct.length === 0 ? (
               <Pressable onPress={() => { haptic.selection(); setSource('islamqa'); setCat(null); setQ(''); }} style={{ borderRadius: 15, borderWidth: 1, borderColor: green, backgroundColor: isDark ? 'rgba(74,227,143,0.10)' : 'rgba(29,111,66,0.06)', padding: 18, alignItems: 'center', gap: 8 }}>
                 <FontAwesome5 name="compass" size={18} color={green} />
                 <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: green, textAlign: 'center' }}>No direct answers yet — tap to explore IslamQA fatwas</T>
@@ -240,6 +258,7 @@ export default function FatwaBrowser() {
           </View>
         ) : (
           <>
+            {all === null ? <FatwaSkeleton d={d} /> : null}
             {/* ── RECENT: mixed across categories ── */}
             {!cat && !q && recent.length > 0 ? (
               <View style={{ marginBottom: 14 }}>
@@ -364,12 +383,13 @@ export default function FatwaBrowser() {
 
       </ScrollView>
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }}>
-          <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setPreviewImage(null)} />
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' }} onPress={() => setPreviewImage(null)}>
           <ScrollView maximumZoomScale={4} minimumZoomScale={1} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }} centerContent>
-            {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              {previewImage ? <Image source={{ uri: previewImage }} style={{ width: 340, height: 480 }} resizeMode="contain" /> : null}
+            </Pressable>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

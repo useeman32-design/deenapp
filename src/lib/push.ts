@@ -22,6 +22,10 @@ function routeFromData(data: Record<string, unknown> | undefined): string {
   const entityId = data?.entityId as string | number | undefined;
   if (type === 'question_received') return entityId ? `/tools/scholar-inbox?id=${entityId}` : '/tools/scholar-inbox';
   if (type === 'question_answered' || type === 'question_rejected' || type === 'question_message') return entityId ? `/tools/scholars?tab=mine&question_id=${entityId}` : '/tools/scholars?tab=mine';
+  if (type === 'adhan') {
+    const prayer = encodeURIComponent(String(data?.prayer ?? ''));
+    return `/tools/prayer?adhan=${prayer}`;
+  }
   if (type === 'video' || entityType === 'video') return '/videos';
   if (type === 'article' || entityType === 'article') return entityId ? `/tools/article/${entityId}` : '/tools/articles';
   if (entityType === 'post' || type === 'post' || type === 'comment') return '/community';
@@ -136,12 +140,13 @@ export async function initPushNotifications(): Promise<void> {
 }
 
 /**
- * Subscribe to notification taps (status bar or in-app). Returns a cleanup
+ * Subscribe to notification taps and native adhan delivery. Returns a cleanup
  * function synchronously so it can be used directly as a useEffect cleanup;
  * the subscription itself is established asynchronously and torn down safely.
  */
 export function registerPushResponseHandler(): () => void {
   let remove: (() => void) | null = null;
+  let removeReceived: (() => void) | null = null;
   let cancelled = false;
 
   if (Platform.OS !== 'web') {
@@ -151,7 +156,21 @@ export function registerPushResponseHandler(): () => void {
         const sub = Notifications.addNotificationResponseReceivedListener((response) => {
           openTarget(response.notification.request.content.data as Record<string, unknown> | undefined);
         });
-        if (cancelled) { try { sub.remove(); } catch { /* noop */ } } else { remove = () => { try { sub.remove(); } catch { /* noop */ } }; }
+        const received = Notifications.addNotificationReceivedListener((notification) => {
+          const data = notification.request.content.data as Record<string, unknown> | undefined;
+          if (data?.type !== 'adhan') return;
+          /* The native alert uses the platform default notification sound. When
+           * the process is already alive, also start the app's default adhan
+           * player so the in-app experience is not limited to a short alert. */
+          import('@/lib/adhanPlayer').then(({ playAdhan }) => playAdhan('v1')).catch(() => {});
+        });
+        if (cancelled) {
+          try { sub.remove(); } catch { /* noop */ }
+          try { received.remove(); } catch { /* noop */ }
+        } else {
+          remove = () => { try { sub.remove(); } catch { /* noop */ } };
+          removeReceived = () => { try { received.remove(); } catch { /* noop */ } };
+        }
       } catch { /* notifications unavailable — ignore */ }
     })();
   }
@@ -159,5 +178,6 @@ export function registerPushResponseHandler(): () => void {
   return () => {
     cancelled = true;
     try { remove?.(); } catch { /* noop */ }
+    try { removeReceived?.(); } catch { /* noop */ }
   };
 }

@@ -212,7 +212,7 @@ function ProfileInner() {
 
   const name =
     (user?.full_name as string) || (user?.username as string) || "Muslim";
-  const badge = (user?.verification_badge as string) || "";
+  const badge = api.normalizeVerificationBadge(user?.verification_badge);
   const username = (user?.username as string) || "";
   const bio = (user?.bio as string) || "";
   const aqeedah = (user?.aqeedah as string) || "";

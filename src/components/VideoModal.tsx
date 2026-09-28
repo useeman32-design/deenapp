@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Image, Linking, Modal, Platform, Pressable, Share, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, Share, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -16,9 +16,9 @@ export function fmtViews(n?: number | null) {
 
 /**
  * Video viewing modal (reels/shorts-style preview).
- * Web: real YouTube iframe. Native (Expo Go): player-style preview with the
- * actual thumbnail + explicit "Watch on YouTube" handoff — Expo Go cannot
- * embed a live YouTube player (would need a dev build + webview library).
+ * YouTube rows stay inside DeenLink through the web iframe/native player; local
+ * daily uploads use expo-video. There is no native-browser handoff from this
+ * modal.
  *
  * pass 101 — an UPLOADED daily video now plays HERE. It used to show a poster
  * with a play button whose handler was Linking.openURL(source_url): it handed
@@ -113,29 +113,12 @@ export function VideoModal({
                       ) : null;
                     })()}
                     <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(4,10,8,0.42)' }} />
-                    <Pressable
-                      onPress={() => localSrc && Linking.openURL(localSrc).catch(() => {})}
-                      style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <View
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 28,
-                          backgroundColor: d.emerald,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          shadowColor: d.emerald,
-                          shadowOpacity: 0.55,
-                          shadowRadius: 14,
-                          shadowOffset: { width: 0, height: 5 },
-                          elevation: 8,
-                        }}
-                      >
-                        <FontAwesome5 name="play" size={19} color="#fff" style={{ marginLeft: 3 }} />
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+                        <FontAwesome5 name="ban" size={19} color="rgba(255,255,255,0.78)" />
                       </View>
                       <T v="caption" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10.5, marginTop: 10, fontWeight: '600' }}>
-                        Tap to play
+                        Video unavailable in the app
                       </T>
                       {video?.duration ? (
                         <View style={{ position: 'absolute', right: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -144,29 +127,15 @@ export function VideoModal({
                           </T>
                         </View>
                       ) : null}
-                    </Pressable>
+                    </View>
                   </>
                 )}
               </View>
-              {canPlayInline ? null : (
-                <Pressable
-                  onPress={() => localSrc && Linking.openURL(localSrc).catch(() => {})}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    backgroundColor: d.gold,
-                    borderRadius: 12,
-                    paddingVertical: 11,
-                  }}
-                >
-                  <FontAwesome5 name="youtube" size={14} color="#0B1512" />
-                  <T v="body" style={{ color: '#0B1512', fontSize: 13, fontWeight: '700' }}>
-                    {isEmbed ? 'Watch on YouTube' : 'Open video file'}
-                  </T>
-                </Pressable>
-              )}
+              {!canPlayInline ? (
+                <T v="caption" style={{ color: 'rgba(255,255,255,0.55)', textAlign: 'center', marginBottom: 4 }}>
+                  This video is not available for in-app playback.
+                </T>
+              ) : null}
             </View>
           )}
           <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', gap: 10 }}>
