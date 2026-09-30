@@ -11,7 +11,7 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
-import { checkUsernameAvailable, checkEmailAvailable, registerScholar, restoreSession, scholarApply,} from '@/api/client';
+import { GOOGLE_SIGNUP_TYPE_KEY, checkUsernameAvailable, checkEmailAvailable, registerScholar, restoreSession, scholarApply,} from '@/api/client';
 import { AqeedahPicker, isOtherOption, useAqeedahOptions } from '@/components/AqeedahPicker';
 import { useGoogleAuth } from '@/lib/useGoogleAuth';
 
@@ -207,6 +207,7 @@ export default function Register() {
 
   const [screen, setScreen] = useState<'choose' | 'form' | 'gmail'>('choose');
   const [accountType, setAccountType] = useState<'user' | 'scholar'>('user');
+  const [googleRoleOpen, setGoogleRoleOpen] = useState(false);
   const [gmailName, setGmailName] = useState('Demo User');
   const [gmailEmail, setGmailEmail] = useState('demo@gmail.com');
   const [busy, setBusy] = useState(false);
@@ -534,6 +535,14 @@ export default function Register() {
     haptic.selection();
   };
 
+  const beginGoogleSignup = (type: 'user' | 'scholar') => {
+    haptic.medium();
+    setAccountType(type);
+    setGoogleRoleOpen(false);
+    void storage.setItem(GOOGLE_SIGNUP_TYPE_KEY, type).catch(() => {});
+    void google.start('signup', type);
+  };
+
   /* ── CHOOSE screen ── */
   const ChooseScreen = (
     <View style={{ paddingBottom: 10 }}>
@@ -565,7 +574,7 @@ export default function Register() {
       <AuthGoogleButton
         label="Sign up with Google"
         busy={google.busy}
-        onDemo={() => { haptic.medium(); setAccountType('user'); void google.start('signup'); }}
+        onDemo={() => { haptic.medium(); setGoogleRoleOpen(true); }}
       />
       <AuthSwitchLine text="Already have an account?" actionLabel="Sign In" onAction={() => goBack(router, '/(auth)/login')} />
     </View>
@@ -621,7 +630,7 @@ export default function Register() {
       <AuthGoogleButton
         label="Sign up with Google"
         busy={google.busy}
-        onDemo={() => { haptic.medium(); setAccountType('user'); void google.start('signup'); }}
+        onDemo={() => { beginGoogleSignup('user'); }}
       />
       <AuthSwitchLine text="Already have an account?" actionLabel="Sign In" onAction={() => goBack(router, '/(auth)/login')} />
     </View>
@@ -805,6 +814,37 @@ export default function Register() {
       <AuthShell>
         {screen === 'choose' ? ChooseScreen : screen === 'gmail' ? GmailScreen : accountType === 'scholar' ? ScholarForm : UserForm}
       </AuthShell>
+      <Modal visible={googleRoleOpen} transparent animationType="fade" onRequestClose={() => setGoogleRoleOpen(false)}>
+        <Pressable style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3,7,5,0.58)' }} onPress={() => setGoogleRoleOpen(false)}>
+          <Pressable onStartShouldSetResponder={() => true} style={{ backgroundColor: isDark ? '#07140D' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.18)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <T v="h2" style={{ color: isDark ? '#F2F7F3' : '#14241C', fontSize: 18, fontWeight: '900' }}>Register with Google</T>
+              <Pressable onPress={() => setGoogleRoleOpen(false)} hitSlop={10}><FontAwesome5 name="times" size={16} color={isDark ? 'rgba(242,247,243,0.55)' : 'rgba(20,36,28,0.5)'} /></Pressable>
+            </View>
+            <T v="caption" style={{ color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)', fontSize: 11, lineHeight: 16, marginBottom: 14 }}>Choose the kind of DeenLink account you want to create.</T>
+            {([
+              { id: 'user', icon: 'user', title: 'User account', sub: 'Pray, learn, quiz and join the community', tint: isDark ? '#4AE38F' : '#1D6F42' },
+              { id: 'scholar', icon: 'user-graduate', title: 'Scholar account', sub: 'Complete your profile, then submit your verification application', tint: '#D4AF37' },
+            ] as const).map((o) => (
+              <Pressable
+                key={o.id}
+                accessibilityLabel={`register with Google as ${o.id}`}
+                onPress={() => beginGoogleSignup(o.id)}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 18, borderWidth: 1.5, borderColor: `${o.tint}55`, backgroundColor: `${o.tint}12`, padding: 15, marginBottom: 11, opacity: pressed ? 0.85 : 1 })}
+              >
+                <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: `${o.tint}22`, borderWidth: 1, borderColor: `${o.tint}55`, alignItems: 'center', justifyContent: 'center' }}>
+                  <FontAwesome5 name={o.icon} size={17} color={o.tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T numberOfLines={1} ellipsizeMode="tail" v="h3" style={{ fontSize: 14.5, fontWeight: '800', color: isDark ? '#F2F7F3' : '#14241C' }}>{o.title}</T>
+                  <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.6)' : 'rgba(20,36,28,0.6)', marginTop: 2 }}>{o.sub}</T>
+                </View>
+                <FontAwesome5 name="chevron-right" size={13} color={isDark ? 'rgba(242,247,243,0.4)' : 'rgba(20,36,28,0.4)'} />
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
       {otpEmail ? (
         <Modal visible transparent animationType="fade">
           <OtpVerify

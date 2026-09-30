@@ -838,16 +838,18 @@ export async function publicSettings(): Promise<
  * switched on is read from the server at runtime, so the owner can paste the
  * credentials in Admin without a rebuild. */
 export const GOOGLE_MSG_KEY = "dl.google.message";
+export const GOOGLE_SIGNUP_TYPE_KEY = "dl.google.signup_type";
 
 export async function googleStart(
   mode: "signup" | "signin",
+  accountType: "user" | "scholar" = "user",
 ): Promise<{ ok: boolean; configured: boolean; url?: string; message?: string }> {
   const r = await request<{
     status?: string;
     configured?: boolean;
     url?: string;
     message?: string;
-  }>(`/api/auth/google_start.php?mode=${mode}&json=1`);
+  }>(`/api/auth/google_start.php?mode=${mode}&account_type=${accountType}&json=1`);
   if (r.ok && r.data.configured && r.data.url) {
     return { ok: true, configured: true, url: r.data.url };
   }

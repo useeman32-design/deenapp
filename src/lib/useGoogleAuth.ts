@@ -17,11 +17,11 @@ import { haptic } from '@/lib/haptics';
 export function useGoogleAuth() {
   const [busy, setBusy] = useState(false);
 
-  const start = useCallback(async (mode: 'signup' | 'signin') => {
+  const start = useCallback(async (mode: 'signup' | 'signin', accountType: 'user' | 'scholar' = 'user') => {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await api.googleStart(mode);
+      const res = await api.googleStart(mode, accountType);
       if (!res.ok || !res.url) {
         setBusy(false);
         Alert.alert(

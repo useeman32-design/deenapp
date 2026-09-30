@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { Alert } from '@/lib/alert';
-import { api, GOOGLE_MSG_KEY } from '@/api/client';
+import { api, GOOGLE_MSG_KEY, GOOGLE_SIGNUP_TYPE_KEY } from '@/api/client';
 import { storage } from '@/lib/storage';
 import { AqeedahPicker } from '@/components/AqeedahPicker';
 import { useAqeedahOptions } from '@/components/AqeedahPicker';
@@ -68,6 +68,7 @@ export function GoogleCompleteModal() {
   const { user, ready, adoptSession } = useAuth();
 
   const [open, setOpen] = useState(false);
+  const [googleSignupType, setGoogleSignupType] = useState<'user' | 'scholar'>('user');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -102,21 +103,32 @@ export function GoogleCompleteModal() {
   }, [checkNeedsProfile]);
 
   useEffect(() => {
+    void storage.getItem(GOOGLE_SIGNUP_TYPE_KEY).then((stored) => {
+      if (stored === 'scholar' || stored === 'user') setGoogleSignupType(stored);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     const outcome = q.get('google');
     if (!outcome) return;
     const msg = q.get('google_message') || '';
+    const callbackType = q.get('google_account_type') === 'scholar' ? 'scholar' : 'user';
     /* the outcome stays in the URL until we act on it, then it is removed so a
      * refresh does not replay a stale message */
     window.history.replaceState({}, '', window.location.pathname);
     if (outcome === 'complete') {
+      setGoogleSignupType(callbackType);
+      void storage.setItem(GOOGLE_SIGNUP_TYPE_KEY, callbackType).catch(() => {});
       setOpen(true);
       if (msg) void storage.setItem(GOOGLE_MSG_KEY, msg).catch(() => {});
     } else if (msg) {
+      void storage.removeItem(GOOGLE_SIGNUP_TYPE_KEY).catch(() => {});
       Alert.alert(outcome === 'error' ? 'Google sign-up' : 'Google', msg);
     }
     if (outcome === 'login' || outcome === 'linked') {
+      void storage.removeItem(GOOGLE_SIGNUP_TYPE_KEY).catch(() => {});
       void api.authMe().then((u) => {
         if (u) void adoptSession(u);
       });
@@ -212,7 +224,13 @@ export function GoogleCompleteModal() {
     }
     haptic.success();
     await adoptSession(res.user);
+    await storage.removeItem(GOOGLE_SIGNUP_TYPE_KEY).catch(() => {});
     setOpen(false);
+    if (googleSignupType === 'scholar') {
+      Alert.alert('Profile complete', 'Your account is ready. Continue with the scholar application and upload your qualification or recommendation letter.');
+      router.replace('/tools/scholar-apply' as never);
+      return;
+    }
     Alert.alert('Welcome to DeenLink', res.message || 'Your account is complete.');
     router.replace('/(tabs)' as never);
   };
