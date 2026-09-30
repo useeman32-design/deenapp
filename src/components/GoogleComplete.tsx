@@ -11,7 +11,8 @@ import { api, GOOGLE_MSG_KEY } from '@/api/client';
 import { storage } from '@/lib/storage';
 import { AqeedahPicker } from '@/components/AqeedahPicker';
 import { useAqeedahOptions } from '@/components/AqeedahPicker';
-import { COUNTRIES } from '@/lib/countries';
+import { CountryPicker } from '@/components/CountryPicker';
+import { DateOfBirthPicker } from '@/components/DateOfBirthPicker';
 
 
 /**
@@ -301,37 +302,9 @@ export function GoogleCompleteModal() {
               </View>
             </Field>
 
-            <Field label="Date of birth" hint="Used for your age in the app — never shown on your profile.">
-              <TextInput
-                value={dob}
-                onChangeText={(v) => setDob(v.replace(/[^0-9-]/g, '').slice(0, 10))}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={d.faint}
-                keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
-                style={input()}
-              />
-              {dob && dobError ? (
-                <T v="caption" style={{ fontSize: 10.5, color: '#FF9B6A', marginTop: 4 }}>{dobError}</T>
-              ) : null}
-            </Field>
+            <DateOfBirthPicker value={dob} onChange={setDob} error={dobError} />
 
-            <Field label="Country">
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
-                {COUNTRIES.slice(0, 24).map((c) => {
-                  const nm = typeof c === 'string' ? c : String((c as { name?: string }).name ?? '');
-                  const on = country === nm;
-                  return (
-                    <Pressable
-                      key={nm}
-                      onPress={() => { haptic.selection(); setCountry(nm); setTribe(null); }}
-                      style={{ borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7, borderColor: on ? green : d.cardBorder, backgroundColor: on ? (isDark ? 'rgba(74,227,143,0.14)' : 'rgba(14,122,70,0.08)') : 'transparent' }}
-                    >
-                      <T v="caption" style={{ fontSize: 11, fontWeight: '800', color: on ? green : d.subtext }}>{nm}</T>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </Field>
+            <CountryPicker value={country} onPick={(selected) => { setCountry(selected); setTribe(null); }} />
 
             {country.toLowerCase() === 'nigeria' ? (
               <Field label="Tribe">

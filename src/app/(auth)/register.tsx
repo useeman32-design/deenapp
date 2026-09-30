@@ -29,7 +29,8 @@ import { useGoogleAuth } from '@/lib/useGoogleAuth';
 
 /* ── static option data ─────────────────────────────────────────────────── */
 
-import { COUNTRIES } from '@/lib/countries';
+import { CountryPicker } from '@/components/CountryPicker';
+import { DateOfBirthPicker } from '@/components/DateOfBirthPicker';
 
 const TRIBES = ['Hausa', 'Igbo', 'Yoruba', 'General'];
 const GENDERS = ['Male', 'Female'];
@@ -179,53 +180,6 @@ function EmailStatusRow({ state }: { state: 'idle' | 'checking' | 'ok' | 'taken'
       ) : (
         <><FontAwesome5 name="times-circle" size={11} color="#FF7B7B" /><T v="caption" style={{ fontSize: 10, fontWeight: '700', color: '#FF7B7B' }}>Already registered — sign in instead</T></>
       )}
-    </View>
-  );
-}
-
-function CountryPicker({ value, onPick }: { value: string; onPick: (c: string) => void }) {
-  const { isDark } = useTheme();
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const cur = COUNTRIES.find((c) => c.name === value);
-  const filtered = q.trim() ? COUNTRIES.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase())) : COUNTRIES;
-  return (
-    <View style={{ marginBottom: 13 }}>
-      <Label>Country</Label>
-      <Pressable
-        accessibilityLabel="country picker"
-        onPress={() => { haptic.selection(); setOpen(true); }}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)', paddingHorizontal: 14, height: 50 }}
-      >
-        <T v="bodyS" style={{ fontSize: 17 }}>{cur?.flag ?? '🌍'}</T>
-        <T v="bodyS" style={{ flex: 1, fontSize: 15, color: isDark ? '#F2F7F3' : '#14241C', fontWeight: '600' }}>{value || 'Select your country'}</T>
-        <FontAwesome5 name="chevron-down" size={12} color={isDark ? 'rgba(242,247,243,0.45)' : 'rgba(20,36,28,0.45)'} />
-      </Pressable>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }} onPress={() => setOpen(false)}>
-          <Pressable onStartShouldSetResponder={() => true} style={{ maxHeight: '70%', borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: isDark ? '#07140D' : '#FFFFFF', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.25)' : 'rgba(29,111,66,0.2)', padding: 16 }}>
-            <T v="h3" style={{ fontWeight: '800', marginBottom: 10 }}>Select your country</T>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(20,36,28,0.14)', backgroundColor: isDark ? 'rgba(3,36,24,0.5)' : 'rgba(255,255,255,0.62)', paddingHorizontal: 12, height: 44, marginBottom: 10 }}>
-              <FontAwesome5 name="search" size={13} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} />
-              <TextInput value={q} onChangeText={setQ} placeholder="Search countries…" placeholderTextColor={isDark ? 'rgba(242,247,243,0.4)' : 'rgba(20,36,28,0.4)'} style={{ flex: 1, fontSize: 14, color: isDark ? '#F2F7F3' : '#14241C', padding: 0 }} />
-              {q ? <Pressable onPress={() => setQ('')}><FontAwesome5 name="times-circle" size={14} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)'} /></Pressable> : null}
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24, gap: 4 }}>
-              {filtered.length === 0 ? <T v="caption" style={{ textAlign: 'center', marginTop: 20, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)' }}>No country matches “{q}”</T> : null}
-              {filtered.map((c) => {
-                const on = c.name === value;
-                return (
-                  <Pressable key={c.name} onPress={() => { haptic.selection(); onPick(c.name); setOpen(false); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 10, backgroundColor: on ? (isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)') : 'transparent' }}>
-                    <T v="bodyS" style={{ fontSize: 17 }}>{c.flag}</T>
-                    <T numberOfLines={1} ellipsizeMode="tail" v="bodyS" style={{ flex: 1, fontSize: 13.5, fontWeight: on ? '800' : '600', color: isDark ? '#F2F7F3' : '#14241C' }}>{c.name}</T>
-                    {on ? <FontAwesome5 name="check" size={12} color={isDark ? '#4AE38F' : '#1D6F42'} /> : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -656,14 +610,7 @@ export default function Register() {
 
       {IdentityBlock}
 
-      <AuthField label="Date of birth" value={dob} onChangeText={(v) => setDob(v.replace(/[^0-9-]/g, '').slice(0, 10))} placeholder="YYYY-MM-DD" icon="birthday-cake" />
-      {dob && dobError ? (
-        <T v="caption" style={{ color: '#FF9B6A', fontSize: 11.5, marginTop: -6, marginBottom: 10 }}>{dobError}</T>
-      ) : (
-        <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)', marginTop: -6, marginBottom: 10 }}>
-          Used for your age in the app — never shown on your profile.
-        </T>
-      )}
+      <DateOfBirthPicker value={dob} onChange={setDob} error={dobError} />
 
       <PasswordBlock password={password} confirm={confirm} setPassword={setPassword} setConfirm={setConfirm} />
 
@@ -697,14 +644,7 @@ export default function Register() {
 
       {IdentityBlock}
 
-      <AuthField label="Date of birth" value={dob} onChangeText={(v) => setDob(v.replace(/[^0-9-]/g, '').slice(0, 10))} placeholder="YYYY-MM-DD" icon="birthday-cake" />
-      {dob && dobError ? (
-        <T v="caption" style={{ color: '#FF9B6A', fontSize: 11.5, marginTop: -6, marginBottom: 10 }}>{dobError}</T>
-      ) : (
-        <T v="caption" style={{ fontSize: 10.5, color: isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.5)', marginTop: -6, marginBottom: 10 }}>
-          Used for your age in the app — never shown on your profile.
-        </T>
-      )}
+      <DateOfBirthPicker value={dob} onChange={setDob} error={dobError} />
 
       {error ? <T v="caption" style={{ color: '#FF7B7B', fontWeight: '700', fontSize: 12, marginBottom: 10 }}>{error}</T> : null}
       <AuthPrimaryButton label="Create my account" busy={busy} onPress={submitGmail} />
