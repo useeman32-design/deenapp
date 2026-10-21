@@ -12,9 +12,11 @@ if (!cfg.resolver.assetExts.includes('txt')) cfg.resolver.assetExts.push('txt');
 // treat .gz as an asset too.
 if (!cfg.resolver.assetExts.includes('gz')) cfg.resolver.assetExts.push('gz');
 
-// big JSON-as-.txt assets: raise the inline limits so they are emitted as
-// files (web export serves them from /assets) rather than base64-inlined
-cfg.transformer.assetRegistryPath = 'react-native/Libraries/Image/AssetRegistry';
-cfg.server.rewriteRequestUrl = cfg.server.rewriteRequestUrl;
+// NOTE (pass 110): do NOT set cfg.transformer.assetRegistryPath here. The old
+// 'react-native/Libraries/Image/AssetRegistry' path no longer exists in this RN
+// version; overriding it made metro emit asset registrations into a module that
+// is not in the bundle graph, so EVERY require()'d asset (icons, images, fonts,
+// content txt/gz) failed to resolve at runtime on Android (APK 0c4d6cdc).
+// Expo's default registry is correct; only assetExts needs extending.
 
 module.exports = cfg;
