@@ -1,3 +1,4 @@
+import { imgSource } from '@/lib/nativePack';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, Image, Modal, Platform, Pressable, Share, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -316,7 +317,7 @@ export function VideoModal({
                       button underneath it. */}
                   {!playing && posterSource ? (
                     <ExpoImage
-                      source={posterSource}
+                      source={imgSource(posterSource)}
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
                       contentFit="contain"
                       transition={200}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Font from 'expo-font';
+import { getPackDir } from './nativePack';
 
 /**
  * DeenLink type system (same families as the web frontend):
@@ -17,6 +18,22 @@ import * as Font from 'expo-font';
  * resolves — a missing face degrades to the system font instead of killing
  * startup.
  */
+/* pass 111 — face → pack-relative file. require() stays for web/dev; release
+ * native reads the same files from the unpacked content pack (see nativePack). */
+const FONT_FILES: Record<string, string> = {
+  Poppins: 'Poppins-Regular.ttf',
+  'Poppins-Medium': 'Poppins-Medium.ttf',
+  'Poppins-SemiBold': 'Poppins-SemiBold.ttf',
+  'Poppins-Bold': 'Poppins-Bold.ttf',
+  'Poppins-ExtraBold': 'Poppins-ExtraBold.ttf',
+  Amiri: 'Amiri-Regular.ttf',
+  'Amiri-Bold': 'Amiri-Bold.ttf',
+  ArefRuqaa: 'ArefRuqaa-Regular.ttf',
+  'ArefRuqaa-Bold': 'ArefRuqaa-Bold.ttf',
+  Sora: 'Sora.ttf',
+  Manrope: 'Manrope.ttf',
+};
+
 const FACES: Record<string, number> = {
   Poppins: require('../fonts/Poppins-Regular.ttf'),
   'Poppins-Medium': require('../fonts/Poppins-Medium.ttf'),
@@ -31,7 +48,7 @@ const FACES: Record<string, number> = {
   Manrope: require('../fonts/Manrope.ttf'),
 };
 
-export function useAppFonts(): [boolean] {
+export function useAppFonts(gate = true): [boolean] {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {

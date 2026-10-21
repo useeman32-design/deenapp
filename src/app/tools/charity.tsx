@@ -1,3 +1,4 @@
+import { imgSource } from '@/lib/nativePack';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Share, TextInput, View } from 'react-native';
@@ -126,7 +127,7 @@ function ReceiptCard({ rcpt, d, isDark, fmtDate }: { rcpt: Dono; d: { text: stri
             )),
           )}
         </View>
-        <ExpoImage source={require('../../../assets/img/logo-export.png')} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
+        <ExpoImage source={imgSource(require('../../../assets/img/logo-export.png'))} style={{ width: 52, height: 52, borderRadius: 13, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.8)' }} contentFit="cover" />
         <T v="h3" style={{ marginTop: 8, fontSize: 15, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 }}>DEENLINK</T>
         <T v="caption" style={{ fontSize: 9, letterSpacing: 1.4, color: '#E8C96A', marginTop: 2 }}>DONATION RECEIPT</T>
       </View>
@@ -311,7 +312,7 @@ export default function Donations() {
           <>
             {/* pass 39 — hero rearranged: icon header, ayah, translation, hadith */}
             <View style={{ borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', marginBottom: 14 }}>
-              <ExpoImage source={require('../../../assets/img/mecca.jpg')} style={{ width: '100%', height: 258 }} contentFit="cover" />
+              <ExpoImage source={imgSource(require('../../../assets/img/mecca.jpg'))} style={{ width: '100%', height: 258 }} contentFit="cover" />
               <LinearGradient colors={['rgba(6,20,13,0.55)', 'rgba(6,20,13,0.88)', 'rgba(6,20,13,0.96)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 16, justifyContent: 'flex-end' }}>
                 {/* icon + title row */}

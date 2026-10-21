@@ -1,3 +1,4 @@
+import { imgSource } from '@/lib/nativePack';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
@@ -110,7 +111,7 @@ function TileImage({ local, url }: { local?: AvatarItem; url: string }) {
       {!local && !failed ? <ActivityIndicator size="small" color="#E8C96A" style={{ position: 'absolute' }} /> : null}
       {failed ? <FontAwesome5 name="image" size={14} color="rgba(255,255,255,0.35)" style={{ position: 'absolute' }} /> : null}
       <ExpoImage
-        source={source}
+        source={imgSource(source)}
         style={{ width: '100%', height: '100%' }}
         contentFit="cover"
         transition={200}

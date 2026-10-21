@@ -1,3 +1,4 @@
+import { imgSource } from '@/lib/nativePack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localAsset } from '@/lib/assetUri';
 import { Animated, Easing, Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
@@ -315,7 +316,7 @@ function HomeInner() {
         {/* subtle arabesque pattern behind the header */}
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 230, overflow: 'hidden' }}>
           <Image
-            source={isDark ? patternDark : patternLight}
+            source={imgSource(isDark ? patternDark : patternLight)}
             style={{ width: '100%', height: '100%', opacity: d.patternOpacity * 0.5, resizeMode: 'cover' }}
           />
           <LinearGradient
@@ -450,7 +451,7 @@ function HomeInner() {
               /* pass 35 — expo-image contentFit=cover centers the crop correctly
                * on every native build (RN Image cover mis-anchors on some Androids) */
               <ExpoImage
-                source={mecca}
+                source={imgSource(mecca)}
                 style={{ position: 'absolute', top: 0, left: 0, width: heroSz.w, height: heroSz.h }}
                 contentFit="cover"
               />
@@ -670,7 +671,7 @@ function HomeInner() {
                   })}
                 >
                   {c.image ? (
-                    <Image source={c.image} style={{ width: 358, height: 150 }} resizeMode="cover" />
+                    <Image source={imgSource(c.image)} style={{ width: 358, height: 150 }} resizeMode="cover" />
                   ) : (
                     <View style={{ width: 358, height: 150, backgroundColor: isDark ? '#10251B' : '#DDEDE4' }} />
                   )}
@@ -1001,7 +1002,7 @@ function HomeInner() {
                 {/* faint pattern backdrop */}
                 <View pointerEvents="none" style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.5 : 0.4 }}>
                   <Image
-                    source={isDark ? patternDark : patternLight}
+                    source={imgSource(isDark ? patternDark : patternLight)}
                     style={{ width: '100%', height: '100%' }}
                     resizeMode="cover"
                   />
@@ -1202,7 +1203,7 @@ function HomeInner() {
                                 }}
                               >
                                 {ds.src != null ? (
-                                  <Image source={ds.src as number} style={{ width: 54, height: 68 }} resizeMode="cover" />
+                                  <Image source={imgSource(ds.src as number)} style={{ width: 54, height: 68 }} resizeMode="cover" />
                                 ) : (
                                   <LinearGradient
                                     colors={['#0B0F0D', '#123024', '#0B0F0D'] as [string, string, ...string[]]}
