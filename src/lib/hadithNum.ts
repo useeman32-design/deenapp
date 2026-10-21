@@ -26,3 +26,29 @@ export function hadithNumbers(book: string): Promise<number[]> {
   cache.set(book, p);
   return p;
 }
+
+/**
+ * PASS 105 — same data, but resolves to `null` instead of throwing, so a caller
+ * can distinguish "the canonical map loaded" from "it did not".
+ *
+ * Why this matters: when the map is missing, `nums[i] ?? i + 1` silently
+ * substitutes the pack's own position for the sunnah.com number. Those two
+ * differ for most entries (for Bukhari, 6,691 of 7,277), so a positional value
+ * presented as "Hadith N" is simply the wrong number — and before the
+ * publicBase() fix it was what EVERY native user saw, because the fetch of
+ * /hadith-num/<book>.json was resolving against a host-less relative URL and
+ * failing silently.
+ */
+export async function hadithNumbersOrNull(book: string): Promise<number[] | null> {
+  try {
+    const n = await hadithNumbers(book);
+    return n.length ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when `nums` came from the canonical map rather than a positional guess. */
+export function isCanonicalNumbering(nums: number[] | null): nums is number[] {
+  return Array.isArray(nums) && nums.length > 0;
+}

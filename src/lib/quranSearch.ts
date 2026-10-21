@@ -1,5 +1,6 @@
 import { QURAN } from '@/data/quran';
 import { loadSurah, type SurahContent } from '@/lib/content';
+import { rankByScore, scoreBest, type Scored } from '@/lib/searchRank';
 
 /**
  * Quran corpus search (pass 20) — loads all 114 surahs from OUR dataset
@@ -45,47 +46,44 @@ export type QuranHit = { surah: number; ayah: number; arabic: string; translatio
 
 export function searchQuranCorpus(q: string, limit = 40): QuranHit[] {
   if (!corpus) return [];
-  const needle = q.trim().toLowerCase();
+  const needle = q.trim();
   if (!needle) return [];
-  const mk = (m: number, ayah: number, arabic: string, translation: string): QuranHit => ({ surah: m, ayah, arabic, translation });
 
-  /* 1. exact substring (verbatim phrase / Arabic) */
-  const exact: QuranHit[] = [];
-  const seenKey = new Set<string>();
+  /* pass 102 — RANK THE WHOLE CORPUS, THEN CUT.
+   *
+   * The old version walked the surahs in order and `return`ed the moment it had
+   * `limit` exact substring hits, so a common word ("mercy", "patience",
+   * "Allah") filled the quota inside al-Baqarah alone and surahs 3-114 were
+   * never even looked at. Its token tier then appended rows on a bare `sc >= 2`
+   * with no ordering signal — which is exactly the owner's complaint that "the
+   * first result is the best, the rest are not even close".
+   *
+   * Every verse is now scored against Arabic + English + Hausa at once through
+   * the shared ranker (exact phrase > full token coverage > ordered tokens >
+   * partial coverage), sorted once, and only then trimmed. Similar ayahs in
+   * different surahs — and repeated ones inside the same surah — all surface
+   * together, ordered by how well they actually match. */
+  const scored: Scored<QuranHit>[] = [];
+
   for (const { meta, surah } of corpus) {
     for (const v of surah.verses) {
-      if (
-        (v.english && v.english.toLowerCase().includes(needle)) ||
-        (v.hausa && v.hausa.toLowerCase().includes(needle)) ||
-        v.arabic.includes(q.trim())
-      ) {
-        exact.push(mk(meta.number, v.ayah, v.arabic, v.english || v.hausa || ''));
-        seenKey.add(`${meta.number}:${v.ayah}`);
-        if (exact.length >= limit) return exact;
-      }
+      const score = scoreBest([v.arabic, v.english, v.hausa], needle);
+      if (score <= 0) continue;
+      scored.push({
+        score,
+        item: {
+          surah: meta.number,
+          ayah: v.ayah,
+          arabic: v.arabic,
+          translation: v.english || v.hausa || '',
+        },
+      });
     }
   }
 
-  /* 2. pass 28: token ranking — natural questions ("a verse about patience")
-   * never appear verbatim in a translation, so substring-only search starved
-   * the AI of ayat. Score every verse by matched query tokens. */
-  const toks = needle.split(/[^a-z\u0621-\u064A]+/).filter((w) => w.length > 3);
-  if (!toks.length) return exact;
-  const scored: Array<{ h: QuranHit; sc: number }> = [];
-  for (const { meta, surah } of corpus) {
-    for (const v of surah.verses) {
-      const en = (v.english || '').toLowerCase();
-      const ha = (v.hausa || '').toLowerCase();
-      let sc = 0;
-      for (const t of toks) {
-        if (en.includes(t)) sc += t.length > 5 ? 2 : 1;
-        if (ha.includes(t)) sc += 1;
-      }
-      if (sc >= 2 && !seenKey.has(`${meta.number}:${v.ayah}`)) scored.push({ h: mk(meta.number, v.ayah, v.arabic, v.english || v.hausa || ''), sc });
-    }
-  }
-  scored.sort((a, b) => b.sc - a.sc);
-  return [...exact, ...scored.map((x) => x.h)].slice(0, limit);
+  /* Tiebreak on surah then ayah, so equal-scoring verses read in mushaf order
+   * instead of shuffling between keystrokes. */
+  return rankByScore(scored, (a, b) => a.surah - b.surah || a.ayah - b.ayah).slice(0, limit);
 }
 
 /* ───────── pass 24: recite-to-find (fuzzy arabic matching) ─────────

@@ -113,13 +113,28 @@ export function ReciteMode({
             <View style={{ marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.08)' : d.card, padding: 16, alignItems: 'center' }}>
               <FontAwesome5 name={tr.score.wrong === 0 ? 'trophy' : 'exclamation-circle'} size={20} color={tr.score.wrong === 0 ? '#E8C96A' : '#DC5050'} />
               <T v="h3" style={{ fontWeight: '800', fontSize: 15, color: d.text, marginTop: 8 }}>
-                {tr.score.wrong === 0 ? 'Masha’Allah — perfect!' : `${tr.score.ok}/${tr.score.words} correct`}
+                {tr.score.wrong === 0
+                  /* PASS 105 — only claim "perfect" when the engine actually reported
+                   * short vowels. Unvocalised ASR cannot tell rasuulu from rasuula, so
+                   * a flawless verdict on such a device would be a lie about coverage. */
+                  ? tr.marksDetected ? 'Masha’Allah — perfect!' : 'Masha’Allah — words correct'
+                  : `${tr.score.ok}/${tr.score.words} correct`}
               </T>
               <T v="caption" style={{ fontSize: 10, color: d.faint, marginTop: 3, textAlign: 'center' }}>
-                {tr.score.wrong === 0
-                  ? autoNext && tr.idx < items.length - 1 ? 'Moving to the next ayah…' : 'Ayah recited flawlessly.'
-                  : `${tr.score.wrong} word${tr.score.wrong > 1 ? 's' : ''} need another look — tap a red word to hear it, then Retry.`}
+                {tr.score.wrong !== 0
+                  ? `${tr.score.wrong} word${tr.score.wrong > 1 ? 's' : ''} need another look — tap a red word to hear it, then Retry.`
+                  : tr.marksDetected
+                    ? autoNext && tr.idx < items.length - 1 ? 'Moving to the next ayah…' : 'Ayah recited flawlessly.'
+                    : 'Letters and word order match the text exactly.'}
               </T>
+              {!tr.marksDetected ? (
+                <View style={{ marginTop: 10, flexDirection: 'row', gap: 7, alignItems: 'flex-start', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: d.bgSoft, width: '100%' }}>
+                  <FontAwesome5 name="info-circle" size={11} color={d.faint} style={{ marginTop: 1 }} />
+                  <T v="caption" style={{ fontSize: 9.5, color: d.faint, flex: 1, textAlign: 'left', lineHeight: 14 }}>
+                    Harakat are not checked on this device. Your speech engine returns unvocalised Arabic, so a wrong short vowel reaches the app as the same text and cannot be judged. Word order and letters are still verified.
+                  </T>
+                </View>
+              ) : null}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Pressable onPress={listenAyah} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.08)' }}>
                   <FontAwesome5 name="volume-up" size={11} color="#E8C96A" />

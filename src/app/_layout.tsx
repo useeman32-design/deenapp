@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, StatusBar as RNStatusBar } from 'react-native';
+import { Platform, StatusBar as RNStatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useAppFonts } from '@/lib/fonts';
 import { NetPill } from '@/lib/net';
 import { LoginModalHost } from '@/components/LoginModal';
+import { LocationModalHost } from '@/components/LocationModal';
 import { AlertHost } from '@/lib/alert';
 import { NotifyBanner } from '@/components/NotifyBanner';
 import { GoogleCompleteModal } from '@/components/GoogleComplete';
@@ -19,6 +20,8 @@ import { GlobalConfirmDialog } from '@/components/ConfirmDialog';
 import { SuspensionNotice } from '@/components/SuspensionNotice';
 import { QuranAudioProvider } from '@/context/QuranAudioContext';
 import { initPushNotifications, registerPushResponseHandler } from '@/lib/push';
+import { startAdhanBootSync } from '@/lib/adhanBoot';
+import { useResponsive, webContentCss } from '@/lib/responsive';
 import { bmHydrate } from '@/lib/bookmarks';
 import { initGuest } from '@/lib/guest';
 import { installWebAssetBase } from '@/lib/assetUri';
@@ -67,6 +70,17 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS === 'web') return;
     return registerPushResponseHandler();
+  }, []);
+
+  /* pass 107 — the adhan schedule is built 3 days ahead, and until now the ONLY
+   * thing that rebuilt it was tapping "enable adhan" on the Prayer screen. A
+   * user who enabled it once and never returned to that screen stopped getting
+   * prayer alerts on day 4 with nothing to explain why. This resyncs at boot and
+   * on every return to the foreground. Native only; it no-ops on web, when the
+   * adhan is off, and when permission was never granted. */
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    return startAdhanBootSync();
   }, []);
 
   useEffect(() => {
@@ -141,14 +155,15 @@ useEffect(() => {
       html, body { margin: 0; padding: 0; height: 100%; background: var(--app-bg, #0B0F14); overscroll-behavior: none; }
       body { color-scheme: dark light; }
       #root { height: 100%; background: var(--app-bg, #0B0F14); }`;
-    /* Large-screen responsiveness (web only): keep the exact mobile design but
-     * centre it in a phone-width column on tablets/desktops so nothing stretches
-     * edge-to-edge. Mobile widths and native builds are untouched. */
-    const responsive = `
-      @media (min-width: 620px) {
-        #root { max-width: 480px; margin: 0 auto; height: 100%; min-height: 100vh; position: relative;
-                box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 18px 60px rgba(0,0,0,0.5); overflow: hidden; }
-      }`;
+    /* pass 107 — the old rule here pinned #root to a hard 480px column at any
+     * viewport >= 620px. That is what made the web app look like a phone on a
+     * laptop: a 1920px monitor got one narrow strip down the middle. Content
+     * width is now decided by <ResponsiveShell> in JS, from one set of
+     * breakpoints shared with the native build, so web and an Android tablet
+     * behave the same way instead of one being letterboxed and the other
+     * stretching edge-to-edge. What web still needs from CSS is the canvas
+     * beside the column and keeping the body from scrolling. */
+    const responsive = webContentCss();
     el.textContent = `${faces}${noSelect}${canvas} html, body { font-family: 'Poppins', -apple-system, 'Segoe UI', sans-serif; } ${responsive}`;
     document.head.appendChild(el);
     return () => {
@@ -187,6 +202,9 @@ useEffect(() => {
       <NetPill />
       {/* pass 83-6 — guest "Login required" modal (works on web; RN Alert is a no-op there) */}
       <LoginModalHost />
+      {/* pass 102 — change-location sheet + the "you seem to have moved" prompt.
+          Global so any screen can open it and every screen sees the result. */}
+      <LocationModalHost />
       </QuranAudioProvider>
     </SplashGate>
   );
@@ -194,6 +212,41 @@ useEffect(() => {
 
 /* pass 93 — runs once, before anything renders, so nested routes resolve local assets */
 installWebAssetBase();
+
+/**
+ * pass 107 — the ONE place content width is capped.
+ *
+ * There is no shared screen wrapper to hang this on: `components/Screen.tsx`
+ * looks like one, but none of the 73 routes in src/app actually use it, so every
+ * screen builds its own layout from raw Views. Editing 73 screens to add a max
+ * width is not a change anyone could verify before a Play deadline, so the cap
+ * goes here instead — above the router, which means every screen, every modal
+ * and the floating tab bar are constrained together.
+ *
+ * On a phone `contentMaxWidth` is null and this renders its children with no
+ * wrapper at all, so the mobile build is byte-for-byte the same tree it was
+ * before. Only tablets and desktops get the centred column.
+ */
+function ResponsiveShell({ children }: { children: React.ReactNode }): React.ReactElement {
+  const { contentMaxWidth } = useResponsive();
+  const { theme } = useTheme();
+  if (!contentMaxWidth) return <>{children}</>;
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          width: '100%',
+          maxWidth: contentMaxWidth,
+          alignSelf: 'center',
+          backgroundColor: theme.background,
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
 
 /* pass 97 — one polling loop for the whole app (badges + arrivals) */
 function NotifyWatch(): null {
@@ -208,6 +261,8 @@ export default function RootLayout() {
       <ThemeProvider>
         <UIScaleProvider>
         <AuthProvider>
+          {/* pass 107 — caps content width on tablets/desktop; a no-op wrapper on phones */}
+          <ResponsiveShell>
           <Root />
           <NotifyWatch />
           {/* pass 89 — one confirm sheet for every screen; Alert.alert is a no-op
@@ -226,6 +281,7 @@ export default function RootLayout() {
           {/* pass 99 — a Google sign-up must be finished before the app is usable;
               the modal appears wherever the user lands, on any device. */}
           <GoogleCompleteModal />
+          </ResponsiveShell>
         </AuthProvider>
         </UIScaleProvider>
       </ThemeProvider>

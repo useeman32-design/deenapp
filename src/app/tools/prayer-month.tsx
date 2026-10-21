@@ -10,7 +10,7 @@ import { PageHero } from '@/components/PageHero';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { haptic } from '@/lib/haptics';
 import { stopBubble } from '@/lib/press';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { useLocation } from '@/components/LocationModal';
 import { computePrayerTimesWith, DEFAULT_SETTINGS, loadPrayerSettings, PRAYER_NAMES, to12h, type PrayerSettings } from '@/lib/prayer';
 import { fetchPrayerMonth } from '@/lib/islamicApi';
 import { shareSvgRef, saveSvgRefAsJpg, shareImage, type SvgRefHandle } from '@/lib/svgExport';
@@ -79,7 +79,8 @@ export default function PrayerMonth() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const insets = useSafeAreaInsets();
-  const [loc, setLoc] = useState<Loc | null>(null);
+  /* pass 102 — shared reactive location */
+  const loc = useLocation();
   const [settings, setSettings] = useState<PrayerSettings>(DEFAULT_SETTINGS);
   const [days, setDays] = useState<Day[] | null>(null);
   const [src, setSrc] = useState<'loading' | 'live' | 'off'>('loading');
@@ -91,7 +92,7 @@ export default function PrayerMonth() {
   const svgRef = useRef<SvgRefHandle>(null);
 
   useEffect(() => {
-    resolveLocation().then(setLoc);
+    /* pass 102 — location comes from the shared store now */
     loadPrayerSettings().then(setSettings);
   }, []);
 

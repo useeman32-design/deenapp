@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { contentWidthForWindow } from '@/lib/responsive';
 import { Animated, Dimensions, Easing, Image, Platform, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -84,7 +85,8 @@ export function SplashGate({ ready, children }: { ready: boolean; children: Reac
 
   if (!show || gone) return <>{children}</>;
 
-  const W = Dimensions.get('window').width;
+  /* pass 107 — splash art must fit the capped column, not the window */
+  const W = contentWidthForWindow(Dimensions.get('window').width);
 
   return (
     <>

@@ -93,9 +93,16 @@ export default function Login() {
     }
   };
 
-  /* pass 99 — real Google sign-in: existing members are signed straight in,
-   * a Google account that was never completed still gets the modal. */
+  /* pass 99/104 — establish the Google path before the OAuth window opens.
+   * The choice is advisory for an existing account: the callback never changes
+   * its stored account type just because Scholar was selected here. */
   const google = useGoogleAuth();
+  const [googleRoleOpen, setGoogleRoleOpen] = useState(false);
+  const startGoogle = (type: 'user' | 'scholar') => {
+    haptic.medium();
+    setGoogleRoleOpen(false);
+    void google.start('signin', type);
+  };
 
   return (
     <AuthShell>
@@ -157,6 +164,35 @@ export default function Login() {
           <T v="caption" style={{ fontSize: 12.5, fontWeight: '700', color: d.subtext }}>Skip — explore as a guest</T>
         </Pressable>
       </View>
+
+      {/* Choose before the first Google press, including from Sign In. Existing
+       * users keep the account type already stored on their DeenLink account. */}
+      <Modal visible={googleRoleOpen} transparent animationType="fade" onRequestClose={() => setGoogleRoleOpen(false)}>
+        <Pressable style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3,7,5,0.58)' }} onPress={() => setGoogleRoleOpen(false)}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: d.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: d.cardBorder, padding: 18, paddingBottom: 28 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+              <View style={{ flex: 1 }}>
+                <T v="h2" style={{ color: d.text, fontSize: 18, fontWeight: '900' }}>Continue with Google</T>
+                <T v="caption" style={{ color: d.subtext, fontSize: 11, marginTop: 3 }}>Choose your intended path before Google opens.</T>
+              </View>
+              <Pressable onPress={() => setGoogleRoleOpen(false)} hitSlop={10}>
+                <FontAwesome5 name="times" size={16} color={d.faint} />
+              </Pressable>
+            </View>
+            <T v="caption" style={{ color: d.faint, fontSize: 10.5, lineHeight: 15, marginBottom: 13 }}>If you already have a DeenLink account, this will sign you in without changing its User or Scholar status.</T>
+            {([
+              { id: 'user' as const, icon: 'user', title: 'User account', sub: 'Sign in as a community member', tint: isDark ? '#4AE38F' : '#1D6F42' },
+              { id: 'scholar' as const, icon: 'user-graduate', title: 'Scholar account', sub: 'Continue toward the scholar path', tint: '#D4AF37' },
+            ]).map((o) => (
+              <Pressable key={o.id} onPress={() => startGoogle(o.id)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1.5, borderColor: `${o.tint}55`, backgroundColor: `${o.tint}12`, padding: 13, marginTop: 9, opacity: pressed ? 0.84 : 1 })}>
+                <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: `${o.tint}22`, alignItems: 'center', justifyContent: 'center' }}><FontAwesome5 name={o.icon} size={15} color={o.tint} /></View>
+                <View style={{ flex: 1 }}><T v="bodyS" style={{ color: d.text, fontWeight: '800', fontSize: 13 }}>{o.title}</T><T v="caption" style={{ color: d.subtext, fontSize: 10.5, marginTop: 2 }}>{o.sub}</T></View>
+                <FontAwesome5 name="chevron-right" size={12} color={d.faint} />
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* security-question account recovery */}
       <Modal visible={recOpen} transparent animationType="slide" onRequestClose={closeRec}>

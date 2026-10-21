@@ -53,8 +53,16 @@ export function detectProvider(key: string): ProviderId | null {
   return null;
 }
 
-export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'fatwa' | 'prophet' | 'web'; label: string; href?: string; excerpt: string };
-export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string; memSaved?: boolean };
+/* pass 104 — 'tafsir', 'seerah' and 'other' added so citations coming back from
+ * api/deenai/ask.php can be labelled with the corpus they actually came from
+ * instead of being forced into an inaccurate bucket. The chip renderer already
+ * falls through to a default icon, so widening is safe. */
+export type AiSource = { kind: 'quran' | 'hadith' | 'dua' | 'name' | 'quiz' | 'fatwa' | 'prophet' | 'web' | 'tafsir' | 'seerah' | 'other'; label: string; href?: string; excerpt: string };
+export type AiMsg = { role: 'user' | 'assistant'; text: string; sources?: AiSource[]; streamed?: boolean; at?: number; reasoning?: string; thinkMs?: number; nav?: string; memSaved?: boolean;
+  /* pass 104 — set when the grounded engine could not answer from our own
+   * libraries. The bubble then shows an "Ask a verified scholar" action rather
+   * than letting a model invent something. */
+  needScholar?: boolean; scholarNote?: string };
 export type AiChat = { id: string; title: string; at: number; msgs: AiMsg[] };
 
 const K_CHATS = 'dl.ai.chats.v2';
@@ -171,7 +179,16 @@ async function directReferences(query: string): Promise<AiSource[]> {
           const arr = await loadBook(book);
           let nums: number[] = [];
           try { nums = await hadithNumbers(book); } catch {}
-          const ix = arr.findIndex((h, i) => (h.hadith_number != null ? Number(h.hadith_number) : (nums[i] ?? i + 1)) === num);
+          /* PASS 105 — resolving a sunnah.com number against the pack's own
+           * position would return a DIFFERENT hadith and then cite it
+           * confidently, which is the worst failure mode for a religious
+           * reference. Match on the pack's own number when it has one; otherwise
+           * only use the canonical map, and only if it actually loaded. */
+          const ix = arr.findIndex((h, i) => {
+            const own = h.hadith_number != null ? Number(h.hadith_number) : null;
+            if (own != null) return own === num;
+            return nums.length > 0 && nums[i] === num;
+          });
           if (ix >= 0) {
             const h = arr[ix];
             res.push({ kind: 'hadith', label: `${BOOK_LABEL[book] ?? book} · Hadith ${num}${h.chapter_name?.english ? ' · ' + h.chapter_name.english : ''}`, href: `/tools/hadith/${book}?h=${num}`, excerpt: (h.english || h.arabic || '').slice(0, 700) });

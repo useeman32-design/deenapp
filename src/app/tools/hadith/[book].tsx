@@ -40,6 +40,19 @@ export default function HadithBookScreen() {
    * chapter, scroll to it and highlight it (the old link just opened the book
    * root, which read as "a different book"). */
   const jumpH = hParam != null && hParam !== '' ? Number(decodeURIComponent(hParam)) : null;
+  /* pass 102 — a search result / AI answer opens this screen with ?h=<number>,
+   * which lands the member straight in the reader. `jumpH` is derived from the
+   * URL, so it stays set for the whole life of the screen: every time back was
+   * pressed the stream effect below saw `!chapter && jumpH != null` and re-opened
+   * a chapter, throwing him back into the reader. Back → chapter list → back →
+   * reader again, and the search results he came from were unreachable.
+   *
+   * `jumpConsumed` makes the deep link fire exactly once (fixes the effect), and
+   * `enteredByDeepLink` remembers that he never browsed through the chapter list
+   * at all, so the FIRST back press leaves the screen instead of showing him a
+   * list he has never seen. */
+  const jumpConsumed = useRef(jumpH == null);
+  const enteredByDeepLink = useRef(jumpH != null);
   const router = useRouter();
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -100,8 +113,13 @@ export default function HadithBookScreen() {
   /* stream the full book file on first reader open */
   useEffect(() => {
     /* a pure ?h= deep link enters straight into chapter 1's reader so the
-     * stream begins; the jump above then lands on the real chapter */
-    if (!chapter && jumpH != null) setChapter('c1');
+     * stream begins; the jump above then lands on the real chapter.
+     * pass 102 — only ONCE: re-arming on every back press is what trapped the
+     * member between the reader and the chapter list. */
+    if (!chapter && jumpH != null && !jumpConsumed.current) {
+      jumpConsumed.current = true;
+      setChapter('c1');
+    }
     if (!chapter) return;
     if (hadiths) return;
     setLoading(true);
@@ -168,7 +186,24 @@ export default function HadithBookScreen() {
       {/* header */}
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => (chapter ? setChapter(null) : goBack(router))} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable
+            onPress={() => {
+              /* pass 102 - arrived from search with ?h= means the reader WAS
+               * the landing screen, so one back press exits to the results.
+               * Browsed in normally, back steps reader -> chapter list -> out. */
+              if (enteredByDeepLink.current) {
+                enteredByDeepLink.current = false;
+                goBack(router);
+                return;
+              }
+              if (chapter) setChapter(null);
+              else goBack(router);
+            }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder, alignItems: 'center', justifyContent: 'center' }}
+          >
             <FontAwesome5 name={chapter ? 'chevron-left' : 'arrow-left'} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
           </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>

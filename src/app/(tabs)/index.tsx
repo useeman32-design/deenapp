@@ -17,7 +17,7 @@ import { haptic } from '@/lib/haptics';
 /* pass 68 — home bell unread badge state lives here; the poll starts in the
  * component below (30s + on focus), fed by /api/notifications/unread_count.php */
 import { computePrayerTimes, formatTime, nextPrayer } from '@/lib/prayer';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { openLocationModal, useLocation } from '@/components/LocationModal';
 import { T } from '@/components/T';
 import { SunPath } from '@/components/SunPath';
 import * as api from '@/api/client';
@@ -137,7 +137,9 @@ function HomeInner() {
   const insets = useSafeAreaInsets();
   const quick = useQuickAccess();
 
-  const [loc, setLoc] = useState<Loc | null>(null);
+  /* pass 102 — shared reactive location: changing it in the modal updates this
+   * screen live (it used to resolve once on mount and never again). */
+  const loc = useLocation();
   const [now, setNow] = useState(() => new Date());
   const [streak, setStreak] = useState({ days: 0, demo: true });
   const [goal, setGoal] = useState<{ done: number; total: number; demo: boolean; items: { key: string; label: string; done: boolean; route?: string }[] }>({ done: 0, total: 4, demo: true, items: [] });
@@ -255,10 +257,6 @@ function HomeInner() {
     if (guestBlock('Sign in to follow people.')) return;
     setFollowed((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
   };
-
-  useEffect(() => {
-    resolveLocation().then(setLoc);
-  }, []);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 1000);
@@ -493,8 +491,11 @@ function HomeInner() {
                     <PulseDot color={isDark ? d.emerald : '#5BE59B'} />
                   </View>
                 </View>
-                <View
-                  style={{
+                <Pressable
+                  onPress={openLocationModal}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change location"
+                  style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 6,
@@ -504,13 +505,14 @@ function HomeInner() {
                     borderWidth: 1,
                     borderColor: 'rgba(255,255,255,0.2)',
                     backgroundColor: 'rgba(255,255,255,0.08)',
-                  }}
+                    opacity: pressed ? 0.75 : 1,
+                  })}
                 >
                   <FontAwesome5 name="map-marker-alt" size={10} color={isDark ? d.emerald : '#5BE59B'} />
                   <T numberOfLines={1} ellipsizeMode="tail" v="caption" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600' }}>
                     {loc ? loc.name.split(',').slice(0, 2).join(',') : 'Locating…'}
                   </T>
-                </View>
+                </Pressable>
               </View>
 
               {/* time + qibla */}
@@ -850,8 +852,14 @@ function HomeInner() {
                     end={{ x: 1, y: 1 }}
                     style={{ position: 'absolute', inset: 0 }}
                   />
-                  {v.thumb != null ? (
-                    <Image source={v.thumb as number} style={{ position: 'absolute', inset: 0, width: '100%', height: 100 }} resizeMode="cover" />
+                  {((v.thumb as number | string | null | undefined) ?? v.poster_url) != null ? (
+                    <Image
+                      source={typeof ((v.thumb as number | string | null | undefined) ?? v.poster_url) === 'number'
+                        ? ((v.thumb as number | string) ?? v.poster_url) as number
+                        : { uri: String((v.thumb as number | string | null | undefined) ?? v.poster_url) }}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: 100 }}
+                      resizeMode="cover"
+                    />
                   ) : null}
                   <LinearGradient
                     colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)'] as [string, string, ...string[]]}

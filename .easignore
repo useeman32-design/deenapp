@@ -1,0 +1,56 @@
+# .easignore — what the EAS cloud build receives.
+#
+# WHY THIS FILE EXISTS. Without it, EAS falls back to .gitignore, and
+# deenapp/.gitignore contains a bare `content/` rule plus `assets/content.zip`.
+# The content pack is therefore excluded from the upload, and the cloud build's
+# `npm ci` runs scripts/unpack-content.mjs as postinstall, finds none of its
+# markers, tries the two historical download URLs (both dead since pass 34d),
+# and THROWS — failing the build about twenty minutes in with
+# "unpack-content: content pack unavailable".
+#
+# The pack is already extracted in the working tree (114 surahs, 15 hadith .gz,
+# 14 meta, 4 islamic files = the 147 require()s in src/lib/content.ts), so the
+# correct behaviour is to UPLOAD IT and let postinstall no-op on its markers.
+# That is what this file does: it keeps the genuinely unnecessary things out
+# (dependencies, tool state, generated native projects) and lets assets/content
+# through.
+#
+# Verified before adding: all 7 MARKERS in scripts/unpack-content.mjs exist
+# under assets/content/, so an uploaded tree makes postinstall a no-op instead
+# of a download attempt.
+
+# dependencies — EAS runs its own install in the cloud
+node_modules/
+.npm/
+.yarn/
+
+# tool state
+.expo/
+.metro-health-check*
+*.tsbuildinfo
+npm-debug.*
+yarn-error.*
+
+# generated native projects — prebuild regenerates these from app.json
+/ios/
+/android/
+
+# build output
+dist/
+dist-app/
+dist-root/
+web-build/
+coverage/
+
+# logs and OS noise
+*.log
+.DS_Store
+
+# local env and tokens — never upload
+.env*.local
+.expo-token
+.token
+
+# NOTE: assets/content/ is deliberately NOT listed. It is ~20 MB and must reach
+# the cloud build. assets/content.zip stays absent; the extracted tree is the
+# source of truth now.

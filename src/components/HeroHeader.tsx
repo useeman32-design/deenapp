@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Image, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatHijri, computePrayerTimes, nextPrayer } from '@/lib/prayer';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { openLocationModal, useLocation } from '@/components/LocationModal';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { ClockIcon, PaperPlaneIcon, PinIcon, SearchIcon } from '@/components/Icons';
@@ -19,13 +19,11 @@ const SLIDES = [
  */
 export function HeroHeader({ onSearch, onMessages }: { onSearch?: () => void; onMessages?: () => void }) {
   const { theme, mode, setMode } = useTheme();
-  const [loc, setLoc] = useState<Loc | null>(null);
+  /* pass 102 — subscribe to the shared location store instead of resolving
+   * once on mount, so changing the location updates this hero immediately. */
+  const loc = useLocation();
   const [now, setNow] = useState(() => new Date());
   const [slide, setSlide] = useState(0);
-
-  useEffect(() => {
-    resolveLocation().then(setLoc);
-  }, []);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 1000);
@@ -81,9 +79,12 @@ export function HeroHeader({ onSearch, onMessages }: { onSearch?: () => void; on
 
       {/* Top bar */}
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 10 }}>
-        {/* Location */}
+        {/* Location — pass 102: tap opens the change-location sheet (it used to
+            re-read the SAME cached fix, so the old city never changed). */}
         <Pressable
-          onPress={() => resolveLocation().then(setLoc)}
+          onPress={openLocationModal}
+          accessibilityRole="button"
+          accessibilityLabel="Change location"
           style={({ pressed }) => ({
             flexDirection: 'row',
             alignItems: 'center',

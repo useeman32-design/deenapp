@@ -297,16 +297,27 @@ function GroupScreenInner() {
      (lazy import — never loaded on web, correction 61) */
   const audioMime = (name: string): string => {
     const ext = (name.split(".").pop() ?? "").toLowerCase().split("?")[0];
-    const map: Record<string, string> = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/opus", webm: "audio/webm", mka: "audio/x-matroska" };
-    return map[ext] ?? "audio/*";
+    const map: Record<string, string> = { mp3: "audio/mpeg", m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/opus", webm: "audio/webm", mka: "audio/x-matroska", flac: "audio/flac", aiff: "audio/aiff", aif: "audio/aiff", amr: "audio/amr", "3gp": "audio/3gpp", caf: "audio/x-caf" };
+    /* pass 102 — never fall back to "audio/*". A wildcard is not a valid
+     * multipart Content-Type, so an unrecognised extension produced a part the
+     * server's finfo could not classify and the upload was rejected as
+     * "unsupported". mpeg is the safe default here: every other branch already
+     * resolves a real format, and the server re-detects the MIME from the bytes. */
+    return map[ext] ?? "audio/mpeg";
   };
   const audioExtFromMime = (mime: string): string => {
-    if (mime.includes("wav")) return "wav";
-    if (mime.includes("ogg")) return "ogg";
-    if (mime.includes("mp4") || mime.includes("m4a")) return "m4a";
-    if (mime.includes("aac")) return "aac";
-    if (mime.includes("opus")) return "opus";
-    if (mime.includes("webm")) return "webm";
+    const m = mime.toLowerCase();
+    if (m.includes("wav")) return "wav";
+    if (m.includes("ogg") || m.includes("oga")) return "ogg";
+    if (m.includes("opus")) return "opus";
+    if (m.includes("mp4") || m.includes("m4a") || m.includes("mpeg-4") || m.includes("apple.m4a")) return "m4a";
+    if (m.includes("aac")) return "aac";
+    if (m.includes("webm")) return "webm";
+    if (m.includes("matroska")) return "mka";
+    if (m.includes("flac")) return "flac";
+    if (m.includes("aiff") || m.includes("aif")) return "aiff";
+    if (m.includes("3gpp") || m.includes("amr")) return "amr";
+    if (m.includes("caf")) return "caf";
     return "mp3";
   };
   const pickAudio = async () => {
@@ -337,7 +348,10 @@ function GroupScreenInner() {
          * generic name such as "document"; the MIME is therefore part of the
          * validation and gives the upload a usable extension when needed. */
         const pickedType = (asset.mimeType ?? "").toLowerCase();
-        const inferredName = asset.name || `audio.${pickedType.includes("wav") ? "wav" : pickedType.includes("mp4") || pickedType.includes("m4a") ? "m4a" : pickedType.includes("ogg") ? "ogg" : "mp3"}`;
+        /* iOS Files may return an Apple UTI (or no MIME at all) instead of an
+         * HTTP MIME. Keep the filename/UTI as a second source of truth so valid
+         * .m4a voice memos are not greyed out or rejected. */
+        const inferredName = asset.name || `audio.${audioExtFromMime(pickedType)}`;
         const err = validateAudio(inferredName, asset.size, pickedType);
         if (err) {
           setPostError(err);
@@ -350,11 +364,29 @@ function GroupScreenInner() {
         setAudioAttach({
           uri: asset.uri,
           name: pickedName,
-          type: asset.mimeType || audioMime(pickedName),
+          type: audioMime(pickedName),
         });
+      } else if (res.canceled !== true) {
+        /* pass 102 — the picker opened but handed back nothing usable. The old
+         * code treated this exactly like a deliberate cancel, so the member
+         * tapped an audio file and the app said nothing at all. */
+        setPostError(
+          "That file could not be read. Try another audio file, or move it out of a restricted folder first.",
+        );
       }
-    } catch {
-      /* picker unavailable — nothing attached */
+    } catch (e) {
+      /* pass 102 — THIS silent catch is a large part of "audios are not
+       * uploading, i dont know why you cannot fix this simple issue". If the
+       * document picker threw (module missing on this build, provider crashed,
+       * permission refused), the app swallowed it and the member saw nothing —
+       * indistinguishable from a server that ignores the file. Say what
+       * happened instead. */
+      const msg = e instanceof Error && e.message ? e.message : "";
+      setPostError(
+        msg
+          ? `Could not open the file picker: ${msg}`
+          : "Could not open the file picker on this device. Update the app, or pick the audio from a different folder.",
+      );
     }
   };
   /* pass 83-25 — client mirrors of the server's media rules (create_post.php):
@@ -364,9 +396,17 @@ function GroupScreenInner() {
     (name.split(".").pop() ?? "").toLowerCase().split("?")[0];
   const validateAudio = (name: string, size?: number, mime = ""): string | null => {
     const extOk = [
-      "mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "webm", "mka",
+      "mp3", "m4a", "mp4", "aac", "wav", "ogg", "oga", "opus", "webm", "mka",
+      "flac", "aiff", "aif", "3gp", "amr", "caf",
     ].includes(extOf(name));
-    const mimeOk = mime.startsWith("audio/") || ["video/mp4", "application/octet-stream"].includes(mime);
+    /* pass 102 — ".mp4" is listed because an AAC voice memo genuinely lives in an
+     * MP4 container and some file managers name it that way. The server re-checks
+     * the real MIME from the bytes (finfo) and stores it as .m4a, so accepting
+     * the extension here cannot let a video through as audio. */
+    const normalizedMime = mime.toLowerCase();
+    const mimeOk = normalizedMime.startsWith("audio/") ||
+      ["video/mp4", "video/3gpp", "application/octet-stream", "public.audio", "public.mpeg-4-audio", "com.apple.m4a-audio"].includes(normalizedMime) ||
+      normalizedMime.includes("audio");
     if (!extOk && !mimeOk)
       return `“${name}” is not a supported audio file (mp3, m4a, aac, wav, ogg, webm).`;
     if (size != null && size > 25 * 1024 * 1024)
@@ -2430,7 +2470,16 @@ function GroupScreenInner() {
                   <input
                     ref={audioFileRef as never}
                     type="file"
-                    accept="audio/*"
+                    /* pass 102 — this is the "greyed out in the file manager, not
+                     * pickable" symptom on the web/PWA build. `accept="audio/*"`
+                     * alone makes mobile browsers filter by whatever MIME their
+                     * OS guessed, and files it cannot classify (.m4a voice memos,
+                     * WhatsApp .opus/.ogg, .amr, .webm) render greyed and
+                     * unselectable. Audio-conversion sites avoid this by listing
+                     * the extensions explicitly next to the wildcard, which tells
+                     * the browser to keep them selectable. Our own
+                     * validateAudio() below is still the real gate. */
+                    accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.webm,.mka,.flac,.aiff,.aif,.amr,.3gp,.caf,.mp4"
                     style={{ display: "none" }}
                     onChange={(e: unknown) => {
                       const file = (e as React.ChangeEvent<HTMLInputElement>)
@@ -2443,11 +2492,24 @@ function GroupScreenInner() {
                         setPostError(err);
                         return;
                       }
+                      /* pass 102 — normalize the extension. A .m4a voice memo can
+                       * arrive named .mp4 (it is an MP4 container), and the server
+                       * picks the stored extension from its own MIME table; if the
+                       * name we send disagrees, the row can be saved with an
+                       * extension the player then refuses. audioExtFromMime is the
+                       * same mapping the native path already uses. */
+                      const declared = (file.type || "").toLowerCase();
+                      const base = file.name.replace(/\.[a-z0-9]{2,5}$/i, "");
+                      const ext = audioMime(file.name) === "audio/mpeg" && !/\.mp3$/i.test(file.name)
+                        ? audioExtFromMime(declared)
+                        : (/\.[a-z0-9]{2,5}$/i.test(file.name)
+                            ? file.name.split(".").pop()!.toLowerCase()
+                            : audioExtFromMime(declared));
                       setPostError(null);
                       setAudioAttach({
                         uri: URL.createObjectURL(file),
-                        name: file.name,
-                        type: file.type,
+                        name: `${base}.${ext}`,
+                        type: audioMime(`${base}.${ext}`),
                       });
                     }}
                   />

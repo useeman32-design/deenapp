@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { contentWidthForWindow } from '@/lib/responsive';
 import { Animated, Dimensions, Easing, Modal, PanResponder, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -90,7 +91,8 @@ export function MushafPage({
   const boxH = useRef(0);
   const slide = useRef(new Animated.Value(0)).current;
   const loadingPage = useRef<number | null>(null);
-  const winW = Dimensions.get('window').width;
+  /* pass 107 — the mushaf page lives inside the capped column on wide screens */
+  const winW = contentWidthForWindow(Dimensions.get('window').width);
 
   /* persisted prefs; theme default follows the app theme (Night in dark) */
   useEffect(() => {
@@ -450,7 +452,10 @@ export function MushafPage({
               {tr.score ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 24, borderRadius: 8, backgroundColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.15)' : 'rgba(220,80,80,0.12)', borderWidth: 1, borderColor: tr.score.wrong === 0 ? 'rgba(212,175,55,0.5)' : 'rgba(220,80,80,0.4)' }}>
                   <FontAwesome5 name={tr.score.wrong === 0 ? 'check' : 'exclamation'} size={8} color={tr.score.wrong === 0 ? '#B8870B' : '#DC5050'} />
-                  <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8, color: tr.score.wrong === 0 ? '#B8870B' : '#DC5050' }}>{tr.score.wrong === 0 ? 'PERFECT' : `${tr.score.wrong} WRONG`}</T>
+                  {/* PASS 105 — "PERFECT" overclaims when the engine never reported a
+                      * harakah: the short vowels were not checked, only the letters. */}
+                  <T v="caption" style={{ fontFamily: 'Poppins-Bold', fontSize: 8, color: tr.score.wrong === 0 ? '#B8870B' : '#DC5050' }}>{tr.score.wrong === 0 ? (tr.marksDetected ? 'PERFECT' : 'WORDS OK') : `${tr.score.wrong} WRONG`}</T>
+                  {tr.score.wrong === 0 && !tr.marksDetected ? <FontAwesome5 name="info-circle" size={7} color="#B8870B" /> : null}
                 </View>
               ) : null}
               <Pressable onPress={() => { haptic.selection(); tr.stop(); setRecitePage(false); }} accessibilityLabel="close page recite" style={{ width: 34, height: 32, borderRadius: 10, backgroundColor: `${skin.accent}12`, borderWidth: 1, borderColor: skin.border, alignItems: 'center', justifyContent: 'center' }}>

@@ -9,9 +9,10 @@ import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
+import { TERMS_URL, PRIVACY_URL, openLegalDoc } from '@/lib/legal';
 import { AuthShell, AuthHeading, AuthField, AuthPrimaryButton, AuthGoogleButton, AuthOrDivider, AuthSwitchLine } from '@/components/AuthShell';
 import { OtpVerify } from '@/components/OtpVerify';
-import { GOOGLE_SIGNUP_TYPE_KEY, checkUsernameAvailable, checkEmailAvailable, registerScholar, restoreSession, scholarApply,} from '@/api/client';
+import { GOOGLE_SIGNUP_TYPE_KEY, checkUsernameAvailable, checkEmailAvailable, googleComplete, registerScholar, restoreSession, scholarApply,} from '@/api/client';
 import { AqeedahPicker, isOtherOption, useAqeedahOptions } from '@/components/AqeedahPicker';
 import { useGoogleAuth } from '@/lib/useGoogleAuth';
 
@@ -389,13 +390,76 @@ export default function Register() {
     void doRegister({ full_name: fullName.trim(), username, email: email.trim(), password });
   };
 
+/* A policy-compliant password for Google accounts completed on a screen that
+ * does not collect one. Uses crypto.getRandomValues where the runtime has it
+ * (web; and any native build that polyfills it), falling back to Math.random
+ * otherwise. This is a fallback credential: it is stored bcrypt-hashed, never
+ * shown to the user, and Google remains their sign-in route — so the entropy
+ * source is not load-bearing for account security the way a user-chosen
+ * password would be. */
+function generatedFallbackPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const sym = '!@#$%^&*()-_=+[]{};:,.<>?/|~';
+  const all = upper + lower + digits + sym;
+  const ints = (n: number): number[] => {
+    const g = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
+    if (g?.getRandomValues) {
+      const a = new Uint32Array(n);
+      g.getRandomValues(a);
+      return Array.from(a);
+    }
+    return Array.from({ length: n }, () => Math.floor(Math.random() * 4294967296));
+  };
+  const r = ints(20);
+  const chars = [upper[r[0] % upper.length], lower[r[1] % lower.length], digits[r[2] % digits.length], sym[r[3] % sym.length]];
+  for (let i = 0; i < 12; i++) chars.push(all[r[4 + i] % all.length]);
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = r[(i + 8) % 20] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+  /* pass 107 — THIS SCREEN USED TO BE UNFINISHABLE. It posted to register.php
+   * with the literal password 'demo1234', which the server's strength rule
+   * rejects outright (no uppercase, no symbol), and the screen has no password
+   * field, so every Google user who landed here got an error they could not
+   * fix. The purpose-built endpoint is google_complete.php (googleComplete()),
+   * the same one the GoogleComplete modal uses, and it requires a strong
+   * password — so one is generated that satisfies the shared policy. Google
+   * stays the primary sign-in; the user can set their own password later from
+   * Settings. This mirrors google_callback.php, which also stores a random
+   * password for Google-created accounts. */
   const submitGmail = () => {
     if (busy) return;
     if (uState !== 'ok') return setError('Please choose an available username');
     if (!gender) return setError('Please select your gender');
     if (!country) return setError('Please select your country');
     if (nigeria && !tribe) return setError('Please select your tribe');
-    void doRegister({ full_name: gmailName, username, email: gmailEmail, password: 'demo1234' });
+    if (dobError) return setError(dobError);
+    void (async () => {
+      setBusy(true); setError('');
+      const res = await googleComplete({
+        username,
+        gender: gender.toLowerCase(),
+        date_of_birth: dob.trim(),
+        country: country || undefined,
+        tribe: nigeria && tribe ? tribe : undefined,
+        aqeedah: aqeedahValue || undefined,
+        password: generatedFallbackPassword(),
+      });
+      setBusy(false);
+      if (!res.ok || !res.user) {
+        if (res.errors?.username) setUState('taken');
+        setError(res.message || 'Could not save your details');
+        return;
+      }
+      haptic.success();
+      await adoptSession(res.user);
+      router.replace('/(tabs)' as never);
+    })();
   };
 
   const nextStep1 = () => {
@@ -798,7 +862,19 @@ export default function Register() {
               {agree ? <FontAwesome5 name="check" size={10} color="#fff" /> : null}
             </View>
             <Text style={{ flex: 1, fontSize: 11, lineHeight: 16, fontFamily: 'Poppins-Regular', color: isDark ? 'rgba(242,247,243,0.7)' : 'rgba(20,36,28,0.7)' }}>
-              I agree to the <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Terms of Service</Text> and the <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42' }}>Privacy Policy</Text>, and I confirm my qualifications are genuine.
+              I agree to the{' '}
+              {/* pass 104 — these were decorative text, so the user was asked to
+                 agree to two documents they could not open. Now tappable, and the
+                 press must not also toggle the checkbox beneath it. */}
+              <Text
+                onPress={() => { haptic.selection(); openLegalDoc(TERMS_URL); }}
+                style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42', textDecorationLine: 'underline' }}
+              >Terms of Service</Text>{' '}
+              and the{' '}
+              <Text
+                onPress={() => { haptic.selection(); openLegalDoc(PRIVACY_URL); }}
+                style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#4AE38F' : '#1D6F42', textDecorationLine: 'underline' }}
+              >Privacy Policy</Text>, and I confirm my qualifications are genuine.
             </Text>
           </Pressable>
 

@@ -1,4 +1,5 @@
 import { RewardModal } from '@/components/DeenPoints';
+import { contentWidthForWindow } from '@/lib/responsive';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -505,7 +506,8 @@ function Confetti({ fire }: { fire: boolean }) {
     () =>
       Array.from({ length: 26 }, (_, i) => ({
         id: i,
-        x: Math.random() * (Dimensions.get('window').width - 20),
+        /* pass 107 — keep confetti inside the column on wide screens */
+        x: Math.random() * (contentWidthForWindow(Dimensions.get('window').width) - 20),
         delay: Math.random() * 700,
         dur: 1700 + Math.random() * 1400,
         size: 6 + Math.random() * 7,

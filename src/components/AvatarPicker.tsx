@@ -12,14 +12,39 @@ import { MALE_AVATARS_ITEMS, FEMALE_AVATARS_ITEMS, type AvatarItem } from '@/dat
  * API repo is deployed, so on the web preview every tile was a blank box. The
  * same images are bundled in the app, so the grid renders the BUNDLED picture
  * and the tap still records the server path (avatar_path) — nothing looks broken
- * before the deploy, and the server copy takes over afterwards. */
-const BY_NAME = new Map<string, AvatarItem>(
+ * before the deploy, and the server copy takes over afterwards.
+ *
+ * pass 102 — the lookup is now GENDER-AWARE. It used to be one Map keyed by
+ * file name alone, built male-then-female, so the two file names that exist in
+ * BOTH folders (5869645754786319872.jpg and 5869701327368162706.jpg) always
+ * resolved to the FEMALE copy — a male account could be shown the female
+ * picture. Keys are now namespaced per gender and read back through the URL's
+ * /male//female folder segment, with a name-only map as the last resort. */
+const MALE_BY_NAME = new Map<string, AvatarItem>(MALE_AVATARS_ITEMS.map((a) => [a.name, a]));
+const FEMALE_BY_NAME = new Map<string, AvatarItem>(FEMALE_AVATARS_ITEMS.map((a) => [a.name, a]));
+const ANY_BY_NAME = new Map<string, AvatarItem>(
   [...MALE_AVATARS_ITEMS, ...FEMALE_AVATARS_ITEMS].map((a) => [a.name, a]),
 );
-function bundledFor(url: string): AvatarItem | undefined {
+
+const AVATAR_GENDER_RE = /\/(male|female)\/([^/?#]+)/i;
+
+function bundledFor(url: string, gender?: string | null): AvatarItem | undefined {
   if (!url) return undefined;
-  const name = decodeURIComponent(url.split('?')[0].split('/').pop() ?? '');
-  return BY_NAME.get(name);
+  const clean = decodeURIComponent(url.split('?')[0]);
+  const m = AVATAR_GENDER_RE.exec(clean);
+  if (m) {
+    const exact = m[1].toLowerCase() === 'female'
+      ? FEMALE_BY_NAME.get(m[2])
+      : MALE_BY_NAME.get(m[2]);
+    if (exact) return exact;
+  }
+  const name = clean.split('/').pop() ?? '';
+  /* Prefer the account's own gender set, so even a URL without the gender
+   * folder cannot pull a picture from the other library. */
+  const g = (gender ?? '').toLowerCase();
+  if (g.startsWith('f')) return FEMALE_BY_NAME.get(name) ?? ANY_BY_NAME.get(name);
+  if (g.startsWith('m')) return MALE_BY_NAME.get(name) ?? ANY_BY_NAME.get(name);
+  return ANY_BY_NAME.get(name);
 }
 import { profileAvatars, selectProfileAvatar, unlockProfileAvatar, myPointsBalance, type ProfileAvatar } from '@/api/client';
 
@@ -119,7 +144,29 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
     setRemoteLoading(true);
     setNote(null);
     profileAvatars(gender || undefined)
-      .then((rows) => { if (on) setRemote(rows && rows.length ? rows : null); })
+      .then((rows) => {
+        if (!on) return;
+        /* pass 102 — defence in depth for the owner's "it should only display
+         * male profile photos / that of female only". The server already filters
+         * by the account's gender, and profileAvatars() filters again on the
+         * response; this drops anything that still disagrees with the URL's own
+         * /male//female folder so a mixed set can never reach the grid. */
+        const want = (gender ?? '').toLowerCase().startsWith('f')
+          ? 'female'
+          : (gender ?? '').toLowerCase().startsWith('m')
+            ? 'male'
+            : '';
+        const safe = rows && want
+          ? rows.filter((a) => {
+              const g = String(a.gender ?? '').toLowerCase();
+              if (g === want) return true;
+              if (g) return false; /* server said the other gender — drop it */
+              const m = /\/(male|female)\//i.exec(String(a.url ?? ''));
+              return m ? m[1].toLowerCase() === want : true;
+            })
+          : rows;
+        setRemote(safe && safe.length ? safe : null);
+      })
       .catch(() => { if (on) setRemote(null); })
       .finally(() => { if (on) setRemoteLoading(false); });
     myPointsBalance().then((b) => { if (on) setBalance(b); }).catch(() => {});
@@ -208,7 +255,7 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
               {remote
                 ? remote.map((avatar) => {
                     const on = selectedUrl === avatar.url;
-                    const local = bundledFor(avatar.url);
+                    const local = bundledFor(avatar.url, avatar.gender ?? gender);
                     return (
                       <Pressable
                         key={avatar.id}
@@ -247,9 +294,33 @@ export function AvatarPicker({ visible, gender, selectedUrl, onClose, onSelect, 
                         style={{ width: 74, height: 74, borderRadius: 37, overflow: 'hidden', borderWidth: 2, borderColor: on ? '#E8C96A' : avatar.locked ? '#B8870B' : 'transparent', backgroundColor: d.card, opacity: remoteBusy === avatar.id ? 0.55 : 1 }}
                       >
                         <TileImage local={local} url={avatar.url} />
-                        <View style={{ position: 'absolute', right: 2, bottom: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: avatar.locked ? '#B8870B' : '#1D6F42', alignItems: 'center', justifyContent: 'center' }}>
-                          <FontAwesome5 name={avatar.locked ? 'lock' : 'check'} size={9} color="#fff" />
-                        </View>
+                        {/* pass 102 — the corner chip used to read
+                            `avatar.locked ? lock : check`, so EVERY unlocked
+                            avatar wore a green tick and the member could not
+                            tell which one was his (owner: "am seeing green
+                            check tag on each profile photo we should remove the
+                            tag and place it only on selected profile photo").
+                            Now: gold tick on the selected one, padlock on a
+                            locked one, nothing otherwise. */}
+                        {on || avatar.locked ? (
+                          <View
+                            style={{
+                              position: 'absolute',
+                              right: 2,
+                              bottom: 2,
+                              width: 20,
+                              height: 20,
+                              borderRadius: 10,
+                              backgroundColor: on ? '#D4AF37' : '#B8870B',
+                              borderWidth: on ? 1.5 : 0,
+                              borderColor: on ? '#FFF6D8' : 'transparent',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <FontAwesome5 name={on ? 'check' : 'lock'} size={9} color="#fff" />
+                          </View>
+                        ) : null}
                         {avatar.locked && avatar.price > 0 ? (
                           <View style={{ position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: 'rgba(184,135,11,0.92)', alignItems: 'center', paddingVertical: 2 }}>
                             <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', color: '#fff' }}>{avatar.price} pts</T>

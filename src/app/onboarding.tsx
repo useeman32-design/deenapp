@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { contentWidthForWindow } from '@/lib/responsive';
 import { Animated, Dimensions, Easing, Image, Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -18,7 +19,13 @@ const patternLight = require('../../assets/img/pattern-light.png');
 
 /* pass 44 — two new slides (AI + Library) added BEFORE theme selection */
 const SLIDES = 6;
-const WIDTH = Dimensions.get('window').width;
+/* pass 107 — the pager pages by its own column width, not the window. Inside
+ * ResponsiveShell a desktop window is 1440+ while the column is 1100, and a
+ * module-level window width made every slide 1440 wide inside a 1100 column: the
+ * centred content sat right-of-centre and clipped at the column edge. Caught by
+ * screenshotting the exported web build at 1920px, which is the only way a
+ * purely-visual regression like this shows up. */
+const WIDTH = contentWidthForWindow(Dimensions.get('window').width);
 
 /* pass 44 — 3 more stats (6 total) for the "Stay on track" slide */
 const STATS = [

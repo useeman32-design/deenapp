@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { normalizeArabic } from '@/lib/quranSearch';
 import { getRecognition, speechSupported } from '@/lib/speech';
-import { align, isReciteRunCurrent, keepMarks, mergeFinal, type WordState } from '@/lib/reciteAlignment';
+import { align, isReciteRunCurrent, keepMarks, mergeFinal, spokenHasMarks, type WordState } from '@/lib/reciteAlignment';
 export type { WordState } from '@/lib/reciteAlignment';
 
 /**
@@ -153,6 +153,19 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
   const [error, setError] = useState<string | null>(null);
   const [score, setScore] = useState<{ ok: number; wrong: number; words: number } | null>(null);
   const [states, setStates] = useState<WordState[]>([]);
+  /* PASS 105 — harakat capability signal.
+   *
+   * marksConflict() can only catch "rasuula" for "rasuulu" if the recognition
+   * engine actually reports short vowels. Mainstream Arabic ASR returns
+   * UNVOCALISED text, so both transcribe identically and the vowel information
+   * is destroyed before it ever reaches us — no comparison logic can recover
+   * it. Rather than silently scoring every vowel correct, we record whether
+   * the engine on THIS device has ever emitted a harakah, so the UI can say
+   * plainly that vowel-level checking is unavailable here. */
+  const [marksDetected, setMarksDetected] = useState(false);
+  const sawMarks = useCallback((pairs: ReadonlyArray<readonly [string, string]>) => {
+    setMarksDetected((prev) => prev || pairs.some(([, m]) => spokenHasMarks(m)));
+  }, []);
   const [reached, setReached] = useState(0);
   const recRef = useRef<ReturnType<typeof getRecognition>>(null);
   const finals = useRef('');
@@ -218,6 +231,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
     /* the reciter may open with the basmallah even though the expected text
      * starts at the first ayah's words — strip it so alignment is unaffected */
     pairs = stripOptionalBasm(pairs);
+    sawMarks(pairs);
     const spoken = pairs.map(([b]) => b);
     const spokenM = pairs.map(([, m]) => m);
 
@@ -348,14 +362,27 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
       const rawToks = (finals.current + ' ' + interim.current).split(/\s+/).filter((x) => x.trim().length > 0);
       let pairs = rawToks.map((t) => [bare(t), keepMarks(t)] as const).filter(([b]) => b.length > 0);
       pairs = stripOptionalBasm(pairs);
+      sawMarks(pairs);
       const spoken = pairs.map(([b]) => b);
+      const spokenM = pairs.map(([, m]) => m);
       if (spoken.length > 0) {
-        const { states: st } = align(continuous ? flatWords : words, spoken);
+        /* PASS 105 — this call site was the one that dropped the marks. `pairs`
+         * already carried the marked variant of every token, but only the bare
+         * text was handed to align(), so the Stop path scored the recitation
+         * with the whole harakat check switched off. A reciter who said
+         * "rasuula" for "rasuulu" and then pressed Stop was marked correct.
+         * The two live paths above (continuous + per-ayah) already passed them. */
+        /* marks must come from the SHOWN source, not the word source: `words`
+         * and `flatWords` are already `bare()`-stripped, so keepMarks() on them
+         * returns nothing and marksConflict() would silently never fire. */
+        const expected = continuous ? flatWords : words;
+        const shownM = (continuous ? flatShown : shown).map(keepMarks);
+        const { states: st } = align(expected, spoken, shownM, spokenM);
         settle(st);
       }
     }
     haltRef.current();
-  }, [words, flatWords, settle, continuous]);
+  }, [words, flatWords, settle, continuous, shown, flatShown]);
 
   haltRef.current = useCallback(() => {
     runId.current += 1;
@@ -372,6 +399,8 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
     finals.current = '';
     interim.current = '';
     settled.current = false;
+    /* deliberately NOT resetting marksDetected: it describes the device's
+     * engine, not this attempt, so a retry should not re-hide the notice. */
     setListening(false);
     setIdx(0);
     setStates(new Array(continuous ? flatWords.length : words.length).fill('hidden'));
@@ -397,6 +426,7 @@ export function useReciteTracker(items: ReciteItem[], opts?: { autoNext?: boolea
 
   return {
     supported, item, idx, setIdx, shown, words, states, reached, listening, live, error, score,
+    marksDetected,
     start, stop, reset, clearAyah, setAutoNext,
     /* continuous extras */
     continuous, ayahStates, curAyah,

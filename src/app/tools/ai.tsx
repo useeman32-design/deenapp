@@ -27,6 +27,47 @@ import { netBus } from "@/lib/net";
 import { QURAN } from "@/data/quran";
 import { stopBubble } from "@/lib/press";
 import { tafsirContextFor } from "@/lib/tafsir";
+/*
+ * PASS 104 — is the grounded engine actually populated?
+ *
+ * api/deenai/ask.php refuses a question when its datasets cannot support an
+ * answer. That is the behaviour the owner asked for. But measured against
+ * production on 2026-10-15, EVERY question came back out_of_scope with
+ * debug_routing.candidate_count = 0 — including "hadith about intentions" and
+ * "dua for forgiveness", which a populated library must answer. The dataset rows
+ * exist ("Quran JSON Dataset", "Hadith JSON Dataset", "Dua and Adhkar Dataset",
+ * "IslamQA English TXT Dataset") and routing picks the right one, but the files
+ * behind them are not present on the server, so retrieval finds nothing.
+ *
+ * Gating on that state would make DeenLink AI refuse every question — strictly
+ * worse than the status quo. So probe once per app launch with a question any
+ * populated Qur'an dataset must answer. While the engine has no data we fall
+ * through to the existing local-retrieval path; the moment the datasets are
+ * uploaded the refusal gate switches itself on with no code change.
+ */
+let groundedEngineReady: boolean | null = null;
+let groundedProbeInflight: Promise<boolean> | null = null;
+
+async function ensureGroundedEngine(): Promise<boolean> {
+  if (groundedEngineReady !== null) return groundedEngineReady;
+  if (groundedProbeInflight) return groundedProbeInflight;
+  groundedProbeInflight = (async () => {
+    try {
+      const probe = await askDeenAi("Surah Al-Fatihah");
+      /* Ready means the engine returned content, not merely that it answered. */
+      groundedEngineReady = Boolean(
+        probe.ok && !probe.outOfScope && probe.sources.length > 0,
+      );
+    } catch {
+      groundedEngineReady = false;
+    }
+    return groundedEngineReady;
+  })();
+  const out = await groundedProbeInflight;
+  groundedProbeInflight = null;
+  return out;
+}
+
 import {
   mentionedSources,
   AiChat,
@@ -58,6 +99,8 @@ import {
   aiCacheLookup,
   aiCacheSave,
   aiServerStatus,
+  askDeenAi,
+  type DeenAiGrounded,
   deenAiChatServer,
   isLive,
 } from "@/api/client";
@@ -823,6 +866,65 @@ export default function DeenLinkAI() {
     try {
       sources = await retrieveLocal(q);
     } catch {}
+
+    /*
+     * PASS 104 — consult the grounded engine BEFORE any model is called.
+     *
+     * api/deenai/ask.php retrieves from the owner's own datasets (Qur'an,
+     * hadith, dua/adhkar, fatwa/IslamQA, names, seerah) and reports
+     * out_of_scope when those libraries cannot support an answer. Until now
+     * nothing called it: the app went straight to chat.php, a bare LLM wrapper
+     * with no retrieval and no refusal path, which is exactly how invented
+     * answers got produced.
+     *
+     * Refusing here is the point. A wrong religious answer can cause real harm,
+     * so when our libraries have nothing we say so and hand the question to a
+     * verified scholar rather than letting a model fill the gap.
+     */
+    const engineReady = await ensureGroundedEngine();
+    let grounded: DeenAiGrounded | null = null;
+    if (engineReady) {
+      try {
+        grounded = await askDeenAi(q);
+      } catch {}
+    }
+
+    /* Merge server-side corpus citations into what local retrieval found, so the
+     * answer is cited from the library either way. Deduped by label. */
+    if (grounded?.sources?.length) {
+      const seen = new Set(sources.map((x) => x.label));
+      for (const gs of grounded.sources) {
+        if (!seen.has(gs.label)) {
+          sources.push(gs);
+          seen.add(gs.label);
+        }
+      }
+    }
+
+    if (grounded?.ok && grounded.outOfScope) {
+      const related = grounded.relatedScholarAnswer
+        ? "\n\nThere is a related question a verified scholar has already answered — you may find it in the Scholars tab."
+        : "";
+      patchChat(chatId, (m) => [
+        ...m,
+        {
+          role: "assistant",
+          text:
+            "I could not find an answer to this in DeenLink's own libraries — the Qur'an, hadith, tafsir, du\u02bfa and adhkar, and the fatwa collection we hold.\n\n" +
+            "I will not guess at a religious matter, because a confident wrong answer here can cause real harm." +
+            related +
+            "\n\nA verified scholar can answer with your actual situation in mind.",
+          at: Date.now(),
+          sources: sources.length ? sources : undefined,
+          needScholar: true,
+        },
+      ]);
+      setPhase("idle");
+      scrollDown();
+      setBusyIds((b) => b.filter((x) => x !== chatId));
+      return;
+    }
+
     patchChat(chatId, (m) => [
       ...m,
       { role: "assistant", text: "", at: Date.now(), memSaved: savedMem },
@@ -1387,6 +1489,44 @@ export default function DeenLinkAI() {
                 </Pressable>
               ))}
           </View>
+        ) : null}
+
+        {/*
+         * PASS 104 — the grounded engine could not answer from our own
+         * libraries, so give the reader somewhere real to go instead of a dead
+         * end. Opens the Scholars tab, where verified scholars answer questions.
+         */}
+        {!mine && m.needScholar && !thinkingHere ? (
+          <Pressable
+            onPress={() => {
+              haptic.selection();
+              router.push("/tools/scholars" as never);
+            }}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 9,
+              marginTop: 9,
+              paddingHorizontal: 13,
+              paddingVertical: 11,
+              borderRadius: 13,
+              borderWidth: 1,
+              borderColor: isDark ? "rgba(232,201,102,0.34)" : "rgba(232,201,102,0.5)",
+              backgroundColor: isDark ? "rgba(232,201,102,0.09)" : "rgba(232,201,102,0.08)",
+              opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <FontAwesome5 name="user-graduate" size={12} color="#E8C96A" />
+            <View style={{ flex: 1 }}>
+              <T v="bodyS" style={{ fontSize: 12.5, fontWeight: "900", color: isDark ? "#F0DCA6" : "#8C6D1F" }}>
+                Ask a verified scholar
+              </T>
+              <T v="caption" style={{ fontSize: 10, color: d.subtext, marginTop: 1 }}>
+                Get an answer that accounts for your situation
+              </T>
+            </View>
+            <FontAwesome5 name="chevron-right" size={10} color="#E8C96A" />
+          </Pressable>
         ) : null}
       </View>
     );

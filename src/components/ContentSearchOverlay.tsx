@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { dictateArabic, speechSupported } from '@/lib/speech';
 import { ReciteSearchModal } from '@/components/ReciteSearchModal';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -20,6 +20,11 @@ export type SearchHit = {
   title: string;
   subtitle?: string;
   arabic?: string;
+  /** pass 102 — when the SAME narration is reported by several collections the
+   *  hadith search groups them into one hit and lists every book here, so the
+   *  member sees "also in Sahih Muslim, Jami' at-Tirmidhi" instead of one
+   *  arbitrary collection winning. */
+  books?: string[];
   onPress: () => void;
 };
 
@@ -91,7 +96,12 @@ export function ContentSearchOverlay({
     setFailed(false);
     const t = setTimeout(() => {
       contentSearch(query)
-        .then((r) => alive && (setContent(r.slice(0, 40)), setBusy(false)))
+        /* pass 102 — no blind `.slice(0, 40)` here. Truncating before ranking is
+         * what made "the rest are not even close": the caller's first 40 in
+         * corpus order were kept regardless of relevance. Callers now return an
+         * already-scored list, and the full set is rendered inside a ScrollView
+         * so nothing is unreachable. */
+        .then((r) => alive && (setContent(r), setBusy(false)))
         .catch(() => alive && (setFailed(true), setBusy(false)));
     }, 350);
     return () => {
@@ -119,6 +129,33 @@ export function ContentSearchOverlay({
         <T v="bodyS" numberOfLines={1} style={{ fontWeight: '700', fontSize: 12.5 }}>{h.title}</T>
         {h.subtitle ? <T v="caption" numberOfLines={1} style={{ fontSize: 10, marginTop: 1 }}>{h.subtitle}</T> : null}
         {h.arabic ? <T v="arabic" numberOfLines={1} style={{ fontSize: 14, marginTop: 2, color: theme.subtext }}>{h.arabic}</T> : null}
+        {/* pass 102 — every collection that reports this narration */}
+        {h.books && h.books.length > 1 ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+            {h.books.slice(0, 4).map((b) => (
+              <View
+                key={b}
+                style={{
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: `${theme.primary}40`,
+                  backgroundColor: `${theme.primary}12`,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                }}
+              >
+                <T v="caption" numberOfLines={1} style={{ fontSize: 8.5, fontWeight: '800', color: theme.primary }}>
+                  {b}
+                </T>
+              </View>
+            ))}
+            {h.books.length > 4 ? (
+              <T v="caption" style={{ fontSize: 8.5, fontWeight: '800', color: theme.subtext, alignSelf: 'center' }}>
+                +{h.books.length - 4} more
+              </T>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       <FontAwesome5 name="chevron-right" size={10} color={theme.subtext} />
     </Pressable>
@@ -156,7 +193,17 @@ export function ContentSearchOverlay({
 
         </View>
 
-        <View style={{ flex: 1, paddingHorizontal: 14 }}>
+        {/* pass 102 — was a plain <View>, so any result past the first screenful
+            was simply unreachable (owner: "the search results are not
+            scrollable, we should fix that, even for the quran"). One ScrollView
+            carries BOTH tiers so the whole result set can be read. */}
+        <ScrollView
+          style={{ flex: 1, paddingHorizontal: 14 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator
+        >
           {!query ? (
             <T v="caption" style={{ textAlign: 'center', marginTop: 26 }}>Search by name or content — surahs, chapters, duas, athkar…</T>
           ) : (
@@ -184,7 +231,7 @@ export function ContentSearchOverlay({
               ) : null}
             </>
           )}
-        </View>
+        </ScrollView>
         {/* pass 26: glassy recite modal — live bold transcript → analyzing → results */}
         <ReciteSearchModal
           visible={reciteOpen}

@@ -59,7 +59,98 @@ export async function resolveLocation(): Promise<Loc> {
 
 export async function resetLocation(): Promise<Loc> {
   await storage.removeItem(KEY);
-  return resolveLocation();
+  /* pass 102 — go through setLocation so every mounted screen hears about it */
+  const fresh = await resolveLocation();
+  setLocation(fresh);
+  return fresh;
+}
+
+/* ── pass 102 — reactive location store ──────────────────────────────────────
+ *
+ * THE BUG: applyLocation / detectLocationChange / watchLocation existed but
+ * had ZERO callers anywhere in the app. Tapping the location pill ran
+ * `resolveLocation()`, which returns the CACHED value — so a member who moved
+ * from Gusau to Kano kept seeing "Gusau" forever, and there was no modal to
+ * change it. Nothing was broken in the geocoding; the whole change-location
+ * feature was simply never wired up.
+ *
+ * Now every screen subscribes through useLocation(), so one change updates the
+ * home hero, prayer times, the month table and the qibla at once — no stale
+ * "Gusau" surviving on a screen that mounted before the change.
+ */
+const listeners = new Set<(loc: Loc | null) => void>();
+let current: Loc | null = null;
+let inflight: Promise<Loc> | null = null;
+
+/** Subscribe to location changes. Returns an unsubscribe function. */
+export function onLocationChange(cb: (loc: Loc | null) => void): () => void {
+  listeners.add(cb);
+  if (current) cb(current);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function emit(loc: Loc | null): void {
+  current = loc;
+  for (const cb of listeners) {
+    try {
+      cb(loc);
+    } catch {
+      /* one bad listener must not stop the others */
+    }
+  }
+}
+
+/** The last known location without touching GPS or storage. */
+export function peekLocation(): Loc | null {
+  return current;
+}
+
+/** Publish a new location to every subscriber. */
+export function setLocation(loc: Loc | null): void {
+  emit(loc);
+}
+
+/** Resolve once and publish. Concurrent callers share one GPS fix / one read. */
+export function refreshLocation(): Promise<Loc> {
+  if (current && !current.isFallback) return Promise.resolve(current);
+  inflight =
+    inflight ??
+    resolveLocation()
+      .then((loc) => {
+        emit(loc);
+        return loc;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  return inflight;
+}
+
+/** Save a chosen location and publish it everywhere in one step. */
+export async function applyLocation(loc: Loc): Promise<void> {
+  await storage.setItem(KEY, JSON.stringify(loc));
+  emit({ ...loc, isFallback: false });
+}
+
+/** Force a brand-new GPS fix, reverse-geocode it, save and publish it. */
+export async function useCurrentGpsLocation(): Promise<Loc> {
+  const granted = await Location.requestForegroundPermissionsAsync();
+  if (Platform.OS !== 'web' && !granted.granted) {
+    throw new Error('Location permission was denied. Enable it in your device settings, or pick your city manually.');
+  }
+  const pos = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.High,
+  });
+  const name = await cityName(pos.coords.latitude, pos.coords.longitude);
+  const loc: Loc = {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    name,
+  };
+  await applyLocation(loc);
+  return loc;
 }
 
 
@@ -143,7 +234,6 @@ export function watchLocation(cb: (candidate: Loc) => void): (() => void) | null
   }
 }
 
-/** Accept a detected change: persist it as the new saved location. */
-export async function applyLocation(loc: Loc): Promise<void> {
-  await storage.setItem(KEY, JSON.stringify(loc));
-}
+/** Accept a detected change: persist it as the new saved location.
+ *  pass 102 — now defined once, above, next to the store; it also publishes
+ *  the change so every subscribed screen updates immediately. */

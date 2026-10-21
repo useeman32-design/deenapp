@@ -5,6 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive } from '@/api/client';
 import { buyDeenPoints } from '@/lib/flutterwave';
+import { canBuyDigital, DEENPOINTS_COMING_SOON } from '@/lib/purchasePolicy';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
@@ -143,6 +144,49 @@ export function DeenPointsBuyModal({ visible, onClose, onBalanceChange }: { visi
   };
 
   const naira = (n: number) => `₦${groupThousands(Math.round(n * DP_PRICE))}`;
+
+  /* PASS 105 — on Android the DeenPoints PURCHASE is closed until Google Play
+   * Billing is integrated; see lib/purchasePolicy.ts for the policy reasoning.
+   * Every hook above has already run, so this early return is safe.
+   *
+   * Earning is untouched: the streak, quiz, lesson and check-in routes keep
+   * working and the balance keeps updating — this only replaces the buy sheet.
+   * Both callers (settings and profile) go through this modal, so gating here
+   * covers both at once.
+   *
+   * The copy must not suggest buying anywhere else. Play prohibits "language
+   * that encourages a user to purchase the digital item outside of the app", so
+   * there is deliberately no mention of the website, even though it works. */
+  if (!canBuyDigital()) {
+    return (
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(2,8,5,0.66)', alignItems: 'center', justifyContent: 'center', padding: 16 }} onPress={onClose}>
+          <View style={{ width: '100%', maxWidth: 340, borderRadius: 24, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.35)' : 'rgba(184,134,11,0.3)', backgroundColor: isDark ? '#0A1A11' : '#FFFFFF', padding: 18 }}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }} onStartShouldSetResponder={() => true}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(212,175,55,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+                  <DPIcon size={18} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T v="h3" style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>Get DeenPoints</T>
+                  <T v="caption" style={{ fontSize: 10.5, color: theme.subtext, marginTop: 1 }}>Balance {formatDP(points)}</T>
+                </View>
+                <View style={{ borderRadius: 7, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 3 }}>
+                  <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 0.6, color: isDark ? '#E8C96A' : '#8A6D1A' }}>COMING SOON</T>
+                </View>
+              </View>
+              <T v="caption" style={{ fontSize: 11.5, color: theme.subtext, lineHeight: 17, marginTop: 14 }}>
+                {DEENPOINTS_COMING_SOON}
+              </T>
+              <Pressable onPress={onClose} style={{ marginTop: 16, borderRadius: 13, paddingVertical: 12, alignItems: 'center', backgroundColor: isDark ? 'rgba(212,175,55,0.16)' : 'rgba(184,134,11,0.12)' }}>
+                <T v="bodyS" style={{ fontWeight: '900', fontSize: 12.5, color: isDark ? '#E8C96A' : '#8A6D1A' }}>Got it</T>
+              </Pressable>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

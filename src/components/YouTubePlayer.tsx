@@ -1,4 +1,5 @@
 import { Image, Platform, Pressable, View } from 'react-native';
+import { useEffect } from 'react';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useMediaGate } from '@/lib/mediaBus';
 import { T } from '@/components/T';
@@ -34,16 +35,22 @@ export function YouTubePlayer({
   height = 210,
   borderRadius = 12,
   gateKey,
+  autoStart = false,
 }: {
   embedUrl: string;
   height?: number;
   borderRadius?: number;
   /** Distinguishes several embeds on one screen (defaults to the URL). */
   gateKey?: string;
+  /** Used by the daily viewer after the user has already tapped the card. */
+  autoStart?: boolean;
 }) {
   const key = `yt:${gateKey || embedUrl}`;
   const { hostRef, allowed, start } = useMediaGate(key);
   const id = ytId(embedUrl);
+  useEffect(() => {
+    if (autoStart) start();
+  }, [autoStart, start]);
 
   const frame =
     Platform.OS === 'web' ? (
@@ -60,13 +67,12 @@ export function YouTubePlayer({
             background: '#000',
           } as never
         }
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; web-share"
       />
     ) : (
       (() => {
         const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>body{margin:0;background:#000;overflow:hidden}iframe{width:100%;height:100%;border:0}</style></head><body>
-  <iframe src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&autoplay=1" title="DeenLink video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+  <iframe src="https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&autoplay=1" title="DeenLink video" allow="accelerometer; autoplay; encrypted-media; gyroscope; web-share"></iframe>
   </body></html>`;
         const { WebView } = require('react-native-webview');
         return (

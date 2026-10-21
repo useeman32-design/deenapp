@@ -233,7 +233,17 @@ export default function EditProfile() {
           <NavRow icon="at" label="USERNAME" value={user?.username ? `@${user.username}` : ''} onPress={() => router.push('/settings/edit-username')} />
           <NavRow icon="envelope" label="EMAIL" value={user?.email as string} onPress={() => router.push('/settings/change-email')} />
 
-          {/* aqeedah — the same options, no explanations here (owner, pass 96) */}
+          {/* pass 102 — aqeedah now renders EXACTLY like the signup page: same
+              options, same explanation under each name (owner: "it should be
+              exactly as how it's on the signup page, it should have
+              description"). An earlier pass had stripped the descriptions here,
+              which made the two screens disagree.
+
+              The once-a-week restriction is real and enforced server-side
+              (users/update_profile.php stamps `last_aqeedah_change`; auth/me.php
+              turns it into `aqeedah_change_allowed_at`). `lockedUntil` makes the
+              picker show the lock, the reason and the exact date it reopens
+              instead of letting the member tap and eat a 429. */}
           <View style={{ marginTop: 4 }}>
             <T v="meta" style={label}>AQEEDAH</T>
             <AqeedahPicker
@@ -243,7 +253,6 @@ export default function EditProfile() {
               setOther={setAqeedahOther}
               nigeria={String(user?.country ?? '').toLowerCase() === 'nigeria'}
               options={aqeedahList}
-              showDescriptions={false}
               lockedUntil={aqeedahLockedUntil}
             />
           </View>

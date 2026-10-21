@@ -39,6 +39,11 @@ const { height: VH, width: VW } = Dimensions.get('window');
 const SAVES_KEY = 'dl.reels.saved';
 const REPOST_KEY = 'dl.reels.reposted';
 const SPEEDS = [0.5, 1, 2, 3];
+/* Keep enough native players alive for a swipe in either direction. expo-video
+ * begins preparing a source when its player is created; useCaching then keeps
+ * the downloaded bytes available when a retained reel is revisited. */
+const REEL_PRELOAD_AHEAD = 3;
+const REEL_RETAIN_BEHIND = 3;
 
 /* pass 83-38b — compact "2h / 3d" label from a real 'Y-m-d H:i:s' timestamp */
 const timeAgoShort = (sqlTime: string): string => {
@@ -159,6 +164,9 @@ function ReelItem({
     if (typeof reel.src === 'object' && reel.src && 'uri' in reel.src) {
       return { ...reel.src, useCaching: true };
     }
+    /* Normalize string sources too; otherwise the native cache hint was lost
+     * for older/community rows that still arrive as a bare URI. */
+    if (typeof reel.src === 'string') return { uri: reel.src, useCaching: true };
     return reel.src;
   }, [reel.src]);
   const player = useVideoPlayer(playerSource, (p) => {
@@ -1399,9 +1407,9 @@ function VideosFeedInner() {
          * window also keeps nearby players alive when the user scrolls back;
          * useCaching covers reels that eventually leave the virtualization
          * window. */
-        windowSize={9}
-        initialNumToRender={4}
-        maxToRenderPerBatch={4}
+        windowSize={1 + REEL_PRELOAD_AHEAD + REEL_RETAIN_BEHIND}
+        initialNumToRender={REEL_PRELOAD_AHEAD + 1}
+        maxToRenderPerBatch={REEL_PRELOAD_AHEAD + 1}
         updateCellsBatchingPeriod={40}
         removeClippedSubviews={false}
         extraData={storeTick}

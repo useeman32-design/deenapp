@@ -667,14 +667,43 @@ export function CommentsModal({
       return flat;
     })(),
   });
-  /* pass 72 — reels load from the videos comments API */
+  /* pass 36/104 — live comments remain in their breathing state until the
+   * first network response; failures expose Retry instead of an empty success. */
+  const [loading, setLoading] = useState(() => live);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const loaderPulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    if (!loading) {
+      loaderPulse.setValue(0.55);
+      return;
+    }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(loaderPulse, { toValue: 1, duration: 780, useNativeDriver: true }),
+      Animated.timing(loaderPulse, { toValue: 0.55, duration: 780, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [loading, loaderPulse]);
+
+  /* pass 72 — reels load from the videos comments API. A null response is a
+   * real failure, not an empty thread: keep the breathing loader up until the
+   * first response and expose Retry instead of briefly showing "0 comments". */
   useEffect(() => {
     if (!visible || !liveVideo || !videoId) return;
     let dead = false;
+    setLoading(true);
+    setLoadError(null);
+    setItems([]);
     (async () => {
       const rows = (await videosComments(videoId)) as unknown as
         ServerComment[] | null;
-      if (dead || !rows) return;
+      if (dead) return;
+      if (!rows) {
+        setLoadError('Comments could not be loaded.');
+        setLoading(false);
+        return;
+      }
       const mapped = rows.map(mapServer);
       setItems(mapped);
       const l: Record<number, boolean> = {};
@@ -685,18 +714,33 @@ export function CommentsModal({
         });
       }
       setLikedMap(l);
-    })();
+      setLoadError(null);
+      setLoading(false);
+    })().catch(() => {
+      if (!dead) {
+        setLoadError('Comments could not be loaded.');
+        setLoading(false);
+      }
+    });
     return () => {
       dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, videoId, liveVideo]);
+  }, [visible, videoId, liveVideo, retryToken]);
   useEffect(() => {
     if (!visible || !live || liveVideo || !postId) return;
     let dead = false;
+    setLoading(true);
+    setLoadError(null);
+    setItems([]);
     (async () => {
       const rows = await getComments(postId);
-      if (dead || !rows) return;
+      if (dead) return;
+      if (!rows) {
+        setLoadError('Comments could not be loaded.');
+        setLoading(false);
+        return;
+      }
       const mapped = rows.map(mapServer);
       setItems(mapped);
       const l: Record<number, boolean> = {};
@@ -707,12 +751,19 @@ export function CommentsModal({
         });
       }
       setLikedMap(l);
-    })();
+      setLoadError(null);
+      setLoading(false);
+    })().catch(() => {
+      if (!dead) {
+        setLoadError('Comments could not be loaded.');
+        setLoading(false);
+      }
+    });
     return () => {
       dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, postId, live]);
+  }, [visible, postId, live, liveVideo, retryToken]);
   /* pass 41 — typing "@" opens the mention picker: DeenLink AI first, then friends/search */
   const mentionMatch = /@([A-Za-z0-9_.]*)$/.exec(draft);
   const mentionQuery = (mentionMatch?.[1] ?? "").toLowerCase();
@@ -867,17 +918,16 @@ export function CommentsModal({
 
   // re-seed whenever a different post opens
   const seedKey = post?.id ?? -1;
-  /* pass 36 — comments loader: shows a shimmer for a beat when the sheet
-   * opens, so slow networks never present an empty sheet */
-  const [loading, setLoading] = useState(false);
+  /* Demo/offline threads are ready immediately; live threads were started by
+   * the API effects above and remain loading until their response arrives. */
   useEffect(() => {
     if (!visible) return;
-    setLoading(true);
-    const t = setTimeout(() => setLoading(false), 550);
-    return () => clearTimeout(t);
-  }, [seedKey, visible]);
-  useEffect(() => {
-    if (visible) {
+    setLoadError(null);
+    if (live) {
+      setLoading(true);
+      setItems([]);
+    } else {
+      setLoading(false);
       setItems(
         seed.map((c) => ({ ...c, replies: c.replies?.map((r) => ({ ...r })) })),
       );
@@ -894,7 +944,7 @@ export function CommentsModal({
       setReplyingTo(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedKey, visible]);
+  }, [seedKey, visible, live]);
 
   useEffect(() => {
     if (
@@ -1509,11 +1559,11 @@ export function CommentsModal({
             marginTop: 10,
           }}
         >
-          {total(items)} COMMENTS
+          {loading ? 'LOADING COMMENTS' : loadError ? 'COMMENTS UNAVAILABLE' : `${total(items)} COMMENTS`}
         </T>
 
         {loading ? (
-          <View style={{ gap: 14, marginTop: 12 }} pointerEvents="none">
+          <Animated.View style={{ gap: 14, marginTop: 12, opacity: loaderPulse }} pointerEvents="none">
             {[...Array(3)].map((_, i) => (
               <View
                 key={i}
@@ -1558,6 +1608,19 @@ export function CommentsModal({
               color={emerald}
               style={{ marginTop: 2 }}
             />
+          </Animated.View>
+        ) : loadError ? (
+          <View style={{ alignItems: "center", paddingVertical: 28, gap: 10 }}>
+            <FontAwesome5 name="exclamation-circle" size={22} color="#FFB0B0" />
+            <T v="caption" style={{ color: sub, textAlign: "center", fontSize: 11.5 }}>{loadError}</T>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading comments"
+              onPress={() => { setLoadError(null); setRetryToken((n) => n + 1); }}
+              style={{ borderRadius: 18, borderWidth: 1, borderColor: emerald, paddingHorizontal: 16, paddingVertical: 8 }}
+            >
+              <T v="caption" style={{ color: emerald, fontWeight: "800", fontSize: 11 }}>Retry</T>
+            </Pressable>
           </View>
         ) : (
           <>

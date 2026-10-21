@@ -2,6 +2,7 @@ import { Linking, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { donationInit, pointsInit, pointsVerify, premiumInit, shopPayInit, type FlwCheckout, type PayInit } from '@/api/client';
 import { storage } from '@/lib/storage';
+import { canBuyDigital, DEENPOINTS_COMING_SOON, PREMIUM_COMING_SOON } from '@/lib/purchasePolicy';
 
 /**
  * pass 69 — one Flutterwave flow for the whole app.
@@ -89,10 +90,26 @@ export async function runPayment(init: (redirect: boolean, redirectUrl?: string)
 
 /** Buy DeenPoints. Returns after the server has had its verification shot. */
 export function buyDeenPoints(points: number): Promise<PayResult> {
+  /* PASS 105 — gated here as well as in the UI. DeenPoints are virtual credit
+   * spent inside the app, so on Android they must go through Google Play
+   * Billing; until that is integrated the purchase is closed and this returns
+   * the neutral notice instead of starting a Flutterwave checkout. Gating at the
+   * payment layer means a screen added later cannot silently reopen the path.
+   * EARNING points is untouched — see lib/purchasePolicy.ts. */
+  if (!canBuyDigital()) {
+    return Promise.resolve({ ok: false, verified: false, message: DEENPOINTS_COMING_SOON });
+  }
   return runPayment((redirect, redirectUrl) => pointsInit(points, redirect ? { redirect: true, redirectUrl } : undefined));
 }
 
-/** Donate (Sadaqah / Zakat / …) — live Flutterwave checkout. */
+/** Donate (Sadaqah / Zakat / …) — live Flutterwave checkout.
+ *
+ * PASS 105 — deliberately NOT gated with Premium and DeenPoints. A charitable
+ * donation is not a digital good the user consumes in the app, so it does not
+ * fall under the same clause. It is nonetheless the least settled of the four
+ * routes: Google treats nonprofit donations under separate conditions, and
+ * whether any portion is retained by DeenLink matters. Confirm this one against
+ * the Payments policy declaration in your own Play Console before shipping. */
 export function donate(donationType: string, amount: number, opts?: { note?: string; currency?: string }): Promise<PayResult> {
   return runPayment((redirect, redirectUrl) =>
     donationInit(donationType, amount, redirect ? { redirect: true, redirectUrl, ...opts } : { ...opts }));
@@ -100,10 +117,18 @@ export function donate(donationType: string, amount: number, opts?: { note?: str
 
 /** Subscribe to Premium — live Flutterwave checkout. */
 export function buyPremium(plan: 'monthly' | 'annual'): Promise<PayResult> {
+  /* PASS 105 — same gate as buyDeenPoints: Premium unlocks in-app digital
+   * features, which Play requires to be sold through Play Billing. */
+  if (!canBuyDigital()) {
+    return Promise.resolve({ ok: false, verified: false, message: PREMIUM_COMING_SOON });
+  }
   return runPayment((redirect, redirectUrl) => premiumInit(plan, redirect ? { redirect: true, redirectUrl } : undefined));
 }
 
-/** Pay a DeenLink Shop order (pass 79). Web → inline modal; native → in-app browser. */
+/** Pay a DeenLink Shop order (pass 79). Web → inline modal; native → in-app browser.
+ *
+ * PASS 105 — deliberately NOT gated: these are PHYSICAL goods, which Play's
+ * Payments policy explicitly leaves to the developer's own processor. */
 export function payShopOrder(orderId: number): Promise<PayResult> {
   return runPayment((redirect, redirectUrl) => shopPayInit(orderId, redirect ? { redirect: true, redirectUrl } : undefined));
 }

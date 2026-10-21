@@ -28,7 +28,15 @@ export function NotifyBanner(): React.ReactElement | null {
     Animated.timing(slide, { toValue: { x, y }, duration: 220, useNativeDriver: true }).start(() => setItem(null));
   };
   const responder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
+    /* pass 107 — onStartShouldSetPanResponder used to return TRUE, which makes
+     * the card claim every touch the instant a finger lands. That is fine while
+     * the only child is one big tappable surface, but it fights any nested
+     * control: the close button added below would have had its presses eaten.
+     * Claiming only on MOVE (past a 5px slop) is the correct split — a tap never
+     * moves, so it falls through to the child Pressable; a drag does, so the
+     * card takes over and can be flung away. */
+    onStartShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
     onPanResponderGrant: () => { slide.stopAnimation(); },
@@ -72,18 +80,12 @@ export function NotifyBanner(): React.ReactElement | null {
       pointerEvents="box-none"
       style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 9999, transform: [{ translateX: slide.x }, { translateY: slide.y }] }}
     >
-      <Pressable
+      <View
         {...responder.panHandlers}
-        onPress={() => {
-          haptic.selection();
-          const go = item.go;
-          setItem(null);
-          go?.();
-        }}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 11,
+          gap: 6,
           borderRadius: 16,
           borderWidth: 1,
           borderColor: border,
@@ -97,6 +99,19 @@ export function NotifyBanner(): React.ReactElement | null {
           elevation: 12,
         }}
       >
+        {/* pass 107 — the card itself now only carries the pan responder; the
+            tap-to-open action moved onto its own Pressable so it cannot fight
+            the close button next to it. */}
+        <Pressable
+          onPress={() => {
+            haptic.selection();
+            const go = item.go;
+            setItem(null);
+            go?.();
+          }}
+          accessibilityRole="button"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}
+        >
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(212,175,55,0.14)', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name="bell" size={13} color="#D4AF37" />
         </View>
@@ -108,8 +123,28 @@ export function NotifyBanner(): React.ReactElement | null {
             {item.body}
           </T>
         </View>
-        <FontAwesome5 name="chevron-right" size={11} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.4)'} />
-      </Pressable>
+          <FontAwesome5 name="chevron-right" size={11} color={isDark ? 'rgba(242,247,243,0.5)' : 'rgba(20,36,28,0.4)'} />
+        </Pressable>
+        {/* pass 107 — an explicit way out. Swipe left/right/up/down already
+            worked, but a user who does not know to swipe had no visible control
+            and had to wait out the 5.2s auto-dismiss. */}
+        <Pressable
+          onPress={() => { haptic.selection(); dismiss(); }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss notification"
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: isDark ? 'rgba(242,247,243,0.09)' : 'rgba(20,36,28,0.06)',
+          }}
+        >
+          <FontAwesome5 name="times" size={11} color={isDark ? 'rgba(242,247,243,0.62)' : 'rgba(20,36,28,0.5)'} />
+        </Pressable>
+      </View>
     </Animated.View>
   );
 }

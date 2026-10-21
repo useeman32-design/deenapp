@@ -48,7 +48,10 @@ export const BUNDLED_AQEEDAH: AqeedahOption[] = [
   {
     id: -5,
     name: 'Other',
-    description: 'Describe your aqeedah in your own words (max 10 characters).',
+    /* pass 102 — the old text said "max 10 characters" while the field below
+     * accepts 40 and the server allows 80. Stating a limit the app does not
+     * enforce is how a member ends up guessing. */
+    description: 'Describe your aqeedah in your own words (up to 40 characters).',
     description_ng: '',
   },
 ];

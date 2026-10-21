@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { KAABA, distanceKm, qiblaDirection } from '@/lib/prayer';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { useLocation } from '@/components/LocationModal';
 import { angleDelta, useHeading } from '@/lib/useHeading';
 import { Compass, QIBLA_DESIGNS, type QiblaDesign } from '@/components/Compass';
 import { T } from '@/components/T';
@@ -31,7 +31,8 @@ export default function Qibla() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets(); // pass 44 — header row was hardcoded paddingTop: 12
   const router = useRouter();
-  const [loc, setLoc] = useState<Loc | null>(null);
+  /* pass 102 — shared reactive location */
+  const loc = useLocation();
   const heading = useHeading();
   const buzzedFor = useRef(false);
   /* pass 38 — selectable compass design (persisted) + offline map toggle */
@@ -42,7 +43,7 @@ export default function Qibla() {
   const locks = useThemeLocks();
 
   useEffect(() => {
-    resolveLocation().then(setLoc);
+    /* pass 102 — location comes from the shared store now */
     storage.getItem('dl.qibla.design').then((r) => {
       const v = r as QiblaDesign | null;
       if (v && QIBLA_DESIGNS.some((x) => x.id === v)) setDesign(v);

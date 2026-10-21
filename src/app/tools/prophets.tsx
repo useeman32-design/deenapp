@@ -6,6 +6,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
+import { LanguageUnavailable, UnavailableDot } from '@/components/LanguageUnavailable';
 import { TopBar } from '@/components/TopBar';
 import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
@@ -143,11 +144,19 @@ export default function ProphetsStories() {
                 </Pressable>
                 {/* language pill: EN full text / HA Hausa summary */}
                 <View style={{ flexDirection: 'row', borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.32)', padding: 2 }}>
-                  {(['en', 'ha'] as const).map((l) => (
-                    <Pressable key={l} onPress={() => { haptic.selection(); setLang(l); }} style={{ borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, backgroundColor: lang === l ? 'rgba(255,255,255,0.16)' : 'transparent' }}>
-                      <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: lang === l ? '#F2F7F3' : 'rgba(242,247,243,0.55)' }}>{l.toUpperCase()}</T>
-                    </Pressable>
-                  ))}
+                  {/* pass 104 — only 26 of the 51 prophets have any Hausa
+                     content, but the pill offered HA for all of them and then
+                     rendered an empty card headed "TAUSAYIN LABARI (HAUSA)".
+                     Unavailable languages are now marked up front. */}
+                  {(['en', 'ha'] as const).map((l) => {
+                    const missing = l === 'ha' && th.ha.length === 0;
+                    return (
+                      <Pressable key={l} onPress={() => { haptic.selection(); setLang(l); }} style={{ borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', backgroundColor: lang === l ? 'rgba(255,255,255,0.16)' : 'transparent', opacity: missing ? 0.5 : 1 }}>
+                        <T v="caption" style={{ fontSize: 9.5, fontWeight: '900', color: lang === l ? '#F2F7F3' : 'rgba(242,247,243,0.55)' }}>{l.toUpperCase()}</T>
+                        {missing ? <UnavailableDot /> : null}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -166,9 +175,9 @@ export default function ProphetsStories() {
             <View style={{ marginHorizontal: 18, marginTop: -18, borderRadius: 13, borderWidth: 1, borderColor: finished ? 'rgba(212,175,55,0.5)' : d.cardBorder, backgroundColor: d.card, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <FontAwesome5 name={finished ? 'check-circle' : 'book-reader'} size={15} color={finished ? '#D4AF37' : isDark ? '#4AE38F' : '#1D6F42'} />
               <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: d.bgSoft, overflow: 'hidden' }}>
-                <View style={{ width: `${lang === 'ha' ? (finished || (read[open.slug] ?? 0) > 0 ? 100 : 0) : pct}%`, height: 6, backgroundColor: finished ? '#D4AF37' : isDark ? '#4AE38F' : '#1D6F42' }} />
+                <View style={{ width: `${lang === 'ha' && th.ha.length > 0 ? (finished || (read[open.slug] ?? 0) > 0 ? 100 : 0) : pct}%`, height: 6, backgroundColor: finished ? '#D4AF37' : isDark ? '#4AE38F' : '#1D6F42' }} />
               </View>
-              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: finished ? '#D4AF37' : d.subtext }}>{lang === 'ha' ? 'summary' : `${pct}%`}</T>
+              <T v="caption" style={{ fontSize: 10, fontWeight: '800', color: finished ? '#D4AF37' : d.subtext }}>{lang === 'ha' && th.ha.length > 0 ? 'summary' : `${pct}%`}</T>
             </View>
           </View>
 
@@ -196,6 +205,16 @@ export default function ProphetsStories() {
               </View>
             ) : !full ? (
               <T v="bodyS" style={{ color: d.faint, textAlign: 'center', marginTop: 30 }}>Chapter unavailable — check your connection.</T>
+            ) : lang === 'ha' && th.ha.length === 0 ? (
+              /* pass 104 — this prophet has no Hausa summary. Say so plainly
+               * instead of rendering an empty headed card, and offer the way
+               * back to the text that does exist. */
+              <LanguageUnavailable
+                language="Hausa"
+                scope={`the story of ${open.name}`}
+                actionLabel="Read in English"
+                onAction={() => { haptic.selection(); setLang('en'); }}
+              />
             ) : lang === 'ha' ? (
               /* Hausa summary view */
               <View style={{ borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, gap: 12 }}>

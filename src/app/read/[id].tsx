@@ -18,6 +18,7 @@ import { QURAN } from "@/data/quran";
 import { loadSurah, type SurahContent } from "@/lib/content";
 import { MushafPage } from "@/components/MushafPage";
 import { loadTranslation, TR_LANGS, type TrLang } from "@/lib/translations";
+import { LanguageUnavailable } from "@/components/LanguageUnavailable";
 import { GlassPlayerBar } from "@/components/GlassPlayerBar";
 import { ReciteMode, type ReciteItem } from "@/components/ReciteMode";
 import type { LoopCfg } from "@/context/QuranAudioContext";
@@ -129,23 +130,47 @@ function ReaderInner() {
   const [lang, setLang] = useState<TrLang>("en");
   /* pass 33: extra translations (yo/fr/bn/ur) load lazily from gz packs */
   const [trMap, setTrMap] = useState<Record<string, string>>({});
+  /* pass 104 — a failed pack download used to set an empty map silently, so the
+   * pill still read "UR" while only Arabic rendered and the reader could not tell
+   * a missing translation from a broken one. The failure is now surfaced. */
+  const [trFailed, setTrFailed] = useState(false);
   useEffect(() => {
     if (lang === "en" || lang === "ha") {
       setTrMap({});
+      setTrFailed(false);
       return;
     }
     let alive = true;
+    setTrFailed(false);
     loadTranslation(lang)
       .then((m) => {
         if (alive) setTrMap(m);
       })
       .catch(() => {
-        if (alive) setTrMap({});
+        if (alive) {
+          setTrMap({});
+          setTrFailed(true);
+        }
       });
     return () => {
       alive = false;
     };
   }, [lang]);
+
+  /* pass 104 — coverage of the SELECTED language for THIS surah, so "not
+   * available" is a measured fact rather than a guess. EN and HA ship inline on
+   * each ayah; YO/FR/BN/UR come from the lazily loaded pack. */
+  const trAyahs = data?.verses ?? [];
+  const trCovered = trAyahs.filter((a) =>
+    lang === "en"
+      ? Boolean(a.english)
+      : lang === "ha"
+        ? Boolean(a.hausa)
+        : Boolean(trMap[`${n}:${a.ayah}`]),
+  ).length;
+  const trNone = trAyahs.length > 0 && !trFailed && trCovered === 0;
+  const trPartial = trAyahs.length > 0 && trCovered > 0 && trCovered < trAyahs.length;
+  const trLabel = TR_LANGS.find((x) => x.id === lang)?.label ?? lang;
   const [shareAyah, setShareAyah] = useState<{
     arabic: string;
     meaning: string;
@@ -539,6 +564,28 @@ function ReaderInner() {
             ) : null}
           </View>
 
+          {trFailed ? (
+            <LanguageUnavailable
+              language={trLabel}
+              loadFailed
+              actionLabel="Switch to English"
+              onAction={() => {
+                haptic.selection();
+                setLang("en");
+              }}
+            />
+          ) : trNone ? (
+            <LanguageUnavailable
+              language={trLabel}
+              scope="this surah"
+              actionLabel="Switch to English"
+              onAction={() => {
+                haptic.selection();
+                setLang("en");
+              }}
+            />
+          ) : null}
+
           {(data?.verses ?? []).map((a) => {
             const isActive = activeAyah === a.ayah;
             return (
@@ -644,6 +691,14 @@ function ReaderInner() {
                   >
                     {trMap[`${n}:${a.ayah}`]}
                   </T>
+                ) : null}
+                {/* pass 104 — a gap inside an otherwise-translated surah used to
+                 * render as nothing at all. Say so instead. */}
+                {trPartial &&
+                ((lang === "en" && !a.english) ||
+                  (lang === "ha" && !a.hausa) ||
+                  (lang !== "en" && lang !== "ha" && !trMap[`${n}:${a.ayah}`])) ? (
+                  <LanguageUnavailable language={trLabel} scope="this ayah" compact />
                 ) : null}
                 {/* per-ayah actions: play just this ayah · bookmark · share */}
                 <View
@@ -775,7 +830,13 @@ function ReaderInner() {
                       haptic.selection();
                       setShareAyah({
                         arabic: a.arabic,
-                        meaning: (lang === "ha" && a.hausa) || a.english || "",
+                        /* pass 104 — label the fallback rather than passing off
+                         * English as the selected language. */
+                        meaning:
+                          (lang === "ha" && a.hausa) ||
+                          (lang !== "en" && lang !== "ha" && trMap[`${n}:${a.ayah}`]) ||
+                          a.english ||
+                          "",
                         ref: `${meta.english} ${n}:${a.ayah}`,
                         route: `/read/${n}?ayah=${a.ayah}`,
                       });

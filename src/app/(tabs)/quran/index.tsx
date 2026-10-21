@@ -7,12 +7,42 @@ import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
+import { dailyAyah, dailyHadith } from '@/lib/daily';
+import { QURAN } from '@/data/quran';
 
 /**
  * Qur'an & Hadith hub — pattern header with gold accents and the two premium
  * cards (emerald Qur'an · gold Hadith). pass 83-38d: Quran Shazam and the
  * Seerah/Courses/Quiz shortcut buttons are removed (owner).
  */
+/* pass 102 - resolved once per module load, exactly like the home hero does, so
+ * both screens show the SAME ayah and hadith for the whole day. */
+const DAILY_AYAH = dailyAyah();
+const DAILY_HADITH = dailyHadith();
+
+/** Turn a lib/daily reference ("Ash-Sharh 94:6", "Al-Baqarah 2:153") into the
+ *  reader route: match the surah by name first, then by the "N:M" chapter
+ *  number, and fall back to this hub when nothing is recognised. */
+const normSurah = (t: string) =>
+  t.toLowerCase().replace(/[^a-z]/g, '').replace(/^(al|at|ar|an)/, '');
+
+function dailyAyahHref(ref: string): string {
+  const byNum = /(\d+):\d+/.exec(ref);
+  if (byNum) {
+    const n = Number(byNum[1]);
+    if (n >= 1 && n <= 114) return `/read/${n}`;
+  }
+  const words = ref.split(/\s+/);
+  for (let i = 0; i < words.length; i++) {
+    if (/^\d+:\d+$/.test(words[i])) break;
+    const target = normSurah(words.slice(0, i + 1).join(' '));
+    if (target.length < 3) continue;
+    const hit = QURAN.find((s) => normSurah(s.english) === target);
+    if (hit) return `/read/${hit.number}`;
+  }
+  return '/(tabs)/quran';
+}
+
 function QuranHubInner() {
   const { theme, isDark } = useTheme();
   const d = theme.dash;
@@ -148,11 +178,18 @@ function QuranHubInner() {
             onPress={() => router.push('/tools/hadith')}
           />
 
-          {/* daily ayah + hadith — home-style ornate cards */}
+          {/* pass 102 - daily ayah + hadith now come from lib/daily, the SAME
+              source the home hero reads. These two cards used to hardcode
+              "Ash-Sharh 94:6" and "Sahih al-Bukhari 1", which happen to be
+              entries 0 of the 31-day cycle, so this module showed the same verse
+              forever while home rotated daily (owner: "the daily ayah and hadith
+              in home page is different from one displaying in quran and hadith
+              module, its not consistent"). The surah link is derived from today's
+              reference instead of being baked in. */}
           {([
-            { kind: 'ayah', eyebrow: 'DAILY AYAH', icon: 'star-and-crescent', arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا', text: '"For indeed, with hardship [will be] ease."', ref: 'Ash-Sharh 94:6', href: '/read/94' },
-            { kind: 'hadith', eyebrow: 'DAILY HADITH', icon: 'scroll', arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ', text: '"Actions are only by intentions."', ref: 'Sahih al-Bukhari 1', href: '/tools/hadith' },
-          ] as const).map((c) => (
+            { kind: 'ayah', eyebrow: 'DAILY AYAH', icon: 'star-and-crescent', arabic: DAILY_AYAH.arabic, text: '"' + DAILY_AYAH.meaning + '"', ref: DAILY_AYAH.ref, href: dailyAyahHref(DAILY_AYAH.ref) },
+            { kind: 'hadith', eyebrow: 'DAILY HADITH', icon: 'scroll', arabic: DAILY_HADITH.arabic, text: '"' + DAILY_HADITH.meaning + '"', ref: DAILY_HADITH.ref, href: '/tools/hadith' },
+          ]).map((c) => (
             <Pressable
               key={c.kind}
               onPress={() => {

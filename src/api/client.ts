@@ -39,26 +39,65 @@ import type {
  * EXPO_PUBLIC_API_URL. (The earlier same-day theory that app.deenlink.org
  * had no PHP was wrong: fx_quote.php 404'd only because the API checkout was
  * stale — after the user's pull it answers JSON on the app subdomain.) */
-export const BASE =
-  typeof window !== "undefined" &&
-  /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin)
-    ? window.location.origin
-    : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
-      "https://deenlink.org");
+/**
+ * PASS 104 — read the web origin defensively.
+ *
+ * The old code read `window.location.origin` directly, guarded only by
+ * `typeof window !== "undefined"`. On native that guard passes — React Native
+ * does define `window` — but there is no `location` on it, so the expression
+ * is at best `undefined` and at worst a TypeError evaluated at MODULE scope in
+ * a file the whole app imports. Either way it is not something a production
+ * Android build should depend on.
+ */
+function webOrigin(): string {
+  try {
+    if (Platform.OS !== "web") return "";
+    if (typeof window === "undefined") return "";
+    const o = (window as { location?: { origin?: string } }).location?.origin;
+    return typeof o === "string" ? o : "";
+  } catch {
+    return "";
+  }
+}
+
+const ORIGIN = webOrigin();
+const IS_APP_DOMAIN = /^https?:\/\/app\.deenlink\.org$/.test(ORIGIN);
+
+export const BASE = IS_APP_DOMAIN
+  ? ORIGIN
+  : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
+    /*
+     * PASS 104 — the fallback used to be https://deenlink.org, which the owner
+     * confirms is the OLD API checkout. The two hosts are measurably different
+     * code: /api/athkar/list.php and /api/auth/check_username.php are 404 on
+     * deenlink.org and answer JSON on app.deenlink.org. A native build with no
+     * EXPO_PUBLIC_API_URL baked in would have silently talked to the stale API.
+     */
+    "https://app.deenlink.org");
 /** pass 73 — friendly alias for components that resolve relative upload paths */
 export const API_ORIGIN = BASE;
 const TIMEOUT = 20000; /* pass 83-1: slow mobile networks need more than 9s before we call it a network error */
 
 /**
- * FORCE_DEMO — mock-only mode.
- * Real authentication runs on the production app domain (app.deenlink.org),
- * where the API is same-origin. Everywhere else (GitHub Pages preview,
- * localhost) stays in demo mode so the UI is explorable without a backend.
+ * FORCE_DEMO — mock-only mode, and PASS 104: WEB ONLY.
+ *
+ * It used to be `!IS_APP_DOMAIN`, which is false for any origin that is not
+ * literally https://app.deenlink.org. A native Android or iOS build never has
+ * that origin, so a Play Store build would have shipped with FORCE_DEMO true —
+ * and `request()` short-circuits on it, returning `{ok:false, networkError:true}`
+ * for every one of the 123 endpoints without ever touching the network. Login,
+ * signup, the feed, chat, groups and the shop would all have silently fallen
+ * back to bundled mock data. The app would look alive and be completely hollow.
+ *
+ * That contradicts BASE right above it, whose own pass-44 comment says
+ * "anywhere else (gh-pages, native) use the env/prod API" — native was always
+ * meant to talk to the real backend. Demo mode is for the web previews only
+ * (GitHub Pages, localhost), where there is no backend to reach.
+ *
+ * Native therefore always goes live against BASE. If the API is unreachable the
+ * per-call `networkError` fallbacks still apply, exactly as they do today.
  */
-const IS_APP_DOMAIN =
-  typeof window !== "undefined" &&
-  /^https?:\/\/app\.deenlink\.org$/.test(window.location.origin);
-export const FORCE_DEMO = !IS_APP_DOMAIN;
+export const FORCE_DEMO = Platform.OS === "web" && !IS_APP_DOMAIN;
 
 let session: string | null = null;
 let csrf: string | null = null;
@@ -425,6 +464,77 @@ export async function logout() {
   session = null;
   csrf = null;
   if (FORCE_DEMO) await storage.removeItem("dl.demoSession");
+}
+
+/* ------------------------- Account deletion ------------------------- *
+ * pass 104 — Google Play has required since 31 May 2024 that an app which
+ * lets people create an account also lets them delete that account and its
+ * data from inside the app. DeenLink had no such flow at all (settings only
+ * offered "Sign out", which is not deletion), so this was a guaranteed Play
+ * rejection rather than a nice-to-have.
+ *
+ * previewAccountDeletion() asks the server to count what would be removed
+ * without mutating anything, so the confirmation sheet can show real numbers
+ * instead of a vague warning. The server discovers the cascade at runtime,
+ * so these counts stay honest as the schema grows.
+ */
+export type AccountDeletionPreview = {
+  tablesAffected: number;
+  rowsAffected: number;
+  filesToRemove: number;
+};
+
+/**
+ * Counts what deleting the account would remove, without changing anything.
+ * The password is required even for this read-only preview, because row counts
+ * are information about the account and a hijacked session should not learn
+ * them either.
+ */
+export async function previewAccountDeletion(
+  password: string,
+): Promise<AccountDeletionPreview | null> {
+  const r = await request<{
+    preview?: boolean;
+    tables_affected?: number;
+    rows_affected?: number;
+    files_to_remove?: number;
+  }>("/api/users/delete_account.php", {
+    body: { password, preview: true },
+  });
+  if (!r.ok) return null;
+  return {
+    tablesAffected: Number(r.data.tables_affected ?? 0),
+    rowsAffected: Number(r.data.rows_affected ?? 0),
+    filesToRemove: Number(r.data.files_to_remove ?? 0),
+  };
+}
+
+/**
+ * Permanently deletes the signed-in account.
+ *
+ * `password` is re-checked server-side so a hijacked session alone cannot
+ * destroy an account, and `confirm` must be the literal word DELETE.
+ * On success the server has already destroyed its session; we drop the local
+ * one too so the app cannot keep making authenticated calls.
+ */
+export async function deleteAccount(
+  password: string,
+  confirm: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const r = await request<{
+    status?: string;
+    message?: string;
+    account_deleted?: boolean;
+    incomplete?: string[];
+  }>("/api/users/delete_account.php", {
+    body: { password, confirm, preview: false },
+  });
+  if (r.ok && r.data.account_deleted) {
+    session = null;
+    csrf = null;
+    if (FORCE_DEMO) await storage.removeItem("dl.demoSession");
+  }
+  return { ok: r.ok && Boolean(r.data.account_deleted), message: r.data.message };
 }
 
 /* -------------------------------- Feed -------------------------------- */
@@ -4672,6 +4782,117 @@ export async function deenAiChatServer(
   };
 }
 
+/* ---------------------- Grounded DeenLink AI ---------------------- *
+ * pass 104 — api/deenai/ask.php is a 1,809-line retrieval engine that routes a
+ * question to one of the owner's own datasets (Qur'an, hadith, dua/adhkar,
+ * fatwa/IslamQA, names of Allah, seerah), returns the matching items WITH their
+ * references, and reports out_of_scope when the libraries cannot support an
+ * answer. It was called by nothing: the app used api/deenai/chat.php instead, a
+ * 158-line wrapper that forwards straight to an LLM with no retrieval, no
+ * citations and no refusal path. That disconnect is the actual source of the
+ * hallucinations the owner asked to remove — the anti-hallucination machinery
+ * was already written and simply never wired up.
+ */
+export type DeenAiGrounded = {
+  ok: boolean;
+  /** True when our libraries cannot support an answer — do not call the model. */
+  outOfScope: boolean;
+  /** Human-readable refusal text from the server. */
+  message: string;
+  aiExplanation?: string;
+  classification?: string;
+  intent?: string;
+  datasetName?: string;
+  datasetsUsed: string[];
+  sources: import("@/lib/ai").AiSource[];
+  /** Server found a related scholar-answered question. */
+  relatedScholarAnswer: boolean;
+  error?: string;
+};
+
+function deenAiSourceKind(type: string): import("@/lib/ai").AiSource["kind"] {
+  const t = (type || "").toLowerCase();
+  if (t.includes("quran") || t.includes("qur'an")) return "quran";
+  if (t.includes("tafsir")) return "tafsir";
+  if (t.includes("hadith") || t.includes("sunnah")) return "hadith";
+  if (t.includes("dua") || t.includes("adhkar") || t.includes("athkar")) return "dua";
+  if (t.includes("name")) return "name";
+  if (t.includes("fatwa") || t.includes("islamqa") || t.includes("ruling")) return "fatwa";
+  if (t.includes("prophet") || t.includes("seerah") || t.includes("sirah")) return "seerah";
+  return "other";
+}
+
+/**
+ * Ask the grounded engine. Returns citations from our own libraries, or
+ * outOfScope=true with the server's refusal message when they cannot answer.
+ */
+export async function askDeenAi(
+  question: string,
+  context?: string[],
+): Promise<DeenAiGrounded> {
+  type Raw = {
+    status?: string;
+    out_of_scope?: boolean;
+    message?: string;
+    ai_explanation?: string;
+    classification?: string;
+    intent?: string;
+    dataset?: { name?: string; type?: string } | null;
+    datasets_used?: Array<{ name?: string; type?: string }>;
+    sources?: Array<{ dataset_name?: string; dataset_type?: string; reference?: string }>;
+    original_items?: Array<Record<string, unknown>>;
+    related_scholar_answer?: boolean;
+  };
+  const r = await request<Raw>("/api/deenai/ask.php", {
+    method: "POST",
+    body: { question, context: context ?? [] },
+  });
+
+  if (!r.ok || r.data.status !== "success") {
+    return {
+      ok: false,
+      outOfScope: false,
+      message: "",
+      datasetsUsed: [],
+      sources: [],
+      relatedScholarAnswer: false,
+      error: (r.data.message as string) ?? (r.networkError ? "Offline" : "AI unavailable"),
+    };
+  }
+
+  const d = r.data;
+  const items = Array.isArray(d.original_items) ? d.original_items : [];
+
+  /* Prefer the real item text for the excerpt so the citation is checkable, and
+   * the reference for the label so the reader can verify it at source. */
+  const sources = (Array.isArray(d.sources) ? d.sources : []).map((s, i) => {
+    const item = items[i] ?? {};
+    const kind = deenAiSourceKind(String(s.dataset_type ?? d.dataset?.type ?? ""));
+    const ref = String(s.reference ?? "").trim();
+    const text =
+      String(item.text ?? item.content ?? item.arabic ?? item.translation ?? item.answer ?? "")
+        .trim() || String(s.dataset_name ?? "");
+    return {
+      kind,
+      label: ref || String(s.dataset_name ?? "DeenLink library"),
+      excerpt: text.slice(0, 600),
+    } as import("@/lib/ai").AiSource;
+  });
+
+  return {
+    ok: true,
+    outOfScope: Boolean(d.out_of_scope),
+    message: String(d.message ?? ""),
+    aiExplanation: d.ai_explanation ? String(d.ai_explanation) : undefined,
+    classification: d.classification,
+    intent: d.intent,
+    datasetName: d.dataset?.name,
+    datasetsUsed: (d.datasets_used ?? []).map((x) => String(x.name ?? "")).filter(Boolean),
+    sources,
+    relatedScholarAnswer: Boolean(d.related_scholar_answer),
+  };
+}
+
 /* Slice 7 — admin-managed Prophets stories chapters; null when offline/empty so the bundled files stay. */
 export type AdminProphetChapter = {
   slug: string;
@@ -4726,6 +4947,13 @@ export type AdminAthkar = {
   translation: string;
   note: string;
   count: number;
+  /**
+   * pass 103 — set when this row repeats a dua the app already ships in its
+   * bundled Hisn al-Muslim pack (the value is that pack's dua ID). The Duas
+   * screen hides those rather than showing the same text twice. Absent or null
+   * means a genuine addition. Older API builds omit it entirely.
+   */
+  bundled_dua_id?: number | null;
 };
 export type AdminAthkarDuas = { athkar: AdminAthkar[]; duas: AdminAthkar[] };
 export async function athkarDuas(): Promise<AdminAthkarDuas | null> {

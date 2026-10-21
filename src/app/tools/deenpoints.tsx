@@ -11,6 +11,7 @@ import { DP_KEY, DP_DEFAULT, DPIcon } from '@/components/DeenPoints';
 import { storage } from '@/lib/storage';
 import { deenpointsHistory, isLive, pointsQuote, type PointsEvent, type PointsPricing } from '@/api/client';
 import { buyDeenPoints, settlePendingPayment } from '@/lib/flutterwave';
+import { canBuyDigital, DEENPOINTS_COMING_SOON } from '@/lib/purchasePolicy';
 
 /**
  * pass 69 — DeenPoints wallet: live balance, real ledger history, and buying
@@ -129,7 +130,7 @@ export default function DeenPointsScreen() {
             <T v="caption" style={{ fontSize: 11, color: d.faint, marginTop: 8 }}>pts</T>
           </View>
           <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 8, lineHeight: 15 }}>
-            Earn points daily (check-in, Qur'an, dhikr, quizzes) or top up below. Spend them on course unlocks and priority scholar questions.
+            Earn points daily (check-in, Qur'an, dhikr, quizzes){canBuyDigital() ? ' or top up below' : ''}. Spend them on course unlocks and priority scholar questions.
           </T>
         </View>
 
@@ -144,13 +145,15 @@ export default function DeenPointsScreen() {
                 <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Check in 7 days in a row — every 7th day pays +20 on top of your daily +5.</T>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(14,122,70,0.05)', padding: 13 }}>
-              <FontAwesome5 name="gem" size={16} color={green} />
-              <View style={{ flex: 1 }}>
-                <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>Bulk top-up · +10% points</T>
-                <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Buy 2,500 DeenPoints or more and 10% extra lands free with your purchase.</T>
+            {canBuyDigital() ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.3)', backgroundColor: isDark ? 'rgba(46,204,113,0.07)' : 'rgba(14,122,70,0.05)', padding: 13 }}>
+                <FontAwesome5 name="gem" size={16} color={green} />
+                <View style={{ flex: 1 }}>
+                  <T v="bodyS" style={{ fontSize: 12.5, fontWeight: '800', color: d.text }}>Bulk top-up · +10% points</T>
+                  <T v="caption" style={{ fontSize: 10.5, color: d.subtext, marginTop: 2, lineHeight: 15 }}>Buy 2,500 DeenPoints or more and 10% extra lands free with your purchase.</T>
+                </View>
               </View>
-            </View>
+            ) : null}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13 }}>
               <FontAwesome5 name="book-reader" size={16} color={green} />
               <View style={{ flex: 1 }}>
@@ -163,7 +166,24 @@ export default function DeenPointsScreen() {
 
         {/* buy */}
         <View style={{ borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 16, gap: 12 }}>
-          <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Buy DeenPoints</T>
+          {/* PASS 105 — on Android the purchase is closed until Play Billing is
+              integrated (see lib/purchasePolicy.ts). Earning still works, so the
+              section stays visible but is labelled and disabled rather than
+              removed. The wording must not point anywhere else: Play prohibits
+              language encouraging purchase outside the app, not just links. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <T v="bodyS" style={{ fontWeight: '800', fontSize: 13.5, color: d.text }}>Buy DeenPoints</T>
+            {!canBuyDigital() ? (
+              <View style={{ borderRadius: 7, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.12)', paddingHorizontal: 7, paddingVertical: 2 }}>
+                <T v="caption" style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 0.6, color: isDark ? '#E8C96A' : '#8A6D1A' }}>COMING SOON</T>
+              </View>
+            ) : null}
+          </View>
+          {!canBuyDigital() ? (
+            <T v="caption" style={{ fontSize: 10.5, color: d.subtext, lineHeight: 15 }}>
+              {DEENPOINTS_COMING_SOON}
+            </T>
+          ) : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {PRESETS.map((p) => {
               const on = !custom && points === p;
@@ -208,15 +228,15 @@ export default function DeenPointsScreen() {
           ) : null}
           <Pressable
             onPress={() => { void buy(); }}
-            disabled={busy || !isLive()}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 13, paddingVertical: 13, backgroundColor: busy || !isLive() ? d.bgSoft : green, opacity: pressed ? 0.85 : 1 })}
+            disabled={busy || !isLive() || !canBuyDigital()}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 13, paddingVertical: 13, backgroundColor: busy || !isLive() || !canBuyDigital() ? d.bgSoft : green, opacity: pressed ? 0.85 : 1 })}
           >
             {busy ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome5 name="bolt" size={12} color="#fff" />}
-            <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: busy || !isLive() ? d.faint : '#fff' }}>
-              {!isLive() ? 'Demo mode — connect to buy' : busy ? 'Opening checkout…' : `Pay ${money}`}
+            <T v="bodyS" style={{ fontWeight: '900', fontSize: 13, color: busy || !isLive() || !canBuyDigital() ? d.faint : '#fff' }}>
+              {!canBuyDigital() ? 'Coming soon' : !isLive() ? 'Demo mode — connect to buy' : busy ? 'Opening checkout…' : `Pay ${money}`}
             </T>
           </Pressable>
-          {isLive() ? (
+          {isLive() && canBuyDigital() ? (
             <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', lineHeight: 14 }}>
               ₦{pricePer}/point · secured by Flutterwave · card, bank transfer, USSD & mobile money
             </T>

@@ -9,8 +9,9 @@ import { HADITH_BOOKS } from '@/data/hadithBooks';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { haptic } from '@/lib/haptics';
-import { ContentSearchOverlay } from '@/components/ContentSearchOverlay';
-import { loadBook, loadBookMeta } from '@/lib/content';
+import { ContentSearchOverlay, type SearchHit } from '@/components/ContentSearchOverlay';
+import { loadBook, loadBookMeta, type ContentHadith } from '@/lib/content';
+import { groupSimilar, rankByScore, scoreBest, scoreMatch } from '@/lib/searchRank';
 import { storage } from '@/lib/storage';
 
 const enOf = (e: unknown): string => {
@@ -220,65 +221,154 @@ export default function HadithCollections() {
           return bookHits;
         }}
         contentSearch={async (qq) => {
-          const needle = qq.toLowerCase().trim();
-          const hits: Array<{ key: string; title: string; subtitle?: string; arabic?: string; onPress: () => void }> = [];
-          // 1) chapter names across all books (meta files are small)
-          for (const b of HADITH_BOOKS) {
-            try {
-              const m = await loadBookMeta(b.id);
-              for (const c of m.chapters ?? []) {
-                if ((c.english ?? '').toLowerCase().includes(needle) || (c.arabic ?? '').includes(qq.trim())) {
-                  hits.push({ key: `c-${b.id}-${c.chapter_number}`, title: `${b.name} · Chapter ${c.chapter_number}`, subtitle: c.english, arabic: c.arabic, onPress: () => router.push(`/tools/hadith/${b.id}?chapter=${c.chapter_number}` as never) });
-                  if (hits.length >= 15) return hits;
+          /* ── pass 102 — CROSS-BOOK RANKED HADITH SEARCH ──────────────────────
+           *
+           * Owner: "the hadith search is poor, the result is not that accurate
+           * and it only returns from one book, if we have same hadith in
+           * different books or we have different narrations that looks alike, it
+           * should display their results".
+           *
+           * What was wrong:
+           *  · chapter-name matches `return`ed at 15 hits, abandoning the text
+           *    scan entirely — a chapter name that happened to contain the query
+           *    hid every actual hadith.
+           *  · each book stopped at 8 matches (`if (out.length >= 8) break`) and
+           *    the books were then concatenated IN BOOK ORDER with no scoring.
+           *    Whichever book produced 8 hits first owned the visible list, so
+           *    it read as "results from one book" and everything below the first
+           *    row was arbitrary.
+           *  · the same matn appearing in five collections produced five
+           *    unrelated rows instead of one row that names all five.
+           *
+           * Now: chapter names and texts are two independently ranked tiers,
+           * every match in all 15 books is scored by lib/searchRank, and
+           * narrations that are the same text are grouped into one row listing
+           * each collection it appears in. */
+          const query = qq.trim();
+          if (!query) return [];
+
+          type ScoredHit = {
+            key: string;
+            title: string;
+            subtitle?: string;
+            arabic?: string;
+            books?: string[];
+            score: number;
+            /* original scan position — keeps the sort stable so the list does not
+             * reshuffle between keystrokes */
+            order: number;
+            onPress: () => void;
+          };
+
+          /* tier 1 — chapter names. The meta files are small, so scanning every
+           * book is cheap and no book can crowd out another. */
+          const chapterScored: ScoredHit[] = [];
+          await Promise.all(
+            HADITH_BOOKS.map(async (b) => {
+              try {
+                const m = await loadBookMeta(b.id);
+                for (const c of m.chapters ?? []) {
+                  const score = scoreBest([c.english, c.arabic], query);
+                  if (score <= 0) continue;
+                  chapterScored.push({
+                    order: chapterScored.length,
+                    key: `c-${b.id}-${c.chapter_number}`,
+                    title: `${b.name} · Chapter ${c.chapter_number}`,
+                    subtitle: c.english,
+                    arabic: c.arabic,
+                    score: score * 0.72, /* a chapter is a weaker answer than the text itself */
+                    onPress: () => router.push(`/tools/hadith/${b.id}?chapter=${c.chapter_number}` as never),
+                  });
                 }
-              }
-            } catch {}
-          }
-          // 2) hadith text scan — pass 34: ALL books, in PARALLEL, canonical
-          // numbers + chapter names, grouped so the same matn/isnad shows
-          // every book it appears in (not just the first book that matches).
-          const bareAr = (t: string) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-          const qw = qq.trim().split(/\s+/).map(bareAr).filter((w) => w.length > 1);
-          const isArabic = /[\u0621-\u064A]/.test(qq.trim()) && qw.length > 2;
-          const scanOne = async (bid: string) => {
-            const out: Array<{ key: string; title: string; subtitle?: string; arabic?: string; onPress: () => void }> = [];
+              } catch { /* a missing meta file must not sink the whole search */ }
+            }),
+          );
+
+          /* tier 2 — full texts, all books in parallel, no per-book cap. */
+          const textScored: ScoredHit[] = [];
+          const scanBook = async (bid: string) => {
             try {
               const list = await loadBook(bid);
               const b = HADITH_BOOKS.find((x) => x.id === bid);
               let nums: number[] = [];
-              try { nums = await hadithNumbers(bid); } catch {}
+              try { nums = await hadithNumbers(bid); } catch { /* fall back to pack order */ }
               for (let ix = 0; ix < list.length; ix++) {
-                const h = list[ix];
-                const fuzzyHit = isArabic && (() => {
-                  const hw = bareAr(h.arabic).split(/\s+/);
-                  let hit = 0;
-                  for (const t of qw) {
-                    if (hw.some((w) => w === t || (w.length > 3 && t.length > 3 && (w.startsWith(t) || t.startsWith(w) || w.endsWith(t) || t.endsWith(w))))) hit++;
-                  }
-                  return hit / qw.length >= 0.34;
-                })();
-                if (fuzzyHit || h.arabic.includes(qq.trim()) || enOf(h.english).toLowerCase().includes(needle)) {
-                  const num = h.hadith_number != null ? Number(h.hadith_number) : (nums[ix] ?? ix + 1);
-                  const chName = h.chapter_name?.english ?? '';
-                  out.push({
-                    key: `h-${bid}-${num}`,
-                    title: `${b?.name ?? bid} · ${chName ? chName + ' · ' : ''}Hadith ${num}`,
-                    subtitle: (enOf(h.english) || chName || '').slice(0, 90),
-                    arabic: h.arabic.slice(0, 44),
-                    onPress: () => router.push(`/tools/hadith/${bid}?h=${num}` as never),
-                  });
-                  if (out.length >= 8) break; /* a few per book, ALL books */
-                }
+                const h: ContentHadith = list[ix];
+                const english = enOf(h.english);
+                const chapterName = h.chapter_name?.english ?? '';
+                /* Arabic matn first, then the translation, then the chapter.
+                 * scoreBest rewards a verse that matches in more than one field,
+                 * which is what lifts an exact wording above a loose paraphrase. */
+                const score = scoreBest([h.arabic, english, chapterName], query);
+                if (score <= 0) continue;
+                const num = h.hadith_number != null ? Number(h.hadith_number) : (nums[ix] ?? ix + 1);
+                /* PASS 105 — `num` is only a sunnah.com number when it came from
+                 * the pack itself or from the canonical map. Otherwise it is this
+                 * entry's POSITION in the pack, which is not the same thing, so
+                 * say so instead of printing a wrong number under the word
+                 * "Hadith". Navigation still works: the reader screen resolves
+                 * `h` the same way. */
+                const canonical = h.hadith_number != null || nums.length > 0;
+                textScored.push({
+                  order: textScored.length,
+                  key: `h-${bid}-${num}`,
+                  title: `${b?.name ?? bid}${chapterName ? ` · ${chapterName}` : ''} · ${canonical ? `Hadith ${num}` : `entry ${num}`}`,
+                  subtitle: (english || chapterName).slice(0, 110),
+                  arabic: h.arabic.slice(0, 48),
+                  books: [b?.name ?? bid],
+                  /* a bare matn match is worth more than a chapter-name-only one */
+                  score: scoreMatch(query, h.arabic) > 0 || scoreMatch(query, english) > 0
+                    ? score
+                    : score * 0.8,
+                  onPress: () => router.push(`/tools/hadith/${bid}?h=${num}` as never),
+                });
               }
-            } catch {}
-            return out;
+            } catch { /* an unavailable book pack must not sink the whole search */ }
           };
-          const perBook = await Promise.all(HADITH_BOOKS.map((b) => scanOne(b.id)));
-          for (const group of perBook) {
-            hits.push(...group);
-            if (hits.length >= 60) break;
+          await Promise.all(HADITH_BOOKS.map((b) => scanBook(b.id)));
+
+          /* Group the SAME narration across collections.
+           * pass 102 - the first attempt keyed this on the normalised Arabic with
+           * a regex isnad strip and produced ZERO groups on the real corpus: the
+           * same matn is catalogued with entirely different chains per
+           * collection, so no regex can find where an unknown isnad ends.
+           * groupSimilar() compares the matn FUZZILY (character-trigram Jaccard
+           * inside a length band) instead, which is what actually joins
+           * "Do not become angry" in al-Bukhari with the same hadith in
+           * an-Nawawi's 40, Jami' at-Tirmidhi and Musnad Ahmad.
+           *
+           * It runs on the ranked shortlist, not on all 50,804 hadiths. */
+          textScored.forEach((h, i) => { h.order = i; });
+          const ordered = textScored.slice().sort((a, b) => b.score - a.score || a.order - b.order);
+          const SHORTLIST = 160;
+          const head = ordered.slice(0, SHORTLIST);
+          const tail = ordered.slice(SHORTLIST);
+
+          const clusters = groupSimilar(head.map((h) => ({ text: h.arabic ?? '' })), 0.55);
+          const groupedHits: ScoredHit[] = [];
+          for (const cluster of clusters) {
+            const members = cluster.map((i) => head[i]);
+            const best = members[0];
+            const names = [...new Set(members.flatMap((m) => m.books ?? []))];
+            if (names.length > 1) {
+              /* one row that names every collection reporting it, instead of
+               * five unrelated-looking rows for one hadith */
+              best.books = names;
+              best.title = `${names.length} collections · ${best.title.split(' · ')[0]} · Hadith ${best.title.split('Hadith ').pop()}`;
+              best.subtitle = (best.subtitle ? best.subtitle + ' — ' : '')
+                + `Also in ${names.slice(1, 4).join(', ')}${names.length > 4 ? ` +${names.length - 4} more` : ''}`;
+              /* a narration several collections agree on is a stronger answer */
+              best.score *= 1 + Math.min(0.3, 0.09 * (names.length - 1));
+            }
+            groupedHits.push(best);
           }
-          return hits;
+
+          const chapters = rankByScore(chapterScored.map(({ score, ...rest }) => ({ score, item: rest })))
+            .slice(0, 10);
+          const texts = rankByScore([...groupedHits, ...tail].map(({ score, ...rest }) => ({ score, item: rest })))
+            .slice(0, 70);
+
+          return [...chapters, ...texts] as SearchHit[];
         }}
         contentLabel="In chapters & texts"
       />

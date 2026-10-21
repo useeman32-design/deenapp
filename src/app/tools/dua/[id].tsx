@@ -12,13 +12,21 @@ import { DUA_SECTIONS, groupBySection, type DuaSectionId } from '@/lib/duaSectio
 import { ContentShareSheet } from '@/components/ContentShareSheet';
 import { GlassPlayerBar } from '@/components/GlassPlayerBar';
 import { useAudio } from '@/lib/useAudio';
+import { useAdminContentDuas } from '@/lib/liveAthkar';
 
 /**
  * Dua section detail (pass 22) — the SHARED glass player, and the FULL data:
  * arabic + transliteration + translation + repeat, per-part audio from the
  * user's dataset (Hisn al-Muslim, https).
+ *
+ * PASS 103 — admin-managed duas are merged into their own section here too.
+ * Before this the section screen read only the bundled pack, so an admin-added
+ * dua had nowhere to live except the loose card block on the sections list —
+ * which is why that block existed at all. IDs >= 100000 are admin rows and get
+ * a "DeenLink" chip; Hisn al-Muslim numbers run 1..132, so they never collide.
  */
 const httpsOf = (u: string) => u.replace(/^http:\/\//, 'https://');
+const isAdminDua = (c: ContentDua) => c.ID >= 100000;
 
 export default function DuaSection() {
   const { id, open } = useLocalSearchParams<{ id: string; open?: string }>();
@@ -41,7 +49,15 @@ export default function DuaSection() {
   }, []);
 
   const english = useMemo(() => (pack ? pack['English'] ?? [] : []), [pack]);
-  const list = useMemo(() => (pack ? groupBySection(english)[sectionId] ?? [] : []), [pack, english, sectionId]);
+  const adminDuas = useAdminContentDuas(english);
+  const list = useMemo(() => {
+    if (!pack) return [];
+    const all = adminDuas.length ? [...english, ...adminDuas] : english;
+    return groupBySection(all)[sectionId] ?? [];
+  }, [pack, english, adminDuas, sectionId]);
+
+  /* admin rows carry IDs from 100000 up; Hisn al-Muslim runs 1..132 */
+  const adminInThisSection = useMemo(() => list.filter(isAdminDua).length, [list]);
 
   /* the part currently loaded in the player (for the glass bar) */
   const nowPlaying = useMemo(() => {
@@ -61,7 +77,12 @@ export default function DuaSection() {
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T v="h2" numberOfLines={1} style={{ color: d.text, fontWeight: '800', fontSize: 17 }}>{section.label}</T>
-          <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>{list.length} duas · Hisn al-Muslim</T>
+          <T v="caption" style={{ color: d.faint, fontSize: 10.5, marginTop: 1 }}>
+            {list.length} dua{list.length === 1 ? '' : 's'}
+            {adminInThisSection > 0
+              ? ` · ${list.length - adminInThisSection} Hisn al-Muslim + ${adminInThisSection} DeenLink`
+              : ' · Hisn al-Muslim'}
+          </T>
         </View>
         <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesome5 name={section.icon as never} size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
@@ -81,7 +102,15 @@ export default function DuaSection() {
                 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 }}
               >
-                <T v="body" style={{ flex: 1, color: d.text, fontWeight: '700', fontSize: 13, lineHeight: 18 }}>{c.TITLE}</T>
+                <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+                  <T v="body" style={{ color: d.text, fontWeight: '700', fontSize: 13, lineHeight: 18 }}>{c.TITLE}</T>
+                  {isAdminDua(c) ? (
+                    <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 7, borderWidth: 1, borderColor: isDark ? 'rgba(74,227,143,0.35)' : 'rgba(29,111,66,0.25)', backgroundColor: isDark ? 'rgba(46,204,113,0.12)' : 'rgba(29,111,66,0.07)', paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <FontAwesome5 name="sparkles" size={7} color={isDark ? '#4AE38F' : '#1D6F42'} />
+                      <T v="caption" style={{ fontSize: 8.5, color: isDark ? '#4AE38F' : '#1D6F42', fontWeight: '800' }}>DeenLink</T>
+                    </View>
+                  ) : null}
+                </View>
                 <FontAwesome5 name={isOpen ? 'chevron-up' : 'chevron-down'} size={11} color={d.faint} />
               </Pressable>
 
@@ -93,7 +122,7 @@ export default function DuaSection() {
                   <Pressable
                     onPress={() => {
                       haptic.selection();
-                      setShareDua({ arabic: c.TEXT[0]?.ARABIC_TEXT ?? '', meaning: c.TEXT[0]?.TRANSLATED_TEXT ?? c.TEXT[0]?.ENGLISH_TEXT ?? c.TITLE, ref: `Hisn al-Muslim · ${c.TITLE}`, route: `/tools/dua/${id}` });
+                      setShareDua({ arabic: c.TEXT[0]?.ARABIC_TEXT ?? '', meaning: c.TEXT[0]?.TRANSLATED_TEXT ?? c.TEXT[0]?.ENGLISH_TEXT ?? c.TITLE, ref: isAdminDua(c) ? `DeenLink · ${c.TITLE}` : `Hisn al-Muslim · ${c.TITLE}`, route: `/tools/dua/${id}` });
                     }}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 2 }}
                   >

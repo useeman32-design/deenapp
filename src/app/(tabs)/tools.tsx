@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
+import { useResponsive, gridItemWidthPx } from '@/lib/responsive';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { markActive, markGoal } from '@/lib/routine';
 import { T } from '@/components/T';
@@ -153,6 +154,16 @@ export default function Tools() {
   const router = useRouter();
   const [tasbeehOpen, setTasbeehOpen] = useState(false);
 
+  /* pass 107 — the grid was hard-coded to `width: '48%'`, i.e. two columns at
+   * every size, so on a tablet each card was ~350dp wide. Columns now scale with
+   * the device class and item width is computed from the MEASURED container, not
+   * a guessed percentage: a 12dp gap is 3.3% of a 360dp phone but 1.2% of a
+   * 1000dp tablet, so one constant either leaves a gutter or wraps early. */
+  const { columns } = useResponsive();
+  const [gridW, setGridW] = useState(0);
+  const cols = columns(2);
+  const itemW = gridW > 0 ? gridItemWidthPx(gridW, cols, 12) : 0;
+
   const open = (t: ToolCard) => {
     if (t.action.type === 'route') router.push(t.action.href);
     else if (t.action.type === 'web') safeOpenUrl(t.action.url);
@@ -163,7 +174,7 @@ export default function Tools() {
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <PageHero title="Worship Tools" heading="Daily Spiritual Tools" sub="Everything you need for your daily ibadah" icon={MosqueIcon}><DeenPointsPill /></PageHero>
         <View style={{ paddingTop: 20, paddingLeft: 16, paddingRight: 16, gap: 12 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          <View onLayout={(e) => setGridW(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {TOOLS.map((t) => {
               const Icon = t.icon;
               return (
@@ -172,7 +183,9 @@ export default function Tools() {
                   ref={register(t.key)}
                   onPress={() => open(t)}
                   style={({ pressed }) => ({
-                    width: '48%',
+                    /* measured dp width once known; '48%' is the pre-measure and
+                     * phone fallback so the first paint is never wrong */
+                    width: itemW > 0 ? itemW : '48%',
                     flexGrow: 1,
                     backgroundColor: d.card,
                     borderRadius: 18,

@@ -12,8 +12,11 @@ import { haptic } from '@/lib/haptics';
 import { storage } from '@/lib/storage';
 import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
 import { buyPremium } from '@/lib/flutterwave';
+import { canBuyDigital, COMING_SOON_TITLE, PREMIUM_COMING_SOON } from '@/lib/purchasePolicy';
 import { groupPrivacy, isLive, quotePremium, setGroupPrivacy, type PremiumQuote } from '@/api/client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DeleteAccountModal } from '@/components/DeleteAccountModal';
+import { PRIVACY_URL, TERMS_URL, openLegalDoc } from '@/lib/legal';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -62,6 +65,16 @@ function SettingsScreenInner() {
   const buyPlan = async (tierId: string) => {
     haptic.selection();
     const plan: 'monthly' | 'annual' = tierId === 'y' ? 'annual' : 'monthly';
+    /* PASS 105 — on Android, Premium is an in-app digital good, so Google Play
+     * requires it to be sold through Play Billing. Until that is integrated the
+     * purchase is closed here AND in lib/flutterwave.ts::buyPremium, so no caller
+     * can start a Flutterwave checkout on Android. lib/purchasePolicy.ts explains
+     * why the wording says only "coming soon": Play also prohibits language that
+     * encourages buying the item outside the app, so it must not mention the web. */
+    if (!canBuyDigital()) {
+      Alert.alert(COMING_SOON_TITLE, PREMIUM_COMING_SOON);
+      return;
+    }
     if (!isLive()) {
       Alert.alert('Premium checkout', 'This demo build has no payments — checkout opens in the live app.');
       return;
@@ -92,6 +105,8 @@ function SettingsScreenInner() {
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
   const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true, allowGroupAdd: true });
   const [signOutOpen, setSignOutOpen] = useState(false);
+  /* pass 104 — Google Play requires in-app account deletion, not just sign-out. */
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const persist = (key: string, val: unknown) => { storage.setItem(key, JSON.stringify(val)).catch(() => {}); };
   useEffect(() => { if (sheet === 'privacy' && isLive()) { groupPrivacy().then((v) => { if (v != null) setPriv((p) => ({ ...p, allowGroupAdd: v })); }).catch(() => {}); } }, [sheet]);
@@ -202,6 +217,8 @@ function SettingsScreenInner() {
           <Row icon="info-circle" label="About DeenLink" desc="Version & credits" tint={d.subtext as string} onPress={() => setSheet('about')} />
           <Divider />
           <Row icon="sign-out-alt" label="Sign out" desc="End session on this device" tint="#FF7B7B" onPress={() => setSignOutOpen(true)} />
+          <Divider />
+          <Row icon="trash-alt" label="Delete account" desc="Permanently remove your account and data" tint="#E8726B" onPress={() => setDeleteOpen(true)} />
         </View>
 
         <T v="caption" style={{ color: d.faint, textAlign: 'center', fontSize: 10, marginTop: 16 }}>
@@ -226,11 +243,18 @@ function SettingsScreenInner() {
                 </View>
               ))}
             </View>
+            {!canBuyDigital() ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(212,175,55,0.45)', backgroundColor: 'rgba(212,175,55,0.1)', padding: 12, marginBottom: 12 }}>
+                <FontAwesome5 name="hourglass-half" size={13} color="#E8C96A" />
+                <T v="caption" style={{ flex: 1, fontSize: 10.5, color: d.subtext, lineHeight: 15 }}>{PREMIUM_COMING_SOON}</T>
+              </View>
+            ) : null}
             {PREMIUM_TIERS.map((t) => (
               <Pressable
                 key={t.id}
                 onPress={() => { void buyPlan(t.id); }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1.5, borderColor: t.best ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: t.best ? (isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.05)') : 'transparent', padding: 14, marginBottom: 8 }}
+                disabled={!canBuyDigital()}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1.5, borderColor: t.best ? 'rgba(212,175,55,0.6)' : d.cardBorder, backgroundColor: t.best ? (isDark ? 'rgba(212,175,55,0.08)' : 'rgba(212,175,55,0.05)') : 'transparent', padding: 14, marginBottom: 8, opacity: canBuyDigital() ? 1 : 0.55 }}
               >
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
@@ -239,10 +263,10 @@ function SettingsScreenInner() {
                   </View>
                   <T v="caption" style={{ fontSize: 10.5, color: d.faint, marginTop: 2 }}>{t.note}</T>
                 </View>
-                <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{payingTier === t.id ? 'Opening…' : tierPrice(t)}<T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{t.per}</T></T>
+                <T v="bodyS" style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#E8C96A' : '#8C6D1F' }}>{!canBuyDigital() ? 'Soon' : payingTier === t.id ? 'Opening…' : tierPrice(t)}<T v="caption" style={{ fontSize: 9.5, color: d.faint }}>{t.per}</T></T>
               </Pressable>
             ))}
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>{pq && !pq.premium_enabled ? 'Checkout opens soon. ' : ''}Payments are secured by Flutterwave. Premium never includes fatwas — those stay free with the scholars.</T>
+            <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 6 }}>{canBuyDigital() ? `${pq && !pq.premium_enabled ? 'Checkout opens soon. ' : ''}Payments are secured by Flutterwave. ` : ''}Premium never includes fatwas — those stay free with the scholars.</T>
           </Sheet>
         </View>
       </Modal>
@@ -333,6 +357,20 @@ function SettingsScreenInner() {
               <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Website & links</T>
               <FontAwesome5 name="chevron-right" size={10} color={d.faint} />
             </Pressable>
+            {/* pass 105 — Play expects the privacy policy to be reachable from
+                inside the app, not only from the signup checkbox. These open in
+                the system browser via lib/legal.ts so the hosted, current
+                document is always what the reader sees. */}
+            <Pressable onPress={() => { haptic.selection(); openLegalDoc(TERMS_URL); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
+              <FontAwesome5 name="file-contract" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Terms of Service</T>
+              <FontAwesome5 name="external-link-alt" size={9} color={d.faint} />
+            </Pressable>
+            <Pressable onPress={() => { haptic.selection(); openLegalDoc(PRIVACY_URL); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
+              <FontAwesome5 name="user-shield" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
+              <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Privacy Policy</T>
+              <FontAwesome5 name="external-link-alt" size={9} color={d.faint} />
+            </Pressable>
             <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 12, lineHeight: 14 }}>Made with ihsan. Quran & tafsir texts via quranapi.pages.dev. For rulings, consult a qualified scholar.</T>
           </Sheet>
         </View>
@@ -348,6 +386,9 @@ function SettingsScreenInner() {
         onCancel={() => setSignOutOpen(false)}
         onConfirm={() => { setSignOutOpen(false); logout(); try { router.dismissAll?.(); } catch {} router.replace('/(auth)/login'); }}
       />
+
+      {/* pass 104 — account deletion (Play policy: apps with sign-up must offer this) */}
+      <DeleteAccountModal visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </View>
   );
 }

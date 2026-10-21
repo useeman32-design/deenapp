@@ -52,7 +52,34 @@ export function publicBase(): string {
     const host = (Constants as unknown as { expoConfig?: { hostUri?: string } }).expoConfig?.hostUri;
     if (host) return `http://${host}`;
   } catch {}
-  return '';
+  /*
+   * PASS 104 — RELEASE native build.
+   *
+   * There is no Metro server here, so hostUri is undefined and this used to
+   * return ''. That made fetchGzText()/its callers build bare relative URLs
+   * like "/translations/ur.json.gz", and React Native's fetch cannot resolve a
+   * URL with no host — the request throws. Every one of the nine call sites has
+   * a .catch() that silently degrades to empty data, so in a Play Store build:
+   *
+   *   - the Yorùbá / Français / বাংলা / اردو Qur'an translations never loaded,
+   *     while the pill still displayed the selected language;
+   *   - adhan audio had no host and could not play;
+   *   - the prophet histories screen fetched an empty index;
+   *   - islamqa.json (the fatwa corpus) and hadith-num/*.json never arrived.
+   *
+   * None of it was visible on web (window.location supplies the base) or in
+   * Expo Go (Metro supplies it) — native release only.
+   *
+   * The public/ tree is served from the same origin as the web build, so use
+   * that. Verified 2026-10-15: /prophets/index.json, /islamqa.json (4.3 MB),
+   * /hadith-num/bukhari.json, /translations/{yo,fr,bn,ur}.json.gz and
+   * /adhan/adhan{1,2,3}.mp3 all return HTTP 200 on app.deenlink.org, and 404 on
+   * the old deenlink.org checkout.
+   */
+  return (
+    (process.env.EXPO_PUBLIC_WEB_URL as string | undefined)?.replace(/\/+$/, '') ??
+    'https://app.deenlink.org'
+  );
 }
 
 /* ---------- fetch a .gz file from public/ and get its text (both platforms) ---------- */

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { resolveLocation, type Loc } from '@/lib/location';
+import { useLocation } from '@/components/LocationModal';
 import {
   computePrayerTimesWith,
   countdownTo,
@@ -62,7 +62,9 @@ export default function PrayerTimes() {
   const d = theme.dash;
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [loc, setLoc] = useState<Loc | null>(null);
+  /* pass 102 — shared reactive location, so the change-location sheet updates
+   * prayer times here without leaving and re-entering the screen. */
+  const loc = useLocation();
   const [settings, setSettings] = useState<PrayerSettings>(DEFAULT_SETTINGS);
   const [offset, setOffset] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -103,10 +105,8 @@ export default function PrayerTimes() {
   }, [now, loc, settings.adhan, offset]);
 
   useEffect(() => {
-    /* Use the shared location already resolved on the Home screen —
-     * resolveLocation() returns the cached one (no second GPS fix), so this
-     * screen never "loads another location". */
-    resolveLocation().then(setLoc);
+    /* pass 102 — the location itself comes from the shared store (useLocation);
+     * only the calculation/notification settings are loaded on mount. */
     loadPrayerSettings().then(setSettings);
   }, []);
 
