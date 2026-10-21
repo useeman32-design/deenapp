@@ -52,12 +52,22 @@ export function useAppFonts(gate = true): [boolean] {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!gate) return; /* pass 111 — wait for the native pack before loading faces */
     let alive = true;
     (async () => {
+      /* pass 111 — release native: the packaged ttf assets are unreadable
+       * (gradle mangles them), so load each face straight from the unpacked
+       * pack on disk. Web/dev keep the require()d resources. getPackDir()
+       * already carries the file:// scheme + trailing slash. */
+      const pdir = getPackDir();
       await Promise.all(
         Object.entries(FACES).map(async ([name, resource]) => {
           try {
-            await Font.loadAsync(name, resource);
+            if (pdir && FONT_FILES[name]) {
+              await Font.loadAsync(name, pdir + 'src/fonts/' + FONT_FILES[name]);
+            } else {
+              await Font.loadAsync(name, resource);
+            }
           } catch {
             /* this face is unusable on this device — fall back to system font */
           }
@@ -69,7 +79,7 @@ export function useAppFonts(gate = true): [boolean] {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [gate]);
 
   return [loaded];
 }

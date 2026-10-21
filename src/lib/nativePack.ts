@@ -172,7 +172,8 @@ export function packUriForAsset(asset: PackagerAsset): string | null {
   const scale = pickScale(asset.scales ?? [1], PixelRatio.get());
   const suffix = scale === 1 ? '' : '@' + scale + 'x';
   const base = asset.httpServerLocation.replace(/^\.\//, '');
-  return 'file://' + packDir + base + '/' + asset.name + suffix + '.' + asset.type;
+  /* packDir already carries the file:// scheme + trailing slash (Directory.uri) */
+  return packDir + base + '/' + asset.name + suffix + '.' + asset.type;
 }
 
 /**
