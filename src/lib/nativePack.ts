@@ -36,6 +36,14 @@ import { PACK_URL, PACK_VERSION, PACK_BYTES } from './packMeta';
 /** Base URL the pack is served from, with a trailing slash. */
 export const PACK_BASE_URL = PACK_URL.replace(/\/[^/]*$/, '/');
 
+/**
+ * pass 113 — single-file endpoint. The bulk download can fail (slow link,
+ * low storage, first-run timing) and then EVERY asset is unavailable; this
+ * serves one pack member on demand, so icons, fonts and the Qur'an/hadith
+ * readers still work over HTTP.
+ */
+export const PACK_FILE_URL = 'https://app.deenlink.org/api/pack/file.php?p=';
+
 let packDir: string | null = null;
 let packEntries: Set<string> | null = null;
 let ensurePromise: Promise<boolean> | null = null;
@@ -119,6 +127,7 @@ export function ensurePack(): Promise<boolean> {
   if (Platform.OS === 'web' || __DEV__) return Promise.resolve(true);
   if (packDir) return Promise.resolve(true);
   if (ensurePromise) return ensurePromise;
+  console.warn('[pack] ensurePack start', PACK_VERSION);
   ensurePromise = (async () => {
     try {
       const m = markerFile();
@@ -140,10 +149,13 @@ export function ensurePack(): Promise<boolean> {
       try {
         await unpackOnce();
         return true;
-      } catch {
+      } catch (e) {
+        /* surfaces in `adb logcat -s ReactNativeJS` — tells us which step died */
+        console.warn('[pack] attempt', attempt + 1, 'failed:', String(e));
         await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
       }
     }
+    console.warn('[pack] giving up — using HTTP fallback for assets');
     return false;
   })();
   return ensurePromise;
@@ -253,9 +265,11 @@ export function installNativeAssetPack(): void {
   const set = resolverModule()?.default?.setCustomSourceTransformer;
   if (!set) return;
   set(((resolver: { asset: PackagerAsset; defaultAsset: () => unknown }) => {
-    const uri = packUriForAsset(resolver.asset);
-    if (!uri) return resolver.defaultAsset();
     const asset = resolver.asset;
+    /* 1) the on-disk pack (fast, offline)  2) pass 113 — the single-file HTTP
+     * endpoint (works even when the bulk download failed)  3) give up */
+    const uri = packUriForAsset(asset) ?? remoteUriForAsset(asset);
+    if (!uri) return resolver.defaultAsset();
     return {
       __packager_asset: true,
       width: asset.width ?? null,
@@ -282,10 +296,20 @@ export function resolvePackRemote(mod: number): string | null {
   if (Platform.OS === 'web' || __DEV__) return null;
   const asset = registry()?.getAssetByID(mod) ?? null;
   if (!asset) return null;
+  return remoteUriForAsset(asset);
+}
+
+/** Absolute HTTP url for a pack-relative path (single-file endpoint). */
+export function remotePackUrl(rel: string): string {
+  return PACK_FILE_URL + encodeURIComponent(rel);
+}
+
+/** HTTP url for an asset record — used when the local pack is unavailable. */
+export function remoteUriForAsset(asset: PackagerAsset): string | null {
   const cands = relCandidates(asset);
   if (!cands.length) return null;
   const rel = packEntries ? resolveAssetRel(asset) : cands[0];
-  return rel ? PACK_BASE_URL + rel : null;
+  return rel ? remotePackUrl(rel) : null;
 }
 
 /**
@@ -297,7 +321,7 @@ export function imgSource(src: unknown): ImageSourcePropType {
   if (Platform.OS === 'web' || __DEV__ || typeof src !== 'number') return src as ImageSourcePropType;
   try {
     const asset = registry()?.getAssetByID(src) ?? null;
-    const uri = asset ? packUriForAsset(asset) : null;
+    const uri = asset ? packUriForAsset(asset) ?? remoteUriForAsset(asset) : null;
     if (uri) return { uri };
   } catch {
     /* fall through to the default source */
