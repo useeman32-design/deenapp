@@ -63,7 +63,8 @@ export function useAppFonts(gate = true): [boolean] {
      * why Arabic rendered in Roboto/Noto instead of Amiri.
      * Web and Expo Go still load the require()d files below. */
     if (Platform.OS !== 'web' && !__DEV__) {
-      setLoaded(true);
+      /* every face (incl. the FA5 glyph fonts) is embedded in the APK */
+      registerBundledFonts().finally(() => setLoaded(true));
       return;
     }
     if (!gate) return;
@@ -91,4 +92,40 @@ export function useAppFonts(gate = true): [boolean] {
   }, [gate]);
 
   return [loaded];
+}
+
+/**
+ * pass 116 — belt and braces for the embedded fonts.
+ *
+ * The expo-font config plugin puts every face in android/app/src/main/assets/
+ * fonts/, and expo-font's native queryCustomNativeFonts() lists that directory,
+ * so isLoaded() already returns true for them. This additionally asks the
+ * native loader to register each family by name with an asset:// uri, which is
+ * the same code path Font.loadAsync uses. Both routes end at
+ * Typeface.createFromAsset in FontLoaderModule.kt.
+ */
+const BUNDLED_FAMILIES = [
+  'Poppins', 'Poppins-Regular', 'Poppins-Medium', 'Poppins-SemiBold', 'Poppins-Bold',
+  'Poppins-ExtraBold', 'Amiri', 'Amiri-Bold', 'ArefRuqaa', 'ArefRuqaa-Bold', 'Sora', 'Manrope',
+  'FontAwesome5Free-Solid', 'FontAwesome5Free-Regular', 'FontAwesome5Free-Brand',
+  'FontAwesome5Free-Light', 'Ionicons', 'MaterialCommunityIcons', 'MaterialIcons',
+  'AntDesign', 'Entypo', 'EvilIcons', 'Feather', 'FontAwesome', 'Fontisto', 'Foundation',
+  'Octicons', 'SimpleLineIcons', 'Zocial',
+  'FontAwesome6_Solid', 'FontAwesome6_Regular', 'FontAwesome6_Brands',
+];
+
+export async function registerBundledFonts(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    /* deep import on purpose: this is the exact module Font.loadAsync uses */
+    const Native = require('expo-font/build/ExpoFontLoader').default;
+    if (!Native?.loadAsync) return;
+    await Promise.all(
+      BUNDLED_FAMILIES.map((fam) =>
+        Native.loadAsync(fam, 'asset:///fonts/' + fam + '.ttf').catch(() => {}),
+      ),
+    );
+  } catch {
+    /* nothing to do — the config plugin path already covers it */
+  }
 }
