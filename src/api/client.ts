@@ -1237,6 +1237,31 @@ function absMedia(u: string): string {
   }
   return API_ORIGIN.replace(/\/+$/, "") + (u.startsWith("/") ? u : `/${u}`);
 }
+/**
+ * pass 114 - one place that turns any stored media string into a fetchable url.
+ * Avatars arrive in several shapes: a bare filename ("profile_1_x.jpg"), a
+ * library path ("img/profile/male/x.jpg"), a relative upload path, an absolute
+ * url on the app domain, or an absolute url on the LEGACY deenlink.org domain
+ * (posts created before the move). deenlink.org answers /uploads and /img with
+ * its SPA shell, so those rendered as blank avatars. The app domain is where
+ * the files actually live (verified: same path -> image/jpeg here, HTML there).
+ */
+export function resolveMediaUrl(u: string): string {
+  const raw = String(u ?? "").trim();
+  if (!raw) return "";
+  if (/^(data:|blob:|file:)/i.test(raw)) return raw;
+  const origin = API_ORIGIN.replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(raw)) {
+    /* legacy host -> the checkout that actually holds the uploads */
+    return raw.replace(/^https?:\/\/(www\.)?deenlink\.org\//i, origin + "/");
+  }
+  if (raw.startsWith("/")) return origin + raw;
+  /* bare filename = a profile upload; anything with a path is served as-is */
+  return raw.includes("/")
+    ? `${origin}/${raw}`
+    : `${origin}/uploads/profile/${raw}`;
+}
+
 /* pass 83-16 — shared shape normalizer: server rows arrive with
  * {options:[{id,label,votes}], my_vote} polls, {image_url_1080} media and
  * relative audio_url; FeedCard renders {options:[{text,votes}]}, media[].url

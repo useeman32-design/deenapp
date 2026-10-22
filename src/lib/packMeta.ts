@@ -2,6 +2,6 @@
  * pass 111 — identity of the native content pack hosted on the API
  * domain. Bumping PACK_VERSION makes installed apps re-download. */
 export const PACK_URL = 'https://app.deenlink.org/native-pack/pack.zip';
-export const PACK_VERSION = 'cf6eebf44fbe06ed';
-export const PACK_BYTES = 34294373;
-export const PACK_SHA256 = 'cf6eebf44fbe06ed782db7b25e9ccf33922d8b2ceb2be5f85f53795863a906e1';
+export const PACK_VERSION = 'e023bb66664f6c52';
+export const PACK_BYTES = 19138830;
+export const PACK_SHA256 = 'e023bb66664f6c52cb3697cd5deb7fdea656070a29765d008517263e4e1af578';

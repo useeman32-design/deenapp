@@ -45,6 +45,10 @@ INCLUDE_DIRS = [
     "assets/avatars",
     "assets/shop",
     "src/fonts",
+    # pass 114 - @expo/vector-icons ships its glyph fonts as .ttf modules
+    # from node_modules; without them every FontAwesome5/Ionicons glyph
+    # renders blank in release APKs (same gradle asset problem).
+    "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
 ]
 PACK_URL = "https://app.deenlink.org/native-pack/pack.zip"
 
