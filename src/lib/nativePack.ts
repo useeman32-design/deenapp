@@ -1,48 +1,43 @@
 /**
- * pass 111 — native content pack.
+ * pass 111/112 — native content pack.
  *
  * WHY THIS EXISTS
  * ---------------
- * In EAS/gradle RELEASE builds of this app, every metro-bundled asset ends up
- * flattened under `res/` with 2–3-character obfuscated names instead of the
- * `assets/raw/…` + `assets/drawable-{dpi}/…` layout that React Native's
- * AssetSourceResolver expects next to the JS bundle. The result: in release
- * APKs every `require()`d image renders blank, expo-font faces fail, and
- * expo-asset's `localUri` points at files that do not exist — Qur'an/hadith
- * content, fonts and icons all break, while the web export (plain files on
- * disk) is unaffected. Two cloud builds (0c4d6cdc, e519fb7c) proved this
- * cannot be fixed from the JS/metro side.
+ * In EAS/gradle RELEASE builds of this app, every metro-bundled asset is
+ * flattened into `res/` with 2–3-character obfuscated names instead of the
+ * `assets/raw/…` / `assets/drawable-*…` layout that React Native's
+ * AssetSourceResolver expects next to the JS bundle. So no `require()`d image,
+ * font or data file can be read from the APK (web export is unaffected).
  *
- * So native release builds no longer rely on packaged assets at all:
+ * The app therefore downloads ONE zip on first release launch and reads every
+ * asset from disk instead:
  *
- *  1. `scripts/build-native-pack.py` zips assets/{content,img,images,avatars,
- *     shop} + src/fonts into ONE pack hosted at
- *     app.deenlink.org/native-pack/pack.zip (served out of the deenlink-api
- *     checkout — the same repo public_html runs).
- *  2. On first release launch `ensurePack()` downloads it once (~33 MB,
- *     3 retries), inflates it with fflate entry-by-entry (peak memory stays
- *     at the largest single file) and writes it under
- *     `documentDirectory/native-pack/`, then stamps a version marker.
- *     Later launches are a marker check — instant.
- *  3. `installNativeAssetPack()` registers RN's custom asset source
- *     transformer: every numeric `require()` resolves to
- *     `file://…/native-pack/<httpServerLocation>/<name>[@Nx].<type>` — the
- *     pack mirrors project-relative paths, so the mapping is direct. All 165
- *     require() sites in src/ are covered without touching them.
- *  4. fonts.ts and content.ts read their files straight from the pack.
- *  5. expo-image bypasses RN's resolver, so its call sites wrap sources with
- *     `imgSource()` (lazy — resolved at render, after the pack has landed).
+ *   scripts/build-native-pack.py → native-pack/pack.zip on the API domain
+ *   ensurePack()  → download + inflate into documentDirectory/native-pack/
+ *   installNativeAssetPack() → custom RN asset source transformer
+ *   fonts.ts / content.ts → read pack files directly
  *
- * Dev builds (__DEV__, Expo Go) and web are untouched: ensurePack resolves
- * immediately, getPackDir() stays null, and every consumer falls back to the
- * Asset.fromModule path that already works there.
+ * PASS 112 — why pass 111 still showed blank icons/readers:
+ * metro records `httpServerLocation` with a DOUBLED prefix — e.g.
+ * './assets/assets/content/quran' — while the pack stores 'assets/content/quran'.
+ * Pass 111 concatenated them literally, so every computed lookup missed (fonts
+ * worked only because that path was hardcoded). Resolution now normalizes the
+ * recorded path and validates it against the pack's REAL entry list, trying
+ * scaled variants and both prefix forms. If a file still cannot be found
+ * locally, callers can fall back to an HTTP fetch of the same file.
+ *
+ * Web, Expo Go and __DEV__ builds behave exactly as before.
  */
 import { Platform, PixelRatio, type ImageSourcePropType } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 import { unzip, strFromU8 } from 'fflate';
 import { PACK_URL, PACK_VERSION, PACK_BYTES } from './packMeta';
 
+/** Base URL the pack is served from, with a trailing slash. */
+export const PACK_BASE_URL = PACK_URL.replace(/\/[^/]*$/, '/');
+
 let packDir: string | null = null;
+let packEntries: Set<string> | null = null;
 let ensurePromise: Promise<boolean> | null = null;
 
 /** Absolute file:// dir (trailing slash) of the unpacked pack, or null. */
@@ -53,12 +48,13 @@ export function getPackDir(): string | null {
 function packRoot(): Directory {
   return new Directory(Paths.document, 'native-pack');
 }
-
 function markerFile(): File {
   return new File(Paths.document, 'native-pack.version');
 }
+function entriesFile(): File {
+  return new File(Paths.document, 'native-pack.entries.json');
+}
 
-/** Extensions written as raw bytes; everything else is written as UTF-8 text. */
 const BINARY_EXT = new Set([
   'png', 'jpg', 'jpeg', 'webp', 'gif', 'ttf', 'otf', 'gz', 'zip',
   'mp3', 'mp4', 'wav', 'm4a', 'ico',
@@ -72,13 +68,13 @@ async function unpackOnce(): Promise<void> {
     await File.downloadFileAsync(PACK_URL, tmp);
     const zipBytes = await tmp.bytes();
     if (zipBytes.length < 1024) throw new Error('pack: download too small');
-    /* fflate's async unzip inflates entry-by-entry — peak memory stays at the
-     * largest single file (~1–2MB) instead of the whole 40MB tree. */
     const files = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
       unzip(zipBytes, (err, data) => (err ? reject(err) : resolve(data)));
     });
     const names = Object.keys(files);
     if (names.length < 50) throw new Error(`pack: only ${names.length} entries`);
+
+    const written: string[] = [];
     for (const rel of names) {
       if (rel.endsWith('/')) continue;
       const segs = rel.split('/');
@@ -89,11 +85,21 @@ async function unpackOnce(): Promise<void> {
       if (!f.exists) f.create();
       const ext = (fname.split('.').pop() ?? '').toLowerCase();
       f.write(BINARY_EXT.has(ext) ? files[rel] : strFromU8(files[rel]));
+      written.push(rel);
       delete files[rel]; // let GC reclaim as we go
     }
+
+    /* Record the real entry list: asset resolution validates candidates
+     * against it instead of trusting metro's httpServerLocation blindly. */
+    const ef = entriesFile();
+    if (!ef.exists) ef.create();
+    ef.write(JSON.stringify(written));
+
     const m = markerFile();
     if (!m.exists) m.create();
     m.write(PACK_VERSION);
+
+    packEntries = new Set(written);
     packDir = root.uri.endsWith('/') ? root.uri : root.uri + '/';
   } finally {
     try {
@@ -105,10 +111,9 @@ async function unpackOnce(): Promise<void> {
 }
 
 /**
- * Ensure the pack is on disk. Resolves true when usable; false only when all
- * three retries failed (the app still boots — text degrades and images stay
- * blank, exactly like the broken builds, but nothing crashes). Concurrent
- * callers share one promise. No-op on web/dev.
+ * Ensure the pack is on disk. Resolves true when usable; false when all three
+ * retries failed (the app still boots and content falls back to HTTP). Safe to
+ * call repeatedly; concurrent callers share one promise. No-op on web/dev.
  */
 export function ensurePack(): Promise<boolean> {
   if (Platform.OS === 'web' || __DEV__) return Promise.resolve(true);
@@ -120,6 +125,12 @@ export function ensurePack(): Promise<boolean> {
       if (m.exists && (await m.text()).trim() === PACK_VERSION) {
         const root = packRoot();
         packDir = root.uri.endsWith('/') ? root.uri : root.uri + '/';
+        try {
+          const ef = entriesFile();
+          if (ef.exists) packEntries = new Set(JSON.parse(await ef.text()) as string[]);
+        } catch {
+          packEntries = null;
+        }
         return true;
       }
     } catch {
@@ -156,8 +167,66 @@ function pickScale(scales: number[], deviceScale: number): number {
   return sorted[sorted.length - 1];
 }
 
+/**
+ * pass 112 — metro records e.g. './assets/assets/content/quran' while the pack
+ * stores 'assets/content/quran'. Collapse the duplicate segment and drop the
+ * leading './' so both forms agree.
+ */
+function normalizeRel(p: string): string {
+  let s = p.replace(/^\.\//, '').replace(/\\/g, '/').replace(/^\/+/, '');
+  while (s.startsWith('assets/assets/')) s = 'assets/' + s.slice('assets/assets/'.length);
+  return s.replace(/\/+$/, '');
+}
+
+/** Candidate pack-relative paths for an asset, best first. */
+function relCandidates(asset: PackagerAsset): string[] {
+  if (!asset.httpServerLocation || !asset.name || !asset.type) return [];
+  const bases = new Set<string>();
+  const norm = normalizeRel(asset.httpServerLocation);
+  bases.add(norm);
+  /* tolerate a missing or extra leading 'assets/' */
+  if (norm.startsWith('assets/')) bases.add(norm.slice('assets/'.length));
+  else bases.add('assets/' + norm);
+
+  const scales = asset.scales ?? [1];
+  const deviceScale = PixelRatio.get();
+  const order = [pickScale(scales, deviceScale), 1, ...scales].filter(
+    (v, i, a) => a.indexOf(v) === i,
+  );
+
+  const out: string[] = [];
+  for (const base of bases) {
+    for (const sc of order) {
+      const suffix = sc === 1 ? '' : '@' + sc + 'x';
+      out.push(base + '/' + asset.name + suffix + '.' + asset.type);
+    }
+  }
+  return out;
+}
+
+/** Resolve an asset record to a real path inside the pack, or null. */
+export function resolveAssetRel(asset: PackagerAsset): string | null {
+  const cands = relCandidates(asset);
+  if (!cands.length) return null;
+  if (packEntries) {
+    for (const c of cands) if (packEntries.has(c)) return c;
+    return null;
+  }
+  /* no manifest (dev/web or a corrupt marker) — trust the normalized first form */
+  return cands[0];
+}
+
 /* eslint-disable @typescript-eslint/no-var-requires */
-function resolverModule(): { default: (mod: number) => unknown; setCustomSourceTransformer?: (fn: (r: unknown) => unknown) => void } | null {
+function registry(): { getAssetByID: (id: number) => PackagerAsset | null } | null {
+  try {
+    return require('react-native/Libraries/Image/AssetRegistry');
+  } catch {
+    return null;
+  }
+}
+function resolverModule(): {
+  default?: { setCustomSourceTransformer?: (fn: (r: never) => unknown) => void };
+} | null {
   try {
     return require('react-native/Libraries/Image/resolveAssetSource');
   } catch {
@@ -166,14 +235,11 @@ function resolverModule(): { default: (mod: number) => unknown; setCustomSourceT
 }
 /* eslint-enable @typescript-eslint/no-var-requires */
 
-/** Map a registered asset onto its file inside the pack, or null. */
+/** Absolute file:// URI for an asset record, or null. */
 export function packUriForAsset(asset: PackagerAsset): string | null {
-  if (!packDir || !asset.httpServerLocation || !asset.name || !asset.type) return null;
-  const scale = pickScale(asset.scales ?? [1], PixelRatio.get());
-  const suffix = scale === 1 ? '' : '@' + scale + 'x';
-  const base = asset.httpServerLocation.replace(/^\.\//, '');
-  /* packDir already carries the file:// scheme + trailing slash (Directory.uri) */
-  return packDir + base + '/' + asset.name + suffix + '.' + asset.type;
+  if (!packDir) return null;
+  const rel = resolveAssetRel(asset);
+  return rel ? packDir + rel : null;
 }
 
 /**
@@ -184,10 +250,7 @@ export function packUriForAsset(asset: PackagerAsset): string | null {
  */
 export function installNativeAssetPack(): void {
   if (Platform.OS === 'web' || __DEV__) return;
-  const m = resolverModule() as unknown as {
-    default?: { setCustomSourceTransformer?: (fn: (r: never) => unknown) => void };
-  } | null;
-  const set = m?.default?.setCustomSourceTransformer;
+  const set = resolverModule()?.default?.setCustomSourceTransformer;
   if (!set) return;
   set(((resolver: { asset: PackagerAsset; defaultAsset: () => unknown }) => {
     const uri = packUriForAsset(resolver.asset);
@@ -203,31 +266,42 @@ export function installNativeAssetPack(): void {
   }) as never);
 }
 
-/**
- * Resolve a require()'d asset module id to its pack file URI, or null when
- * the pack is unavailable (web/dev/not-yet-downloaded). Used by content.ts
- * for the txt/gz datasets.
- */
+/** Local file URI for a `require()`d data file, or null when unavailable. */
 export function resolvePackModule(mod: number): string | null {
   if (Platform.OS === 'web' || __DEV__ || !packDir) return null;
-  const m = resolverModule() as unknown as { default?: (id: number) => { uri?: string } | null } | null;
-  try {
-    const r = m?.default?.(mod);
-    return r?.uri?.startsWith('file://') ? r.uri : null;
-  } catch {
-    return null;
-  }
+  const asset = registry()?.getAssetByID(mod) ?? null;
+  return asset ? packUriForAsset(asset) : null;
 }
 
 /**
- * expo-image does not go through resolveAssetSource for numeric requires, so
- * its call sites wrap sources with this AT RENDER time (not module scope —
- * the pack may not be on disk yet when modules import):
- *   source={imgSource(isDark ? patternDark : patternLight)}
- * Non-numeric sources (remote uri strings/objects) pass through untouched.
+ * HTTP fallback for a `require()`d data file: same path the pack would use,
+ * served from the API domain. Lets the Qur'an/hadith readers work even when
+ * the pack download failed (text files are small; fetched on demand).
+ */
+export function resolvePackRemote(mod: number): string | null {
+  if (Platform.OS === 'web' || __DEV__) return null;
+  const asset = registry()?.getAssetByID(mod) ?? null;
+  if (!asset) return null;
+  const cands = relCandidates(asset);
+  if (!cands.length) return null;
+  const rel = packEntries ? resolveAssetRel(asset) : cands[0];
+  return rel ? PACK_BASE_URL + rel : null;
+}
+
+/**
+ * expo-image bypasses RN's resolver for numeric requires, so its call sites
+ * wrap sources with this AT RENDER time (not module scope — the pack may not
+ * be on disk yet when modules import). Non-numeric sources pass through.
  */
 export function imgSource(src: unknown): ImageSourcePropType {
   if (Platform.OS === 'web' || __DEV__ || typeof src !== 'number') return src as ImageSourcePropType;
+  try {
+    const asset = registry()?.getAssetByID(src) ?? null;
+    const uri = asset ? packUriForAsset(asset) : null;
+    if (uri) return { uri };
+  } catch {
+    /* fall through to the default source */
+  }
   const m = resolverModule() as unknown as { default?: (id: number) => { uri?: string } | null } | null;
   try {
     const resolved = m?.default?.(src);

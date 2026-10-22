@@ -2,7 +2,7 @@ import { Asset } from 'expo-asset';
 import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { utf8Decode, gunzipBytes } from '@/lib/gzio';
-import { resolvePackModule } from '@/lib/nativePack';
+import { resolvePackModule, resolvePackRemote } from '@/lib/nativePack';
 
 /**
  * Lazy content loader (pass 18) — reads the user's own datasets from
@@ -191,16 +191,36 @@ async function loadJSON<T>(key: string): Promise<T> {
     /* pass 111 — RELEASE APKs cannot read the gradle-mangled bundled assets
      * (flattened+obfuscated under res/), so prefer the on-disk content pack
      * (see nativePack.ts). Expo Go/dev keeps the expo-asset path below. */
-    let bytes: Uint8Array;
+    let bytes: Uint8Array | null = null;
+    /* 1) the on-disk content pack (normal path for release APKs) */
     const packUri = resolvePackModule(mod);
     if (packUri) {
-      bytes = await new File(packUri).bytes();
-    } else {
+      try {
+        bytes = await new File(packUri).bytes();
+      } catch {
+        bytes = null;
+      }
+    }
+    /* 2) pass 112 — HTTP fallback: the same file served from the API domain.
+     * Keeps the Qur'an/hadith readers alive when the pack is missing or partial. */
+    if (!bytes) {
+      const remote = resolvePackRemote(mod);
+      if (remote) {
+        try {
+          const r = await fetch(remote);
+          if (r.ok) bytes = new Uint8Array(await r.arrayBuffer());
+        } catch {
+          bytes = null;
+        }
+      }
+    /* 3) last resort: whatever gradle packaged (works in Expo Go/dev) */
+    if (!bytes) {
       const a = Asset.fromModule(mod);
       await a.downloadAsync().catch(() => {});
       const local = (a as unknown as { localUri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
       const buf = await new File(local.replace(/^file:\/\//, '')).arrayBuffer();
       bytes = new Uint8Array(buf);
+    }
     }
     text = utf8Decode(key.startsWith('hadith/') ? gunzipBytes(bytes) : bytes);
   } else {
