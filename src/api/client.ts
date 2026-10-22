@@ -1221,8 +1221,20 @@ function absMedia(u: string): string {
     u.startsWith("data:") ||
     u.startsWith("blob:") ||
     u.startsWith("file:")
-  )
-    return u;
+  ) {
+    /* pass 112 - posts created before the move to app.deenlink.org stored
+     * ABSOLUTE urls on the legacy deenlink.org docroot. That is a different,
+     * older checkout: it does not carry the newer uploads, so it answers those
+     * paths with its SPA shell (HTML) and the image renders blank. Verified
+     * live: the same path returns a real image from app.deenlink.org and HTML
+     * from deenlink.org. Point legacy absolute urls at the app origin, where
+     * the files actually live. Files the app origin is missing are still
+     * covered by the server-side /uploads -> deenlink.org redirect. */
+    return u.replace(
+      /^https?:\/\/(www\.)?deenlink\.org\//i,
+      API_ORIGIN.replace(/\/+$/, "") + "/",
+    );
+  }
   return API_ORIGIN.replace(/\/+$/, "") + (u.startsWith("/") ? u : `/${u}`);
 }
 /* pass 83-16 — shared shape normalizer: server rows arrive with
