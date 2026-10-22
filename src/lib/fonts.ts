@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Font from 'expo-font';
+import { Platform } from 'react-native';
 import { getPackDir } from './nativePack';
 
 /**
@@ -52,13 +53,22 @@ export function useAppFonts(gate = true): [boolean] {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!gate) return; /* pass 111 — wait for the native pack before loading faces */
+    /* pass 115 — RELEASE NATIVE: every face is embedded at build time by the
+     * expo-font config plugin (fonts/ -> android/app/src/main/assets/fonts/).
+     * Android resolves fontFamily="Amiri" straight from that directory, and
+     * expo-font's isLoaded() reports bundled fonts as loaded, so there is
+     * nothing to fetch and nothing that can fail at runtime. The previous
+     * approach (download a content pack, then loadAsync from disk) failed
+     * silently on device: every face fell back to the system font, which is
+     * why Arabic rendered in Roboto/Noto instead of Amiri.
+     * Web and Expo Go still load the require()d files below. */
+    if (Platform.OS !== 'web' && !__DEV__) {
+      setLoaded(true);
+      return;
+    }
+    if (!gate) return;
     let alive = true;
     (async () => {
-      /* pass 111 — release native: the packaged ttf assets are unreadable
-       * (gradle mangles them), so load each face straight from the unpacked
-       * pack on disk. Web/dev keep the require()d resources. getPackDir()
-       * already carries the file:// scheme + trailing slash. */
       const pdir = getPackDir();
       await Promise.all(
         Object.entries(FACES).map(async ([name, resource]) => {
@@ -69,11 +79,10 @@ export function useAppFonts(gate = true): [boolean] {
               await Font.loadAsync(name, resource);
             }
           } catch {
-            /* this face is unusable on this device — fall back to system font */
+            /* this face is unusable here — fall back to system font */
           }
         }),
       );
-      /* Always resolve: never let a font problem hold boot hostage. */
       if (alive) setLoaded(true);
     })();
     return () => {

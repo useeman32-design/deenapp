@@ -74,7 +74,45 @@
         }
       ],
       "./plugins/withAdhanFullScreen",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./fonts/Amiri-Bold.ttf",
+            "./fonts/Amiri.ttf",
+            "./fonts/AntDesign.ttf",
+            "./fonts/ArefRuqaa-Bold.ttf",
+            "./fonts/ArefRuqaa.ttf",
+            "./fonts/Entypo.ttf",
+            "./fonts/EvilIcons.ttf",
+            "./fonts/Feather.ttf",
+            "./fonts/FontAwesome.ttf",
+            "./fonts/FontAwesome5_Brands.ttf",
+            "./fonts/FontAwesome5_Regular.ttf",
+            "./fonts/FontAwesome5_Solid.ttf",
+            "./fonts/FontAwesome6_Brands.ttf",
+            "./fonts/FontAwesome6_Regular.ttf",
+            "./fonts/FontAwesome6_Solid.ttf",
+            "./fonts/Fontisto.ttf",
+            "./fonts/Foundation.ttf",
+            "./fonts/Ionicons.ttf",
+            "./fonts/Manrope.ttf",
+            "./fonts/MaterialCommunityIcons.ttf",
+            "./fonts/MaterialIcons.ttf",
+            "./fonts/Octicons.ttf",
+            "./fonts/Poppins-Bold.ttf",
+            "./fonts/Poppins-ExtraBold.ttf",
+            "./fonts/Poppins-Medium.ttf",
+            "./fonts/Poppins-Regular.ttf",
+            "./fonts/Poppins-SemiBold.ttf",
+            "./fonts/Poppins.ttf",
+            "./fonts/SimpleLineIcons.ttf",
+            "./fonts/Sora.ttf",
+            "./fonts/Zocial.ttf"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
