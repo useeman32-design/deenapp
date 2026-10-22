@@ -41,7 +41,7 @@ import {
 import { savedStore, useSavedTick } from "@/lib/savedPosts";
 import { ContentShareSheet } from "@/components/ContentShareSheet";
 import { DefaultAvatar } from "@/components/AvatarPicker";
-import { API_ORIGIN } from "@/api/client";
+import { resolveMediaUrl } from "@/api/client";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { claimMedia, releaseMedia, useMediaHolds } from "@/lib/mediaBus";
@@ -174,16 +174,17 @@ export function AvatarImage({
     str0 === "" ||
     str0 === "default_profile.jpg" ||
     str0.endsWith("/img/default_profile.jpg");
+  /* pass 114 - ONE normalizer for every shape a stored avatar can take:
+   * bare filename, library path ("img/profile/male/x.jpg"), relative upload,
+   * app-domain url, or a legacy absolute deenlink.org url (posts from before
+   * the move). deenlink.org answers /img and /uploads with its SPA shell, so
+   * those rendered as blank avatars on post cards. */
   const uri =
     typeof source === "number"
       ? null
       : !str0 || isDefaultName
         ? null
-        : str0.startsWith("http") || str0.startsWith("data:")
-          ? str0
-          : str0.includes("/")
-            ? str0
-            : `${API_ORIGIN}/uploads/profile/${str0}`;
+        : resolveMediaUrl(str0) || null;
   return (
     <View
       style={{
