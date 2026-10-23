@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { isLive, quranReciters } from '@/api/client';
 import type { ServerReciter } from '@/api/client';
 import { netBus } from '@/lib/net';
