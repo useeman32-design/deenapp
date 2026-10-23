@@ -83,8 +83,14 @@ export function YouTubePlayer({
                * embed playback for unknown origins. baseUrl gives the WebView a real
                * https origin, so the iframe is allowed to play. */
               source={{ html, baseUrl: 'https://deenlink.org' }}
-              style={{ width: '100%', height, borderRadius, backgroundColor: '#000' }}
-              containerStyle={{ overflow: 'hidden', borderRadius }}
+              /* pass 117 — device report: audio played, picture stayed black. Two Android
+               * causes: a clipped/rounded container stops the WebView video layer from
+               * compositing, and the view needs a hardware layer. No borderRadius here. */
+              style={{ width: '100%', height, backgroundColor: '#000' }}
+              containerStyle={{ backgroundColor: '#000' }}
+              androidLayerType="hardware"
+              renderToHardwareTextureAndroid
+              allowsFullscreenVideo
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
               javaScriptEnabled
@@ -99,7 +105,7 @@ export function YouTubePlayer({
     );
 
   return (
-    <View ref={hostRef as never} style={{ width: '100%', height, backgroundColor: '#000', borderRadius, overflow: 'hidden' }}>
+    <View ref={hostRef as never} style={{ width: '100%', height, backgroundColor: '#000', borderRadius, overflow: 'hidden' }} renderToHardwareTextureAndroid>
       {allowed ? (
         frame
       ) : (

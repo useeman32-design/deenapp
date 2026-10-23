@@ -63,9 +63,17 @@ function webOrigin(): string {
 const ORIGIN = webOrigin();
 const IS_APP_DOMAIN = /^https?:\/\/app\.deenlink\.org$/.test(ORIGIN);
 
+/* pass 117 — HARD GUARD: a stale .env shipped EXPO_PUBLIC_API_URL=https://deenlink.org
+ * (the LEGACY checkout) into every native build, so the app read the OLD database:
+ * old posts, old videos, old daily picks. Whatever the environment says, a native
+ * build always talks to app.deenlink.org. */
+const ENV_BASE = String(process.env.EXPO_PUBLIC_API_URL ?? "").replace(
+  /^https?:\/\/(www\.)?deenlink\.org\/?$/i,
+  "https://app.deenlink.org",
+);
 export const BASE = IS_APP_DOMAIN
   ? ORIGIN
-  : ((process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
+  : ((ENV_BASE as string | undefined) ??
     /*
      * PASS 104 — the fallback used to be https://deenlink.org, which the owner
      * confirms is the OLD API checkout. The two hosts are measurably different

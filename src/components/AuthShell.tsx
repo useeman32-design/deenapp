@@ -59,6 +59,10 @@ export function AuthShell({ children }: { children: ReactNode }) {
                 marginHorizontal: 18,
                 marginTop: 18,
                 borderRadius: 26,
+                /* pass 117 — Android paints an elevation background as a RECTANGLE behind
+                 * rounded corners, so the card looked like it did not fill its radius.
+                 * Clip the children and drop the elevation. */
+                overflow: 'hidden',
                 borderWidth: 1,
                 borderColor: isDark ? 'rgba(74,227,143,0.24)' : 'rgba(29,111,66,0.2)',
                 backgroundColor: isDark ? 'rgba(6,22,14,0.55)' : 'rgba(255,255,255,0.55)',
@@ -69,7 +73,6 @@ export function AuthShell({ children }: { children: ReactNode }) {
                 shadowOpacity: 0.22,
                 shadowRadius: 24,
                 shadowOffset: { width: 0, height: 10 },
-                elevation: 8,
               },
               /* frosted glass — RNW forwards web-only props to the DOM */
               {

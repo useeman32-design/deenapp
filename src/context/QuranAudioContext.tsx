@@ -309,7 +309,10 @@ export function QuranAudioProvider({ children }: { children: React.ReactNode }) 
         if (netOn) { netBus.slow(false); netOn = false; }
         return;
       }
-      if (probeAdvancing(src)) {
+      /* pass 117 — probeAdvancing() is a WEB-ONLY helper (it reads a DOM <video>);
+       * on native it always returned false, so a playing ayah kept the spinner up
+       * forever. Native reads the real expo-video player state instead. */
+      if (probeAdvancing(src) || (Platform.OS !== 'web' && player.playing)) {
         setLoading(false);
         setPlaying(true);
         if (netOn) { netBus.slow(false); netOn = false; }

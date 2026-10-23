@@ -15,6 +15,7 @@ import { NotifyBanner } from '@/components/NotifyBanner';
 import { GoogleCompleteModal } from '@/components/GoogleComplete';
 import { useNotifyWatch } from '@/lib/notifyCenter';
 import { SplashGate } from '@/components/SplashGate';
+import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { CrashBoundary } from '@/components/CrashBoundary';
 import { GlobalConfirmDialog } from '@/components/ConfirmDialog';
 import { SuspensionNotice } from '@/components/SuspensionNotice';
@@ -208,6 +209,7 @@ useEffect(() => {
 
   return (
     <SplashGate ready={bootOk}>
+      <MaintenanceGate>
       <QuranAudioProvider>
       <Stack screenOptions={{ headerShown: false }}>
         {/* TikTok-style reels feed — opens over everything, swipe up/down */}
@@ -222,6 +224,7 @@ useEffect(() => {
           Global so any screen can open it and every screen sees the result. */}
       <LocationModalHost />
       </QuranAudioProvider>
+      </MaintenanceGate>
     </SplashGate>
   );
 }
