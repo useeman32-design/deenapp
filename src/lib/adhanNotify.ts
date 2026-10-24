@@ -49,11 +49,21 @@ export const ADHAN_CHANNEL_BY_VOICE: Record<'v1' | 'v2' | 'v3', string> = {
   v2: 'adhan-v2',
   v3: 'adhan-v3',
 };
-/** res/raw file names produced by the plugin's sounds[] for the three voices. */
+/**
+ * The channel sound is an Android RESOURCE NAME, not a file name.
+ *
+ * The plugin copies public/adhan/adhan1.mp3 to android/app/src/main/res/raw/
+ * adhan1.mp3 (expo-notifications/plugin/build/withNotificationsAndroid.js:
+ * writeNotificationSoundFile), and aapt then exposes it as R.raw.adhan1 — extension
+ * stripped. Passing 'adhan1.mp3' would look up a resource that does not exist.
+ * This is the same failure mode as the icon fonts in pass 116 (expo-font derives the
+ * family from the filename minus extension): an identifier the platform computes from
+ * a file name has to be written the way the platform computes it.
+ */
 const ADHAN_SOUND_BY_VOICE: Record<'v1' | 'v2' | 'v3', string> = {
-  v1: 'adhan1.mp3',
-  v2: 'adhan2.mp3',
-  v3: 'adhan3.mp3',
+  v1: 'adhan1',
+  v2: 'adhan2',
+  v3: 'adhan3',
 };
 const CHANNEL = ADHAN_CHANNEL;
 const SCHED_KEY = 'dl.adhan.sched.v1';
