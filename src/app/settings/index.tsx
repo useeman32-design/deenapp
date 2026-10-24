@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { goBack } from '@/lib/navigation';
-import { Image, Linking, Modal, Pressable, ScrollView, Share, Switch, View } from 'react-native';
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, Share, Switch, View } from 'react-native';
 import { Alert } from '../../lib/alert';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -13,7 +13,10 @@ import { storage } from '@/lib/storage';
 import { DeenPointsBuyModal , formatDP} from '@/components/DeenPoints';
 import { buyPremium } from '@/lib/flutterwave';
 import { canBuyDigital, COMING_SOON_TITLE, PREMIUM_COMING_SOON } from '@/lib/purchasePolicy';
-import { groupPrivacy, isLive, quotePremium, setGroupPrivacy, type PremiumQuote } from '@/api/client';
+import { groupPrivacy, isLive, quotePremium, sendTestPush, setGroupPrivacy, type PremiumQuote } from '@/api/client';
+import { pushStatus, refreshPushStatus, requestPushPermission } from '@/lib/push';
+import { loadPrayerSettings, savePrayerSettings } from '@/lib/prayer';
+import { disableAdhanSchedule, scheduleAdhanTest, syncAdhanSchedule } from '@/lib/adhanNotify';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { PRIVACY_URL, TERMS_URL, openLegalDoc } from '@/lib/legal';
@@ -103,12 +106,27 @@ function SettingsScreenInner() {
   };
   const [dpOpen, setDpOpen] = useState(false);
   const [notif, setNotif] = useState({ prayer: true, community: true, ai: false });
+  /* pass 119 — what this device can actually do, read from the real modules
+   * instead of asserted in a caption. */
+  const [pstat, setPstat] = useState<ReturnType<typeof pushStatus>>(pushStatus());
+  const [pushBusy, setPushBusy] = useState<string | null>(null);
   const [priv, setPriv] = useState({ dm: true, showOnline: true, personalized: true, allowGroupAdd: true });
   const [signOutOpen, setSignOutOpen] = useState(false);
   /* pass 104 — Google Play requires in-app account deletion, not just sign-out. */
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const persist = (key: string, val: unknown) => { storage.setItem(key, JSON.stringify(val)).catch(() => {}); };
+  /* pass 119 — the Notifications sheet used to be three toggles that wrote to
+   * localStorage and drove nothing. Opening it now (a) reads the real permission
+   * + token state, and (b) syncs the "Prayer reminders" switch with
+   * settings.adhan, which is the flag the prayer screen and the adhan scheduler
+   * actually read. */
+  useEffect(() => {
+    if (sheet !== 'notif') return;
+    void refreshPushStatus().then(setPstat).catch(() => {});
+    void loadPrayerSettings().then((s) => setNotif((n) => ({ ...n, prayer: !!s.adhan }))).catch(() => {});
+  }, [sheet]);
+
   useEffect(() => { if (sheet === 'privacy' && isLive()) { groupPrivacy().then((v) => { if (v != null) setPriv((p) => ({ ...p, allowGroupAdd: v })); }).catch(() => {}); } }, [sheet]);
 
   const shareApp = async () => {
@@ -276,12 +294,32 @@ function SettingsScreenInner() {
         <View style={{ flex: 1, backgroundColor: 'rgba(3,7,5,0.55)', justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setSheet(null)} />
           <Sheet title="Notifications">
-            <SettingToggleRow label="Prayer reminders" desc="Adhan & next-prayer alerts" on={notif.prayer} onChange={(v) => { const nx = { ...notif, prayer: v }; setNotif(nx); persist('dl.notif', nx); }} />
-            <Divider />
-            <SettingToggleRow label="Community alerts" desc="Replies, mentions & follows" on={notif.community} onChange={(v) => { const nx = { ...notif, community: v }; setNotif(nx); persist('dl.notif', nx); }} />
-            <Divider />
-            <SettingToggleRow label="DeenLink AI tips" desc="Occasional AI feature updates" on={notif.ai} onChange={(v) => { const nx = { ...notif, ai: v }; setNotif(nx); persist('dl.notif', nx); }} />
-            <T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 12, lineHeight: 14 }}>Prayer alerts play in-app when a prayer time enters. Background notifications arrive with the DeenLink mobile build.</T>
+                          <SettingToggleRow label="Prayer reminders" desc="Adhan & next-prayer alerts, with the app closed" on={notif.prayer} onChange={(v) => {
+const nx = { ...notif, prayer: v }; setNotif(nx); persist('dl.notif', nx);
+/* pass 119 — this used to only write localStorage. It now flips the
+ * flag the prayer screen reads, and rebuilds/cancels the device's
+ * scheduled adhan alarms immediately. */
+void loadPrayerSettings().then((s) => { const next = { ...s, adhan: v }; return savePrayerSettings(next).then(() => (v ? syncAdhanSchedule(next) : disableAdhanSchedule())); }).catch(() => {});
+if (v) void requestPushPermission().then(() => refreshPushStatus().then(setPstat).catch(() => {}));
+}} />
+<Divider />
+<SettingToggleRow label="Community alerts" desc="Replies, mentions & follows — shown in-app" on={notif.community} onChange={(v) => { const nx = { ...notif, community: v }; setNotif(nx); persist('dl.notif', nx); }} />
+<Divider />
+<SettingToggleRow label="DeenLink AI tips" desc="Occasional AI feature updates" on={notif.ai} onChange={(v) => { const nx = { ...notif, ai: v }; setNotif(nx); persist('dl.notif', nx); }} />
+<Divider />
+<Row icon={pstat.permission === 'granted' ? 'bell' : 'bell-slash'} label="System permission" desc={pstat.permission === 'granted' ? `Granted${pstat.token ? ' · device registered' : ' · device not registered yet'}` : 'Not granted — Android and iOS will show nothing'} tint={pstat.permission === 'granted' ? '#1D6F42' : '#FF7B7B'} onPress={() => { if (pstat.permission !== 'granted') { void requestPushPermission().then(() => refreshPushStatus().then(setPstat).catch(() => {})); } else { void Linking.openSettings().catch(() => {}); } }} />
+<Divider />
+<Row icon="paper-plane" label={pushBusy === 'test' ? 'Sending…' : 'Send a test notification'} desc="Proves the whole chain on this device: token, credentials, delivery" tint="#E8C96A" onPress={() => { haptic.medium(); setPushBusy('test'); void sendTestPush().then((r) => { setPushBusy(null); Alert.alert(r.ok ? 'Sent' : 'Not sent', r.ok ? 'If nothing appeared, open the app — the notification is in your bell either way.' : r.message); }).catch(() => { setPushBusy(null); Alert.alert('Not sent', 'The request to the server failed.'); }); }} />
+<Divider />
+<Row icon="volume-up" label={pushBusy === 'adhan' ? 'Firing…' : 'Test the adhan alert'} desc="Rings a real prayer-time alert in about 5 seconds — lock the screen to see it there" tint="#FF7B7B" onPress={() => { haptic.medium(); setPushBusy('adhan'); void scheduleAdhanTest(5).then((ok) => { setPushBusy(null); if (!ok) Alert.alert('Could not schedule', 'Notifications are unavailable in this build.'); }).catch(() => { setPushBusy(null); }); }} />
+{Platform.OS === 'android' ? (<><Divider /><Row icon="clock" label="Exact alarms" desc="Without it Android may delay a prayer alarm by minutes" tint="#4AE38F" onPress={() => { void Linking.sendIntent('android.settings.SCHEDULE_EXACT_ALARM_PERMISSIONS_SETTINGS').catch(() => Linking.openSettings()); }} /><Divider /><Row icon="battery-half" label="Battery optimisation" desc="Allow DeenLink to run unmetered so alarms survive Doze" tint="#4AE38F" onPress={() => { void Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS').catch(() => Linking.openSettings()); }} /></>) : null}
+<T v="caption" style={{ fontSize: 9.5, color: d.faint, marginTop: 12, lineHeight: 14 }}>
+{pstat.delivery === 'push+in-app'
+? 'Prayer alerts are scheduled on this device and ring with the app closed. Replies, likes and messages arrive as a banner while DeenLink is open, and as a push when it is closed.'
+: pstat.delivery === 'in-app only'
+? 'Prayer alerts are scheduled on this device and ring with the app closed. Replies, likes and messages arrive as a banner the moment the app is foregrounded. Push while the app is closed needs Firebase (google-services.json) in the build' + (pstat.error ? ` — last attempt: ${pstat.error}` : ' — not present in this build yet') + '.'
+: 'Notifications are switched off at the system level, so nothing will appear. Tap System permission above to allow them.'}
+</T>
           </Sheet>
         </View>
       </Modal>

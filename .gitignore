@@ -62,3 +62,7 @@ dist-app/
 # EAS needs it on disk but it must NEVER be committed (17 MB, pass 76)
 assets/content.zip
 dist-root/
+
+# pass 119 — Firebase Android config: a build INPUT, dropped in locally or via an EAS file
+# env var; never committed (it pins the FCM sender id to this project).
+google-services.json

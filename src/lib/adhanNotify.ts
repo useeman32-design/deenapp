@@ -144,7 +144,7 @@ export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Prom
               title: `${name} — it's time 🕌`,
               body: `The time for ${name} has entered. ${loc.name ? `(${loc.name}) ` : ''}Tap to respond.`,
               sound: 'default',
-              data: { type: 'adhan', prayer: name, adhanVoice: 'v1' },
+                              data: { type: 'adhan', prayer: name, adhanVoice: settings.adhanVoice ?? 'v1' },
             },
             trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId: CHANNEL },
           });

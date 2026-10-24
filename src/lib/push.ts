@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { registerPushToken, registerWebPushSubscription, webPushPublicKey } from '@/api/client';
+import Constants from 'expo-constants';
+import { storage } from '@/lib/storage';
 
 /**
  * pass 51 — Expo mobile push, FULLY ISOLATED.
@@ -14,6 +16,111 @@ import { registerPushToken, registerWebPushSubscription, webPushPublicKey } from
  *   · lazily imported INSIDE a try/catch (nothing runs at import time), and
  *   · best-effort: failures are swallowed, the app keeps running.
  */
+
+const TOKEN_KEY = 'dl.push.token.v1';
+const REGISTERED_KEY = 'dl.push.registered.v1';
+const ERROR_KEY = 'dl.push.error.v1';
+
+/**
+ * pass 119 — an HONEST status surface, because "the app never notifies me" was
+ * undiagnosable: every notification call is wrapped in a catch that swallows the
+ * reason, and the reason (no Firebase google-services.json in the build) was
+ * therefore invisible. `pushStatus()` exposes it to Settings → Notifications,
+ * which now states what is and is not delivered and lets the user prove the chain
+ * with a real test push.
+ */
+export type PushStatus = {
+  /** android: google-services.json was present at build time · ios: n/a (APNs) */
+  fcmConfigured: boolean;
+  /** the OS-level permission for notifications */
+  permission: 'granted' | 'denied' | 'undetermined' | 'unsupported' | string;
+  token: string | null;
+  /** the server accepted a token for this device for the signed-in user */
+  registered: boolean;
+  /** why the last registration failed, if it did */
+  error: string | null;
+  /** what the user can actually expect right now */
+  delivery: 'push+in-app' | 'in-app only' | 'none';
+};
+
+let lastError: string | null = null;
+let lastStatus: PushStatus = {
+  fcmConfigured: false,
+  permission: 'undetermined',
+  token: null,
+  registered: false,
+  error: null,
+  delivery: 'in-app only',
+};
+
+export function pushStatus(): PushStatus {
+  return { ...lastStatus };
+}
+
+/** Re-read permission + stored token/error. Cheap; safe to call on every open. */
+export async function refreshPushStatus(): Promise<PushStatus> {
+  const cfg = (Constants.default.expoConfig ?? {}) as {
+    android?: { googleServicesFile?: string };
+    extra?: { push?: { fcmConfigured?: boolean } };
+  };
+  const fcmConfigured =
+    Platform.OS === 'ios' || Platform.OS === 'web'
+      ? Platform.OS !== 'web'
+      : Boolean(cfg.android?.googleServicesFile || cfg.extra?.push?.fcmConfigured);
+  let permission: string = 'unsupported';
+  if (Platform.OS !== 'web') {
+    try {
+      const Notifications = await import('expo-notifications');
+      const p = await Notifications.getPermissionsAsync();
+      permission = p.status ?? 'undetermined';
+    } catch (e) {
+      permission = 'unavailable';
+      lastError = String((e as { message?: string })?.message ?? e).slice(0, 300);
+    }
+  } else {
+    try {
+      permission =
+        typeof window !== 'undefined' && 'Notification' in window
+          ? (window as unknown as { Notification: { permission: string } }).Notification.permission
+          : 'unsupported';
+    } catch {
+      permission = 'unsupported';
+    }
+  }
+  const token = (await storage.getItem(TOKEN_KEY).catch(() => null)) || null;
+  const registered = ((await storage.getItem(REGISTERED_KEY).catch(() => null)) === '1') && !!token;
+  const storedErr = await storage.getItem(ERROR_KEY).catch(() => null);
+  lastStatus = {
+    fcmConfigured: Boolean(fcmConfigured),
+    permission,
+    token,
+    registered,
+    error: lastError ?? storedErr ?? null,
+    delivery: permission !== 'granted' ? 'none' : fcmConfigured && registered ? 'push+in-app' : 'in-app only',
+  };
+  return { ...lastStatus };
+}
+
+/** Ask the OS for permission (Android 13+ POST_NOTIFICATIONS / iOS alert). */
+export async function requestPushPermission(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    try {
+      const w = window as unknown as { Notification?: { requestPermission?: () => Promise<string> } };
+      const res = await w.Notification?.requestPermission?.();
+      return res === 'granted';
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const Notifications = await import('expo-notifications');
+    const r = await Notifications.requestPermissionsAsync();
+    await refreshPushStatus();
+    return r.status === 'granted';
+  } catch {
+    return false;
+  }
+}
 
 /** Map a notification's payload to an in-app route. */
 function routeFromData(data: Record<string, unknown> | undefined): string {
@@ -127,16 +234,29 @@ export async function initPushNotifications(): Promise<void> {
     } catch { return; }
     if (status !== 'granted') return;
 
-    const projectId =
-      (Constants.default.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
-    if (!projectId) return;
+          const projectId =
+(Constants.default.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
+if (!projectId) {
+lastError = 'No EAS projectId in the app config — Expo cannot issue a push token.';
+return;
+}
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    const token = tokenData?.data;
-    if (token) await registerPushToken(token, Platform.OS);
-  } catch {
-    /* push is best-effort — never block or crash the app on it */
-  }
+          const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+const token = tokenData?.data;
+if (token) {
+await storage.setItem(TOKEN_KEY, token).catch(() => {});
+await registerPushToken(token, Platform.OS);
+await storage.setItem(REGISTERED_KEY, '1').catch(() => {});
+lastError = null;
+}
+} catch (e) {
+/* pass 119 — still best-effort (never crash startup), but NO LONGER
+ * silent: the reason is kept where the Settings screen can show it. The
+ * usual Android reason is "Credentials are invalid / missing
+ * google-services.json", i.e. Firebase was never wired into this build. */
+lastError = String((e as { message?: string })?.message ?? e).slice(0, 300);
+await storage.setItem(ERROR_KEY, lastError).catch(() => {});
+}
 }
 
 /**

@@ -28,8 +28,20 @@ export function playAdhan(voice: 'v1' | 'v2' | 'v3' = 'v1'): boolean {
   stopAdhan();
   const v = ADHAN_VOICES.find((x) => x.id === voice) ?? ADHAN_VOICES[0];
   try {
-    if (Platform.OS !== 'web') {
-      const url = `${publicBase()}/${v.file}`;
+          if (Platform.OS !== 'web') {
+/* pass 119 — publicBase() is '' outside Expo Go (no Metro), and RN fetch
+ * cannot resolve a host-less URL, so the adhan threw and the caller used
+ * to skip the modal with it. Fall back to the API origin, which serves
+ * /adhan/adhan1.mp3 (verified: 206 audio/mpeg). */
+let base = publicBase();
+if (!/^https?:\/\//i.test(base)) {
+try {
+base = String((require('@/api/client') as { API_ORIGIN?: string }).API_ORIGIN ?? '');
+} catch {
+base = '';
+}
+}
+const url = `${base.replace(/\/+$/, '')}/${v.file}`;
       nativePlayer = createVideoPlayer(url);
       nativePlayer.loop = true;
       nativePlayer.play();

@@ -4193,6 +4193,24 @@ export async function wallpapers() {
   return MOCK_WALLPAPERS;
 }
 
+/**
+ * pass 119 — "are my notifications actually wired?" without leaving the app.
+ * send_test_expo.php pushes through the SAME fan-out the real alerts use
+ * (web-push + Expo), so a success here means the whole chain works for this
+ * device: token registered, credentials accepted, delivery attempted.
+ */
+export async function sendTestPush(): Promise<{ ok: boolean; message: string }> {
+  const r = await request<{ status?: string; message?: string }>(
+    "/api/notifications/send_test_expo.php",
+    { method: "POST" },
+  );
+  return {
+    ok: r.ok && r.data?.status === "success",
+    message: String(r.data?.message ?? (r.ok ? "Test push sent" : "Request failed")),
+  };
+}
+
+
 export async function unreadNotifications(): Promise<number> {
   const r = await request<{ status?: string; unread_count?: number }>(
     "/api/notifications/unread_count.php",

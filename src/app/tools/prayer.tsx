@@ -89,16 +89,29 @@ export default function PrayerTimes() {
   useEffect(() => {
     /* computed here (not from render scope) so hook order is stable even
      * before the location resolves */
-    if (!loc || !settings.adhan || offset !== 0) return;
+          /* pass 119 — the `offset !== 0` bail is removed: computePrayerTimesWith()
+           * ALREADY applies the per-prayer adjustments (prayer.ts:234), so that guard
+           * did nothing except silence the adhan for every user who had ever nudged a
+           * prayer by a minute. */
+if (!loc || !settings.adhan) return;
     const dd = new Date();
     dd.setHours(12, 0, 0, 0);
     const t = computePrayerTimesWith(dd, loc, settings);
     for (let i = 0; i < t.length; i++) {
       if (i === 1) continue; /* no adhan at sunrise */
       const key = `${dd.toDateString()}:${i}`;
-      if (now >= t[i] && now.getTime() - t[i].getTime() < 90_000 && playedRef.current !== key) {
+              /* pass 119 — 90s was too tight: the prayer screen mounts on navigation,
+               * so arriving a minute late lost the alert for that prayer entirely.
+               * 10 minutes still fires once (playedRef keys on day+index). */
+if (now >= t[i] && now.getTime() - t[i].getTime() < 600_000 && playedRef.current !== key) {
         playedRef.current = key;
-        if (playAdhan('v1')) setAdhanFor(`${PRAYER_NAMES[i]}·${key}`);
+                  /* pass 119 — THE MODAL BUG: this was `if (playAdhan(...)) setAdhanFor(...)`,
+                   * so the visual adhan was gated on the mp3 starting. Offline, on a slow
+                   * link, or on a build whose public/ host did not resolve, playAdhan()
+                   * returned false and NO modal appeared at all. The modal is the
+                   * notification-grade part of the feature; audio is a bonus. */
+setAdhanFor(`${PRAYER_NAMES[i]}·${key}`);
+void playAdhan(settings.adhanVoice ?? 'v1');
         break;
       }
     }
@@ -131,7 +144,7 @@ export default function PrayerTimes() {
   useEffect(() => {
     if (!adhanParam) return;
     setAdhanFor(adhanParam);
-    if (settings.adhan) playAdhan('v1');
+          if (settings.adhan) void playAdhan(settings.adhanVoice ?? 'v1');
   }, [adhanParam, settings.adhan]);
 
 
