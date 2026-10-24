@@ -82,7 +82,7 @@ export function YouTubePlayer({
                * html source loads from a NULL origin (about:blank) and YouTube BLOCKS
                * embed playback for unknown origins. baseUrl gives the WebView a real
                * https origin, so the iframe is allowed to play. */
-              source={{ html, baseUrl: 'https://deenlink.org' }}
+              source={{ html, baseUrl: 'https://app.deenlink.org' }}
               /* pass 117 — device report: audio played, picture stayed black. Two Android
                * causes: a clipped/rounded container stops the WebView video layer from
                * compositing, and the view needs a hardware layer. No borderRadius here. */

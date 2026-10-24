@@ -2286,7 +2286,7 @@ export function FeedCard({
             post.video_url
           ),
         }}
-        link={`https://deenlink.org/post/${post.id}`}
+        link={`https://app.deenlink.org/post/${post.id}`}
         post={post}
       />
 

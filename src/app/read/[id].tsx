@@ -1766,7 +1766,7 @@ function ReaderInner() {
         visible={shareAyah != null}
         onClose={() => setShareAyah(null)}
         card={shareAyah ? { kind: "ayah", ...shareAyah } : null}
-        link={`https://deenlink.org/quran/${n}`}
+        link={`https://app.deenlink.org/quran/${n}`}
       />
 
       {/* reciter sheet */}

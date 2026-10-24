@@ -276,7 +276,7 @@ export default function PrayerMonth() {
 
 
 /* pass 40 — QR cells for the export (deep link to the app) */
-const APP_LINK = 'https://deenlink.org';
+const APP_LINK = 'https://app.deenlink.org';
 function qrCells(url: string): Array<{ x: number; y: number; s: number }> {
   try {
     const qr = createQR(url, { margin: 0 });

@@ -65,7 +65,7 @@ export default function Jokes() {
               <FontAwesome5 name="paper-plane" size={10} color="#5BC8F5" />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#5BC8F5' }}>FRIENDS</T>
             </Pressable>
-            <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'joke', metric: '😄', title: 'Halal Humor', subtitle: j.setup.slice(0, 60) + (j.setup.length > 60 ? '…' : ''), link: 'https://deenlink.org/tools/jokes' }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
+            <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'joke', metric: '😄', title: 'Halal Humor', subtitle: j.setup.slice(0, 60) + (j.setup.length > 60 ? '…' : ''), link: 'https://app.deenlink.org/tools/jokes' }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', paddingHorizontal: 14, paddingVertical: 9 }}>
               <FontAwesome5 name="image" size={10} color="#E8C96A" />
               <T v="caption" style={{ fontSize: 10.5, fontWeight: '800', color: '#E8C96A' }}>PHOTO</T>
             </Pressable>

@@ -131,7 +131,7 @@ export default function Riddles() {
           <Pressable onPress={() => { haptic.light(); setFriendsOpen(true); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(91,200,245,0.4)', backgroundColor: 'rgba(91,200,245,0.08)', opacity: pressed ? 0.8 : 1 })}>
             <FontAwesome5 name="paper-plane" size={12} color="#5BC8F5" />
           </Pressable>
-          <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'riddle', metric: shown ? 'Solved' : '?', title: 'Islamic Riddle', subtitle: r.q.slice(0, 60) + (r.q.length > 60 ? '…' : ''), link: 'https://deenlink.org/tools/riddles' }); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', opacity: pressed ? 0.8 : 1 })}>
+          <Pressable onPress={() => { haptic.light(); setScoreCard({ kind: 'riddle', metric: shown ? 'Solved' : '?', title: 'Islamic Riddle', subtitle: r.q.slice(0, 60) + (r.q.length > 60 ? '…' : ''), link: 'https://app.deenlink.org/tools/riddles' }); }} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(232,201,102,0.45)', backgroundColor: 'rgba(232,201,102,0.08)', opacity: pressed ? 0.8 : 1 })}>
             <FontAwesome5 name="image" size={14} color="#E8C96A" />
           </Pressable>
           <Pressable onPress={() => go(1)} style={({ pressed }) => ({ width: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: isDark ? '#1F8F5C' : '#1D6F42', opacity: pressed ? 0.85 : 1 })}>

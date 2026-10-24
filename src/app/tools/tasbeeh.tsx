@@ -536,7 +536,7 @@ export default function Tasbeeh() {
                         PRESETS.find((x) => x.id === presetId)?.label ??
                         "Dhikr",
                       subtitle: `${tours} tour${tours === 1 ? "" : "s"} complete · DeenLink Misbaha`,
-                      link: "https://deenlink.org/tools/tasbeeh",
+                      link: "https://app.deenlink.org/tools/tasbeeh",
                     })
                   }
                   hitSlop={8}

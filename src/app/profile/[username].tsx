@@ -1566,7 +1566,7 @@ function PublicProfileScreenInner() {
           ref: `@${profile.username}${profile.bio ? ` · ${profile.bio}` : ""}`,
           route: `/profile/${profile.username}`,
         }}
-        link={`https://deenlink.org/profile/${profile.username}`}
+        link={`https://app.deenlink.org/profile/${profile.username}`}
         noImage
       />
 

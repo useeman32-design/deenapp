@@ -957,7 +957,7 @@ const CertificateSvg = forwardRef<
     null;
   try {
     const made = QRCode.create(
-      String(certificate.verification_url ?? "https://deenlink.org"),
+      String(certificate.verification_url ?? "https://app.deenlink.org"),
       { margin: 0 },
     );
     qr = { size: made.modules.size, get: (x, y) => made.modules.get(x, y) };

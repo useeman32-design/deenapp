@@ -159,7 +159,7 @@ export default function DuaSection() {
         visible={shareDua != null}
         onClose={() => setShareDua(null)}
         card={shareDua ? { kind: 'dua', ...shareDua } : null}
-        link="https://deenlink.org/tools/dua"
+        link="https://app.deenlink.org/tools/dua"
       />
     </View>
   );

@@ -351,7 +351,7 @@ export async function generateShareCard(
   rr(ctx, bx, by, boxS, boxS, 22);
   ctx.fill();
   try {
-    const qr = createQR("https://deenlink.org", {
+    const qr = createQR("https://app.deenlink.org", {
       errorCorrectionLevel: "M",
       margin: 1,
     });

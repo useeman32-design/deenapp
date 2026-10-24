@@ -61,7 +61,7 @@ function qrData(
 export function ShareCardSvg({
   input,
   ref,
-  link = "https://deenlink.org",
+  link = "https://app.deenlink.org",
 }: {
   input: ShareCardInput;
   ref?: React.RefObject<any>;

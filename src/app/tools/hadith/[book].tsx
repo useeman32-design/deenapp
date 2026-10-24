@@ -361,7 +361,7 @@ export default function HadithBookScreen() {
         visible={shareH != null}
         onClose={() => setShareH(null)}
         card={shareH ? { kind: 'hadith', ...shareH } : null}
-        link="https://deenlink.org/tools/hadith"
+        link="https://app.deenlink.org/tools/hadith"
       />
     </View>
   );

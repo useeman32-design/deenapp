@@ -156,7 +156,7 @@ export default function Names() {
                 <Pressable
                   onPress={() => {
                     haptic.selection();
-                    setScoreCard({ kind: 'name', metric: n.arabic, title: n.transliteration, subtitle: `${n.translation} · Name ${n.number} of 99`, link: 'https://deenlink.org/tools/names' });
+                    setScoreCard({ kind: 'name', metric: n.arabic, title: n.transliteration, subtitle: `${n.translation} · Name ${n.number} of 99`, link: 'https://app.deenlink.org/tools/names' });
                   }}
                   hitSlop={8}
                   style={{ width: 32, height: 32, borderRadius: 11, marginLeft: 6, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}

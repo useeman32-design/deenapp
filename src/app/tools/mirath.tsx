@@ -519,7 +519,7 @@ function ReportSvg({ ref, result, estate, debts, bequestPct }: { ref: React.RefO
   const H = reportHeight(result);
   const gold = '#D4AF37';
   const rowsY = 620;
-  const qr = qrCells('https://deenlink.org');
+  const qr = qrCells('https://app.deenlink.org');
   const qrSize = 110;
   const qrCell = qr.length ? qrSize / qr[0].s : 0;
   return (

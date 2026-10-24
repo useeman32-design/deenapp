@@ -92,3 +92,33 @@ export const ROUTE_MODULE: Record<string, string> = {
   'scholar-apply': 'chat',
   'zikr-challenge': 'athkar',
 };
+
+/**
+ * pass 118 — top-level routes that are modules the Admin panel can switch off.
+ *
+ * The tools/* routes were already gated by ROUTE_MODULE, but the owner's ask was
+ * broader: "everything that can be controlled for the web app, if put under
+ * maintenance, reflects in the app". The heavy modules live OUTSIDE /tools
+ * (the reels feed, the Qur'an reader, the shop, the community tab), so they get
+ * their own map. Anything absent here can never be gated — the home feed,
+ * profile and settings stay reachable so a user is never stranded, and an
+ * unknown flag can never lock the app.
+ */
+export const TOPLEVEL_MODULE: Record<string, string> = {
+  videos: "videos",
+  quran: "quran",
+  read: "quran",
+  shop: "shop",
+  community: "chat",
+};
+
+/** module key for a pathname, or null when the route is not gateable. */
+export function moduleForPath(pathname: string | null | undefined): string | null {
+  const seg = String(pathname || "")
+    .split("/")
+    .filter(Boolean)
+    .find((s) => !s.startsWith("(") && !s.startsWith("["));
+  if (!seg) return null;
+  if (seg === "tools") return null; // tools/_layout gates its own sub-routes
+  return TOPLEVEL_MODULE[seg] ?? null;
+}

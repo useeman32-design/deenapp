@@ -441,7 +441,7 @@ export default function Quiz() {
           {[
             { icon: 'edit', label: 'As post', tint: '#4AE38F', act: async () => { setShareBusy(true); await addUserPost(`I scored ${score}/${answers.length} (${pct}%) on the DeenLink Islamic Quiz${cat !== 'All' ? ` — ${cat}` : ''}. Can you beat me? 🏆`, 'quiz'); await new Promise((r) => setTimeout(r, 650)); setShareBusy(false); setShareToast('Posted to your feed ✓'); } },
             { icon: 'paper-plane', label: 'To friends', tint: '#5BC8F5', act: async () => { setFriendsOpen(true); } },
-            { icon: 'image', label: 'Save photo', tint: '#E8C96A', act: async () => { setScoreCard({ kind: 'quiz', metric: `${pct}%`, title: 'Islamic Quiz', subtitle: `${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, link: 'https://deenlink.org/tools/quiz' }); } },
+            { icon: 'image', label: 'Save photo', tint: '#E8C96A', act: async () => { setScoreCard({ kind: 'quiz', metric: `${pct}%`, title: 'Islamic Quiz', subtitle: `${score} of ${answers.length} correct${cat !== 'All' ? ` · ${cat}` : ''}`, link: 'https://app.deenlink.org/tools/quiz' }); } },
           ].map((b) => (
             <Pressable key={b.label} onPress={() => { haptic.light(); b.act(); }} style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: `${b.tint}55`, backgroundColor: `${b.tint}14`, opacity: pressed ? 0.8 : 1 })}>
               {shareBusy ? <CrescentLoader size={22} /> : <FontAwesome5 name={b.icon as never} size={13} color={b.tint} />}
