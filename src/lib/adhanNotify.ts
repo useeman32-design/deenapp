@@ -23,7 +23,38 @@ import { computePrayerTimesWith, loadPrayerSettings, PRAYER_NAMES, type PrayerSe
  * throws — notifications must not take the app down.
  */
 
+/**
+ * pass 120 — one channel per recitation.
+ *
+ * An Android notification channel fixes its OWN sound, and it cannot be changed
+ * after creation without re-creating the channel — so "which adhan plays when the
+ * phone is locked" is expressed as which channel the alert is scheduled on, rather
+ * than as a per-notification field Android ignores. The three channels map to
+ * ADHAN_VOICES (lib/adhanPlayer), whose files the expo-notifications plugin copies
+ * into the build (app.json → plugins → expo-notifications → sounds).
+ */
+/**
+ * pass 120 — one channel per recitation.
+ *
+ * An Android notification channel fixes its OWN sound, and it cannot be changed
+ * after creation without re-creating the channel — so "which adhan plays when the
+ * phone is locked" is expressed as which channel the alert is scheduled on, rather
+ * than as a per-notification field Android ignores. The three channels map to
+ * ADHAN_VOICES (lib/adhanPlayer), whose files the expo-notifications plugin copies
+ * into the build (app.json → plugins → expo-notifications → sounds).
+ */
 export const ADHAN_CHANNEL = 'adhan';
+export const ADHAN_CHANNEL_BY_VOICE: Record<'v1' | 'v2' | 'v3', string> = {
+  v1: 'adhan-v1',
+  v2: 'adhan-v2',
+  v3: 'adhan-v3',
+};
+/** res/raw file names produced by the plugin's sounds[] for the three voices. */
+const ADHAN_SOUND_BY_VOICE: Record<'v1' | 'v2' | 'v3', string> = {
+  v1: 'adhan1.mp3',
+  v2: 'adhan2.mp3',
+  v3: 'adhan3.mp3',
+};
 const CHANNEL = ADHAN_CHANNEL;
 const SCHED_KEY = 'dl.adhan.sched.v1';
 const SKIP = 1; /* index of Sunrise — no adhan there (same rule as in-app) */
@@ -62,7 +93,7 @@ export async function scheduleAdhanTest(seconds = 5): Promise<boolean> {
         sound: 'default',
         data: { type: 'adhan', prayer: 'Test' },
       },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, channelId: CHANNEL },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, channelId: ADHAN_CHANNEL_BY_VOICE.v1 },
     });
     return true;
   } catch {
@@ -98,8 +129,12 @@ export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Prom
     const settings = settingsOverride ?? await loadPrayerSettings();
     try {
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldPlaySound: true,
+        handleNotification: async (n) => ({
+          /* pass 120 — the adhan channel now carries a real recitation, and an
+           * in-app alert ALSO starts adhanPlayer. Playing both would overlap, so
+           * the foreground banner is silent for adhan payloads; everything else
+           * (replies, likes, messages) keeps its normal sound. */
+          shouldPlaySound: (n?.request?.content?.data as { type?: string } | undefined)?.type !== 'adhan',
           shouldSetBadge: false,
           shouldShowBanner: true,
           shouldShowList: true,
@@ -113,18 +148,35 @@ export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Prom
     if (perm.status !== 'granted') return;
 
     if (Platform.OS === 'android') {
+      /* pass 120 — build the channel for the SELECTED recitation and give it the
+       * real adhan as its sound, so a locked phone rings the adhan instead of the
+       * system chime. An Android channel fixes its own sound at creation, which is
+       * why the voice is a channel choice rather than a per-notification field.
+       * The legacy 'adhan' channel is deleted so an existing install cannot keep
+       * routing alerts to the old soundless one. All three voice channels are
+       * created so switching reciters needs no reinstall.
+       *
+       * If a bundled sound ever fails to resolve on a device, the fallback is the
+       * single string 'default' below — the alert itself never depends on it. */
       try {
-        /* Recreate the channel so devices that previously received a custom
-         * channel sound return to the platform's default notification sound. */
         await Notifications.deleteNotificationChannelAsync(CHANNEL).catch(() => {});
-        await Notifications.setNotificationChannelAsync(CHANNEL, {
-          name: 'Adhan / prayer alerts',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 400, 200, 400],
-          lightColor: '#1D6F42',
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        });
-      } catch { /* channel is optional */ }
+      } catch { /* ignore */ }
+      for (const [id, label] of [
+        ['v1', 'Adhan / prayer alerts · Adhan 1'],
+        ['v2', 'Adhan / prayer alerts · Adhan 2'],
+        ['v3', 'Adhan / prayer alerts · Adhan 3'],
+      ] as const) {
+        try {
+          await Notifications.setNotificationChannelAsync(ADHAN_CHANNEL_BY_VOICE[id], {
+            name: label,
+            importance: Notifications.AndroidImportance.MAX,
+            sound: ADHAN_SOUND_BY_VOICE[id] ?? 'default',
+            vibrationPattern: [0, 400, 200, 400],
+            lightColor: '#1D6F42',
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          });
+        } catch { /* channel is optional — the alert still goes out */ }
+      }
     }
 
     const loc = await resolveLocation();
@@ -146,7 +198,13 @@ export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Prom
               sound: 'default',
                               data: { type: 'adhan', prayer: name, adhanVoice: settings.adhanVoice ?? 'v1' },
             },
-            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId: CHANNEL },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: t,
+              /* pass 120 — the channel carries the recitation the user picked */
+              channelId:
+                ADHAN_CHANNEL_BY_VOICE[(settings.adhanVoice ?? 'v1') as 'v1' | 'v2' | 'v3'] ?? CHANNEL,
+            },
           });
           if (id) ids.push(id);
         } catch { /* one missed slot is fine */ }

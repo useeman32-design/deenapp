@@ -203,8 +203,12 @@ export async function initPushNotifications(): Promise<void> {
 
     try {
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldPlaySound: true,
+        handleNotification: async (n) => ({
+          /* pass 120 — the adhan channel now carries a real recitation, and an
+           * in-app alert ALSO starts adhanPlayer. Playing both would overlap, so
+           * the foreground banner is silent for adhan payloads; everything else
+           * (replies, likes, messages) keeps its normal sound. */
+          shouldPlaySound: (n?.request?.content?.data as { type?: string } | undefined)?.type !== 'adhan',
           shouldSetBadge: false,
           shouldShowBanner: true,
           shouldShowList: true,
