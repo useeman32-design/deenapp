@@ -3676,12 +3676,10 @@ export async function courses(): Promise<Course[]> {
   const inCatalogue = all.filter((c) =>
     (CATALOGUE_SLUGS as readonly string[]).includes(String(c.slug ?? "")),
   );
-  const rebuilt = inCatalogue.filter(
-    (c) => Number((c as { total_lessons?: number }).total_lessons ?? 0) >= 5,
-  );
-  if (rebuilt.length) return rebuilt;
-  /* nothing rebuilt yet — show the catalogue rows we do have rather than a
-     screen full of the courses the owner asked to remove */
+  /* pass 123 — the >=5 lesson gate existed to hide the thin pre-93 rows until the
+   * rebuild landed. The rebuild did land under new slugs, so the gate was hiding the
+   * real catalogue instead. Whatever the admin has published and the allowlist accepts
+   * is what the student sees; nothing else. */
   return inCatalogue;
 }
 

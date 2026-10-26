@@ -15,10 +15,18 @@ const path = require('path');
 module.exports = () => {
   const base = JSON.parse(fs.readFileSync(path.join(__dirname, 'app.json'), 'utf8'));
   const cfg = base.expo || base;
-  const hasFcm = fs.existsSync(path.join(__dirname, 'google-services.json'));
-  if (hasFcm) {
-    cfg.android = { ...(cfg.android || {}), googleServicesFile: './google-services.json' };
+  /* pass 123 — an EAS file env var must work too: `eas env:create --name
+   * GOOGLE_SERVICES_JSON --type file --value ./google-services.json` writes the
+   * file to an absolute path and exports that path, it does not put it in the
+   * repo root. Without this branch the config comment promised an env var that
+   * nothing read, and the build silently shipped without FCM. */
+  const envPath = process.env.GOOGLE_SERVICES_JSON;
+  const localPath = path.join(__dirname, 'google-services.json');
+  const googleServicesFile = envPath || (fs.existsSync(localPath) ? './google-services.json' : null);
+  if (googleServicesFile) {
+    cfg.android = { ...(cfg.android || {}), googleServicesFile };
   }
+  const hasFcm = !!googleServicesFile;
   cfg.extra = { ...(cfg.extra || {}), push: { fcmConfigured: hasFcm } };
   return base.expo ? { ...base, expo: cfg } : cfg;
 };

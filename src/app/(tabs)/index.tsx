@@ -169,6 +169,21 @@ function HomeInner() {
     : [];
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
+
+  /* pass 123 — the section below used to hardcode "Seerah of the Prophet, Lesson 4,
+   * 60%" and a second card at 15%. Those courses do not exist in the catalogue, so the
+   * home screen was showing progress on lessons nobody can open. It now advertises the
+   * Learning Hub with the live count and renders nothing when the admin has published
+   * nothing — api.courses() is the same source the courses screen itself uses. */
+  const [hubCourses, setHubCourses] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    void api
+      .courses()
+      .then((rows) => { if (live) setHubCourses(Array.isArray(rows) ? rows.length : 0); })
+      .catch(() => { if (live) setHubCourses(0); });
+    return () => { live = false; };
+  }, []);
   /* pass 83-35 — the daily-videos LIBRARY strip keeps its modal; POST videos
    * no longer use it (they open the videos page via onOpenReels). */
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
@@ -700,136 +715,24 @@ function HomeInner() {
           </View>
         )}
 
-                {/* 6 ─ Continue Learning */}
-        <View style={{ marginHorizontal: 16, marginTop: 26 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 16.5 }}>
-              Continue Learning
-            </T>
-            <Pressable onPress={() => router.push('/tools/courses')} hitSlop={8}>
-              <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>
-                View All <T v="caption" style={{ color: d.emerald, fontSize: 11.5 }}>→</T>
-              </T>
-            </Pressable>
-          </View>
+                {/* 6 ─ Learning Hub advert — pass 123, replaces hardcoded fake progress */}
+        {!!hubCourses && (
           <Pressable
-            onPress={() => router.push('/tools/courses')}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 13,
-              borderRadius: 20,
-              backgroundColor: d.card,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              padding: 14,
-              opacity: pressed ? 0.85 : 1,
-            })}
+            onPress={() => { haptic.selection(); router.push('/tools/courses'); }}
+            style={{ marginHorizontal: 16, marginTop: 26, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, flexDirection: 'row', alignItems: 'center', gap: 14 }}
           >
-            {/* Islamic hexagon container */}
-            <View style={{ width: 54, height: 54, alignItems: 'center', justifyContent: 'center' }}>
-              <HexBadge />
-              <FontAwesome5 name="book-open" size={19} color={d.emerald} style={{ position: 'absolute' }} />
+            <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(74,227,143,0.14)' : 'rgba(29,111,66,0.10)' }}>
+              <FontAwesome5 name="book-open" size={16} color={d.emerald} />
             </View>
             <View style={{ flex: 1 }}>
-              <T v="h3" style={{ color: d.text, fontWeight: '600', fontSize: 14.5 }}>
-                Seerah of the Prophet ﷺ
-              </T>
+              <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 15.5 }}>Learning Hub</T>
               <T v="caption" style={{ color: d.subtext, fontSize: 11.5, marginTop: 3 }}>
-                Lesson 4 • The Early Years in Makkah
+                {hubCourses} {hubCourses === 1 ? 'course' : 'courses'} ready — Qur'an, Arabic, fiqh, seerah
               </T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(242,247,243,0.12)' : 'rgba(24,36,32,0.1)' }}>
-                  <View style={{ width: '60%', height: '100%', borderRadius: 3, backgroundColor: d.emerald }} />
-                </View>
-                <T v="caption" style={{ color: d.emerald, fontSize: 10.5, fontWeight: '600' }}>
-                  60%
-                </T>
-              </View>
             </View>
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 21,
-                backgroundColor: d.emerald,
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: d.emerald,
-                shadowOpacity: 0.5,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 6,
-              }}
-            >
-              <FontAwesome5 name="play" size={13} color="#fff" style={{ marginLeft: 2 }} />
-            </View>
+            <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>Open →</T>
           </Pressable>
-          {/* second course */}
-          <Pressable
-            onPress={() => router.push('/tools/courses')}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 13,
-              borderRadius: 20,
-              backgroundColor: d.card,
-              borderWidth: 1,
-              borderColor: d.cardBorder,
-              padding: 14,
-              marginTop: 12,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <View
-              style={{
-                width: 54,
-                height: 54,
-                borderRadius: 16,
-                backgroundColor: isDark ? `${d.gold}1F` : `${d.gold}14`,
-                borderWidth: 1,
-                borderColor: isDark ? `${d.gold}40` : `${d.gold}33`,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FontAwesome5 name="graduation-cap" size={19} color={d.gold} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T v="h3" style={{ color: d.text, fontWeight: '600', fontSize: 14.5 }}>
-                Tajwid Essentials
-              </T>
-              <T v="caption" style={{ color: d.subtext, fontSize: 11.5, marginTop: 3 }}>
-                Lesson 1 • The Foundation of Recitation
-              </T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: isDark ? 'rgba(242,247,243,0.12)' : 'rgba(24,36,32,0.1)' }}>
-                  <View style={{ width: '15%', height: '100%', borderRadius: 3, backgroundColor: d.gold }} />
-                </View>
-                <T v="caption" style={{ color: d.gold, fontSize: 10.5, fontWeight: '600' }}>
-                  15%
-                </T>
-              </View>
-            </View>
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 21,
-                backgroundColor: d.gold,
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: d.gold,
-                shadowOpacity: 0.5,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 6,
-              }}
-            >
-              <FontAwesome5 name="play" size={13} color="#fff" style={{ marginLeft: 2 }} />
-            </View>
-          </Pressable>
-        </View>
+        )}
 
         {/* 7 ─ Daily videos (tap → viewing modal) */}
         <View style={{ marginHorizontal: 16, marginTop: 26 }}>

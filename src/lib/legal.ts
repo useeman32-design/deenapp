@@ -24,6 +24,10 @@ const ORIGIN = (
 export const WEB_ORIGIN = ORIGIN;
 export const TERMS_URL = `${ORIGIN}/terms.html`;
 export const PRIVACY_URL = `${ORIGIN}/privacy.html`;
+/* pass 123 — Google Play's UGC policy needs a published content policy reachable from
+ * inside the app. terms/privacy were real files in the docroot; every guidelines path fell
+ * through to the SPA shell, so /guidelines.html is deployed alongside them. */
+export const GUIDELINES_URL = `${ORIGIN}/guidelines.html`;
 
 /** Open a legal document in the system browser. Never throws. */
 export function openLegalDoc(url: string): void {

@@ -19,7 +19,7 @@ import { loadPrayerSettings, savePrayerSettings } from '@/lib/prayer';
 import { disableAdhanSchedule, scheduleAdhanTest, syncAdhanSchedule } from '@/lib/adhanNotify';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
-import { PRIVACY_URL, TERMS_URL, openLegalDoc } from '@/lib/legal';
+import { GUIDELINES_URL, PRIVACY_URL, TERMS_URL, openLegalDoc } from '@/lib/legal';
 import { useIsGuest } from '@/lib/guest';
 import { LoginRequired } from '@/components/LoginRequired';
 
@@ -408,6 +408,10 @@ if (v) void requestPushPermission().then(() => refreshPushStatus().then(setPstat
               <FontAwesome5 name="user-shield" size={13} color={isDark ? '#4AE38F' : '#1D6F42'} />
               <T v="bodyS" style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: d.text }}>Privacy Policy</T>
               <FontAwesome5 name="external-link-alt" size={9} color={d.faint} />
+            </Pressable>
+            <Pressable onPress={() => { haptic.selection(); openLegalDoc(GUIDELINES_URL); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
+              <FontAwesome5 name="users" size={13} color={d.emerald} />
+              <T v="bodyS" style={{ flex: 1, color: d.text, fontWeight: '600' }}>Community guidelines</T>
             </Pressable>
             <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 12, lineHeight: 14 }}>Made with ihsan. Quran & tafsir texts via quranapi.pages.dev. For rulings, consult a qualified scholar.</T>
           </Sheet>
