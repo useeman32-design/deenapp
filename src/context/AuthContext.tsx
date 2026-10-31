@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   clearSession,
   currentSession,
@@ -63,15 +63,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
   const [ready, setReady] = useState(false);
 
+  const authEpoch = useRef(0);
   useEffect(() => {
+    let alive = true;
+    const epoch = authEpoch.current;
+    // A stalled storage/network request must not leave a blank route forever.
+    const timeout = setTimeout(() => { if (alive) setReady(true); }, 5500);
     restoreSession()
       .then(({ user: u, ok }) => {
-        if (u) {
-          setUser(u); void exitGuest();
-          setIsDemo(!ok); // ok=false with a user means offline demo
-        }
+        if (!alive || authEpoch.current !== epoch) return;
+        if (u) { setUser(u); void exitGuest(); setIsDemo(!ok && FORCE_DEMO); }
       })
-      .finally(() => setReady(true));
+      .catch(() => {})
+      .finally(() => { clearTimeout(timeout); if (alive) setReady(true); });
+    return () => { alive = false; clearTimeout(timeout); };
   }, []);
 
   /* Admin moderation must reach an already-open native app, not only the next
@@ -83,7 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || isDemo) return;
     const check = async () => {
+      const epoch = authEpoch.current;
       const result = await restoreSession();
+      if (epoch !== authEpoch.current) return;
       if (result.user) setUser(result.user);
       else setUser(null);
     };
@@ -93,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthValue>(() => {
     const login = async (identifier: string, password: string, rememberMe = true) => {
+      authEpoch.current += 1;
       const res = await apiLogin(identifier, password, rememberMe);
       if (res.ok && res.user) {
         setUser(res.user); void exitGuest();
@@ -123,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       gender?: string;
       date_of_birth?: string;
     }) => {
+      authEpoch.current += 1;
       const res = await apiRegister(data);
       /* pass 66-night — an unverified account is NEVER signed in: the server
        * mints no session at register; the OTP step (verify_otp) mints it. */
@@ -153,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     /* pass 66-night — adopt the session the verify_otp response just minted. */
     const adoptSession = async (u: User) => {
+      authEpoch.current += 1;
       setUser(u); void exitGuest();
       setIsDemo(false);
       await persistSession(currentSession() ?? '', null, u);
@@ -160,9 +170,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
-      await apiLogout().catch(() => {});
+      authEpoch.current += 1;
+      // Update UI immediately even if the sign-out request is slow/offline.
+      const signout = apiLogout().catch(() => {});
       setUser(null);
       setIsDemo(false);
+      await clearSession();
+      await signout;
       await clearSession();
     };
 

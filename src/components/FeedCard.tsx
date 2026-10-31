@@ -1,3 +1,4 @@
+import { bundledAvatarFor } from '@/lib/avatarSource';
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -44,7 +45,8 @@ import { DefaultAvatar } from "@/components/AvatarPicker";
 import { resolveMediaUrl } from "@/api/client";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { claimMedia, releaseMedia, useMediaHolds } from "@/lib/mediaBus";
+import { claimMedia, registerMediaStop, releaseMedia, useMediaHolds } from "@/lib/mediaBus";
+import { youtubeEmbedUrl } from "@/lib/youtube";
 import { VideoLoader } from "@/components/VideoLoader";
 import { isLive, votePoll } from "@/api/client";
 import { guestBlock } from "@/lib/guest";
@@ -61,94 +63,10 @@ const pollDurationLabel = (hours?: number): string => {
 /* ------------------------------------------------------------------ */
 /* Web-only iframe (react-native-web renders custom components to DOM) */
 /* ------------------------------------------------------------------ */
-// Web-only: real YouTube iframe inside the post container.
-const YouTubeFrame = ({
-  src,
-  height = 208,
-  title,
-}: {
-  src: string;
-  height?: number;
-  title?: string;
-}) => {
-  const host = useRef<any>(null);
-  const [inView, setInView] = useState(true);
-  /* pass 86 — strict stop rule (owner): an embed keeps playing if it merely
-   * loses screen focus or the browser tab hides, even while "in view". Track
-   * both here; the iframe is UNMOUNTED when inactive, which hard-stops audio. */
-  const [focused, setFocused] = useState(true);
-  /* pass 87 — strict stop rule also respects NAVIGATION focus: moving to the
-   * notifications/shop tab unmounts the embed, so nothing keeps playing. */
-  const [screenFocused, setScreenFocused] = useState(true);
-  useFocusEffect(
-    () => {
-      setScreenFocused(true);
-      return () => setScreenFocused(false);
-    },
-  );
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
-    const v = () => setFocused(document.visibilityState === "visible");
-    document.addEventListener("visibilitychange", v);
-    return () => document.removeEventListener("visibilitychange", v);
-  }, []);
-  const active = inView && focused && screenFocused;
-  useEffect(() => {
-    if (
-      Platform.OS !== "web" ||
-      typeof IntersectionObserver === "undefined" ||
-      !host.current
-    )
-      return;
-    const io = new IntersectionObserver(
-      (entries) =>
-        setInView(
-          !!entries[0]?.isIntersecting &&
-            (entries[0]?.intersectionRatio ?? 0) >= 0.28,
-        ),
-      { threshold: [0, 0.28, 0.7] },
-    );
-    io.observe(host.current);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <View ref={host} style={{ height, width: "100%" }}>
-      {active ? (
-        <iframe
-          src={src}
-          title={title ?? "DeenLink video"}
-          style={
-            {
-              width: "100%",
-              height,
-              border: "none",
-              borderRadius: 12,
-              display: "block",
-              background: "#000",
-            } as any
-          }
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      ) : (
-        <View
-          style={{
-            width: "100%",
-            height,
-            borderRadius: 12,
-            backgroundColor: "#000",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <FontAwesome5 name="pause" size={18} color="rgba(255,255,255,0.55)" />
-        </View>
-      )}
-    </View>
-  );
-};
-export { YouTubeFrame };
+// Keep the old export for call sites, but route every embed through the same
+// global ownership/visibility gate on web and native.
+export const YouTubeFrame = ({ src, height = 208 }: { src: string; height?: number; title?: string }) =>
+  <YouTubePlayer embedUrl={src} height={height} />;
 
 /** Resolves a profile image that may be a bundled asset (number) or a URL (string).
  * pass 73 — accounts with no photo now get the SAME gendered default art as the
@@ -185,6 +103,7 @@ export function AvatarImage({
       : !str0 || isDefaultName
         ? null
         : resolveMediaUrl(str0) || null;
+  const bundledAvatar = typeof source === "string" ? bundledAvatarFor(source) : undefined;
   return (
     <View
       style={{
@@ -201,7 +120,7 @@ export function AvatarImage({
     >
       {source != null && (typeof source === "number" || uri) ? (
         <Image
-          source={typeof source === "number" ? source : { uri: uri as string }}
+          source={typeof source === "number" ? source : bundledAvatar ?? { uri: uri as string }}
           style={{ width: size, height: size, borderRadius: size / 2 }}
           resizeMode="cover"
         />
@@ -236,18 +155,7 @@ function VideoPostPlayer({
   });
   const endedRef = useRef(false);
   useEffect(() => {
-    const sub = (
-      player.addListener as (
-        ev: string,
-        cb: (st: { status?: string }) => void,
-      ) => { remove: () => void }
-    )("statusChange", (st) => {
-      if (st?.status === "playToEnd") {
-        endedRef.current = true;
-        setPaused(true);
-      }
-      if (st?.status === "readyToPlay") endedRef.current = false;
-    });
+    const sub = player.addListener("playToEnd", () => { endedRef.current = true; setPaused(true); });
     return () => sub.remove();
   }, [player]);
   /* pass 83-35 — owner: leaving the screen (tab switch / push) STOPS the video */
@@ -316,6 +224,7 @@ function VideoPostPlayer({
   const screenFocusedRef = useRef(true);
   const mediaKey = `inline:${post?.id ?? src}`;
   const holdsMedia = useMediaHolds(mediaKey);
+  useEffect(() => registerMediaStop(mediaKey, () => { try { player.pause(); } catch {} setPaused(true); }), [mediaKey, player]);
   useEffect(() => {
     if (!holdsMedia) {
       try {
@@ -324,20 +233,20 @@ function VideoPostPlayer({
     }
   }, [holdsMedia, player]);
   useEffect(() => {
-    if (started && !paused && screenFocusedRef.current) claimMedia(mediaKey);
+    if (started && !paused && inView && screenFocusedRef.current) claimMedia(mediaKey);
     else releaseMedia(mediaKey);
-  }, [started, paused, mediaKey]);
+  }, [started, paused, inView, mediaKey]);
   useEffect(() => {
-    if (started && !paused && screenFocusedRef.current) {
+    if (started && !paused && inView && screenFocusedRef.current && holdsMedia) {
       if (endedRef.current) {
         try {
           player.currentTime = 0;
           endedRef.current = false;
         } catch {}
       }
-      player.play();
-    } else player.pause();
-  }, [started, paused, player]);
+      try { player.play(); } catch {}
+    } else { try { player.pause(); } catch {} }
+  }, [started, paused, inView, holdsMedia, player]);
 
   /* pass 83-28 — three hard stops so audio never leaks: the card UNMOUNTS,
    * the SCREEN loses focus (user opened another module — the poll above only
@@ -347,22 +256,26 @@ function VideoPostPlayer({
       screenFocusedRef.current = true;
       return () => {
         screenFocusedRef.current = false;
+        releaseMedia(mediaKey);
+        setPaused(true);
         try {
           player.pause();
         } catch {}
       };
-    }, [player]),
+    }, [player, mediaKey]),
   );
   useEffect(() => {
     const sub = AppState.addEventListener("change", (st) => {
       if (st !== "active") {
+        releaseMedia(mediaKey);
+        setPaused(true);
         try {
           player.pause();
         } catch {}
       }
     });
     return () => sub.remove();
-  }, [player]);
+  }, [player, mediaKey]);
   useEffect(
     () => () => {
       try {
@@ -387,17 +300,14 @@ function VideoPostPlayer({
             if (out !== outRef.current) {
               outRef.current = out;
               setInView(!out);
-              /* Uploaded feed videos intentionally continue while the card is
-               * out of view; only YouTube embeds are hard-stopped by their
-               * visibility observer. Resume explicitly when the card returns. */
-              if (!out && !paused) player.play();
+              if (out) { releaseMedia(mediaKey); setPaused(true); }
             }
           },
         );
       } catch {}
     }, 220);
     return () => clearInterval(iv);
-  }, [started, paused, player, inView]);
+  }, [started, paused, player, inView, mediaKey]);
 
   useEffect(() => {
     const t = player.addListener(
@@ -561,9 +471,9 @@ function VideoPostPlayer({
    * object, so fullscreen never re-downloads the video (pass 83-24 fix kept). */
   const openReels = () => {
     haptic.light();
-    try {
-      player.pause();
-    } catch {}
+    releaseMedia(mediaKey);
+    setPaused(true);
+    try { player.pause(); } catch {}
     onOpenReels?.(post);
   };
   return (
@@ -2022,37 +1932,10 @@ export function FeedCard({
         </View>
       ) : null}
 
-      {/* YouTube — embedded player on web (double-tap likes, tap plays in-app) */}
-      {Platform.OS === "web" && post.youtube_embed_url ? (
-        /* pass 83-35 — owner: NO modal for YouTube. The iframe plays inline;
-         * the old tap-overlay hijacked every click into the video modal. */
-        <View
-          style={{
-            borderRadius: 14,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: hairline,
-            marginBottom: 12,
-            backgroundColor: "#000",
-          }}
-        >
-          <YouTubeFrame src={String(post.youtube_embed_url)} height={206} />
-        </View>
-      ) : post.youtube_embed_url ? (
-        <View
-          style={{
-            borderRadius: 14,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: hairline,
-            marginBottom: 12,
-            backgroundColor: "#000",
-          }}
-        >
-          <YouTubePlayer
-            embedUrl={String(post.youtube_embed_url)}
-            height={206}
-          />
+      {/* YouTube embeds and watch URLs use the same gated in-app player. */}
+      {(post.youtube_embed_url || youtubeEmbedUrl(post.youtube_url)) ? (
+        <View style={{ marginBottom: 12, backgroundColor: "#000" }}>
+          <YouTubePlayer embedUrl={String(post.youtube_embed_url || post.youtube_url)} height={206} gateKey={`post:${post.id}`} />
         </View>
       ) : post.youtube_url ? (
         <Pressable

@@ -11,13 +11,25 @@ export type Loc = {
 };
 
 const KEY = 'dl.location';
+// Multiple mounted screens must never open competing native permission prompts.
+let permissionFlight: ReturnType<typeof Location.requestForegroundPermissionsAsync> | null = null;
+function requestPermission() {
+  if (!permissionFlight) permissionFlight = Location.requestForegroundPermissionsAsync().finally(() => { permissionFlight = null; });
+  return permissionFlight;
+}
+function deadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Location timed out')), ms);
+    work.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+}
 
 export async function resolveLocation(): Promise<Loc> {
   const saved = await storage.getItem(KEY).catch(() => null);
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Loc;
-      if (parsed.latitude && parsed.longitude) {
+      if (Number.isFinite(parsed.latitude) && Number.isFinite(parsed.longitude) && Math.abs(parsed.latitude) <= 90 && Math.abs(parsed.longitude) <= 180) {
         /* pass 40 — caches saved before real geocoding (or from a failed
          * lookup) carry a placeholder name; re-resolve it once, in place.
          * This is why a NORMAL browser said "Your location" while an
@@ -37,9 +49,9 @@ export async function resolveLocation(): Promise<Loc> {
     }
   }
   try {
-    const granted = await Location.requestForegroundPermissionsAsync();
+    const granted = await requestPermission();
     if (Platform.OS === 'web' || granted.granted) {
-      const pos = await Location.getCurrentPositionAsync();
+      const pos = await deadline(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 8000);
       /* pass 29: resolve a REAL place name (used to literally say
        * "Your location") — free reverse geocoder, no key, cached. */
       const name = await cityName(pos.coords.latitude, pos.coords.longitude);
@@ -136,13 +148,11 @@ export async function applyLocation(loc: Loc): Promise<void> {
 
 /** Force a brand-new GPS fix, reverse-geocode it, save and publish it. */
 export async function useCurrentGpsLocation(): Promise<Loc> {
-  const granted = await Location.requestForegroundPermissionsAsync();
+  const granted = await requestPermission();
   if (Platform.OS !== 'web' && !granted.granted) {
     throw new Error('Location permission was denied. Enable it in your device settings, or pick your city manually.');
   }
-  const pos = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.High,
-  });
+  const pos = await deadline(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 10000);
   const name = await cityName(pos.coords.latitude, pos.coords.longitude);
   const loc: Loc = {
     latitude: pos.coords.latitude,
@@ -158,9 +168,12 @@ export async function useCurrentGpsLocation(): Promise<Loc> {
  * API — no key). Falls back to a coordinate label so it never lies. */
 export async function cityName(lat: number, lon: number): Promise<string> {
   try {
-    const r = await fetch(
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const r = await deadline(fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
-    );
+      { signal: controller.signal },
+    ).finally(() => clearTimeout(timer)), 4500);
     if (r.ok) {
       const j = (await r.json()) as { city?: string; locality?: string; principalSubdivision?: string; countryName?: string };
       const city = j.city || j.locality || j.principalSubdivision || '';
@@ -195,9 +208,9 @@ export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: numbe
  * moved beyond the threshold, else null. Persists the last-seen fix. */
 export async function detectLocationChange(): Promise<Loc | null> {
   try {
-    const granted = await Location.requestForegroundPermissionsAsync();
+    const granted = await Location.getForegroundPermissionsAsync();
     if (Platform.OS === 'web' || !granted.granted) return null;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const pos = await deadline(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 8000);
     const saved = await resolveLocation();
     if (saved.isFallback) return null; /* nothing saved yet — nothing to compare */
     const km = distanceKm(saved.latitude, saved.longitude, pos.coords.latitude, pos.coords.longitude);
@@ -212,26 +225,25 @@ export async function detectLocationChange(): Promise<Loc | null> {
 /** Live watcher: calls cb with a candidate new location on significant
  * moves. Returns a stop function (or null where unsupported). */
 export function watchLocation(cb: (candidate: Loc) => void): (() => void) | null {
-  try {
-    const sub = Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, timeInterval: 120_000, distanceInterval: CHANGE_THRESHOLD_KM * 1000 },
-      (pos) => {
-        void (async () => {
+  let stopped = false;
+  let subscription: { remove: () => void } | null = null;
+  void (async () => {
+    try {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted || stopped) return;
+      const sub = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 120_000, distanceInterval: CHANGE_THRESHOLD_KM * 1000 },
+        (pos) => { void (async () => {
           const saved = await resolveLocation();
-          if (saved.isFallback) return;
-          const km = distanceKm(saved.latitude, saved.longitude, pos.coords.latitude, pos.coords.longitude);
-          if (km < CHANGE_THRESHOLD_KM) return;
+          if (stopped || saved.isFallback || distanceKm(saved.latitude, saved.longitude, pos.coords.latitude, pos.coords.longitude) < CHANGE_THRESHOLD_KM) return;
           const name = await cityName(pos.coords.latitude, pos.coords.longitude);
-          cb({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, name });
-        })();
-      },
-    );
-    return () => {
-      void sub.then((s) => s.remove()).catch(() => {});
-    };
-  } catch {
-    return null;
-  }
+          if (!stopped) cb({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, name });
+        })().catch(() => {}); },
+      );
+      if (stopped) sub.remove(); else subscription = sub;
+    } catch { /* permission or GPS unavailable */ }
+  })();
+  return () => { stopped = true; subscription?.remove(); };
 }
 
 /** Accept a detected change: persist it as the new saved location.

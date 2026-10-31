@@ -22,8 +22,8 @@ export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#03180F' : '#F6F1E7' }}>
       <Image source={isDark ? bgDark : bgLight} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} resizeMode="cover" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 46, paddingBottom: 28 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'ios'} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 46, paddingBottom: 28 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="none">
           {/* brand — the real logo, centred */}
           <View style={{ alignItems: 'center', paddingHorizontal: 32 }}>
             {/* pass 71 — same rounded tile as the splash (radius = 17% of size,
@@ -75,10 +75,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
                 shadowOffset: { width: 0, height: 10 },
               },
               /* frosted glass — RNW forwards web-only props to the DOM */
-              {
-                backdropFilter: 'blur(18px) saturate(1.4)',
-                WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
-              } as unknown as ViewStyle,
+              Platform.OS === 'web' ? ({ backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)' } as unknown as ViewStyle) : undefined,
             ]}
           >
             {children}

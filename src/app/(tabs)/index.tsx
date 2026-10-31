@@ -12,6 +12,7 @@ import Svg, { Circle, Defs, G, Line, Path, RadialGradient as SvgRadial, LinearGr
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { isUnderMaintenance, maintenanceFlags } from '@/lib/maintenance';
 import { getGoal as fetchGoal, getStreak, markActive, consumeGoalPending, claimGoalReward } from '@/lib/routine';
 import { haptic } from '@/lib/haptics';
 
@@ -131,6 +132,37 @@ function HomeInner() {
     if (!api.isLive()) return;
     api.unreadNotifications().then(setNotifUnread).catch(() => {});
   }, []));
+  /* pass 123 — live hub counts for the advert above (0/hidden on any failure, so
+   * a stalled API can never print an invented number). */
+  const [hub, setHub] = useState<{ courses: number; lessons: number; certs: number } | null>(null);
+  const [hubGated, setHubGated] = useState(false);
+  useEffect(() => {
+    let on = true;
+    void Promise.all([
+      api.isLive() ? api.courses().catch(() => []) : Promise.resolve([]),
+      maintenanceFlags().catch(() => ({}) as Record<string, boolean | string>),
+    ])
+      .then(([list, flags]) => {
+        if (!on) return;
+        const arr = Array.isArray(list) ? list : [];
+        setHub({
+          courses: arr.length,
+          /* Course does not declare total_lessons (client.ts casts for the same
+           * reason at its own catalogue filter), so read it through a cast. */
+          lessons: arr.reduce(
+            (n, c) => n + Number((c as unknown as { total_lessons?: number }).total_lessons ?? 0),
+            0,
+          ),
+          certs: arr.filter((c) => (c as unknown as { has_certificate?: number | boolean }).has_certificate).length,
+        });
+        setHubGated(isUnderMaintenance(flags, 'learning'));
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, []);
+
   const { theme, isDark } = useTheme();
   const d = theme.dash;
   const { user } = useAuth();
@@ -169,21 +201,6 @@ function HomeInner() {
     : [];
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
-
-  /* pass 123 — the section below used to hardcode "Seerah of the Prophet, Lesson 4,
-   * 60%" and a second card at 15%. Those courses do not exist in the catalogue, so the
-   * home screen was showing progress on lessons nobody can open. It now advertises the
-   * Learning Hub with the live count and renders nothing when the admin has published
-   * nothing — api.courses() is the same source the courses screen itself uses. */
-  const [hubCourses, setHubCourses] = useState<number | null>(null);
-  useEffect(() => {
-    let live = true;
-    void api
-      .courses()
-      .then((rows) => { if (live) setHubCourses(Array.isArray(rows) ? rows.length : 0); })
-      .catch(() => { if (live) setHubCourses(0); });
-    return () => { live = false; };
-  }, []);
   /* pass 83-35 — the daily-videos LIBRARY strip keeps its modal; POST videos
    * no longer use it (they open the videos page via onOpenReels). */
   const [videoOpen, setVideoOpen] = useState<Video | null>(null);
@@ -715,24 +732,97 @@ function HomeInner() {
           </View>
         )}
 
-                {/* 6 ─ Learning Hub advert — pass 123, replaces hardcoded fake progress */}
-        {!!hubCourses && (
-          <Pressable
-            onPress={() => { haptic.selection(); router.push('/tools/courses'); }}
-            style={{ marginHorizontal: 16, marginTop: 26, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-          >
-            <View style={{ width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(74,227,143,0.14)' : 'rgba(29,111,66,0.10)' }}>
-              <FontAwesome5 name="book-open" size={16} color={d.emerald} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T v="h2" style={{ color: d.text, fontWeight: '700', fontSize: 15.5 }}>Learning Hub</T>
-              <T v="caption" style={{ color: d.subtext, fontSize: 11.5, marginTop: 3 }}>
-                {hubCourses} {hubCourses === 1 ? 'course' : 'courses'} ready — Qur'an, Arabic, fiqh, seerah
-              </T>
-            </View>
-            <T v="caption" style={{ color: d.emerald, fontSize: 11.5, fontWeight: '600' }}>Open →</T>
-          </Pressable>
-        )}
+        {/* 6 ─ Learning Hub advert (pass 123)
+                  What used to sit here was a hardcoded "Continue Learning" pair:
+                  "Seerah of the Prophet ﷺ · Lesson 4 · 60%" and a second card at
+                  "15%", with no data source at all — both simply pushed
+                  /tools/courses. Fake personal progress is worse than none: it
+                  tells a brand-new user their account holds work they never did,
+                  and it is exactly what a Play reviewer flags as a stub screen.
+                  This card advertises the hub instead, with counts read from the
+                  live catalogue, and disappears when the hub is empty or Admin
+                  has Learning under maintenance. */}
+        {hub && hub.courses > 0 && !hubGated ? (
+          <View style={{ marginHorizontal: 16, marginTop: 26 }}>
+            <Pressable
+              onPress={() => router.push('/tools/learning')}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel="Open the Learning Hub"
+              style={({ pressed }) => ({
+                borderRadius: 22,
+                overflow: 'hidden',
+                borderWidth: 1,
+                borderColor: d.cardBorder,
+                opacity: pressed ? 0.92 : 1,
+              })}
+            >
+              <LinearGradient
+                colors={isDark ? ['#0C2C21', '#071A13'] : [d.emerald, d.emeraldDeep]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 18 }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+                  <View
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 15,
+                      backgroundColor: 'rgba(255,255,255,0.14)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FontAwesome5 name="graduation-cap" size={19} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <T v="caption" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '800', letterSpacing: 0.9, textTransform: 'uppercase' }}>
+                      Learning Hub
+                    </T>
+                    <T v="h3" style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 4, lineHeight: 22 }}>
+                      Learn something properly this week
+                    </T>
+                    <T v="caption" style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+                      Short lessons on Qur'an, Aqeedah and Tajwid — free, and finishable in one sitting.
+                    </T>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 15 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.13)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+                    <FontAwesome5 name="book-open" size={10} color="rgba(255,255,255,0.9)" />
+                    <T v="caption" style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>
+                      {hub.courses} course{hub.courses === 1 ? '' : 's'}
+                    </T>
+                  </View>
+                  {hub.lessons > 0 ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.13)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+                      <FontAwesome5 name="list-ul" size={10} color="rgba(255,255,255,0.9)" />
+                      <T v="caption" style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>
+                        {hub.lessons} lesson{hub.lessons === 1 ? '' : 's'}
+                      </T>
+                    </View>
+                  ) : null}
+                  {/* shown only when the admin has actually attached certificates to a
+                      listed course — the four courses live today have none, so promising
+                      one in the copy would be the same invention this card replaced. */}
+                  {hub.certs > 0 ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.13)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+                      <FontAwesome5 name="award" size={10} color="rgba(255,255,255,0.9)" />
+                      <T v="caption" style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>
+                        {hub.certs} with certificate{hub.certs === 1 ? '' : 's'}
+                      </T>
+                    </View>
+                  ) : null}
+                  <View style={{ flex: 1 }} />
+                  <T v="caption" style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>
+                    Open →
+                  </T>
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* 7 ─ Daily videos (tap → viewing modal) */}
         <View style={{ marginHorizontal: 16, marginTop: 26 }}>

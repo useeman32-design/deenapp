@@ -3,14 +3,16 @@ import { BASE, chatSendShare, chatStartDMByUsername, feed as fetchFeed, getConne
 import type { Video } from '@/api/types';
 import { goBack } from '@/lib/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Easing, FlatList, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Dimensions, Easing, FlatList, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { Alert } from '../lib/alert';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { claimMedia, releaseMedia, useMediaHolds } from '@/lib/mediaBus';
+import { claimMedia, registerMediaStop, releaseMedia, silenceMedia, useMediaHolds } from '@/lib/mediaBus';
+import { youtubeEmbedUrl, youtubeId } from '@/lib/youtube';
+import { YouTubePlayer } from '@/components/YouTubePlayer';
 import { VideoLoader } from '@/components/VideoLoader';
 import { CrescentLoader } from '@/components/CrescentLoader';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,12 +41,8 @@ const { height: VH, width: VW } = Dimensions.get('window');
 const SAVES_KEY = 'dl.reels.saved';
 const REPOST_KEY = 'dl.reels.reposted';
 const SPEEDS = [0.5, 1, 2, 3];
-/* Keep enough native players alive for a swipe in either direction. expo-video
- * begins preparing a source when its player is created; useCaching then keeps
- * the downloaded bytes available when a retained reel is revisited. */
-const REEL_PRELOAD_AHEAD = 3;
-const REEL_RETAIN_BEHIND = 3;
-
+// Only the active page owns a decoder. Neighbours are cheap posters, not
+// prepared native players, so fast swipes cannot exhaust low-end devices.
 /* pass 83-38b — compact "2h / 3d" label from a real 'Y-m-d H:i:s' timestamp */
 const timeAgoShort = (sqlTime: string): string => {
   const t = new Date(String(sqlTime).replace(' ', 'T') + 'Z').getTime();
@@ -177,18 +175,13 @@ function ReelItem({
   const [paused, setPaused] = useState(false);
   /* pass 87 — STRICT stop rule: leaving the reels screen pauses every player */
   const [screenFocused, setScreenFocused] = useState(true);
-  useFocusEffect(
-    () => {
-      setScreenFocused(true);
-      return () => setScreenFocused(false);
-    },
-  );
+  useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
+    return () => { setScreenFocused(false); try { player.pause(); } catch {} };
+  }, [player]));
   const endedRef = useRef(false);
   useEffect(() => {
-    const sub = (player.addListener as (ev: string, cb: (st: { status?: string }) => void) => { remove: () => void })('statusChange', (st) => {
-      if (st?.status === 'playToEnd') { endedRef.current = true; setPaused(true); }
-      if (st?.status === 'readyToPlay') endedRef.current = false;
-    });
+    const sub = player.addListener('playToEnd', () => { endedRef.current = true; setPaused(true); });
     return () => sub.remove();
   }, [player]);
   const [followed, setFollowed] = useState(false);
@@ -214,6 +207,7 @@ function ReelItem({
    * way to Notifications/Shops instead of leaving sound behind. */
   const mediaKey = `reel:${reel.id ?? reel.src}`;
   const holdsMedia = useMediaHolds(mediaKey);
+  useEffect(() => registerMediaStop(mediaKey, () => { try { player.pause(); } catch {} setPaused(true); }), [mediaKey, player]);
   useEffect(() => {
     if (active && !paused && screenFocused) claimMedia(mediaKey);
     else releaseMedia(mediaKey);
@@ -231,8 +225,10 @@ function ReelItem({
   }, [holdsMedia, player]);
 
   useEffect(() => {
-    if (active && !paused && screenFocused && holdsMedia) player.play();
-    else player.pause();
+    try {
+      if (active && !paused && screenFocused && holdsMedia) player.play();
+      else player.pause();
+    } catch { /* native player is releasing */ }
   }, [active, paused, player, screenFocused, holdsMedia]);
 
   useEffect(() => {
@@ -319,16 +315,9 @@ function ReelItem({
       // single tap → pause, but never right after a burst (rapid tapping)
       tapTimer.current = setTimeout(() => {
         tapTimer.current = null;
-        setPaused((p) => {
-          if (p) {
-            /* pass 83-35 — replay after the video ended: seek back to 0 */
-            if (endedRef.current) { try { player.currentTime = 0; endedRef.current = false; } catch {} }
-            player.play();
-          } else {
-            player.pause();
-          }
-          return !p;
-        });
+        if (paused && endedRef.current) { try { player.currentTime = 0; endedRef.current = false; } catch {} }
+        // State/gate owns playback; never call play directly from a tap.
+        setPaused((p) => !p);
         haptic.selection();
       }, 300);
     }
@@ -706,6 +695,32 @@ function EndOfVideosCard({ hasWatched, onQuran, onHadith, onLearning }: { hasWat
   );
 }
 
+/** YouTube reels use YouTube's player, not expo-video. Nothing overlays its
+ * controls; social actions sit outside the player viewport. */
+function YouTubeReelItem({ reel, liked, saved, likeCount, active, onLike, onSave, onComments, onShare, onMore, onOpenProfile, safeBottom }: {
+  reel: MockReel; liked: boolean; saved: boolean; likeCount: number; active: boolean;
+  onLike: (id: number) => void; onSave: (id: number) => void; onComments: (r: MockReel) => void;
+  onShare: (r: MockReel) => void; onMore: (r: MockReel) => void; onOpenProfile: (username: string) => void; safeBottom: number;
+}) {
+  const src = typeof reel.src === 'object' && reel.src ? reel.src.uri : '';
+  return (
+    <View style={{ width: VW, height: VH, backgroundColor: '#06110B', justifyContent: 'center', paddingBottom: 118 + safeBottom }}>
+      <View style={{ paddingHorizontal: 18, paddingBottom: 14 }}>
+        <Pressable onPress={() => onOpenProfile(reel.username)}><T v="bodyS" style={{ color: '#fff', fontWeight: '800' }}>@{String(reel.username).replace(/^@/, '')}</T></Pressable>
+        {!!reel.caption && <T v="caption" numberOfLines={2} style={{ color: '#DDECE2', marginTop: 5 }}>{reel.caption}</T>}
+      </View>
+      <YouTubePlayer embedUrl={src} height={Math.max(200, Math.min(280, VH * 0.34))} borderRadius={0} gateKey={`reel:${reel.id}`} autoStart={active} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10 }}>
+        <Pressable accessibilityLabel="Like video" onPress={() => onLike(reel.id)} style={{ alignItems: 'center', padding: 9 }}><FontAwesome5 name="heart" solid={liked} size={20} color={liked ? '#FF5F72' : '#fff'} /><T v="caption" style={{ color: '#fff', fontSize: 10, marginTop: 4 }}>{likeCount}</T></Pressable>
+        <Pressable accessibilityLabel="Comments" onPress={() => onComments(reel)} style={{ alignItems: 'center', padding: 9 }}><FontAwesome5 name="comment" size={19} color="#fff" /><T v="caption" style={{ color: '#fff', fontSize: 10, marginTop: 4 }}>{reel.comments}</T></Pressable>
+        <Pressable accessibilityLabel="Save video" onPress={() => onSave(reel.id)} style={{ alignItems: 'center', padding: 9 }}><FontAwesome5 name="bookmark" solid={saved} size={19} color={saved ? '#E8C96A' : '#fff'} /><T v="caption" style={{ color: '#fff', fontSize: 10, marginTop: 4 }}>Save</T></Pressable>
+        <Pressable accessibilityLabel="Share video" onPress={() => onShare(reel)} style={{ alignItems: 'center', padding: 9 }}><FontAwesome5 name="share" size={19} color="#fff" /><T v="caption" style={{ color: '#fff', fontSize: 10, marginTop: 4 }}>Share</T></Pressable>
+        <Pressable accessibilityLabel="More options" onPress={() => onMore(reel)} style={{ alignItems: 'center', padding: 9 }}><FontAwesome5 name="ellipsis-h" size={19} color="#fff" /><T v="caption" style={{ color: '#fff', fontSize: 10, marginTop: 4 }}>More</T></Pressable>
+      </View>
+    </View>
+  );
+}
+
 function VideosFeedInner() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ start?: string; create?: string }>();
@@ -781,6 +796,14 @@ function VideosFeedInner() {
   useEffect(() => { setZen(false); }, [index]);
   /* pass 83-35 — owner: leaving the videos page must STOP the video */
   const [screenFocused, setScreenFocused] = useState(true);
+  const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+      if (state !== 'active') silenceMedia();
+    });
+    return () => sub.remove();
+  }, []);
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
     let alive = true;
@@ -791,7 +814,7 @@ function VideosFeedInner() {
       setPostingStatus({ enabled: false, canPost: false, message: 'Connect to the live app to check video posting availability.' });
       setPostingStatusBusy(false);
     }
-    return () => { alive = false; setScreenFocused(false); };
+    return () => { alive = false; silenceMedia(); setScreenFocused(false); };
   }, []));
   const [query, setQuery] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -840,11 +863,11 @@ function VideosFeedInner() {
     let alive = true;
     fetchFeed('for-you').then((res) => {
       if (!alive) return;
-      const vids = (res.posts ?? []).filter((pp) => pp.id > 0 && !!pp.video_url);
+      const vids = (res.posts ?? []).filter((pp) => pp.id > 0 && !!(pp.video_url || pp.youtube_embed_url || pp.youtube_url));
       setPostReels(vids.map((pp) => ({
         id: pp.id,
-        src: { uri: mediaUrl(String(pp.video_url)) },
-        poster: { uri: (typeof pp.video_poster === 'object' && pp.video_poster && 'uri' in pp.video_poster ? mediaUrl(String(pp.video_poster.uri)) : mediaUrl(String(pp.video_url)) ) },
+        src: { uri: youtubeEmbedUrl(pp.youtube_embed_url || pp.youtube_url || pp.video_url) ?? mediaUrl(String(pp.video_url ?? '')) },
+        poster: { uri: (typeof pp.video_poster === 'object' && pp.video_poster && 'uri' in pp.video_poster ? mediaUrl(String(pp.video_poster.uri)) : (youtubeId(pp.youtube_embed_url || pp.youtube_url || pp.video_url) ? `https://i.ytimg.com/vi/${youtubeId(pp.youtube_embed_url || pp.youtube_url || pp.video_url)}/hqdefault.jpg` : '')) },
         username: String(pp.user?.username ?? 'deenlink'),
         accountName: String(pp.user?.full_name || pp.user?.username || 'DeenLink'),
         accountPic: (pp.user?.profile_image_url as string | null) ?? null,
@@ -899,12 +922,12 @@ function VideosFeedInner() {
      * show up and reposts hit the server (mock clips stay as the demo bed) */
     if (!isLive()) return;
     fetchLiveVideos('reel').then((list) => {
-      const rows = (list ?? []).filter((v) => (v.videoType ?? v.video_type) === 'reel' || v.liveId !== undefined || v.sourceUrl || v.source_url);
+      const rows = (list ?? []).filter((v) => (v.videoType ?? v.video_type) === 'reel' || v.liveId !== undefined || v.sourceUrl || v.source_url || v.embed_url || v.youtubeEmbedUrl || v.youtube_embed_url || v.youtube_url);
       const mapped: MockReel[] = rows.map((v: Video) => ({
         id: 500000 + Number(v.id),
         liveId: Number(v.id),
-        src: { uri: mediaUrl(String(v.sourceUrl ?? v.source_url ?? '')) },
-        poster: { uri: mediaUrl(String(v.posterUrl ?? v.poster_url ?? '')) },
+        src: { uri: youtubeEmbedUrl(v.embed_url || v.youtubeEmbedUrl || v.youtube_embed_url || v.youtube_url || v.sourceUrl || v.source_url) ?? mediaUrl(String(v.sourceUrl ?? v.source_url ?? '')) },
+        poster: { uri: mediaUrl(String(v.posterUrl ?? v.poster_url ?? '')) || (youtubeId(v.embed_url || v.youtubeEmbedUrl || v.youtube_embed_url || v.youtube_url || v.sourceUrl || v.source_url) ? `https://i.ytimg.com/vi/${youtubeId(v.embed_url || v.youtubeEmbedUrl || v.youtube_embed_url || v.youtube_url || v.sourceUrl || v.source_url)}/hqdefault.jpg` : '') },
         username: String(v.accountUsername ?? 'deenlink'),
         accountName: String(v.accountName ?? v.accountUsername ?? 'DeenLink'),
         accountPic: (v.accountPic as string | null) ?? null,
@@ -957,12 +980,16 @@ function VideosFeedInner() {
      * videos and data" on this page, and a phone-local row is exactly that —
      * it plays for him, 404s for everyone else, and hides whether the server
      * actually has the video. Everything here is now a real server row. */
-    const upBase = new Set(liveReels.map((r) => String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
-    const postClean = postReels.filter((r) => !upBase.has(String(typeof r.src === 'object' && r.src && 'uri' in r.src ? r.src.uri : '').split('/').pop() ?? ''));
+    const sourceKey = (r: MockReel) => {
+      const uri = typeof r.src === 'object' && r.src && 'uri' in r.src ? String(r.src.uri) : String(r.src);
+      const yt = youtubeId(uri);
+      return yt ? `youtube:${yt}` : `file:${uri.split('?')[0]}`;
+    };
+    const upBase = new Set(liveReels.map(sourceKey));
+    const postClean = postReels.filter((r) => !upBase.has(sourceKey(r)));
     const seen = new Set<string>();
     const unique = (rows: MockReel[]) => rows.filter((r) => {
-      const uri = typeof r.src === 'object' && r.src && 'uri' in r.src ? String(r.src.uri) : String(r.src);
-      const key = r.liveId != null ? `video:${r.liveId}` : `file:${uri.split('/').pop() ?? uri}`;
+      const key = sourceKey(r);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -1203,10 +1230,6 @@ function VideosFeedInner() {
     [reels, showToast],
   );
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-    if (viewableItems.length && viewableItems[0].index != null) setIndex(viewableItems[0].index);
-  }).current;
-
   const commentPost: Post | null = commentReel
     ? reelAsPost(
         commentReel,
@@ -1353,10 +1376,20 @@ function VideosFeedInner() {
             onHadith={() => router.push('/tools/hadith' as never)}
             onLearning={() => router.push('/tools/learning' as never)}
           />
+        ) : !screenFocused || !appActive || i !== index ? (
+          <View style={{ width: VW, height: VH, backgroundColor: '#07100C', justifyContent: 'center' }}>
+            {typeof item.poster === 'object' && item.poster?.uri ? <Image source={item.poster} style={{ width: '100%', height: '100%', opacity: 0.6 }} resizeMode="cover" /> : null}
+          </View>
+        ) : youtubeId(typeof item.src === 'object' && item.src ? item.src.uri : '') ? (
+          <YouTubeReelItem reel={{ ...item, comments: videoCommentCounts[item.id] ?? item.comments }} active
+            liked={liked.has(item.id)} saved={saved.has(item.id)} likeCount={likeCounts[item.id] ?? item.likes} safeBottom={insets.bottom}
+            onLike={toggleLike} onSave={toggleSave} onComments={(r) => { if (!guestBlock('Sign in to comment on videos.')) setCommentReel(r); }}
+            onShare={setShareReel} onMore={setMoreReel}
+            onOpenProfile={(u) => router.push({ pathname: '/profile/[username]', params: { username: String(u), tab: 'videos' } } as never)} />
         ) : (
           <ReelItem
             reel={{ ...item, comments: videoCommentCounts[item.id] ?? item.comments }}
-            active={screenFocused && i === index}
+            active={screenFocused && appActive && i === index}
             zen={zen}
             onZenChange={setZen}
             onOpenGroup={(gid) => router.push({ pathname: '/tools/group', params: { id: String(gid) } } as never)}
@@ -1393,25 +1426,17 @@ function VideosFeedInner() {
         disableIntervalMomentum
         showsVerticalScrollIndicator={false}
         getItemLayout={(_, i) => ({ length: VH, offset: VH * i, index: i })}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
-        /* pass 41 — scroll-driven active index too: on Expo Go viewability alone
-         * can lag, leaving two reels playing at once (user report) */
+        /* One scroll-derived owner; switch after the incoming page is >50% visible. */
         onScroll={(e) => {
-          const i = Math.max(0, Math.min(pagerItems.length - 1, Math.round(e.nativeEvent.contentOffset.y / VH)));
+          const i = Math.max(0, Math.min(pagerItems.length - 1, Math.floor((e.nativeEvent.contentOffset.y + VH * 0.45) / VH)));
           setIndex((cur) => (cur === i ? cur : i));
         }}
         scrollEventThrottle={64}
-        /* Keep the current item plus the next three players mounted so their
-         * native sources can prepare before the swipe reaches them. A larger
-         * window also keeps nearby players alive when the user scrolls back;
-         * useCaching covers reels that eventually leave the virtualization
-         * window. */
-        windowSize={1 + REEL_PRELOAD_AHEAD + REEL_RETAIN_BEHIND}
-        initialNumToRender={REEL_PRELOAD_AHEAD + 1}
-        maxToRenderPerBatch={REEL_PRELOAD_AHEAD + 1}
-        updateCellsBatchingPeriod={40}
-        removeClippedSubviews={false}
+        windowSize={3}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews={Platform.OS !== 'web'}
         extraData={storeTick}
       />
 

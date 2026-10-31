@@ -24,9 +24,11 @@ const ORIGIN = (
 export const WEB_ORIGIN = ORIGIN;
 export const TERMS_URL = `${ORIGIN}/terms.html`;
 export const PRIVACY_URL = `${ORIGIN}/privacy.html`;
-/* pass 123 — Google Play's UGC policy needs a published content policy reachable from
- * inside the app. terms/privacy were real files in the docroot; every guidelines path fell
- * through to the SPA shell, so /guidelines.html is deployed alongside them. */
+/* pass 123 — Google Play's user-generated-content policy requires a *published*
+ * content policy URL for an app where users post, and it must be reachable from
+ * inside the app. report + block already exist (FeedCard, blockUser/reportPost);
+ * the document did not — /terms.html and /privacy.html are real files in the
+ * docroot while every guidelines path fell through to the SPA shell. */
 export const GUIDELINES_URL = `${ORIGIN}/guidelines.html`;
 
 /** Open a legal document in the system browser. Never throws. */

@@ -69,6 +69,30 @@ const CHANNEL = ADHAN_CHANNEL;
 const SCHED_KEY = 'dl.adhan.sched.v1';
 const SKIP = 1; /* index of Sunrise — no adhan there (same rule as in-app) */
 
+/*
+ * pass 121 — Admin → System Settings → App Modules could hide the Prayer SCREEN
+ * (maintenance.prayer, mapped in ROUTE_MODULE) and the whole app (master), but
+ * the adhan kept ringing: the alerts are scheduled on the device, so they live
+ * outside the React tree that the gate replaces. The owner's ask was "I can put
+ * a certain module in maintenance from admin" — for a prayer app, a switch that
+ * leaves the alarm firing is not control.
+ *
+ * Checked at schedule time, which runs on boot, on foreground and on every
+ * settings change (adhanBoot, 10-minute throttle), so switching the module back
+ * on restores the alerts with no reinstall. FAILS OPEN: if the flags cannot be
+ * read, the adhan is scheduled anyway — muting prayer because of a network
+ * failure is the worse error by a wide margin.
+ */
+async function adminPausedAdhan(): Promise<boolean> {
+  try {
+    const m = await import('@/lib/maintenance');
+    const f = await m.maintenanceFlags();
+    return m.isMasterMaintenance(f) || m.isUnderMaintenance(f, 'prayer');
+  } catch {
+    return false;
+  }
+}
+
 async function cancelScheduled(): Promise<void> {
   const Notifications = await import('expo-notifications');
   try {
@@ -153,6 +177,8 @@ export async function syncAdhanSchedule(settingsOverride?: PrayerSettings): Prom
     } catch { /* foreground presentation is optional */ }
     await cancelScheduled();
     if (!settings.adhan) return;
+    /* pass 121 — after the cancel, so "off" really clears the device schedule */
+    if (await adminPausedAdhan()) return;
 
     const perm = await Notifications.getPermissionsAsync();
     if (perm.status !== 'granted') return;

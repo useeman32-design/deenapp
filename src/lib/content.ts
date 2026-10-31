@@ -185,43 +185,23 @@ async function loadJSON<T>(key: string): Promise<T> {
   if (mod == null) throw new Error(`content: unknown key ${key}`);
   let text: string;
   if (Platform.OS !== 'web') {
-    /* pass 34b — native (Expo Go): assets land as local files; Hermes has no
-     * fetch(file://) nor DecompressionStream → read bytes via expo-file-system
-     * and inflate the .gz packs with pako. */
-    /* pass 111 — RELEASE APKs cannot read the gradle-mangled bundled assets
-     * (flattened+obfuscated under res/), so prefer the on-disk content pack
-     * (see nativePack.ts). Expo Go/dev keeps the expo-asset path below. */
+    // Expo copies the packaged raw resource locally; the legacy pack/server
+    // is only a fallback if the on-device resource cannot be read.
     let bytes: Uint8Array | null = null;
-    /* 1) the on-disk content pack (normal path for release APKs) */
-    const packUri = resolvePackModule(mod);
-    if (packUri) {
-      try {
-        bytes = await new File(packUri).bytes();
-      } catch {
-        bytes = null;
-      }
+    try {
+      const asset = Asset.fromModule(mod);
+      await asset.downloadAsync();
+      if (asset.localUri) bytes = await new File(asset.localUri).bytes();
+    } catch { bytes = null; }
+    if (!bytes) {
+      const packUri = resolvePackModule(mod);
+      if (packUri) { try { bytes = await new File(packUri).bytes(); } catch { bytes = null; } }
     }
-    /* 2) pass 112 — HTTP fallback: the same file served from the API domain.
-     * Keeps the Qur'an/hadith readers alive when the pack is missing or partial. */
     if (!bytes) {
       const remote = resolvePackRemote(mod);
-      if (remote) {
-        try {
-          const r = await fetch(remote);
-          if (r.ok) bytes = new Uint8Array(await r.arrayBuffer());
-        } catch {
-          bytes = null;
-        }
-      }
-    /* 3) last resort: whatever gradle packaged (works in Expo Go/dev) */
-    if (!bytes) {
-      const a = Asset.fromModule(mod);
-      await a.downloadAsync().catch(() => {});
-      const local = (a as unknown as { localUri?: string }).localUri ?? (a as unknown as { uri: string }).uri;
-      const buf = await new File(local.replace(/^file:\/\//, '')).arrayBuffer();
-      bytes = new Uint8Array(buf);
+      if (remote) { try { const response = await fetch(remote); if (response.ok) bytes = new Uint8Array(await response.arrayBuffer()); } catch { bytes = null; } }
     }
-    }
+    if (!bytes) throw new Error(`content: unavailable ${key}`);
     text = utf8Decode(key.startsWith('hadith/') ? gunzipBytes(bytes) : bytes);
   } else {
     const a = Asset.fromModule(mod);
@@ -231,6 +211,10 @@ async function loadJSON<T>(key: string): Promise<T> {
     text = key.startsWith('hadith/') ? await gunzipResponse(r) : await r.text();
   }
   const data = JSON.parse(text) as T;
+  // Keep only one decompressed full Hadith book in the shared cache.
+  if (key.startsWith('hadith/') && !key.startsWith('hadith/meta_')) {
+    for (const old of cache.keys()) if (old.startsWith('hadith/') && !old.startsWith('hadith/meta_')) cache.delete(old);
+  }
   cache.set(key, data);
   return data;
 }

@@ -47,10 +47,34 @@ coverage/
 .DS_Store
 
 # local env and tokens — never upload
-.env*.local
+.env
+.env.*
+credentials.json
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pem
 .expo-token
 .token
 
 # NOTE: assets/content/ is deliberately NOT listed. It is ~20 MB and must reach
 # the cloud build. assets/content.zip stays absent; the extracted tree is the
 # source of truth now.
+
+# Stale generated JS siblings; Metro uses the TypeScript sources.
+src/**/*.js
+
+# Exclude diagnostics/notes and their possible credentials from the build archive.
+/scripts/*
+!/scripts/unpack-content.mjs
+/CONTINUE.md
+/HANDOFF-PROMPT.md
+/SESSION-MEMORY.md
+/docs/
+/sql/
+/avatar.zip
+
+# Backend drafts do not participate in the Android app build.
+/backend_patch/
+/api/

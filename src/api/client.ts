@@ -73,7 +73,7 @@ const ENV_BASE = String(process.env.EXPO_PUBLIC_API_URL ?? "").replace(
 );
 export const BASE = IS_APP_DOMAIN
   ? ORIGIN
-  : ((ENV_BASE as string | undefined) ??
+  : ((ENV_BASE as string | undefined) ||
     /*
      * PASS 104 — the fallback used to be https://deenlink.org, which the owner
      * confirms is the OLD API checkout. The two hosts are measurably different
@@ -108,6 +108,7 @@ const TIMEOUT = 20000; /* pass 83-1: slow mobile networks need more than 9s befo
 export const FORCE_DEMO = Platform.OS === "web" && !IS_APP_DOMAIN;
 
 let session: string | null = null;
+let sessionRevision = 0;
 let csrf: string | null = null;
 let live = false; // true once we've reached the real API this session
 
@@ -118,6 +119,7 @@ interface ReqOptions {
   body?: unknown;
   form?: FormData;
   auth?: boolean;
+  timeoutMs?: number;
 }
 
 export interface ApiResult<T> {
@@ -164,8 +166,9 @@ async function request<T = Record<string, unknown>>(
   if (session) headers["Cookie"] = `deenlink_session=${session}`;
   if (opts.method === "POST" && csrf) headers["X-CSRF-Token"] = csrf;
 
+  const requestRevision = sessionRevision;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? TIMEOUT);
 
   let res: Response;
   try {
@@ -185,23 +188,25 @@ async function request<T = Record<string, unknown>>(
     clearTimeout(timer);
     return { ok: false, data: {} as T, networkError: true };
   }
-  clearTimeout(timer);
+  // Keep the deadline active through reading the response body.
 
   // Capture / refresh the session cookie
   const setCookie = res.headers.get("set-cookie") ?? "";
   const m = setCookie.match(/deenlink_session=([^;,\s]+)/);
-  if (m && m[1] !== "deleted") session = m[1];
+  if (m && m[1] !== "deleted" && requestRevision === sessionRevision) session = m[1];
 
   /* pass 83-35 — read the body as TEXT once, then parse tolerantly (res.json()
    * consumes the stream, so a polluted body could not be re-read). */
   let data: T;
   {
-    const raw = await res.text().catch(() => "");
+    let raw: string;
+    try { raw = await res.text(); } catch { clearTimeout(timer); return { ok: false, data: {} as T, networkError: true }; }
+    clearTimeout(timer);
     data = parseLooseJson<T>(raw) ?? ({} as T);
   }
 
   if (res.ok) live = true;
-  if (res.status === 401) {
+  if (res.status === 401 && requestRevision === sessionRevision) {
     session = null;
     csrf = null;
   }
@@ -270,17 +275,23 @@ export async function restoreSession(): Promise<{
       : { user: null, ok: false };
   }
 
+  const revision = sessionRevision;
   const saved = await storage.getItem("dl.session");
+  const savedCsrf = await storage.getItem("dl.csrf");
+  if (revision !== sessionRevision) return { user: null, ok: false };
   if (saved) session = saved;
-  csrf = (await storage.getItem("dl.csrf")) || null;
+  csrf = savedCsrf || null;
+  // A fresh native install has no session cookie to check.
+  if (Platform.OS !== "web" && !saved) return { user: null, ok: false };
 
   // On web the server's session cookie is httpOnly, so JS can't read it and
   // `dl.session` may be empty after a refresh — but the browser still sends the
   // cookie automatically. So ALWAYS probe /me instead of bailing (which used to
   // log the user out on every page refresh).
   const me = await request<{ status: string; user?: User; scholar?: User["scholar"] }>(
-    "/api/auth/me.php",
+    "/api/auth/me.php", { timeoutMs: 5000 },
   );
+  if (revision !== sessionRevision) return { user: null, ok: false };
   if (me.ok && me.data.user) {
     const u = me.data.user as User;
     /* pass 90 — API builds that still return the scholar row as a SIBLING of
@@ -289,19 +300,18 @@ export async function restoreSession(): Promise<{
     return { user: hydrateUser(u), ok: true };
   }
 
-  if (!me.networkError) {
-    // Server says the session is invalid.
-    session = null;
-    csrf = null;
+  if (!me.networkError && (me.httpStatus === 401 || me.httpStatus === 403 || (me.httpStatus != null && me.httpStatus >= 200 && me.httpStatus < 500))) {
+    await clearSession();
     return { user: null, ok: false };
   }
-
-  // Offline → demo mode with the stored profile.
-  const u = await storage.getItem("dl.user");
-  return { user: u ? hydrateUser(JSON.parse(u) as User) : null, ok: false };
+  // Offline or a server error: retain a previously authenticated profile only.
+  const cached = await storage.getItem("dl.user");
+  try { return { user: cached ? hydrateUser(JSON.parse(cached) as User) : null, ok: false }; }
+  catch { return { user: null, ok: false }; }
 }
 
 export function setSession(s: string | null, c?: string | null) {
+  sessionRevision += 1;
   session = s;
   if (c !== undefined) csrf = c;
 }
@@ -361,6 +371,7 @@ export async function login(
   password: string,
   rememberMe = true,
 ) {
+  sessionRevision += 1;
   const r = await request<{ status: string; user?: User; message?: string }>(
     "/api/auth/login.php",
     {
@@ -410,6 +421,7 @@ export async function register(payload: {
   /** pass 96 — every new registration now carries a date of birth (YYYY-MM-DD) */
   date_of_birth?: string;
 }) {
+  sessionRevision += 1;
   const r = await request<{ status: string; user?: User; message?: string }>(
     "/api/auth/register.php",
     {
@@ -3676,10 +3688,19 @@ export async function courses(): Promise<Course[]> {
   const inCatalogue = all.filter((c) =>
     (CATALOGUE_SLUGS as readonly string[]).includes(String(c.slug ?? "")),
   );
-  /* pass 123 — the >=5 lesson gate existed to hide the thin pre-93 rows until the
-   * rebuild landed. The rebuild did land under new slugs, so the gate was hiding the
-   * real catalogue instead. Whatever the admin has published and the allowlist accepts
-   * is what the student sees; nothing else. */
+  /* pass 123 — the `total_lessons >= 5` "rebuilt" filter is GONE, and it was not
+   * cosmetic. list.php returns one row per slug (measured: 47 courses, zero
+   * duplicate slugs), so the filter never protected against the thin pre-rebuild
+   * rows it was written for; what it did do is arm a time bomb. All four live
+   * catalogue courses declare 3 lessons, so `rebuilt` is empty today and the
+   * fallback shows all four. The moment the owner publishes ANY course with 5+
+   * lessons, `rebuilt` becomes non-empty and the four short-but-real courses
+   * vanish from the hub with no explanation.
+   *
+   * CATALOGUE_SLUGS is the control the owner asked for ("do not display courses
+   * that did not exist"): an explicit, reviewed allow-list of exactly the ten
+   * slugs that are meant to be in the app. A lesson-count heuristic on top of it
+   * can only hide things the allow-list already admitted. */
   return inCatalogue;
 }
 
@@ -5037,8 +5058,12 @@ export async function persistSession(s: string, c: string | null, user: User) {
 }
 
 export async function clearSession() {
+  sessionRevision += 1;
+  session = null;
+  csrf = null;
   await storage.removeItem("dl.session");
   await storage.removeItem("dl.csrf");
+  await storage.removeItem("dl.user");
   session = null;
   csrf = null;
 }

@@ -1,36 +1,7 @@
-/**
- * pass 111/112 — native content pack.
- *
- * WHY THIS EXISTS
- * ---------------
- * In EAS/gradle RELEASE builds of this app, every metro-bundled asset is
- * flattened into `res/` with 2–3-character obfuscated names instead of the
- * `assets/raw/…` / `assets/drawable-*…` layout that React Native's
- * AssetSourceResolver expects next to the JS bundle. So no `require()`d image,
- * font or data file can be read from the APK (web export is unaffected).
- *
- * The app therefore downloads ONE zip on first release launch and reads every
- * asset from disk instead:
- *
- *   scripts/build-native-pack.py → native-pack/pack.zip on the API domain
- *   ensurePack()  → download + inflate into documentDirectory/native-pack/
- *   installNativeAssetPack() → custom RN asset source transformer
- *   fonts.ts / content.ts → read pack files directly
- *
- * PASS 112 — why pass 111 still showed blank icons/readers:
- * metro records `httpServerLocation` with a DOUBLED prefix — e.g.
- * './assets/assets/content/quran' — while the pack stores 'assets/content/quran'.
- * Pass 111 concatenated them literally, so every computed lookup missed (fonts
- * worked only because that path was hardcoded). Resolution now normalizes the
- * recorded path and validates it against the pack's REAL entry list, trying
- * scaled variants and both prefix forms. If a file still cannot be found
- * locally, callers can fall back to an HTTP fetch of the same file.
- *
- * Web, Expo Go and __DEV__ builds behave exactly as before.
- */
+/** Legacy optional pack fallback. Metro images and raw content are bundled;
+ * never override their normal native resource resolution at startup. */
 import { Platform, PixelRatio, type ImageSourcePropType } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
-import { unzip, strFromU8 } from 'fflate';
 import { PACK_URL, PACK_VERSION, PACK_BYTES } from './packMeta';
 
 /** Base URL the pack is served from, with a trailing slash. */
@@ -76,6 +47,7 @@ async function unpackOnce(): Promise<void> {
     await File.downloadFileAsync(PACK_URL, tmp);
     const zipBytes = await tmp.bytes();
     if (zipBytes.length < 1024) throw new Error('pack: download too small');
+    const { unzip, strFromU8 } = await import('fflate');
     const files = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
       unzip(zipBytes, (err, data) => (err ? reject(err) : resolve(data)));
     });
@@ -231,7 +203,7 @@ export function resolveAssetRel(asset: PackagerAsset): string | null {
 /* eslint-disable @typescript-eslint/no-var-requires */
 function registry(): { getAssetByID: (id: number) => PackagerAsset | null } | null {
   try {
-    return require('react-native/Libraries/Image/AssetRegistry');
+    return require('@react-native/assets-registry/registry');
   } catch {
     return null;
   }
@@ -254,31 +226,8 @@ export function packUriForAsset(asset: PackagerAsset): string | null {
   return rel ? packDir + rel : null;
 }
 
-/**
- * Register the custom source transformer. Called once at module scope of the
- * root layout (native release only). While the pack is still downloading,
- * resolution falls back to RN's default (blank images during the splash —
- * components re-render with real file URIs once the pack lands).
- */
-export function installNativeAssetPack(): void {
-  if (Platform.OS === 'web' || __DEV__) return;
-  const set = resolverModule()?.default?.setCustomSourceTransformer;
-  if (!set) return;
-  set(((resolver: { asset: PackagerAsset; defaultAsset: () => unknown }) => {
-    const asset = resolver.asset;
-    /* 1) the on-disk pack (fast, offline)  2) pass 113 — the single-file HTTP
-     * endpoint (works even when the bulk download failed)  3) give up */
-    const uri = packUriForAsset(asset) ?? remoteUriForAsset(asset);
-    if (!uri) return resolver.defaultAsset();
-    return {
-      __packager_asset: true,
-      width: asset.width ?? null,
-      height: asset.height ?? null,
-      uri,
-      scale: pickScale(asset.scales ?? [1], PixelRatio.get()),
-    };
-  }) as never);
-}
+/** Backward-compatible no-op: never replace bundled image sources. */
+export function installNativeAssetPack(): void {}
 
 /** Local file URI for a `require()`d data file, or null when unavailable. */
 export function resolvePackModule(mod: number): string | null {
@@ -318,21 +267,7 @@ export function remoteUriForAsset(asset: PackagerAsset): string | null {
  * be on disk yet when modules import). Non-numeric sources pass through.
  */
 export function imgSource(src: unknown): ImageSourcePropType {
-  if (Platform.OS === 'web' || __DEV__ || typeof src !== 'number') return src as ImageSourcePropType;
-  try {
-    const asset = registry()?.getAssetByID(src) ?? null;
-    const uri = asset ? packUriForAsset(asset) ?? remoteUriForAsset(asset) : null;
-    if (uri) return { uri };
-  } catch {
-    /* fall through to the default source */
-  }
-  const m = resolverModule() as unknown as { default?: (id: number) => { uri?: string } | null } | null;
-  try {
-    const resolved = m?.default?.(src);
-    return (resolved?.uri ? resolved : src) as ImageSourcePropType;
-  } catch {
-    return src as ImageSourcePropType;
-  }
+  return src as ImageSourcePropType;
 }
 
 /** Human-readable pack size for progress copy. */

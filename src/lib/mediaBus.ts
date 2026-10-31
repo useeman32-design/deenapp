@@ -26,6 +26,16 @@ type Holder = string | null;
 
 let current: Holder = null;
 const subs = new Set<(k: Holder) => void>();
+const stops = new Map<string, Set<() => void>>();
+/** Players register an immediate stop, before the next owner starts. */
+export function registerMediaStop(key: string, stop: () => void): () => void {
+  const callbacks = stops.get(key) ?? new Set<() => void>();
+  callbacks.add(stop); stops.set(key, callbacks);
+  return () => { callbacks.delete(stop); if (!callbacks.size) stops.delete(key); };
+}
+function stopHolder(key: Holder) {
+  if (key) stops.get(key)?.forEach((stop) => { try { stop(); } catch {} });
+}
 
 function emit() {
   subs.forEach((f) => {
@@ -44,7 +54,9 @@ export function mediaHolder(): Holder {
 /** Take the speaker. Whoever held it before is told to stop. */
 export function claimMedia(key: string) {
   if (current === key) return;
+  const previous = current;
   current = key;
+  stopHolder(previous);
   emit();
 }
 
@@ -52,13 +64,16 @@ export function claimMedia(key: string) {
 export function releaseMedia(key: string) {
   if (current !== key) return;
   current = null;
+  stopHolder(key);
   emit();
 }
 
 /** Nobody may play — used when a screen blurs or the app is backgrounded. */
 export function silenceMedia() {
   if (current === null) return;
+  const previous = current;
   current = null;
+  stopHolder(previous);
   emit();
 }
 
@@ -158,14 +173,14 @@ export function useMediaGate(key: string, opts?: { autoReleaseWhenOffScreen?: bo
         setScreenFocused(false);
         // Leaving the screen is the exact case the owner flagged (notifications
         // / shops opened over the feed) — silence everything on the way out.
-        silenceMedia();
+        releaseMedia(key);
       };
-    }, []),
+    }, [key]),
   );
 
   const [appActive, setAppActive] = useState<boolean>(() => {
     try {
-      return AppState.currentState === 'active';
+      return AppState.currentState !== 'background' && AppState.currentState !== 'inactive';
     } catch {
       return true;
     }
@@ -201,6 +216,7 @@ export function useMediaGate(key: string, opts?: { autoReleaseWhenOffScreen?: bo
     }
   }, [holding, screenFocused, appActive, docVisible, onScreen, autoRelease, key]);
 
+  useEffect(() => () => releaseMedia(key), [key]);
   const start = useCallback(() => claimMedia(key), [key]);
   const stop = useCallback(() => releaseMedia(key), [key]);
 

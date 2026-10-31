@@ -1,3 +1,4 @@
+import { bundledAvatarFor } from '@/lib/avatarSource';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -206,7 +207,7 @@ export default function EditProfile() {
               {uploading ? (
                 <ActivityIndicator color={theme.primary} />
               ) : !useDefault && photoUrl ? (
-                <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} />
+                <Image source={bundledAvatarFor(photoUrl) ?? { uri: photoUrl }} style={{ width: '100%', height: '100%' }} />
               ) : (
                 <DefaultAvatar gender={gender} size={96} />
               )}

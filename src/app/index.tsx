@@ -9,7 +9,11 @@ export default function Index() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
-    storage.getItem('dl.onboarded').then((v) => setOnboarded(v === '1'));
+    let active = true, settled = false;
+    const finish = (v: boolean) => { if (active && !settled) { settled = true; setOnboarded(v); } };
+    const timeout = setTimeout(() => finish(false), 3000);
+    storage.getItem('dl.onboarded').then((v) => finish(v === '1')).catch(() => finish(false)).finally(() => clearTimeout(timeout));
+    return () => { active = false; clearTimeout(timeout); };
   }, []);
 
   if (!ready || onboarded === null) return null;

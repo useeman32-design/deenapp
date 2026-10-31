@@ -1,3 +1,4 @@
+import { bundledAvatarFor } from '@/lib/avatarSource';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { markProfileDirty } from "@/lib/userPosts";
 import { goBack } from "@/lib/navigation";
@@ -3018,7 +3019,7 @@ function GroupScreenInner() {
                         >
                           {rm.profile_image_url ? (
                             <ExpoImage
-                              source={{ uri: rm.profile_image_url }}
+                              source={bundledAvatarFor(rm.profile_image_url) ?? { uri: rm.profile_image_url }}
                               style={{ width: "100%", height: "100%" }}
                               contentFit="cover"
                             />
@@ -3799,7 +3800,7 @@ function GroupScreenInner() {
                         >
                           {a.profile_image_url ? (
                             <ExpoImage
-                              source={{ uri: a.profile_image_url }}
+                              source={bundledAvatarFor(a.profile_image_url) ?? { uri: a.profile_image_url }}
                               style={{ width: "100%", height: "100%" }}
                               contentFit="cover"
                             />

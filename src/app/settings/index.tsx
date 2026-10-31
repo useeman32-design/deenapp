@@ -317,7 +317,7 @@ if (v) void requestPushPermission().then(() => refreshPushStatus().then(setPstat
 {pstat.delivery === 'push+in-app'
 ? 'Prayer alerts are scheduled on this device and ring with the app closed. Replies, likes and messages arrive as a banner while DeenLink is open, and as a push when it is closed.'
 : pstat.delivery === 'in-app only'
-? 'Prayer alerts are scheduled on this device and ring with the app closed. Replies, likes and messages arrive as a banner the moment the app is foregrounded. Push while the app is closed needs Firebase (google-services.json) in the build' + (pstat.error ? ` — last attempt: ${pstat.error}` : ' — not present in this build yet') + '.'
+? 'Prayer and adhan alerts are scheduled on this device — they ring with the app closed and survive a reboot, with no server involved. Everything else (replies, likes, messages, announcements) is pulled into the bell while the app is open; a banner on a locked phone needs Firebase (google-services.json) in the build' + (pstat.error ? ` — last attempt: ${pstat.error}` : ' — not present in this build yet') + '.'
 : 'Notifications are switched off at the system level, so nothing will appear. Tap System permission above to allow them.'}
 </T>
           </Sheet>
@@ -412,6 +412,7 @@ if (v) void requestPushPermission().then(() => refreshPushStatus().then(setPstat
             <Pressable onPress={() => { haptic.selection(); openLegalDoc(GUIDELINES_URL); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: d.cardBorder }}>
               <FontAwesome5 name="users" size={13} color={d.emerald} />
               <T v="bodyS" style={{ flex: 1, color: d.text, fontWeight: '600' }}>Community guidelines</T>
+              <T v="caption" style={{ color: d.faint }}>what may be posted, and how reports are handled</T>
             </Pressable>
             <T v="caption" style={{ fontSize: 9.5, color: d.faint, textAlign: 'center', marginTop: 12, lineHeight: 14 }}>Made with ihsan. Quran & tafsir texts via quranapi.pages.dev. For rulings, consult a qualified scholar.</T>
           </Sheet>

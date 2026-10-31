@@ -1,3 +1,4 @@
+import { bundledAvatarFor } from '@/lib/avatarSource';
 import { markGoal } from '@/lib/routine';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -229,7 +230,7 @@ export default function FatwaBrowser() {
                 <Pressable key={`d${f.id}`} onPress={() => { haptic.selection(); router.push({ pathname: '/profile/[username]', params: { username: f.scholar?.username || String(f.scholar?.id ?? ''), tab: 'questions', question_id: String(f.id) } } as never); }} style={{ borderRadius: 15, borderWidth: 1, borderColor: d.cardBorder, backgroundColor: d.card, padding: 13, marginBottom: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     {f.scholar?.profile_image_url ? (
-                      <Image source={{ uri: f.scholar.profile_image_url }} style={{ width: 26, height: 26, borderRadius: 13 }} />
+                      <Image source={bundledAvatarFor(f.scholar.profile_image_url) ?? { uri: f.scholar.profile_image_url }} style={{ width: 26, height: 26, borderRadius: 13 }} />
                     ) : (
                       <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(48,63,143,0.15)', alignItems: 'center', justifyContent: 'center' }}>
                         <FontAwesome5 name="user-graduate" size={11} color="#3F51B5" />

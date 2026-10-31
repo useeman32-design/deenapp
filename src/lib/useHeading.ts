@@ -36,7 +36,7 @@ export type HeadingState = {
 
 const wrap = (d: number) => ((d % 360) + 360) % 360;
 
-export function useHeading(): HeadingState {
+export function useHeading(enabled = true): HeadingState {
   const [heading, setHeading] = useState<number | null>(null);
   const [source, setSource] = useState<'magnetometer' | 'deviceorientation' | 'none'>('none');
   const [needsPermission, setNeedsPermission] = useState(false);
@@ -44,6 +44,8 @@ export function useHeading(): HeadingState {
   const smooth = useRef<number | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
     if (Platform.OS !== 'web') {
       // ---- native (pass 35): OS-fused compass heading first — far more
       // accurate than our raw tilt-compensated magnetometer math (the OS
@@ -57,9 +59,9 @@ export function useHeading(): HeadingState {
           try {
             const perm: { granted: boolean } = await Location.getForegroundPermissionsAsync();
             if (!perm.granted) {
-              const req = await Location.requestForegroundPermissionsAsync().catch(() => null);
-              if (!req || !req.granted) throw new Error('no location permission');
+              throw new Error('no location permission');
             }
+            if (!alive) return;
             headingSub = await Location.watchHeadingAsync((hd: { trueHeading: number; magHeading: number }) => {
               /* trueHeading < 0 when unavailable (e.g. Android without geolocation) → magnetic */
               let h = hd.trueHeading >= 0 ? hd.trueHeading : hd.magHeading;
@@ -68,6 +70,7 @@ export function useHeading(): HeadingState {
               setHeading(wrap(smooth.current));
               setSource('magnetometer');
             });
+            if (!alive) { headingSub.remove(); headingSub = null; }
             return;
           } catch {
             /* heading service unavailable → magnetometer fallback below */
@@ -75,9 +78,11 @@ export function useHeading(): HeadingState {
           throw new Error('heading unavailable');
         })
         .catch(() => {
+          if (!alive) return;
           // ---- native fallback: tilt-compensated magnetometer ----
           import('expo-sensors')
             .then(({ Magnetometer, Accelerometer }) => {
+              if (!alive) return;
               Magnetometer.setUpdateInterval(100);
               Accelerometer.setUpdateInterval(100);
               let mag = { x: 0, y: 0, z: 0 };
@@ -120,6 +125,7 @@ export function useHeading(): HeadingState {
             });
         });
       return () => {
+        alive = false;
         if (headingSub) headingSub.remove();
         subs.forEach((s) => s.remove());
       };
@@ -160,7 +166,7 @@ export function useHeading(): HeadingState {
       window.removeEventListener('deviceorientationabsolute' as never, onOrient as never, true);
       window.removeEventListener('deviceorientation', onOrient as never, true);
     };
-  }, []);
+  }, [enabled]);
 
   const requestPermission = () => {
     const w = window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } };
@@ -178,7 +184,7 @@ export function useHeading(): HeadingState {
     source,
     needsPermission,
     manualOffset,
-    corrected: heading == null ? null : wrap(heading + manualOffset),
+    corrected: wrap((heading ?? 0) + manualOffset),
     setManualOffset,
     requestPermission,
     available: source !== 'none' || heading != null,

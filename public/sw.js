@@ -22,7 +22,7 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'DeenLink';
   const body = payload.body || '';
   const url = payload.url || '/';
-  const icon = payload.icon || '/img/logo.png';
+  const icon = payload.icon || new URL('icons/icon-192.png', self.registration.scope).href;
   event.waitUntil(
     self.registration.showNotification(title, {
       body,

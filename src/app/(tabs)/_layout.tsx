@@ -260,14 +260,15 @@ function TabLabels({
 
 export default function TabsLayout() {
   const { ready, user } = useAuth();
+  const isGuest = useIsGuest();
   if (!ready) return null;
-  if (!user && !useIsGuest()) return <Redirect href="/(auth)/login" />; // pass 80 — guests may enter (Tools are open)
+  if (!user && !isGuest) return <Redirect href="/(auth)/login" />; // pass 80 — guests may enter (Tools are open)
 
   return (
     <View style={{ flex: 1 }}>
       <Tabs tabBar={(props) => <FloatingTabBar {...props} />} screenOptions={{ headerShown: false }}>
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="book-open" options={{ title: 'Quran & Hadith' }} />
+        <Tabs.Screen name="quran" options={{ title: 'Quran & Hadith' }} />
         <Tabs.Screen name="tools" options={{ title: 'Worship Tools' }} />
         <Tabs.Screen name="community" options={{ title: 'Community' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />

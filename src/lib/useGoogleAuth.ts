@@ -34,11 +34,9 @@ export function useGoogleAuth() {
         window.location.assign(res.url);
         return; /* the page is navigating away */
       }
-      await Linking.openURL(res.url).catch(() => {
-        setBusy(false);
-        haptic.medium();
-        Alert.alert('Google sign-in', 'Could not open the browser. Please try again.');
-      });
+      try { await Linking.openURL(res.url); }
+      catch { haptic.medium(); Alert.alert('Google sign-in', 'Could not open the browser. Please try again.'); }
+      finally { setBusy(false); }
     } catch {
       setBusy(false);
       Alert.alert('Google sign-in', 'Something went wrong. Please try again.');

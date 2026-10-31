@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { AppState, Pressable, View } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
-import { FontAwesome5 } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { usePathname } from 'expo-router';
+import { MaintenanceNotice } from '@/components/MaintenanceNotice';
 import {
   maintenanceFlags,
+  moduleLabel,
   isMasterMaintenance,
   isUnderMaintenance,
   moduleForPath,
   type MaintenanceFlags,
 } from '@/lib/maintenance';
-import { useTheme } from '@/context/ThemeContext';
-import { T } from '@/components/T';
 
 /**
  * pass 117/118 — the Admin panel's "App Modules" switches now reach the app.
@@ -32,17 +31,8 @@ import { T } from '@/components/T';
  *   · Re-checked on foreground and every 60s: an admin flips a switch and the
  *     app follows without a reinstall.
  */
-const LABEL: Record<string, string> = {
-  videos: 'Videos',
-  quran: "Qur'an study",
-  shop: 'Shop',
-  chat: 'Community',
-};
-
 export function MaintenanceGate({ children }: { children: React.ReactNode }) {
-  const { theme, isDark } = useTheme();
   const pathname = usePathname();
-  const router = useRouter();
   const [flags, setFlags] = useState<MaintenanceFlags | null>(null);
 
   useEffect(() => {
@@ -63,12 +53,24 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
       clearInterval(iv);
       sub.remove();
     };
-    /* maintenanceFlags() caches for the session; re-reading it is cheap. */
+    /* pass 121: maintenanceFlags() now honours a 60s TTL, so this poll can
+     * actually observe an Admin change (it previously returned a pinned cache). */
   }, []);
+
+  /* pass 122 — "Try again" must bypass the TTL, or it re-reads the cache and can
+   * never report a change. Returns true while the block still applies so the
+   * card can say so instead of silently doing nothing. */
+  const retry = useCallback(async () => {
+    const f = await maintenanceFlags({ force: true });
+    setFlags(f || {});
+    if (isMasterMaintenance(f)) return true;
+    const mod = moduleForPath(pathname);
+    return !!(mod && isUnderMaintenance(f, mod));
+  }, [pathname]);
 
   if (!flags) return <>{children}</>;
 
-  if (isMasterMaintenance(flags)) return <Screen dark={!!isDark} bg={theme.background} />;
+  if (isMasterMaintenance(flags)) return <MaintenanceNotice variant="master" onRetry={retry} />;
 
   const mod = moduleForPath(pathname);
   const blocked = mod && isUnderMaintenance(flags, mod) ? mod : null;
@@ -78,63 +80,5 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
    * a reel's audio playing behind the card and hit an API the admin just
    * switched off. The explicit "return to the feed" action is what keeps this
    * from ever trapping anyone. */
-  return <Screen dark={!!isDark} bg={theme.background} title={`${LABEL[blocked] ?? 'This area'} is under maintenance`} compact router={router} />;
-}
-
-function Screen({
-  dark,
-  bg,
-  title = 'DeenLink is under maintenance',
-  compact = false,
-  router,
-}: {
-  dark: boolean;
-  bg: string;
-  title?: string;
-  compact?: boolean;
-  router?: ReturnType<typeof useRouter>;
-}) {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', padding: 28, maxWidth: 420, backgroundColor: bg, flex: compact ? 1 : undefined }}>
-      <View
-        style={{
-          width: compact ? 62 : 78,
-          height: compact ? 62 : 78,
-          borderRadius: compact ? 31 : 39,
-          backgroundColor: 'rgba(245,124,0,0.12)',
-          borderWidth: 1,
-          borderColor: 'rgba(245,124,0,0.35)',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <FontAwesome5 name="tools" size={compact ? 22 : 28} color="#F57C00" />
-      </View>
-      <T v="h3" style={{ fontSize: compact ? 16 : 18, fontWeight: '800', textAlign: 'center', marginBottom: 8 }}>
-        {title}
-      </T>
-      <T v="body" style={{ fontSize: 13.5, textAlign: 'center', opacity: 0.75, lineHeight: 21 }}>
-        {compact
-          ? 'We have switched this area off for a short while to fix or improve it. Everything else in DeenLink still works.'
-          : 'We are making improvements right now. Please check back in a little while — everything will be exactly where you left it.'}
-      </T>
-      {compact && router ? (
-        <Pressable
-          onPress={() => router.replace('/(tabs)' as never)}
-          style={{
-            marginTop: 18,
-            paddingHorizontal: 20,
-            paddingVertical: 12,
-            borderRadius: 14,
-            backgroundColor: dark ? '#4AE38F' : '#1D6F42',
-          }}
-        >
-          <T v="bodyS" style={{ fontSize: 13, fontWeight: '800', color: dark ? '#04170F' : '#FFFFFF' }}>
-            Return to the feed
-          </T>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return <MaintenanceNotice variant="module" moduleName={moduleLabel(blocked)} onRetry={retry} />;
 }

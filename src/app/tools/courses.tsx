@@ -268,8 +268,35 @@ const CURRICULUM: Record<string, Lesson[]> = {
   ],
 };
 
-const lessonsFor = (c: Course): Lesson[] =>
-  CURRICULUM[c.slug ?? ""] ?? CURRICULUM.default;
+/* pass 123 — two changes, both about honesty over prettiness.
+ *
+ * 1. The `?? CURRICULUM.default` fallback handed every course without its own
+ *    curriculum the same four generic lessons ("Foundations", "Core Content",
+ *    "Application & Practice", "Review & Assessment") and QUIZZES.default the
+ *    same five questions. A course with nothing published therefore LOOKED full
+ *    and quizzable while teaching a learner nothing about that course — the
+ *    "courses that did not exist" complaint, from the app side. An empty list is
+ *    now rendered as such.
+ * 2. CURRICULUM/QUIZZES are keyed `seerah` and `fiqh-worship`, while the admin
+ *    catalogue slugs are `seerah-of-the-prophet` and `fiqh-of-worship`. So the
+ *    hand-written Seerah and Fiqh curricula could never attach to a real course
+ *    row — they were dead weight the fallback masked. SLUG_ALIAS bridges them,
+ *    so creating either course in Admin lights up the written content at once.
+ *
+ * Server modules still win (Player line ~1136), which is what makes the four
+ * currently-published courses show their real 3 lessons each. */
+const SLUG_ALIAS: Record<string, string> = {
+  "seerah-of-the-prophet": "seerah",
+  "fiqh-of-worship": "fiqh-worship",
+  "fiqh-of-worship-essentials": "fiqh-worship",
+};
+
+function bankFor<T>(bank: Record<string, T[]>, slug?: string | null): T[] {
+  const k = slug ?? "";
+  return bank[k] ?? bank[SLUG_ALIAS[k] ?? ""] ?? [];
+}
+
+const lessonsFor = (c: Course): Lesson[] => bankFor(CURRICULUM, c.slug);
 
 /* ── pass 42 — COURSE QUIZZES: 5 questions per curriculum. A quiz session is
  *   Q→A with instant feedback + explanation, then a score card; best score
@@ -489,8 +516,7 @@ function spreadCorrect(qs: QuizQ[]): QuizQ[] {
   });
 }
 
-const quizFor = (c: Course): QuizQ[] =>
-  QUIZZES[c.slug ?? ""] ?? QUIZZES.default;
+const quizFor = (c: Course): QuizQ[] => bankFor(QUIZZES, c.slug);
 
 export default function Courses() {
   const { theme, isDark } = useTheme();
@@ -789,8 +815,11 @@ export default function Courses() {
           ) : null}
           {list.map((c) => {
             const lessons = lessonsFor(c);
+            /* total_lessons is the admin's own count and is what the player will
+             * actually load; the bundled curriculum is only a fallback. */
+            const total = (c as { total_lessons?: number }).total_lessons ?? lessons.length;
             const done = (progress[c.id] ?? []).length;
-            const pct = Math.round((done / lessons.length) * 100);
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             return (
               <Pressable
                 key={c.id}
@@ -830,7 +859,7 @@ export default function Courses() {
                     <T v="h3">{c.title ?? "Course"}</T>
                     <T v="caption" style={{ marginTop: 3 }}>
                       {(c.category as string | undefined) ?? "Course"} ·{" "}
-                      {c.level ?? "All levels"} · {lessons.length} lessons
+                      {c.level ?? "All levels"} · {total > 0 ? `${total} lesson${total === 1 ? "" : "s"}` : "Lessons coming soon"}
                     </T>
                   </View>
                   <ChevronRightIcon size={16} color={theme.subtext} />
@@ -874,7 +903,7 @@ export default function Courses() {
                       color: isDark ? "#4AE38F" : "#1D6F42",
                     }}
                   >
-                    {done}/{lessons.length}
+                    {total > 0 ? `${done}/${total}` : "Not started"}
                     {done > 0 ? ` · ${pct}%` : ""}
                   </T>
                 </View>
@@ -1346,7 +1375,8 @@ function CoursePlayer({
     setCertificateQr("");
   };
   const done = progress.length;
-  const pct = Math.round((done / lessons.length) * 100);
+  const pTotal = lessons.length || (course as { total_lessons?: number }).total_lessons || 0;
+  const pct = pTotal > 0 ? Math.round((done / pTotal) * 100) : 0;
   const nextIdx = lessons.findIndex((_, i) => !progress.includes(i));
 
   return (
@@ -1417,7 +1447,7 @@ function CoursePlayer({
                   : `${course.title} · question ${qi + 1}`
                 : li != null
                   ? `${lessons[li].kind === "lecture" ? "Lecture" : "Reading"} · ${lessons[li].minutes} min`
-                  : `${done}/${lessons.length} lessons · ${pct}% complete`}
+                  : `${done}/${pTotal || 0} lessons · ${pct}% complete`}
             </T>
           </View>
           <View
@@ -1572,7 +1602,7 @@ function CoursePlayer({
                       {String(certificate.course_title ?? course.title)} with{" "}
                       {String(
                         certificate.quiz_percent ??
-                          Math.round((score / quiz.length) * 100),
+                          Math.round((score / (quiz.length || 1)) * 100),
                       )}
                       %
                     </T>

@@ -1,7 +1,8 @@
 import { markGoal } from '@/lib/routine';
 import { goBack } from '@/lib/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Modal, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -13,8 +14,7 @@ import { Compass, QIBLA_DESIGNS, type QiblaDesign } from '@/components/Compass';
 import { T } from '@/components/T';
 import { RouteMap } from '@/components/RouteMap';
 import { KaabaIcon } from '@/components/Icons';
-import { QiblaLeaflet } from '@/components/QiblaLeaflet';
-import { QiblaNativeSat } from '@/components/QiblaNativeSat';
+import { QiblaMap } from '@/components/QiblaMap';
 import { haptic } from '@/lib/haptics';
 import { ThemePriceChip, useThemeLocks } from '@/lib/themeLocks';
 import { storage } from '@/lib/storage';
@@ -33,7 +33,9 @@ export default function Qibla() {
   const router = useRouter();
   /* pass 102 — shared reactive location */
   const loc = useLocation();
-  const heading = useHeading();
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+  const heading = useHeading(focused);
   const buzzedFor = useRef(false);
   /* pass 38 — selectable compass design (persisted) + offline map toggle */
   const [design, setDesign] = useState<QiblaDesign>('classic');
@@ -199,7 +201,7 @@ export default function Qibla() {
           </Pressable>
         ) : null}
 
-        {h == null ? (
+        {heading.heading == null ? (
           <View style={{ marginTop: 12, alignItems: 'center', gap: 6 }}>
             <T v="caption" style={{ textAlign: 'center', lineHeight: 18, color: theme.subtext }}>
               No compass sensor detected. Align manually: point the top of your phone north (use the sun — it rises E, sets W), then dial until the phone heading matches:
@@ -230,13 +232,9 @@ export default function Qibla() {
           <KaabaIcon size={16} color={isDark ? '#4AE38F' : '#1D6F42'} />
           <T v="bodyS" style={{ fontWeight: '800', fontSize: 12.5 }}>Direction to Makkah</T>
         </View>
-        {Platform.OS === 'web' ? (
-          <QiblaLeaflet userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} height={196} />
-        ) : (
-          <QiblaNativeSat userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} height={196} />
-        )}
+        <QiblaMap userLoc={{ lat: loc.latitude, lon: loc.longitude }} userName={loc.name} distanceKm={km} bearing={bearing} />
         <T v="caption" style={{ marginTop: 8, fontSize: 10, color: theme.subtext }}>
-          {km.toFixed(0)} km from Makkah · satellite map saved on first view for offline use.
+          {km.toFixed(0)} km from Makkah · offline map.
         </T>
       </View>
       </ScrollView>

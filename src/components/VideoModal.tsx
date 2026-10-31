@@ -1,13 +1,14 @@
 import { imgSource } from '@/lib/nativePack';
 import { useEffect, useRef, useState } from 'react';
-import { Dimensions, Image, Modal, Platform, Pressable, Share, View } from 'react-native';
+import { AppState, Dimensions, Image, Modal, Platform, Pressable, Share, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { T } from '@/components/T';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
-import { silenceMedia } from '@/lib/mediaBus';
+import { claimMedia, registerMediaStop, releaseMedia, useMediaHolds } from '@/lib/mediaBus';
+import { youtubeEmbedUrl } from '@/lib/youtube';
 import { stopBubble } from '@/lib/press';
 import type { Video } from '@/api/types';
 
@@ -39,8 +40,10 @@ export function VideoModal({
 }) {
   const { theme } = useTheme();
   const d = theme.dash;
-  const isEmbed = !!video?.embed_url;
-  const localSrc = typeof video?.source_url === 'string' ? String(video.source_url) : '';
+  const rawSrc = video?.embed_url || video?.youtubeEmbedUrl || video?.youtube_embed_url || video?.youtube_url || video?.source_url || video?.sourceUrl;
+  const embedUrl = youtubeEmbedUrl(rawSrc);
+  const isEmbed = !!embedUrl || !!video?.embed_url || (video?.source_type === 'youtube' || video?.sourceType === 'youtube');
+  const localSrc = typeof (video?.source_url ?? video?.sourceUrl) === 'string' ? String(video?.source_url ?? video?.sourceUrl) : '';
   const canPlayInline = !isEmbed && localSrc !== '';
   const player = useVideoPlayer(
     canPlayInline ? { uri: localSrc, useCaching: true } : null,
@@ -67,6 +70,16 @@ export function VideoModal({
    * never a black box. */
   const [autoThumb, setAutoThumb] = useState<unknown>(null);
   const videoKey = video?.id ?? 0;
+  const mediaKey = `daily:${videoKey}`;
+  const holdsMedia = useMediaHolds(mediaKey);
+  const [wantsPlayback, setWantsPlayback] = useState(false);
+  useEffect(() => registerMediaStop(mediaKey, () => { try { player.pause(); } catch {} setWantsPlayback(false); }), [mediaKey, player]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') { releaseMedia(mediaKey); setWantsPlayback(false); }
+    });
+    return () => sub.remove();
+  }, [mediaKey]);
 
   /* pass 102 - the poster frame. The server picks a RANDOM FRAME from the
    * uploaded video (api/lib/video_process.php ->
@@ -88,6 +101,7 @@ export function VideoModal({
       event: string,
       callback: (payload: any) => void,
     ) => { remove: () => void };
+    const endedSub = player.addListener('playToEnd', () => { setEnded(true); setPlaying(false); setWantsPlayback(false); });
     const playingSub = add('playingChange', (payload) => {
       setPlaying(!!payload?.isPlaying);
     });
@@ -131,6 +145,7 @@ export function VideoModal({
       }
     }, 400);
     return () => {
+      endedSub.remove();
       playingSub.remove();
       statusSub.remove();
       timeSub.remove();
@@ -139,34 +154,21 @@ export function VideoModal({
     };
   }, [canPlayInline, player]);
 
-  /* A daily click starts the local video immediately, but never hands it to a
-   * browser or native full-screen player. */
+  // Opening the daily video claims the single global speaker. Losing it,
+  // closing the modal, or backgrounding pauses and releases the native player.
   useEffect(() => {
-    setPlaying(false);
-    setEnded(false);
-    setPosition(0);
-    setDuration(0);
-    setAspect(16 / 9);
-    setError('');
-    if (!video || !canPlayInline) return;
-    const t = setTimeout(() => {
-      try {
-        player.play();
-      } catch {
-        setError('Tap play to start this video.');
-      }
-    }, 120);
-    return () => clearTimeout(t);
-  }, [videoKey, canPlayInline, player]);
-
+    setPlaying(false); setEnded(false); setPosition(0); setDuration(0); setAspect(16 / 9); setError('');
+    setWantsPlayback(!!video && canPlayInline);
+  }, [videoKey, canPlayInline]);
   useEffect(() => {
-    if (!video) {
-      try {
-        player.pause();
-      } catch {}
-      silenceMedia();
-    }
-  }, [video, player]);
+    if (video && canPlayInline && wantsPlayback) claimMedia(mediaKey); else releaseMedia(mediaKey);
+    return () => { releaseMedia(mediaKey); try { player.pause(); } catch {} };
+  }, [mediaKey, canPlayInline, wantsPlayback, player]);
+  useEffect(() => {
+    try {
+      if (video && canPlayInline && wantsPlayback && holdsMedia) player.play(); else player.pause();
+    } catch { setError('Tap play to start this video.'); }
+  }, [mediaKey, canPlayInline, wantsPlayback, holdsMedia, player]);
 
   /* pass 102 - on-device poster fallback. dl_video_generate_random_thumbnail()
    * needs ffmpeg, and plenty of shared hosts disable exec(), so an upload can
@@ -209,8 +211,8 @@ export function VideoModal({
         setPosition(0);
         setEnded(false);
       }
-      if (playing) player.pause();
-      else player.play();
+      if (playing || (wantsPlayback && holdsMedia)) { setWantsPlayback(false); releaseMedia(mediaKey); }
+      else { setWantsPlayback(true); claimMedia(mediaKey); }
     } catch {
       setError('This video could not be played in the app.');
     }
@@ -276,8 +278,8 @@ export function VideoModal({
           </View>
 
           {isEmbed ? (
-            <View style={{ width: 302, height: 220, alignSelf: 'center', backgroundColor: '#000' }}>
-              <YouTubePlayer embedUrl={String(video?.embed_url)} height={220} autoStart />
+            <View style={{ width: 302, alignSelf: 'center', backgroundColor: '#000' }}>
+              <YouTubePlayer embedUrl={embedUrl ?? String(rawSrc ?? '')} height={220} gateKey={`daily:${videoKey}`} autoStart />
             </View>
           ) : (
             <View

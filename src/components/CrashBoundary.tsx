@@ -1,4 +1,5 @@
 import React from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { Platform, ScrollView, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 
 /**
@@ -48,7 +49,7 @@ export class CrashBoundary extends React.Component<Props, State> {
       try {
         utils.setGlobalHandler((error: Error, isFatal?: boolean) => {
           const msg = String(error?.stack || error?.message || error);
-          if (isRecoverableJsError(msg)) {
+          if (!isFatal && isRecoverableJsError(msg)) {
             /* lazy chunk not registered yet — let the app keep running and let
              * the caller's own catch() do its job (pass 88). */
             try { console.warn('[DeenLink] deferred module not loaded yet:', msg); } catch { /* noop */ }
@@ -56,9 +57,10 @@ export class CrashBoundary extends React.Component<Props, State> {
           }
           try {
             this.setState({ error: msg });
+            void SplashScreen.hideAsync().catch(() => {});
           } catch { /* noop */ }
           // Hand it back to RN so normal dev behaviour is preserved.
-          try { this.previousHandler?.(error, isFatal); } catch { /* noop */ }
+          if (__DEV__) { try { this.previousHandler?.(error, isFatal); } catch { /* noop */ } }
         });
       } catch { /* noop */ }
     }
@@ -66,10 +68,7 @@ export class CrashBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     const msg = String((error as Error)?.stack || (error as Error)?.message || error);
-    if (isRecoverableJsError(msg)) {
-      try { console.warn('[DeenLink] ignored recoverable error:', msg); } catch { /* noop */ }
-      return;
-    }
+    void SplashScreen.hideAsync().catch(() => {});
     const comp = String(info?.componentStack || '');
     this.setState({ error: comp ? `${msg}\n\n— component stack —${comp}` : msg });
   }

@@ -1,47 +1,67 @@
 import { Stack, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import { T } from '@/components/T';
-import { TopBar } from '@/components/TopBar';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
-import { isUnderMaintenance, maintenanceFlags, ROUTE_MODULE } from '@/lib/maintenance';
+import { MaintenanceNotice } from '@/components/MaintenanceNotice';
+import {
+  isUnderMaintenance,
+  maintenanceFlags,
+  moduleLabel,
+  ROUTE_MODULE,
+} from '@/lib/maintenance';
 
 /* pass 83-39 — module on/off gate (owner: off = module under maintenance,
  * inaccessible in the app). ONE gate here covers every /tools/* screen; the
- * admin controls each module from System Settings → App Modules. */
+ * admin controls each module from System Settings → App Modules.
+ *
+ * pass 122 — the overlay used to render its own centered box with a <TopBar>
+ * inside it, which (a) put the back button mid-screen over the copy — "the back
+ * button hardly works" — and (b) had no way to re-check after an admin switched
+ * the module back on. Both are now the shared MaintenanceNotice's job, and the
+ * flags are re-read on foreground as well as on route change, so a user sitting
+ * on a tools screen is not stuck until they navigate away. */
+
+/** module key for the current /tools/<seg> route. */
+function modFor(pathname: string | null | undefined): string | undefined {
+  const seg = String(pathname || '').split('/').filter(Boolean);
+  return ROUTE_MODULE[seg[1] ?? ''];
+}
+
 export default function ToolsLayout() {
   const pathname = usePathname();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const d = theme.dash;
   const [blocked, setBlocked] = useState<string | null>(null);
 
+  const check = useCallback(
+    async (force = false) => {
+      const flags = await maintenanceFlags({ force }).catch(() => null);
+      if (!flags) return false;
+      const mod = modFor(pathname);
+      const down = !!(mod && isUnderMaintenance(flags, mod));
+      setBlocked(down ? (mod as string) : null);
+      return down;
+    },
+    [pathname],
+  );
+
   useEffect(() => {
     let alive = true;
-    maintenanceFlags().then((flags) => {
-      if (!alive) return;
-      const seg = (pathname || '').split('/').filter(Boolean); // ['tools','quiz']
-      const mod = ROUTE_MODULE[seg[1] ?? ''];
-      setBlocked(mod && isUnderMaintenance(flags, mod) ? mod : null);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [pathname]);
+    void (async () => { if (alive) await check(); })();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void check(true);
+    });
+    return () => { alive = false; sub.remove(); };
+  }, [check]);
+
+  const retry = useCallback(async () => check(true), [check]);
 
   return (
     <View style={{ flex: 1, backgroundColor: d.bg }}>
       <Stack screenOptions={{ headerShown: false }} />
       {blocked ? (
-        <View style={{ position: 'absolute', inset: 0, backgroundColor: d.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <TopBar showBack title="Under maintenance" />
-          <View style={{ alignItems: 'center', marginTop: -40 }}>
-            <View style={{ width: 74, height: 74, borderRadius: 37, backgroundColor: 'rgba(245,124,0,0.12)', borderWidth: 1, borderColor: 'rgba(245,124,0,0.35)', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-              <FontAwesome5 name="tools" size={26} color="#F57C00" />
-            </View>
-            <T v="h3" style={{ fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Under maintenance</T>
-            <T v="bodyS" style={{ fontSize: 13, lineHeight: 20, textAlign: 'center', opacity: 0.7, marginTop: 8 }}>
-              This section is temporarily unavailable while we work on improvements. Please check back soon, in shaa Allah.
-            </T>
-          </View>
+        <View style={{ position: 'absolute', inset: 0, backgroundColor: d.bg }}>
+          <MaintenanceNotice variant="module" palette="dash" moduleName={moduleLabel(blocked)} bg={d.bg} onRetry={retry} />
         </View>
       ) : null}
     </View>

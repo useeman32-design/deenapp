@@ -26,29 +26,14 @@ import { useResponsive, webContentCss } from '@/lib/responsive';
 import { bmHydrate } from '@/lib/bookmarks';
 import { initGuest } from '@/lib/guest';
 import { installWebAssetBase } from '@/lib/assetUri';
-import { installNativeAssetPack, ensurePack } from '@/lib/nativePack';
 
 initGuest(); // pass 80 — restore guest flag once per app load
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Root() {
-  /* pass 111 — the release-native content pack must be on disk before fonts
-   * and images can resolve; web/dev are ready immediately. The 8s boot
-   * watchdog still fires regardless, so a failed download degrades the UI
-   * instead of bricking startup, and fonts/images pop in when it lands. */
-  const [packReady, setPackReady] = useState(Platform.OS === 'web' || __DEV__);
-  useEffect(() => {
-    if (Platform.OS === 'web' || __DEV__) return;
-    let alive = true;
-    ensurePack().finally(() => {
-      if (alive) setPackReady(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const [fontsLoaded] = useAppFonts(packReady);
+  // Bundled fonts and images do not require a startup download.
+  const [fontsLoaded] = useAppFonts();
   const { ready, user } = useAuth();
   const { theme, isDark } = useTheme();
 
@@ -60,10 +45,10 @@ function Root() {
    * on a resource that might not load: after 8s we proceed regardless. */
   const [booted, setBooted] = useState(false);
 useEffect(() => {
-    const t = setTimeout(() => setBooted(true), 8000);
+    const t = setTimeout(() => setBooted(true), 5000);
     return () => clearTimeout(t);
   }, []);
-  const bootOk = (ready && fontsLoaded && packReady) || booted;
+  const bootOk = (ready && fontsLoaded) || booted;
 
   /* pass 83-5 — iOS Safari zooms the WHOLE screen when focusing an input whose
    * font-size is under 16px (owner: "search screens zoom when text field is
@@ -78,9 +63,6 @@ useEffect(() => {
     document.head.appendChild(st);
   }, []);
 
-  useEffect(() => {
-    if (bootOk) SplashScreen.hideAsync().catch(() => {});
-  }, [bootOk]);
 
   /* pass 49: Expo mobile push — handle taps once, and (re)register this
    * device's push token whenever a user is signed in. Native builds only. */
@@ -130,7 +112,7 @@ useEffect(() => {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const el = document.createElement('style');
-    const base = window.location.pathname.replace(/^(\/deenapp\b).*$/, '$1');
+    const base = /^\/deenapp(?:\/|$)/.test(window.location.pathname) ? '/deenapp' : '';
     const faces = [
       ['Poppins', 'Poppins-Regular'],
       ['Poppins-Medium', 'Poppins-Medium'],
@@ -205,8 +187,6 @@ useEffect(() => {
     meta.setAttribute('content', bg);
   }, [theme.background]);
 
-  if (!bootOk) return null;
-
   return (
     <SplashGate ready={bootOk}>
       <MaintenanceGate>
@@ -232,9 +212,6 @@ useEffect(() => {
 /* pass 93 — runs once, before anything renders, so nested routes resolve local assets */
 installWebAssetBase();
 
-/* pass 111 — release-native: point every require()'d asset at the on-disk
- * content pack instead of the gradle-mangled bundle resources */
-installNativeAssetPack();
 
 /**
  * pass 107 — the ONE place content width is capped.
@@ -253,14 +230,13 @@ installNativeAssetPack();
 function ResponsiveShell({ children }: { children: React.ReactNode }): React.ReactElement {
   const { contentMaxWidth } = useResponsive();
   const { theme } = useTheme();
-  if (!contentMaxWidth) return <>{children}</>;
   return (
     <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center' }}>
       <View
         style={{
           flex: 1,
           width: '100%',
-          maxWidth: contentMaxWidth,
+          maxWidth: contentMaxWidth ?? undefined,
           alignSelf: 'center',
           backgroundColor: theme.background,
         }}
